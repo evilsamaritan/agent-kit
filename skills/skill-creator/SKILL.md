@@ -62,7 +62,7 @@ Determine which flow to run:
 After creating or editing a skill, verify:
 
 1. **Accessible via symlink**: `ls .claude/skills/<skill-name>/SKILL.md`
-2. **Quality**: chain to Flow 2 (Verify) for full validation (Categories A-E automated, Category F manual triggering tests)
+2. **Quality**: chain to Flow 2 (Verify) for full 43-check validation
 
 ## References
 

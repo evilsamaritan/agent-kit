@@ -1,8 +1,6 @@
 # Skill Verification Checklist
 
-50 checks across 6 categories. Categories A-E are automated (43 checks). Category F requires manual testing with Claude (7 checks).
-
-Each check has an ID, severity, rule, and fix guidance.
+43 checks across 5 categories. Each check has an ID, severity, rule, and fix guidance.
 
 ## Contents
 
@@ -11,7 +9,6 @@ Each check has an ID, severity, rule, and fix guidance.
 - [Category C: Content Quality](#category-c-content-quality) — 12 checks (C1-C12)
 - [Category D: Anti-Patterns](#category-d-anti-patterns) — 7 checks (D1-D7)
 - [Category E: Deployment](#category-e-deployment) — 1 check (E1)
-- [Category F: Triggering & Context](#category-f-triggering--context) — 7 checks (F1-F7), manual
 - [Verification Report Format](#verification-report-format)
 
 **Severity levels:**
@@ -365,40 +362,6 @@ The repo uses symlinks: .claude/skills → ../skills/
 So the actual file must exist at skills/<skill-name>/SKILL.md.
 If not found → skill is not accessible. The agent cannot load it.
 ```
-
----
-
-## Category F: Triggering & Context
-
-| ID | Severity | Check | Fix |
-|----|----------|-------|-----|
-| F1 | WARNING | Skill triggers on 3+ natural phrasings of the task | Expand description with more trigger phrases |
-| F2 | WARNING | Skill does NOT trigger on 3+ unrelated queries | Add negative triggers ("Do NOT use for...") or narrow description |
-| F3 | WARNING | `description` under 200 chars (or justified if longer) | Trim description — long descriptions waste context budget |
-| F4 | WARNING | `SKILL.md` under 5000 words | Extract content to sub-files following progressive disclosure |
-| F5 | SUGGESTION | New frontmatter fields used correctly (`argument-hint`, `disable-model-invocation`, `hooks`) | See best-practices.md Frontmatter Reference for valid values |
-| F6 | SUGGESTION | Dynamic context (`` `!command` ``) syntax is correct and command exists | Test command independently, verify output is useful at load time |
-| F7 | SUGGESTION | `$ARGUMENTS` substitution tested with actual input | Invoke skill with arguments and verify substitution works |
-
-### F: Detailed Checks
-
-**F1: Triggering test**
-```
-Formulate 3+ natural phrasings of the task the skill handles.
-Ask Claude: "When would you use [skill-name] skill?"
-Claude should quote the description back and give relevant examples.
-If it can't explain when to use the skill, the description needs work.
-Success: 90%+ trigger rate on relevant queries.
-```
-
-**F2: False positive test**
-```
-Formulate 3+ unrelated queries that should NOT trigger the skill.
-If the skill loads for unrelated queries → description is too broad.
-Fix: add negative triggers or narrow the description scope.
-```
-
-Note: Critical instruction placement is already covered by C12 in Category C.
 
 ---
 
