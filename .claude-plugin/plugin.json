@@ -1,0 +1,22 @@
+{
+  "name": "agent-kit",
+  "version": "1.0.0",
+  "description": "Production-grade agents and skills. Software architecture, Rust, backend, frontend, security, DevOps, QA, and more.",
+  "author": {
+    "name": "Maksim Misiukevich"
+  },
+  "repository": "https://github.com/evilsamaritan/agent-kit",
+  "license": "MIT",
+  "keywords": [
+    "claude-code",
+    "agents",
+    "skills",
+    "context-engineering",
+    "software-architecture",
+    "rust",
+    "backend",
+    "frontend",
+    "security",
+    "devops"
+  ]
+}

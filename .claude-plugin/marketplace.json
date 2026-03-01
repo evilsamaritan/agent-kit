@@ -1,0 +1,17 @@
+{
+  "name": "agent-kit",
+  "owner": {
+    "name": "Maksim Misiukevich"
+  },
+  "metadata": {
+    "description": "Curated collection of production-grade agents and skills"
+  },
+  "plugins": [
+    {
+      "name": "agent-kit",
+      "source": "./",
+      "description": "Production-grade agents and skills. 22 agents and 19 skills covering software architecture, Rust, backend, frontend, security, DevOps, QA, and trading systems.",
+      "version": "1.0.0"
+    }
+  ]
+}
