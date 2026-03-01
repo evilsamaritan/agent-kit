@@ -4,16 +4,35 @@ Consolidated knowledge for writing high-quality skills. The context window is a 
 
 ## Table of Contents
 
+- [Context Engineering](#context-engineering)
 - [Progressive Disclosure](#progressive-disclosure)
 - [Standard Directory Structure](#standard-directory-structure)
 - [Content Organization](#content-organization)
 - [Instruction Tone](#instruction-tone)
 - [Writing Patterns](#writing-patterns)
 - [Description Writing Guide](#description-writing-guide)
+- [Skill Patterns](#skill-patterns)
 - [Frontmatter Reference](#frontmatter-reference)
+- [Advanced Techniques](#advanced-techniques)
 - [What NOT to Include](#what-not-to-include)
 - [Skills Distribution](#skills-distribution)
 - [Testing Checklist](#testing-checklist)
+
+---
+
+## Context Engineering
+
+The context window is a shared, finite resource. Design skills with this in mind.
+
+- **Context is finite** — tool outputs consume ~84% of tokens in agent workflows. Every line in a skill competes with the user's actual work.
+- **Lost-in-Middle effect** — models have U-shaped attention across long contexts. Place critical instructions at the start and end, not in the middle.
+- **Four-Bucket strategy** for context management:
+  - Write: store information externally (files, databases)
+  - Select: retrieve only what's relevant (targeted reads, not bulk loads)
+  - Compress: summarize verbose outputs before returning
+  - Isolate: split work across sub-agents to parallelize context usage
+- **Compaction threshold** — at 70-80% context utilization, earlier messages get compressed. Front-load critical information.
+- **Description budget** — all skill descriptions combined should fit within ~2% of the context window. Sweet spot: 80-300 chars per description.
 
 ---
 
@@ -236,17 +255,25 @@ The description is the **sole trigger mechanism** — the agent uses it to decid
 ### Formula
 
 ```
-<Verb in imperative form> <what it does>. Use when <trigger phrases>.
+WHAT (imperative verb + object) + WHEN (trigger phrases) + KEY CAPABILITIES (if space allows)
 ```
+
+### Four questions a description must answer
+
+1. **What** does this skill do?
+2. **When** should it be used?
+3. **What inputs** does it need?
+4. **What does it return/produce?**
 
 ### Rules
 
 1. **Single line** — no multi-line YAML (`>`, `|`)
-2. **Max 1024 characters** — aim for 100-200
+2. **Max 1024 characters** — sweet spot is 80-300 chars (under 80 too vague, over 300 wasting budget)
 3. **Start with a verb** in imperative/infinitive form — Create, Run, Add, Write, Configure
 4. **Include trigger phrases** — exact words users would say
 5. **Be specific** — mention technologies, patterns, file types
 6. **Cover the "when"** — "Use when creating X, adding Y, or fixing Z"
+7. **Negative triggers** — add "Do NOT use for..." if skill could be confused with another
 
 ### Good Examples
 
@@ -274,6 +301,23 @@ description: Create a new skill. This skill creates new skills for the skills sy
 
 ---
 
+## Skill Patterns
+
+Choose an approach based on the use case:
+
+- **Problem-first**: user describes an outcome ("set up a project workspace") → skill orchestrates the right tools
+- **Tool-first**: user has a tool connected ("I have Notion MCP") → skill teaches optimal workflows for that tool
+
+| Pattern | When to use | Key technique |
+|---------|------------|---------------|
+| Sequential Workflow | Multi-step process in specific order | Explicit step ordering, validation gates |
+| Multi-MCP Coordination | Workflow spans multiple services | Phase separation, data passing between MCPs |
+| Iterative Refinement | Output quality improves with iteration | Quality check → fix → re-validate loop |
+| Context-Aware Tool Selection | Same outcome, different tools by context | Decision tree based on runtime context |
+| Domain-Specific Intelligence | Skill adds specialized knowledge | Embedded expertise shapes decisions |
+
+---
+
 ## Frontmatter Reference
 
 ### Required Fields
@@ -294,6 +338,17 @@ description: Create a new skill. This skill creates new skills for the skills sy
 | `agent` | `general-purpose` | Only with `context: fork`. Options: `Explore`, `Plan`, `general-purpose`. |
 | `model` | conversation model | Override model for this skill. Agent-specific model IDs. |
 | `hooks` | — | Lifecycle hooks: `PreToolUse`, `PostToolUse`, `Stop`. See AGENTS.md for format. |
+| `argument-hint` | — | Autocomplete hint for arguments (e.g., `[issue-number]`, `[filename]`). |
+| `disable-model-invocation` | `false` | Prevent agent from auto-loading this skill. |
+| `license` | — | Open-source license (e.g., `MIT`, `Apache-2.0`). For distribution. |
+| `compatibility` | — | Environment requirements, 1-500 chars (intended product, system packages, network access). |
+| `metadata` | — | Custom key-value pairs: `author`, `version`, `mcp-server`, `category`, `tags`. |
+
+**String substitution:** `$ARGUMENTS` (or `$1`, `$2`, `$ARGUMENTS[0]`) substitutes user input. `${CLAUDE_SESSION_ID}` provides session-specific paths.
+
+**Dynamic context injection:** `` `!command` `` in skill body injects live command output at load time.
+
+**Scoped tool access:** `allowed-tools` supports scoped syntax: `"Bash(python:*) Bash(npm:*) WebFetch"` restricts Bash to specific commands.
 
 ### Validation Rules
 
@@ -302,6 +357,31 @@ description: Create a new skill. This skill creates new skills for the skills sy
 - `allowed-tools` must be comma-separated string, not YAML list
 - `context: fork` requires `agent` to be set
 - No unknown fields — the agent ignores them silently
+
+---
+
+## Advanced Techniques
+
+### Scripts for deterministic validation
+Replace natural language validation instructions with executable scripts in `scripts/`. A script either passes or fails — no interpretation ambiguity.
+
+### Tool restriction with `allowed-tools`
+Read-only skills: `Read, Grep, Glob`. File modification: `Edit, Write`. Only grant `Bash` when the skill runs commands.
+
+### Fork context for isolation
+`context: fork` runs the skill as a sub-agent with its own context window. Use for skills that consume significant context to avoid polluting the main conversation.
+
+### Skills preloading in agents
+The `skills:` frontmatter field in agents injects full skill content into the sub-agent's context at startup. Use when the agent always needs the skill.
+
+### Model laziness mitigation
+For skills where thoroughness matters, add to the skill body:
+```markdown
+## Performance Notes
+- Take your time to do this thoroughly
+- Quality is more important than speed
+- Do not skip validation steps
+```
 
 ---
 

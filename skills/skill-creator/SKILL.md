@@ -44,20 +44,25 @@ Determine which flow to run:
 |-------|----------|-------|
 | `name` | Yes | Lowercase + hyphens, max 64 chars, matches directory |
 | `description` | Yes | Single line, max 1024 chars, verb + trigger phrases |
-| `allowed-tools` | No | Comma-separated string (not YAML list) |
+| `allowed-tools` | No | Comma-separated string (not YAML list). Scoped: `"Bash(python:*)"` |
 | `internal` | No | Boolean. `true` for locally created skills — only internal skills are verified/improved by default |
 | `user-invocable` | No | Boolean, default `true` |
 | `context` | No | `fork` for isolated sub-agent |
 | `agent` | No | Agent type when `context: fork` |
 | `model` | No | Override model |
-| `hooks` | No | Lifecycle hooks |
+| `argument-hint` | No | Autocomplete hint (e.g., `[issue-number]`) |
+| `disable-model-invocation` | No | Prevent auto-loading |
+| `hooks` | No | Lifecycle hooks (PreToolUse, PostToolUse, Stop) |
+| `license` | No | Open-source license for distribution |
+| `compatibility` | No | Environment requirements, 1-500 chars |
+| `metadata` | No | Custom key-value pairs (author, version, mcp-server) |
 
 ## Validation
 
 After creating or editing a skill, verify:
 
 1. **Accessible via symlink**: `ls .claude/skills/<skill-name>/SKILL.md`
-2. **Quality**: chain to Flow 2 (Verify) for full 43-check validation
+2. **Quality**: chain to Flow 2 (Verify) for full validation (Categories A-E automated, Category F manual triggering tests)
 
 ## References
 

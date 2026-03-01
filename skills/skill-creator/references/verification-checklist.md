@@ -1,6 +1,8 @@
 # Skill Verification Checklist
 
-43 checks across 5 categories. Each check has an ID, severity, rule, and fix guidance.
+50 checks across 6 categories. Categories A-E are automated (43 checks). Category F requires manual testing with Claude (7 checks).
+
+Each check has an ID, severity, rule, and fix guidance.
 
 ## Contents
 
@@ -9,6 +11,7 @@
 - [Category C: Content Quality](#category-c-content-quality) — 12 checks (C1-C12)
 - [Category D: Anti-Patterns](#category-d-anti-patterns) — 7 checks (D1-D7)
 - [Category E: Deployment](#category-e-deployment) — 1 check (E1)
+- [Category F: Triggering & Context](#category-f-triggering--context) — 7 checks (F1-F7), manual
 - [Verification Report Format](#verification-report-format)
 
 **Severity levels:**
@@ -89,14 +92,14 @@ If absent:
 | B2 | WARNING | `SKILL.md` is under 500 lines | Extract sections to workflows/ or references/ files |
 | B3 | WARNING | Supporting files are in correct directories: procedures in `workflows/`, docs in `references/`, code in `scripts/`, output files in `assets/` | Move files to appropriate directories |
 | B4 | WARNING | No unreferenced files (each sub-file is linked from SKILL.md) | Add links or remove unused files |
+| B5 | SUGGESTION | Has `## Purpose` section only if it expands on `description`. Omit if it would repeat frontmatter. Intro text after `# Heading` follows the same rule. | Add Purpose only when it adds scope, constraints, or context not in description. Remove if it duplicates. Same for intro text. |
+| B6 | SUGGESTION | Has `## Validation` section for skills with procedures | Add validation steps |
 | B7 | WARNING | Procedures > 60 lines are extracted to `workflows/`, knowledge > 60 lines to `references/` | Extract long sections to sub-files following progressive disclosure |
 | B8 | WARNING | Content placement is correct: procedures in workflows/, knowledge in references/ (not swapped) | Move procedure files from references/ to workflows/ and vice versa |
 | B9 | WARNING | If references/ contains files with step-by-step procedures, they should be in workflows/ instead | Move procedure files from references/ to workflows/ |
 | B10 | WARNING | Instruction tone matches content type: procedures use imperative tone, reference material uses advisory tone | Rewrite: procedures → "Do X. Then Y." Reference → "When X, consider Y." |
-| B12 | WARNING | SKILL.md follows progressive disclosure: entry point with overview and routing, not full content. Router skills (2+ independent procedures) keep SKILL.md under 200 lines. | Extract detailed content to sub-files, keep SKILL.md as concise entry point |
 | B11 | SUGGESTION | Reference files over 100 lines have a table of contents at the top | Add TOC so the agent can see the full scope when previewing |
-| B5 | SUGGESTION | Has `## Purpose` section only if it expands on `description`. Omit if it would repeat frontmatter. Intro text after `# Heading` follows the same rule. | Add Purpose only when it adds scope, constraints, or context not in description. Remove if it duplicates. Same for intro text. |
-| B6 | SUGGESTION | Has `## Validation` section for skills with procedures | Add validation steps |
+| B12 | WARNING | SKILL.md follows progressive disclosure: entry point with overview and routing, not full content. Router skills (2+ independent procedures) keep SKILL.md under 200 lines. | Extract detailed content to sub-files, keep SKILL.md as concise entry point |
 
 ### B: Detailed Checks
 
@@ -362,6 +365,40 @@ The repo uses symlinks: .claude/skills → ../skills/
 So the actual file must exist at skills/<skill-name>/SKILL.md.
 If not found → skill is not accessible. The agent cannot load it.
 ```
+
+---
+
+## Category F: Triggering & Context
+
+| ID | Severity | Check | Fix |
+|----|----------|-------|-----|
+| F1 | WARNING | Skill triggers on 3+ natural phrasings of the task | Expand description with more trigger phrases |
+| F2 | WARNING | Skill does NOT trigger on 3+ unrelated queries | Add negative triggers ("Do NOT use for...") or narrow description |
+| F3 | WARNING | `description` under 200 chars (or justified if longer) | Trim description — long descriptions waste context budget |
+| F4 | WARNING | `SKILL.md` under 5000 words | Extract content to sub-files following progressive disclosure |
+| F5 | SUGGESTION | New frontmatter fields used correctly (`argument-hint`, `disable-model-invocation`, `hooks`) | See best-practices.md Frontmatter Reference for valid values |
+| F6 | SUGGESTION | Dynamic context (`` `!command` ``) syntax is correct and command exists | Test command independently, verify output is useful at load time |
+| F7 | SUGGESTION | `$ARGUMENTS` substitution tested with actual input | Invoke skill with arguments and verify substitution works |
+
+### F: Detailed Checks
+
+**F1: Triggering test**
+```
+Formulate 3+ natural phrasings of the task the skill handles.
+Ask Claude: "When would you use [skill-name] skill?"
+Claude should quote the description back and give relevant examples.
+If it can't explain when to use the skill, the description needs work.
+Success: 90%+ trigger rate on relevant queries.
+```
+
+**F2: False positive test**
+```
+Formulate 3+ unrelated queries that should NOT trigger the skill.
+If the skill loads for unrelated queries → description is too broad.
+Fix: add negative triggers or narrow the description scope.
+```
+
+Note: Critical instruction placement is already covered by C12 in Category C.
 
 ---
 

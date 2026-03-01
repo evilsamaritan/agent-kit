@@ -52,17 +52,18 @@ Proceed only after confirmation.
 
 ## Step 5: Write Description
 
-Draft the description following the formula in imperative/infinitive form:
+Draft the description following the formula:
 
 ```
-<Verb> <what it does>. Use when <trigger phrases>.
+WHAT (imperative verb + object) + WHEN (trigger phrases) + KEY CAPABILITIES (if space allows)
 ```
 
 Rules:
-- Single line, max 1024 chars
+- Single line, max 1024 chars (sweet spot: 80-300 chars)
 - Start with a verb (Create, Run, Add, Write, Configure, etc.)
 - Include "Use when" with trigger phrases — exact words users would say
 - Be specific — mention technologies, patterns, file types
+- Add "Do NOT use for..." if skill could be confused with another
 
 Present to user for approval. Iterate if needed.
 

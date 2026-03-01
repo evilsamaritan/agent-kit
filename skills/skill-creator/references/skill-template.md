@@ -180,19 +180,24 @@ Not every skill needs every section. Use this table to decide what to include.
 name: kebab-case-name           # Max 64 chars, must match directory
 description: Verb phrase. Use when trigger phrases.  # Max 1024 chars, single line
 
-# Optional
-allowed-tools: Read, Bash, Edit              # Comma-separated, NOT YAML list
+# Optional — behavior
+allowed-tools: Read, Bash, Edit              # Comma-separated, NOT YAML list. Scoped: "Bash(python:*)"
 internal: true                               # Locally created skill, included in verify/improve
 user-invocable: true                         # Show in /slash menu (default: true)
 context: fork                                # Isolated sub-agent execution
 agent: general-purpose                       # Agent type for context: fork
 model: model-id                              # Override model (agent-specific)
-hooks:                                       # Lifecycle hooks
-  PreToolUse:
-    - matcher: "Bash"
-      hooks:
-        - type: command
-          command: "./scripts/check.sh"
+argument-hint: "[issue-number]"              # Autocomplete hint for arguments
+disable-model-invocation: false              # Prevent auto-loading
+hooks: {}                                    # Lifecycle hooks (PreToolUse, PostToolUse, Stop)
+
+# Optional — distribution
+license: MIT                                 # Open-source license
+compatibility: "Requires Node.js 18+"        # Environment requirements, 1-500 chars
+metadata:                                    # Custom key-value pairs
+  author: Your Name
+  version: 1.0.0
+  mcp-server: server-name
 ```
 
 ---

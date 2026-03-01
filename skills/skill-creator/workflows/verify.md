@@ -37,7 +37,7 @@ Collect all data needed for checks:
 
 ## Step 4: Run All Checks
 
-Execute all checks from the 5 categories:
+Execute all automated checks from Categories A-E (43 checks):
 
 **Category A: Frontmatter (11 checks)**
 - Parse frontmatter YAML
@@ -68,6 +68,9 @@ Execute all checks from the 5 categories:
 **Category E: Deployment (1 check)**
 - Verify skill is accessible via `.claude/skills/` symlink
 
+**Category F: Triggering & Context (7 checks)** — manual, not run in automated verification.
+Suggest to user after Step 7: "Run Category F triggering tests manually to validate skill triggers correctly."
+
 ## Step 5: Generate Report
 
 **Format is mandatory — follow exactly. Results MUST be a single table, NEVER a list.**
@@ -86,7 +89,7 @@ Execute all checks from the 5 categories:
 |----|----------|--------|-------------|
 | A1 | CRITICAL | PASS   | name field exists |
 | A2 | CRITICAL | FAIL   | name doesn't match directory |
-| ... all 43 checks in one table ... |
+| ... all 43 automated checks in one table ... |
 
 ### Summary
 
@@ -113,7 +116,7 @@ Execute all checks from the 5 categories:
 
 **MUST use `AskUserQuestion` tool before applying ANY fixes. Do NOT ask in plain text — call the tool.**
 
-If all 43 checks pass (zero failures) → skip this step, go to Step 7.
+If all 43 automated checks pass (zero failures) → skip this step, go to Step 7.
 
 If there are ANY failures, call `AskUserQuestion` with these exact options:
 
