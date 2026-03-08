@@ -7,7 +7,7 @@ Production-grade agents and skills — domain expertise packaged as context, not
 ## Rules
 
 - Edit skills in `skills/`, NEVER in `.claude/skills/` (it's a symlink to `../skills/`)
-- Edit agents in `agents/`, NEVER in `.claude/agents/`
+- Edit agents in `agents/`, NEVER in `.claude/agents/` (it's a symlink to `../agents/`)
 - One skill = one domain. Do not merge unrelated domains into a single skill.
 - Every skill MUST have `name` and `description` in YAML frontmatter.
 - Skill `name` must match its directory name exactly (lowercase, hyphens only).

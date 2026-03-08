@@ -401,16 +401,17 @@ Skills are NOT packages. Do not add:
 
 ## Skills Distribution
 
-Skills live in `skills/<name>/`. Agent directories (`.claude/skills/`, `.cursor/skills/`, `.windsurf/skills/`, `.junie/skills/`, `.agents/skills/`) are symlinks to `../skills/`. No installation or sync step is required.
+Skills live in `skills/<name>/`, agents in `agents/<name>.md`. IDE directories (`.claude/skills/`, `.claude/agents/`, `.cursor/skills/`, etc.) are directory-level symlinks — `.claude/skills → ../skills/` and `.claude/agents → ../agents/`. No installation or sync step is required.
 
 | Aspect | Details |
 |--------|---------|
-| Source location | `skills/<name>/` |
-| Access | Symlinks from IDE directories → `../skills/` |
+| Skills source | `skills/<name>/` |
+| Agents source | `agents/<name>.md` |
+| Access | `.claude/skills → ../skills/`, `.claude/agents → ../agents/` |
 | External skills | `npx skills add <package>` (agents auto-resolved via symlinks) |
 | Discovery | `npx skills find <query>` |
 
-Always edit in `skills/`, never in `.claude/skills/` or other IDE directories.
+Always edit in `skills/` or `agents/`, never in `.claude/` directories.
 
 ---
 
