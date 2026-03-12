@@ -137,6 +137,8 @@ References:
 
 ## Creating Agents
 
+Use the agent-creator: describe what you need ("create an agent for X").
+
 1. Define the role — what domain expertise does this agent have?
 2. Choose skills — which skills should preload into agent context?
 3. Set constraints — permission mode, allowed tools, max turns.
