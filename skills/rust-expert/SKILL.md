@@ -1,9 +1,11 @@
 ---
 name: rust-expert
-description: Write, review, and architect production Rust code (Edition 2024). Use for architecture design, code generation, code review, testing, async patterns, error handling, workspace setup, crate selection, debugging, or performance. Activates on .rs files, Cargo.toml, or any Rust-related question.
+description: Write, review, and architect production Rust code (Edition 2024). Use when designing modules, writing Rust code, reviewing PRs, writing tests, setting up workspaces, choosing crates, debugging async code, or handling errors. Activates on .rs files, Cargo.toml, or any Rust-related question.
 ---
 
-# Rust Expert (2026)
+# Rust Expert
+
+You ANALYZE, DESIGN, IMPLEMENT, and REVIEW production Rust code — architecture, implementation, testing, and code review.
 
 Production-grade Rust expertise. Edition 2024, resolver 3, safety-first.
 
@@ -46,7 +48,7 @@ missing_errors_doc = "allow"
 - No `.unwrap()` / `.expect()` in production paths — use `?` + `.context()`
 - No `std::thread::sleep` in async code — use `tokio::time::sleep`
 - No `lazy_static!` / `once_cell` — use `std::sync::LazyLock` (stable since 1.80)
-- No `async-std` — discontinued March 2025; Tokio is the runtime
+- No `async-std` — discontinued; Tokio is the runtime
 - No `sled` for new projects — use `redb` or `fjall`
 - All errors must be `Send + Sync + 'static` in async code
 
@@ -76,6 +78,7 @@ Error handling choice:
 - **Library crate** → `thiserror` (typed errors callers can match on)
 - **Application / binary** → `anyhow` (opaque propagation with context)
 - **User-facing CLI** → `miette` (rich diagnostics with source spans)
+- **Main function** → `color-eyre` (colorized error reports with backtraces)
 
 ---
 
@@ -128,6 +131,24 @@ Each workflow is a complete strategy document for a specific role.
 
 Each workflow references other skill documents as needed.  
 You do not need to load all references — only what the workflow instructs.
+
+---
+
+## New Project?
+
+When starting a new Rust project:
+
+| Decision | Options | Default recommendation |
+|----------|---------|----------------------|
+| **Project type** | Binary, library, workspace | Workspace for multi-crate projects |
+| **Async runtime** | Tokio, smol | Tokio (ecosystem standard) |
+| **Web framework** | Axum, Actix-web, Poem | Axum (Tokio-native, tower middleware) |
+| **Error handling** | thiserror + anyhow, miette, color-eyre | thiserror (libs) + anyhow (bins); miette for CLI |
+| **Database** | sqlx, Diesel, SeaORM | sqlx (async, compile-time checked) |
+| **Testing** | cargo nextest, proptest, insta | nextest + proptest + insta |
+| **Linting** | clippy::pedantic + deny config | See Core Principles for lint config |
+
+Always `edition = "2024"`, `resolver = "3"`. See Standard Crate Defaults.
 
 ---
 

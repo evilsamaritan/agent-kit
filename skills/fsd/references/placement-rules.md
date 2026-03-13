@@ -17,8 +17,8 @@ Advisory reference for contested placement decisions. When the decision tree in 
 | TypeScript types and interfaces | Same layer as the owning concept | `model/` | Types are not special — they belong to the slice that owns the concept. Don't create a `types/` layer. |
 | Test utilities and test helpers | `shared/lib/` (shared helpers) or co-located | `lib/` | Generic test helpers (factories, matchers) → `shared/lib/`. Slice-specific test helpers → co-locate in the slice next to the code under test. |
 | Environment constants and feature flags | `shared/config/` (app-wide) or `entities/<name>/config/` (domain-specific) | `config/` | `API_BASE_URL` → `shared/config/`. `MAX_CART_ITEMS` → `entities/cart/config/`. |
-| React hooks with no UI (data-fetching, state) | Same layer as the feature or entity they serve | `model/` | Hooks are not special — classify by domain, not syntax. A hook that fetches users belongs in `entities/user/model/`. |
-| React hooks shared across slices | Same rule as "used in two features" | `model/` | Extract to `entities/` or `shared/lib/` depending on domain awareness. |
+| Framework hooks/composables with no UI (data-fetching, state) | Same layer as the feature or entity they serve | `model/` | Hooks (React), composables (Vue), actions (Svelte) are not special — classify by domain, not syntax. A hook that fetches users belongs in `entities/user/model/`. |
+| Framework hooks/composables shared across slices | Same rule as "used in two features" | `model/` | Extract to `entities/` or `shared/lib/` depending on domain awareness. |
 | Error boundary components | `app/` (global) or `pages/<name>/ui/` (route-specific) | `ui/` | Global error boundaries belong in `app/`. Per-route error UIs belong in the page slice. |
 | i18n / translation strings | `shared/config/` or `entities/<name>/config/` | `config/` | Shared strings → `shared/config/`. Entity-specific labels (e.g., order status labels) → `entities/order/config/`. |
 | Router configuration | `app/` | direct (no segment) | Routing is app-level bootstrap. Not a feature, not an entity. |

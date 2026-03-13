@@ -56,7 +56,7 @@ If starting fresh with no prior convention — default to **kebab-case**. Whatev
 
 ---
 
-## Step 4 (was Step 3): Create first slices
+## Step 4: Create first slices
 
 For each layer with known slices, create the slice with segment subdirs:
 
@@ -75,14 +75,15 @@ Only create segments that will have content. Empty dirs are noise.
 
 ---
 
-## Step 4: Define public API boundary
+## Step 5: Define public API boundary
 
-Each slice needs a single entry point that consumers import from. Two approaches — choose based on project convention:
+Each slice needs a single entry point that consumers import from. Two approaches — choose based on project convention. Ask the user which convention the project uses if unclear.
 
 **Option A: barrel `index` file** (default, most common)
 
 ```bash
-touch src/entities/user/index.ts    # or index.js, index.vue — match project extension
+# Use the project's file extension (.ts, .js, .vue, etc.)
+touch src/entities/user/index.ts
 touch src/features/auth/index.ts
 touch src/pages/home/index.ts
 touch src/shared/ui/index.ts
@@ -95,13 +96,25 @@ Each index re-exports only what external consumers need. Internal files are not 
 
 **Option B: no barrel exports** (when barrel exports cause bundler/circular-dep issues)
 
-Skip index files. Instead, enforce slice isolation via a linter rule (e.g., `@feature-sliced/eslint-plugin` or a custom `import/no-internal-modules` rule). The rule: no import path may point deeper than `layer/slice/`. Consumers reference the slice root; the bundler resolves entry from the framework's file conventions.
+Skip index files. Instead, enforce slice isolation via linting or bundler configuration:
+- `@feature-sliced/eslint-config` or `import/no-internal-modules` (ESLint)
+- TypeScript `paths` in `tsconfig.json`
+- Bundler aliases (Vite `resolve.alias`, webpack `resolve.alias`)
 
-Ask the user which convention the project uses if unclear.
+The rule: no import path may point deeper than `layer/slice/`. Consumers reference the slice root.
 
 ---
 
-## Step 5: Verify structure
+## Step 6: Set up import enforcement
+
+Configure at least one enforcement mechanism (see "Import Rule Enforcement" in SKILL.md):
+1. Path aliases (`tsconfig.json` paths or bundler aliases)
+2. Linting rules (`@feature-sliced/eslint-config` or `import/no-restricted-paths`)
+3. CI check (grep-based script from `workflows/review.md`)
+
+---
+
+## Step 7: Verify structure
 
 Run these checks before proceeding:
 
@@ -118,7 +131,7 @@ grep -rn "features/[^'\"]*.*from.*features/" src/ || echo "No cross-slice violat
 
 ---
 
-## Step 6: Output final tree
+## Step 8: Output final tree
 
 Show the user the generated structure:
 

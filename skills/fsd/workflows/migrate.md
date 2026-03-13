@@ -43,14 +43,14 @@ If uncertain about a dir's layer, check the placement decision tree in `SKILL.md
 
 ## Step 2: Grep dependency graph
 
-Before moving anything, map what imports what:
+Before moving anything, map what imports what. Adjust file extensions to match the project (`.ts`, `.tsx`, `.js`, `.jsx`, `.vue`, `.svelte`):
 
 ```bash
-# Find all import statements
-grep -rn "^import\|^from\|require(" src/ --include="*.ts" --include="*.tsx" --include="*.js" | head -100
+# Find all import statements (adjust --include for project's file types)
+grep -rn "^import\|^from\|require(" src/ --include="*.ts" --include="*.tsx" --include="*.js" --include="*.jsx" --include="*.vue" --include="*.svelte" | head -100
 
 # Find imports of a specific dir (e.g., utils)
-grep -rn "from.*utils\|require.*utils" src/ --include="*.ts" --include="*.tsx"
+grep -rn "from.*utils\|require.*utils" src/ --include="*.ts" --include="*.tsx" --include="*.vue" --include="*.svelte"
 ```
 
 High-import-count files are high-risk to move. Move them last within their layer group.
@@ -126,7 +126,17 @@ Pages should only compose — they import from `widgets/`, `features/`, `entitie
 
 ---
 
-## Step 7: Validate at each step
+## Step 7: Set up import enforcement
+
+After moving files, configure tooling to prevent future violations. Choose based on project stack:
+
+1. **Path aliases** — configure `tsconfig.json` paths (or bundler aliases for non-TS projects) so imports use `@/shared/ui` instead of relative paths
+2. **Linting** — install `@feature-sliced/eslint-config` or configure `import/no-restricted-paths` rules
+3. **CI check** — add a grep-based script (from `workflows/review.md`) to CI as a safety net
+
+---
+
+## Step 8: Validate at each step
 
 After each layer migration:
 

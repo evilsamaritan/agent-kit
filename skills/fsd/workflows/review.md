@@ -32,23 +32,23 @@ ls src/ | grep -vE "^(app|pages|widgets|features|entities|shared)$"
 
 ## Phase 2: Check import rule (upward / cross-layer)
 
-Layers may only import downward. Scan for violations:
+Layers may only import downward. Scan for violations. Adjust `--include` flags to match the project's file types (add `*.vue`, `*.svelte`, `*.jsx` as needed):
 
 ```bash
 # shared importing from any layer above it
-grep -rn "from.*['\"].*entities/\|from.*['\"].*features/\|from.*['\"].*widgets/\|from.*['\"].*pages/\|from.*['\"].*app/" src/shared/ --include="*.ts" --include="*.tsx"
+grep -rn "from.*['\"].*entities/\|from.*['\"].*features/\|from.*['\"].*widgets/\|from.*['\"].*pages/\|from.*['\"].*app/" src/shared/ --include="*.ts" --include="*.tsx" --include="*.js" --include="*.jsx" --include="*.vue" --include="*.svelte"
 
 # entities importing from features, widgets, pages, app
-grep -rn "from.*['\"].*features/\|from.*['\"].*widgets/\|from.*['\"].*pages/\|from.*['\"].*app/" src/entities/ --include="*.ts" --include="*.tsx"
+grep -rn "from.*['\"].*features/\|from.*['\"].*widgets/\|from.*['\"].*pages/\|from.*['\"].*app/" src/entities/ --include="*.ts" --include="*.tsx" --include="*.js" --include="*.jsx" --include="*.vue" --include="*.svelte"
 
 # features importing from widgets, pages, app
-grep -rn "from.*['\"].*widgets/\|from.*['\"].*pages/\|from.*['\"].*app/" src/features/ --include="*.ts" --include="*.tsx"
+grep -rn "from.*['\"].*widgets/\|from.*['\"].*pages/\|from.*['\"].*app/" src/features/ --include="*.ts" --include="*.tsx" --include="*.js" --include="*.jsx" --include="*.vue" --include="*.svelte"
 
 # widgets importing from pages, app
-grep -rn "from.*['\"].*pages/\|from.*['\"].*app/" src/widgets/ --include="*.ts" --include="*.tsx"
+grep -rn "from.*['\"].*pages/\|from.*['\"].*app/" src/widgets/ --include="*.ts" --include="*.tsx" --include="*.js" --include="*.jsx" --include="*.vue" --include="*.svelte"
 
 # pages importing from app
-grep -rn "from.*['\"].*app/" src/pages/ --include="*.ts" --include="*.tsx"
+grep -rn "from.*['\"].*app/" src/pages/ --include="*.ts" --include="*.tsx" --include="*.js" --include="*.jsx" --include="*.vue" --include="*.svelte"
 ```
 
 Report each result as **BLOCKING** with file, line, and fix.
@@ -61,13 +61,13 @@ Slices within the same layer must not import each other:
 
 ```bash
 # Features cross-slice (most common violation)
-grep -rn "from.*['\"].*features/" src/features/ --include="*.ts" --include="*.tsx" -l
+grep -rn "from.*['\"].*features/" src/features/ --include="*.ts" --include="*.tsx" --include="*.js" --include="*.jsx" --include="*.vue" --include="*.svelte" -l
 
 # Entities cross-slice
-grep -rn "from.*['\"].*entities/" src/entities/ --include="*.ts" --include="*.tsx" -l
+grep -rn "from.*['\"].*entities/" src/entities/ --include="*.ts" --include="*.tsx" --include="*.js" --include="*.jsx" --include="*.vue" --include="*.svelte" -l
 
 # Widgets cross-slice
-grep -rn "from.*['\"].*widgets/" src/widgets/ --include="*.ts" --include="*.tsx" -l
+grep -rn "from.*['\"].*widgets/" src/widgets/ --include="*.ts" --include="*.tsx" --include="*.js" --include="*.jsx" --include="*.vue" --include="*.svelte" -l
 ```
 
 For each flagged file, show the exact import line:
@@ -92,9 +92,9 @@ find src/{entities,features,widgets} -maxdepth 2 -name "index.*" 2>/dev/null | h
 
 ```bash
 # Deep imports into slice internals (not going through index)
-grep -rn "from.*['\"].*entities/[a-zA-Z-]*/[a-zA-Z]" src/ --include="*.ts" --include="*.tsx" | grep -v "/index"
-grep -rn "from.*['\"].*features/[a-zA-Z-]*/[a-zA-Z]" src/ --include="*.ts" --include="*.tsx" | grep -v "/index"
-grep -rn "from.*['\"].*widgets/[a-zA-Z-]*/[a-zA-Z]" src/ --include="*.ts" --include="*.tsx" | grep -v "/index"
+grep -rn "from.*['\"].*entities/[a-zA-Z-]*/[a-zA-Z]" src/ --include="*.ts" --include="*.tsx" --include="*.js" --include="*.jsx" --include="*.vue" --include="*.svelte" | grep -v "/index"
+grep -rn "from.*['\"].*features/[a-zA-Z-]*/[a-zA-Z]" src/ --include="*.ts" --include="*.tsx" --include="*.js" --include="*.jsx" --include="*.vue" --include="*.svelte" | grep -v "/index"
+grep -rn "from.*['\"].*widgets/[a-zA-Z-]*/[a-zA-Z]" src/ --include="*.ts" --include="*.tsx" --include="*.js" --include="*.jsx" --include="*.vue" --include="*.svelte" | grep -v "/index"
 ```
 
 Report each as **CONCERN** — bypassed public API. Fix: import from `slice/` root (via index).
@@ -103,11 +103,11 @@ Report each as **CONCERN** — bypassed public API. Fix: import from `slice/` ro
 
 ```bash
 # Imports reaching into segment subdirs (layer/slice/segment/file)
-grep -rn "from.*['\"].*entities/[a-zA-Z-]*/[a-zA-Z][a-zA-Z-]*/[a-zA-Z]" src/ --include="*.ts" --include="*.tsx"
-grep -rn "from.*['\"].*features/[a-zA-Z-]*/[a-zA-Z][a-zA-Z-]*/[a-zA-Z]" src/ --include="*.ts" --include="*.tsx"
+grep -rn "from.*['\"].*entities/[a-zA-Z-]*/[a-zA-Z][a-zA-Z-]*/[a-zA-Z]" src/ --include="*.ts" --include="*.tsx" --include="*.js" --include="*.jsx" --include="*.vue" --include="*.svelte"
+grep -rn "from.*['\"].*features/[a-zA-Z-]*/[a-zA-Z][a-zA-Z-]*/[a-zA-Z]" src/ --include="*.ts" --include="*.tsx" --include="*.js" --include="*.jsx" --include="*.vue" --include="*.svelte"
 ```
 
-Report each as **CONCERN**. Fix: enforce via linter rule (`import/no-internal-modules` or `@feature-sliced/eslint-plugin`).
+Report each as **CONCERN**. Fix: enforce via linter rule (`import/no-internal-modules` or `@feature-sliced/eslint-config`), TypeScript paths, or bundler aliases.
 
 ---
 
@@ -131,8 +131,8 @@ Flag non-canonical names (e.g., `helpers`, `utils`, `hooks`, `store`, `types`) a
 `shared/` must contain zero business domain knowledge:
 
 ```bash
-# Look for domain terms in shared (adjust terms to the project's domain)
-grep -rn "User\|Order\|Product\|Auth\|Cart\|Payment" src/shared/ --include="*.ts" --include="*.tsx" -l
+# Look for domain terms in shared (adjust terms and extensions to the project)
+grep -rn "User\|Order\|Product\|Auth\|Cart\|Payment" src/shared/ --include="*.ts" --include="*.tsx" --include="*.js" --include="*.jsx" --include="*.vue" --include="*.svelte" -l
 ```
 
 Review flagged files manually — type parameter names may be generic. Report concrete domain logic as **CONCERN**.

@@ -17,7 +17,7 @@
 - [Build Tools (cargo extensions)](#build-tools-cargo-extensions)
 - [Do NOT Use (deprecated / superseded)](#do-not-use-deprecated--superseded)
 
-Curated crate catalog for production Rust (2025-2026).
+Curated crate catalog for production Rust.
 **One recommendation per category.** Alternatives noted where the choice is context-dependent.
 
 ---
@@ -27,7 +27,7 @@ Curated crate catalog for production Rust (2025-2026).
 **`tokio` 1.x** — the only choice for production.
 - Required by: reqwest, sqlx, axum, tonic, tower
 - Features: `["full"]` for development, specific features for production builds
-- Note: async-std discontinued March 2025. Use smol only for embedded/no-std.
+- Note: async-std discontinued. Use smol only for embedded/no-std.
 
 ---
 
@@ -170,7 +170,7 @@ cargo install cargo-expand     # expand macros for debugging
 |-------|--------|-------------|
 | `lazy_static` | superseded | `std::sync::LazyLock` |
 | `once_cell` | superseded | `std::sync::OnceLock` / `LazyLock` |
-| `async-std` | discontinued March 2025 | `tokio` |
+| `async-std` | discontinued | `tokio` |
 | `sled` | perpetual alpha | `redb` or `fjall` |
 | `failure` | superseded | `thiserror` + `anyhow` |
 | `async-trait` | mostly superseded | native `async fn` in traits (Rust 1.75+) |

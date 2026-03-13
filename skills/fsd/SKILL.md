@@ -1,12 +1,21 @@
 ---
 name: fsd
-description: Apply Feature-Sliced Design (FSD) architecture. Use when organizing project structure, deciding where code belongs, auditing imports, setting up an FSD project from scratch, migrating existing code to FSD, or reviewing FSD compliance. Triggers on "where does this code go", "FSD structure", "feature-sliced", "cross-slice import", "layer violation".
-allowed-tools: Read, Glob, Grep, Bash
+description: Apply Feature-Sliced Design (FSD) architecture. Use when organizing project structure, deciding where code belongs, auditing imports, setting up FSD, migrating to FSD, or reviewing FSD compliance. Triggers on "where does this code go", "FSD structure", "feature-sliced", "cross-slice import", "layer violation".
+allowed-tools: Read, Glob, Grep, Bash, Edit, Write, WebSearch, WebFetch
 ---
 
 # Feature-Sliced Design
 
-Framework-agnostic architecture methodology. Layer isolation enforced by import rules.
+You ANALYZE, DESIGN, IMPLEMENT, and REVIEW Feature-Sliced Design project structures. You write and modify code to set up, migrate, and enforce FSD architecture.
+
+Framework-agnostic architecture methodology for frontend projects. Works with React, Vue, Svelte, Angular, Solid, or any component-based framework. Layer isolation enforced by import rules.
+
+## The Four Hard Rules
+
+1. **Import only downward** — a layer may only import from layers below it. No upward imports. Ever.
+2. **No cross-slice imports** — slices within the same layer are isolated. `features/auth` cannot import from `features/cart`.
+3. **No importing slice internals** — consumers import from the slice's public entry point, not from internal paths (`slice/model/store.ts`). The entry point is typically an `index` file, but some projects omit barrel exports due to bundler issues — in that case, enforcement shifts to linting rules or bundler aliases.
+4. **Canonical segments only** — use standard segment names: `ui/`, `model/`, `api/`, `lib/`, `config/`. Non-canonical names are a CONCERN.
 
 ---
 
@@ -20,15 +29,6 @@ Framework-agnostic architecture methodology. Layer isolation enforced by import 
 | features | `features/` | User actions with business value (auth, checkout) | entities, shared |
 | entities | `entities/` | Business domain objects (User, Product, Order) | shared |
 | shared | `shared/` | Reusable infra, UI kit, utilities — zero domain knowledge | nothing (no upward imports) |
-
----
-
-## The Four Hard Rules
-
-1. **Import only downward** — a layer may only import from layers below it. No upward imports. Ever.
-2. **No cross-slice imports** — slices within the same layer are isolated. `features/auth` cannot import from `features/cart`.
-3. **No importing slice internals** — consumers import from the slice's public entry point, not from internal paths (`slice/model/store.ts`). The entry point is typically an `index` file, but some projects omit barrel exports due to bundler issues — in that case, enforcement shifts to linting rules (e.g., `@feature-sliced/eslint-plugin`).
-4. **Canonical segments only** — use standard segment names: `ui/`, `model/`, `api/`, `lib/`, `config/`. Non-canonical names are a CONCERN.
 
 ---
 
@@ -71,11 +71,27 @@ Where does this code go?
 
 | Segment | What goes there |
 |---------|----------------|
-| `ui/` | React/Vue/Svelte components, styled elements |
+| `ui/` | Framework components (React, Vue, Svelte, Angular, Solid), styled elements |
 | `model/` | State, stores, selectors, domain types/interfaces |
-| `api/` | API request functions, data-fetching hooks |
+| `api/` | API request functions, data-fetching hooks/composables |
 | `lib/` | Pure utilities, helpers, formatters |
 | `config/` | Constants, feature flags, environment bindings |
+
+---
+
+## Import Rule Enforcement
+
+Enforce the four hard rules using one or more of these approaches (choose based on project tooling):
+
+| Approach | Tool | When to use |
+|----------|------|-------------|
+| ESLint plugin | `@feature-sliced/eslint-config` | Standard choice for JS/TS projects with ESLint |
+| Custom ESLint rule | `import/no-restricted-paths` or `import/no-internal-modules` | When `@feature-sliced/eslint-config` is unavailable |
+| TypeScript paths | `tsconfig.json` `paths` + `baseUrl` | Enforce alias-based imports, prevent deep paths |
+| Bundler aliases | Vite `resolve.alias`, webpack `resolve.alias` | Framework-level enforcement at build time |
+| CI check | Grep-based script in CI pipeline | Last-resort enforcement for any project |
+
+Use multiple approaches together for defense-in-depth. At minimum, configure path aliases so imports use `@/shared/ui` rather than relative paths.
 
 ---
 
@@ -99,6 +115,21 @@ Where does this code go?
 | Set up a new FSD project | `workflows/setup.md` |
 | Migrate existing codebase to FSD | `workflows/migrate.md` |
 | Audit imports / check compliance | `workflows/review.md` |
+
+---
+
+## New Project?
+
+FSD is framework-agnostic. When starting a new FSD project:
+
+| Decision | Options | Recommendation |
+|----------|---------|---------------|
+| **Framework** | React, Vue, Svelte, Angular, Solid | Any component-based framework works |
+| **Import enforcement** | @feature-sliced/eslint-config, custom ESLint, TS paths, bundler aliases | @feature-sliced/eslint-config for JS/TS |
+| **Path aliases** | @/shared/*, @/entities/*, @/features/* | Configure via tsconfig paths + bundler |
+| **Barrel exports** | Index files per slice | Use unless bundler has tree-shaking issues |
+
+Read `workflows/setup.md` for the full scaffolding procedure.
 
 ---
 
