@@ -35,7 +35,7 @@ For pattern guidance, read `references/patterns.md` from the skill base director
 
 | Domain | Skill | When |
 |--------|-------|------|
-| TypeScript | `/typescript` | Types, generics, runtime patterns |
+| JavaScript/TypeScript | `/javascript` | Types, generics, runtime patterns |
 | React | `/react` | Hooks, RSC, Suspense, state management |
 | Vue | `/vue` | Composition API, Pinia, Vue Router |
 | HTML/CSS | `/html-css` | Semantic markup, Grid, Flexbox, modern CSS |

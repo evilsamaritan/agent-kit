@@ -29,6 +29,9 @@ You ANALYZE, DESIGN, IMPLEMENT, and REVIEW frontend code — components, pages, 
 - Styling: design tokens, theming, responsive adaptation, dark mode
 - Accessibility implementation: semantic HTML, ARIA, keyboard, focus
 - Performance: Core Web Vitals, code splitting, lazy loading, bundle size
+- Build tooling: Vite ecosystem (build, dev, test), bundler selection
+- Code quality: linting (oxlint/Biome/ESLint), formatting, commit hooks
+- Workspace management: package manager selection, monorepo tooling
 - Testing strategy: unit, component, integration, visual, E2E layers
 - Frontend project structure and conventions
 
@@ -183,13 +186,16 @@ When starting a frontend from scratch, detect project conventions first. Present
 |------|----------|
 | Review a frontend project | [workflows/review.md](workflows/review.md) |
 | Component patterns, framework mapping, CSS architecture | [references/patterns.md](references/patterns.md) |
+| Build tool selection, Vite/Rolldown/Turbopack/Rspack, bundle optimization | [references/bundlers.md](references/bundlers.md) |
+| Linting, formatting, git hooks, import organization | [references/code-quality.md](references/code-quality.md) |
+| Package managers, workspaces, monorepo orchestration | [references/workspaces.md](references/workspaces.md) |
 
 ---
 
 ## Related Knowledge
 
 Load these knowledge skills when the task overlaps their domain:
-- `/typescript` — type system, generics, utility types
+- `/javascript` — type system, generics, utility types
 - `/react` `/vue` — framework-specific hooks, Server Components, composition API
 - `/html-css` — semantic markup, CSS layout, modern CSS features
 - `/accessibility` — WCAG 2.2, ARIA patterns, screen readers, inclusive testing

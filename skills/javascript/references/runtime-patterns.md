@@ -1,4 +1,4 @@
-# TypeScript Runtime Patterns
+# JavaScript Runtime Patterns
 
 ## Contents
 

@@ -236,7 +236,7 @@ Load these skills when the task touches their domain:
 - `/api-design` — protocol choice, OpenAPI, versioning, pagination depth
 - `/auth` — JWT, OAuth, sessions, RBAC, Passkeys
 - `/database` — schema, migrations, queries, indexes
-- `/typescript` `/kotlin` `/rust` — language depth
+- `/javascript` `/kotlin` `/rust` — language depth
 - `/caching` — cache strategy, invalidation, layers
 - `/graphql` — schema, resolvers, federation
 - `/message-queues` — Kafka, RabbitMQ, NATS

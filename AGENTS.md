@@ -44,7 +44,7 @@ Knowledge skills have a **scope** sub-level:
 |-------|---------|---------------|---------|
 | **broad** | Wide domain, multiple technologies | Must be vendor/framework agnostic in SKILL.md | database, search, caching |
 | **specialized** | Narrow sub-domain | May be specific by design | graphql, realtime, payments |
-| **language** | Programming language | Specific by design | typescript, rust, kotlin |
+| **language** | Programming language | Specific by design | javascript, rust, kotlin |
 | **framework** | Framework/library | Specific by design | react, vue, feature-sliced-design |
 | **platform-tech** | Platform-level technology | Specific by design | docker, kubernetes |
 | **regulatory** | Compliance/regulatory domain | Evergreen principles in core, volatile data in references/ | compliance |

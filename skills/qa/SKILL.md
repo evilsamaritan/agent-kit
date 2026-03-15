@@ -347,7 +347,7 @@ Priority 4 — LOW (skip or defer):
 ## Related Knowledge
 
 Load these knowledge skills when the task touches their domain:
-- `/typescript` `/react` `/vue` — framework-specific test patterns
+- `/javascript` `/react` `/vue` — framework-specific test patterns
 - `/database` — test data management, fixtures, testcontainers
 - `/api-design` — contract testing, OpenAPI validation
 - `/frontend` — component testing, visual regression, accessibility
@@ -361,3 +361,4 @@ Load these knowledge skills when the task touches their domain:
 Load on demand when deeper guidance is needed:
 
 - `references/testing-patterns.md` — contract, mutation, property-based, visual regression, snapshot, accessibility, flaky test, fixture, and test data patterns
+- `references/testing-frameworks.md` — framework selection, Playwright, Vitest, Jest, component testing, visual regression

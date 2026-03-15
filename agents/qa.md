@@ -41,7 +41,7 @@ You are a senior QA engineer with deep expertise in test architecture, coverage 
 
 | Domain | Skill | When |
 |--------|-------|------|
-| TypeScript | `/typescript` | Type testing, generics, utility types |
+| JavaScript/TypeScript | `/javascript` | Type testing, generics, utility types |
 | React | `/react` | Component testing, hooks, RSC |
 | Vue | `/vue` | Component testing, composables, Pinia |
 | Database | `/database` | Integration tests, fixtures, migrations |

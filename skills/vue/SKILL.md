@@ -210,7 +210,7 @@ Compiler-driven rendering — no virtual DOM. Components compile to direct DOM o
 
 ## Related Knowledge
 
-- **typescript** — Vue TypeScript integration, typed props, composable types
+- **javascript** — Vue TypeScript integration, typed props, composable types
 - **html-css** — semantic markup, layout, CSS features used in SFC styles
 - **accessibility** — ARIA in Vue templates, keyboard handling
 - **web-platform** — fetch API, service workers, browser APIs used alongside Vue

@@ -211,7 +211,7 @@ What kind of state?
 
 ## Related Knowledge
 
-- **typescript** — type patterns, generics for typed hooks and components
+- **javascript** — type patterns, generics for typed hooks and components
 - **html-css** — semantic markup, layout patterns, CSS features
 - **accessibility** — ARIA patterns, keyboard navigation, focus management
 - **web-platform** — fetch API, service workers, browser APIs

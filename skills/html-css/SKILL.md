@@ -165,3 +165,4 @@ Load on demand for detailed patterns and deep-dive knowledge:
 
 - `references/layout-patterns.md` — Grid templates, Flexbox patterns, holy grail, sidebar, card grids, aspect-ratio, gap
 - `references/modern-css.md` — cascade layers, container queries, :has() patterns, nesting, @scope, view transitions, anchor positioning, scroll-driven animations, color functions, CSS math functions
+- `references/animation.md` — CSS transitions, @keyframes, @starting-style, scroll-driven animations, View Transitions API, Motion, GSAP, anime.js, WAAPI, prefers-reduced-motion, performance rules

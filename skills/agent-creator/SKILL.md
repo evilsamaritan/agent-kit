@@ -77,7 +77,7 @@ When to create a composite agent?
 
 | Role | + Knowledge Skills | Use Case |
 |------|-------------------|----------|
-| backend | + typescript + database + auth | Node.js API developer |
+| backend | + javascript + database + auth | Node.js API developer |
 | backend | + rust + database + api-design | Rust service developer |
 | backend | + kotlin + database + message-queues | JVM microservice developer |
 | frontend | + react + html-css + accessibility | React UI developer |

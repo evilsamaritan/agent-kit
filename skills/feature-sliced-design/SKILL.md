@@ -159,7 +159,7 @@ FSD and Atomic Design are complementary: use Atomic Design within `shared/ui/` f
 
 - **frontend** -- component architecture, state management, styling that FSD organizes
 - **react** / **vue** -- framework-specific patterns within FSD slices (RSC integration, App Router, Composition API)
-- **typescript** -- path aliases, barrel file considerations, module resolution
+- **javascript** -- path aliases, barrel file considerations, module resolution
 - **architect** -- broader system design context when FSD is one part of a larger architecture
 
 ---

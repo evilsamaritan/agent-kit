@@ -38,6 +38,9 @@ Analyze, design, implement, and review infrastructure -- containers, pipelines, 
 | Container patterns | Read `references/container-patterns.md` -- builds, caching, security |
 | Pipeline patterns | Read `references/pipeline-patterns.md` -- CI/CD stages, caching, secrets |
 | Deployment patterns | Read `references/deployment-patterns.md` -- strategies, rollback, proxy, IaC |
+| GitHub Actions | Read `references/github-actions.md` -- triggers, OIDC, pinning, caching, matrix, environments |
+| GitLab CI/CD | Read `references/gitlab-ci.md` -- pipelines, DAG, components, security scanning, review apps |
+| Monorepo CI/CD | Read `references/monorepo-ci.md` -- affected builds, Turborepo, Nx, Docker in monorepos |
 
 ## Review Protocol (Summary)
 

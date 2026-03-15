@@ -191,4 +191,5 @@ Start with a single instance. Add read replicas when read load demands it.
 
 - [schema-patterns.md](references/schema-patterns.md) -- Reusable schema design patterns (idempotent writes, ledger, event sourcing, CQRS)
 - [engine-specific.md](references/engine-specific.md) -- Engine-specific features, syntax, and selection guide
+- [orm-patterns.md](references/orm-patterns.md) -- ORM selection, Active Record vs Data Mapper, N+1 detection, migration safety (Prisma, Drizzle, TypeORM, Kysely, SQLAlchemy, Django ORM, Hibernate, Diesel, SeaORM)
 - [review-protocol.md](workflows/review-protocol.md) -- Database review workflow for auditing existing database layers

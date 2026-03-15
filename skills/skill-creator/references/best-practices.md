@@ -212,7 +212,36 @@ Skills should interact with the user at decision points, not dump information.
 - File reading and analysis (do silently)
 - Obvious next steps in a defined workflow
 
-### 3. Code Pattern Notation
+### 3. Decision Points: Ask, Don't Prescribe
+
+At decision points with multiple valid approaches, use `Ask:` blocks to gather user constraints before recommending. This is the agnostic alternative to hardcoded defaults — the skill helps the user choose, it doesn't choose for them.
+
+**Pattern:**
+```markdown
+Ask: What framework is the project using?
+- Next.js → Turbopack (locked to framework)
+- Nuxt/SvelteKit/Astro → Vite (framework default)
+- Custom → present options with trade-offs
+```
+
+**Rules:**
+- Place `Ask:` before decision trees and comparison tables
+- Frame questions around constraints (framework, scale, team size, existing tooling)
+- Present 2-4 options with clear trade-offs, not exhaustive lists
+- Use `AskUserQuestion` tool at runtime for interactive decisions
+- Default recommendations are OK as tiebreakers, but present alternatives
+
+**When to use:**
+- Tool/framework selection (bundler, ORM, PM, test framework)
+- Architecture choices (monolith vs micro, SSR vs SPA)
+- Trade-off decisions (speed vs ecosystem, simplicity vs flexibility)
+
+**When NOT to use:**
+- Hard rules with one correct answer (use `strict: true` in TypeScript)
+- Security requirements (non-negotiable, no "Ask:")
+- Project conventions already established (detect and follow)
+
+### 4. Code Pattern Notation
 
 When a skill teaches naming conventions or code patterns, use **rule + examples** format, not abstract placeholder templates.
 
@@ -236,7 +265,7 @@ on<Trigger>Load<Entity>Epic
 - Avoid `{CurlyBraces}` — conflicts with template literals
 - When multiple code examples share a naming convention, extract to a `## Naming` section
 
-### 4. Error Recovery
+### 5. Error Recovery
 
 Skills should anticipate common failures and provide recovery paths.
 

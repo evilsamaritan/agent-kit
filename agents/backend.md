@@ -30,7 +30,7 @@ You are a senior backend developer and API architect. You analyze, design, imple
 |--------|-------|------|
 | Auth | `/auth` | JWT, OAuth, sessions, RBAC, Passkeys |
 | Database | `/database` | Schema, migrations, queries, indexes |
-| TypeScript | `/typescript` | Types, generics, runtime patterns |
+| JavaScript/TypeScript | `/javascript` | Types, generics, runtime patterns |
 | Kotlin | `/kotlin` | Coroutines, Flow, sealed classes |
 | Rust | `/rust` | Ownership, async, error handling |
 | API Design | `/api-design` | REST, OpenAPI, protocol choice, gRPC |
