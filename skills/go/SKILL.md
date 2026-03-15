@@ -200,7 +200,9 @@ func TestParse(t *testing.T) {
 | `t.Cleanup(fn)` | Register cleanup (runs after test, LIFO) |
 | `testing.Short()` | Skip slow tests with `-short` flag |
 | `func FuzzX(f *testing.F)` | Fuzz testing (Go 1.18+) |
-| `func BenchmarkX(b *testing.B)` | Benchmarks with `b.N` loop |
+| `func BenchmarkX(b *testing.B)` | Benchmarks with `b.N` loop / `b.Loop()` (1.24+) |
+| `t.Context()` | Context cancelled after test (Go 1.24+) |
+| `t.Chdir(dir)` | Temporary working directory (Go 1.24+) |
 | `testify` | Assertion library (optional, widely used) |
 
 ---
@@ -242,7 +244,11 @@ myproject/
 | `log/slog` | 1.21 | Structured logging in stdlib |
 | `sync.OnceValue` / `sync.OnceFunc` | 1.21 | Type-safe lazy initialization |
 | Fuzz testing | 1.18 | Built-in fuzzer |
-| `go tool` improvements | 1.24 | `go tool` subcommand for tool management |
+| Swiss Tables (maps) | 1.24 | Faster map implementation (2-3% CPU improvement) |
+| `go tool` directives | 1.24 | `go get -tool` replaces `tools.go` workaround |
+| `weak` package | 1.24 | Weak pointers for caches |
+| `encoding/json` `omitzero` | 1.24 | Zero-value omission struct tag |
+| PGO (Profile-Guided Optimization) | 1.21+ | Place `default.pgo` in main package, 2-7% speedup |
 
 ---
 
