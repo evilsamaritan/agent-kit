@@ -136,4 +136,5 @@ Load these skills when the assessment touches their domain:
 - `/compliance` — GDPR, SOC2, EU AI Act, audit trails
 - `/devops` — CI/CD pipelines, infrastructure automation
 - `/security` — application security, vulnerability management
+- `/claude-auditor` — Claude Code configuration audit (quality, security, efficiency, correctness)
 - `/sre` — reliability engineering, incident response

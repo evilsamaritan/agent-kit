@@ -362,3 +362,4 @@ Load on demand when deeper guidance is needed:
 
 - `references/testing-patterns.md` — contract, mutation, property-based, visual regression, snapshot, accessibility, flaky test, fixture, and test data patterns
 - `references/testing-frameworks.md` — framework selection, Playwright, Vitest, Jest, component testing, visual regression
+- `references/multi-pass-review.md` — multi-pass review methodology, de-sloppify pattern, dimension-isolated passes, builder-validator separation

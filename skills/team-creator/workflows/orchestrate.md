@@ -30,7 +30,7 @@ Based on user input, follow one of four paths:
 
 ### Path A: Named Team
 
-User said `/team review` or `/team my-fullstack`:
+User said `/team-creator review` or `/team-creator my-fullstack`:
 
 1. Search `.claude/teams.json` for exact name match
 2. If not found, search `references/team-catalog.md` for built-in match
@@ -39,7 +39,7 @@ User said `/team review` or `/team my-fullstack`:
 
 ### Path B: Task-Based Composition
 
-User described a task: `/team implement OAuth with social login`:
+User described a task: `/team-creator implement OAuth with social login`:
 
 1. Analyze the task — identify needed specializations:
    - What domains? (frontend, backend, security, infra...)
@@ -271,7 +271,7 @@ If team was composed ad-hoc (Path B or C) and worked well:
 }
 ```
 
-4. Confirm: "Team '{name}' saved. Use with `/team {name}` next time."
+4. Confirm: "Team '{name}' saved. Use with `/team-creator {name}` next time."
 
 ---
 

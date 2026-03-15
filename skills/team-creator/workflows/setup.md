@@ -9,7 +9,7 @@ Pipeline mode (sequential subagents) requires NO setup and works everywhere.
 ## Step 1: Run Prerequisite Check
 
 ```bash
-bash skills/team/scripts/check-env.sh
+bash skills/team-creator/scripts/check-env.sh
 ```
 
 Review output. If everything is OK, parallel mode is ready.
@@ -68,7 +68,7 @@ npm install -g @anthropic-ai/claude-code
 
 Run the check again:
 ```bash
-bash skills/team/scripts/check-env.sh
+bash skills/team-creator/scripts/check-env.sh
 ```
 
 All items should show OK. If Claude CLI is missing but you're running inside Claude Code already, the parallel mode will use internal Agent tool instead of CLI — this is fine for pipeline mode.

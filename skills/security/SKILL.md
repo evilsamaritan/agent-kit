@@ -198,6 +198,7 @@ Load these skills when the audit touches their domain:
 - `/kubernetes` — RBAC, network policies, secrets
 - `/agent-engineering` — Agent architecture, tool permissions
 - `/mcp` — MCP server security, tool authorization
+- `/claude-auditor` — Claude Code configuration audit (quality, security, efficiency, correctness)
 
 ---
 

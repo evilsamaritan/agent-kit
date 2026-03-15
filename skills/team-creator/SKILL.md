@@ -1,5 +1,5 @@
 ---
-name: team
+name: team-creator
 description: Orchestrate multi-agent teams for complex tasks — code review, feature implementation, security audit, architecture review. Use when a task needs multiple specialists working together. Spawns pre-defined or custom agent teams as pipelines or parallel workers. Do NOT use for single-domain tasks or creating agents (use agent-creator).
 allowed-tools: Read, Write, Bash, Glob, Grep, Agent, AskUserQuestion
 user-invocable: true
@@ -23,17 +23,17 @@ Compose and orchestrate multi-agent teams from available agents. Select the righ
 
 ```
 What does the user want?
-├── Named team ("/team review", "/team my-fullstack")
+├── Named team ("/team-creatorreview", "/team-creatormy-fullstack")
 │   ├── Check .claude/teams.json → saved custom team?
 │   └── Check team-catalog.md → built-in team?
 │
-├── Task description ("/team implement OAuth login")
+├── Task description ("/team-creatorimplement OAuth login")
 │   └── Analyze → propose agents → confirm with user → execute
 │
-├── Ad-hoc spawn ("/team spawn 3 agents for X, Y, Z")
+├── Ad-hoc spawn ("/team-creatorspawn 3 agents for X, Y, Z")
 │   └── Each agent gets individual prompt, parallel orchestration
 │
-└── Setup ("/team setup")
+└── Setup ("/team-creatorsetup")
     └── Check prerequisites for parallel mode
 ```
 
@@ -47,9 +47,9 @@ What does the user want?
 ### A) Pre-defined Team
 
 ```
-/team review
-/team implement
-/team my-fullstack  (from .claude/teams.json)
+/team-creator review
+/team-creator implement
+/team-creator my-fullstack  (from .claude/teams.json)
 ```
 
 Known composition from catalog or saved config. Fastest path — no decisions needed.
@@ -57,7 +57,7 @@ Known composition from catalog or saved config. Fastest path — no decisions ne
 ### B) Task-based Composition
 
 ```
-/team implement OAuth with social login
+/team-creator implement OAuth with social login
 ```
 
 Skill analyzes the task, checks available agents (custom first, then default), proposes team, asks for confirmation. Optionally saves for reuse.
@@ -65,7 +65,7 @@ Skill analyzes the task, checks available agents (custom first, then default), p
 ### C) Ad-hoc Spawn
 
 ```
-/team spawn: agent-1 researches auth patterns, agent-2 implements API, agent-3 writes tests
+/team-creator spawn: agent-1 researches auth patterns, agent-2 implements API, agent-3 writes tests
 ```
 
 No team structure. Each agent gets its own prompt. Just orchestration — tmux layout + parallel execution.
@@ -109,7 +109,7 @@ architect (plan) → frontend + backend (parallel, background) → qa (test) →
 Full peer-to-peer teams with shared task list, mailbox, tmux panes.
 
 - Requires: `CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1` + tmux
-- Run `/team setup` to check and configure prerequisites
+- Run `/team-creator setup` to check and configure prerequisites
 - Native tmux integration: `teammateMode: "tmux"`
 - **Delegate mode:** `Shift+Tab` — restricts lead to coordination only (no code edits)
 - **Task list:** `Ctrl+T` to view, tasks support dependency DAGs (task B blocked until A completes)
@@ -202,6 +202,7 @@ Use hooks to enforce quality before agents can stop or complete tasks:
 | Orchestrate a team | [workflows/orchestrate.md](workflows/orchestrate.md) |
 | Setup parallel mode | [workflows/setup.md](workflows/setup.md) |
 | Pre-defined team details | [references/team-catalog.md](references/team-catalog.md) |
+| Advanced patterns | [references/orchestration-patterns.md](references/orchestration-patterns.md) |
 | tmux pane layouts | [references/tmux-layouts.md](references/tmux-layouts.md) |
 | Check prerequisites | `scripts/check-env.sh` |
 
@@ -211,3 +212,4 @@ Use hooks to enforce quality before agents can stop or complete tasks:
 
 - `/agent-creator` — create custom specialist agents for teams
 - `/agent-engineering` — orchestration patterns, multi-agent design
+- `/qa` > `references/multi-pass-review.md` — dimension-isolated review methodology
