@@ -1,6 +1,6 @@
 ---
 name: qa
-description: Audit test suites, design coverage strategies, and advise on test architecture across any language or framework. Use when reviewing tests, planning coverage, analyzing mock boundaries, improving test quality, or designing test strategies.
+description: Audit test suites, design coverage strategies, and advise on test architecture across any language or framework. Use when reviewing tests, planning coverage, analyzing mock boundaries, improving test quality, designing test strategies, fixing flaky tests, or reviewing AI-generated tests.
 allowed-tools: Read, Grep, Glob, Edit, Write, Bash
 user-invocable: true
 ---
@@ -15,6 +15,8 @@ You ANALYZE, DESIGN, IMPLEMENT, and REVIEW tests and test infrastructure. You wr
 - All guidance must be framework-agnostic unless the user's codebase dictates otherwise
 - When citing framework-specific APIs, show the universal concept first, then the framework example
 - Prioritize test quality over test quantity — one good test beats ten brittle ones
+- NEVER blindly trust AI-generated tests — review for assertion quality, not just coverage metrics
+- NEVER recommend a specific tool as the only option — present the pattern, then examples
 
 ---
 
@@ -30,7 +32,18 @@ Before any analysis, detect the testing landscape:
 
 ---
 
-## Test Pyramid
+## Test Strategy Shapes
+
+Choose the strategy shape that fits your architecture:
+
+```
+If monolith with rich domain logic     -> Pyramid (most unit tests)
+If frontend-heavy SPA                  -> Trophy (most integration tests)
+If microservices architecture          -> Honeycomb (most integration + contract)
+If microservices with complex interop  -> Diamond (contract-heavy middle layer)
+```
+
+### Pyramid (traditional)
 
 ```
         /  E2E  \         Few — slow, expensive, high confidence
@@ -41,12 +54,45 @@ Before any analysis, detect the testing landscape:
    /--------------------\
 ```
 
+Best for: monoliths, libraries, CLI tools, pure domain logic.
+
+### Trophy (Kent C. Dodds)
+
+```
+       /  E2E  \
+      /----------\
+     / Integration \     <- MOST tests here
+    /----------------\
+   /    Unit          \
+  /--------------------\
+  [ Static Analysis    ]  <- Foundation: types, lint
+```
+
+Best for: frontend apps, SPAs, React/Vue/Angular projects. Integration tests give the most confidence per test dollar because they test components as users interact with them.
+
+### Honeycomb (Spotify)
+
+```
+    /  Integrated  \
+   /----------------\
+  / Integration      \   <- MOST tests here
+ /--------------------\
+ \   Implementation   /   Few unit tests — service logic is simple
+  \------------------/
+```
+
+Best for: microservices where complexity lives in service interactions, not internal logic.
+
+### Layer comparison
+
 | Layer | Scope | Speed | Dependencies | When to use |
 |-------|-------|-------|-------------|-------------|
 | Unit | Single function/class | < 10ms | None (all mocked) | Pure logic, transformations, calculations |
 | Integration | Module + real deps | < 5s | DB, filesystem, queues | Data flow, service boundaries |
 | E2E | Full system | < 30s | Everything real | Critical user journeys |
 | Contract | API boundary | < 1s | Schema only | Producer/consumer agreement |
+
+-> Detailed strategy shapes: `references/testing-patterns.md` > Strategy Shapes
 
 ---
 
@@ -71,16 +117,6 @@ Before any analysis, detect the testing landscape:
 - Never mock the thing you are testing
 - Prefer dependency injection over module-level patching when possible
 - Reset all mocks/stubs between tests — no shared mutable state
-
-### Framework mock APIs (examples only)
-
-| Concept | Vitest | Jest | pytest | Go | JUnit/Mockito |
-|---------|--------|------|--------|----|---------------|
-| Mock function | `vi.fn()` | `jest.fn()` | `MagicMock()` | custom | `mock(Class)` |
-| Module mock | `vi.mock("mod")` | `jest.mock("mod")` | `@patch("mod")` | interface | `@Mock` annotation |
-| Spy | `vi.spyOn(o,"m")` | `jest.spyOn(o,"m")` | `mocker.spy(o,"m")` | wrapper | `spy(obj)` |
-| Fake timers | `vi.useFakeTimers()` | `jest.useFakeTimers()` | `freezegun` | custom | `Clock` |
-| Env vars | `vi.stubEnv("K","V")` | `process.env` | `monkeypatch.setenv` | `t.Setenv` | System rules |
 
 ---
 
@@ -136,17 +172,11 @@ One logical assertion per test. Multiple `expect` calls are fine if they verify 
 
 ## Parameterized Tests
 
-Test multiple inputs with a single test definition. Available in every major framework:
-
-| Framework | Syntax |
-|-----------|--------|
-| Vitest/Jest | `it.each([[input, expected], ...])("name %s", (input, expected) => { ... })` |
-| pytest | `@pytest.mark.parametrize("input,expected", [...])` |
-| Go | `tests := []struct{ input, want }{ ... }; for _, tt := range tests { t.Run(...) }` |
-| JUnit | `@ParameterizedTest @MethodSource("cases")` |
-| Rust | `#[test_case(...)]` or `rstest` |
+Test multiple inputs with a single test definition. Available in every major framework.
 
 Use for: validators, parsers, converters, mathematical functions, error classification.
+
+-> Framework syntax examples: `references/testing-patterns.md` > Parameterized Tests
 
 ---
 
@@ -167,69 +197,95 @@ Use for: validators, parsers, converters, mathematical functions, error classifi
 - Measure: line, branch, function coverage. Branch coverage matters most.
 - Ignore generated code, type definitions, and barrel files in coverage config
 - Track coverage trends over time, not absolute numbers
+- Use mutation testing to verify assertion quality when coverage is high but confidence is low
+
+---
+
+## Flaky Test Prevention
+
+Flaky tests erode confidence and waste developer time. Detect and fix systematically.
+
+### Common causes and fixes
+
+| Cause | Detection signal | Fix |
+|-------|-----------------|-----|
+| Timing dependencies | Fails on slow CI, passes locally | Replace `sleep()` with polling/waitFor/event-based waits |
+| Shared mutable state | Fails when run in parallel or different order | Isolate per test, reset in setup/teardown |
+| External service calls | Fails intermittently on network issues | Mock external deps in unit tests, use containers for integration |
+| Non-deterministic data | Fails on specific dates, locales, or random seeds | Inject clocks, fix locale, seed randomness |
+| Resource leaks | Fails after many tests run | Close connections, clear timers, dispose resources in teardown |
+| Race conditions | Fails under load or parallel execution | Use synchronization primitives, avoid global state |
+
+### Quarantine strategy
+
+1. Flag flaky test (do not delete — it found a real issue once)
+2. Move to quarantine suite (runs separately, does not block CI)
+3. Fix root cause within a sprint
+4. Return to main suite after stabilization
+5. Track quarantine size — growing quarantine = systemic problem
+
+---
+
+## Reviewing AI-Generated Tests
+
+AI tools generate tests quickly but often produce low-quality coverage. Review checklist:
+
+- **Assertion quality**: Does the test assert meaningful behavior, or just that the mock was called?
+- **Edge cases**: AI tends toward happy-path tests. Check for null, empty, boundary, error inputs.
+- **Determinism**: Check for real clocks, random values, or execution-order dependencies.
+- **Naming**: AI-generated names are often vague ("should work correctly"). Rename to behavior-driven.
+- **Redundancy**: AI may generate near-duplicate tests. Consolidate into parameterized tests.
+- **Mock depth**: AI often over-mocks. Verify mocks are at architectural boundaries only.
+- **Snapshot overuse**: AI defaults to snapshot assertions. Replace with targeted assertions when structure is known.
+
+Rule: treat AI-generated tests as a first draft. Measure by mutation score, not line coverage.
 
 ---
 
 ## Modern Testing Patterns
 
-### Contract testing
+Brief overview — load `references/testing-patterns.md` for full details.
 
-Verify producer/consumer API agreements without running both services:
+| Pattern | What it solves | When to use |
+|---------|---------------|-------------|
+| **Contract testing** | Producer breaks consumer silently | Microservices, API boundaries |
+| **Mutation testing** | High coverage but weak assertions | Critical business logic audit |
+| **Property-based testing** | Edge cases humans miss | Parsers, serialization, math |
+| **Visual regression** | UI breaks without functional change | Frontend, design systems |
+| **Snapshot testing** | Output shape changed unexpectedly | API responses, rendered output |
+| **Accessibility testing** | WCAG violations missed by functional tests | Any user-facing interface |
 
-- **Consumer-driven**: consumer defines expected interactions, provider verifies
-- **Schema-based**: shared schema (OpenAPI, protobuf, Avro) validates both sides
-- Tools: Pact, Schemathesis, dredd, openapi-diff
-- Test: request/response shape, required fields, type constraints, enum values
-
-### Mutation testing
-
-Verify test suite effectiveness by injecting code mutations and checking that tests catch them:
-
-- Mutates source code (flip operators, remove conditions, change constants)
-- Tests that still pass after mutation = weak tests
-- Mutation score = killed mutations / total mutations
-- Tools: Stryker (JS/TS), mutmut (Python), pitest (Java), cargo-mutants (Rust)
-- Use on critical business logic — too slow for full-codebase runs
-
-### Property-based testing
-
-Generate random inputs to discover edge cases humans miss:
-
-- Define properties that must hold for ALL inputs (e.g., "encode then decode = original")
-- Framework generates hundreds of random inputs, shrinks failures to minimal case
-- Tools: fast-check (JS/TS), Hypothesis (Python), proptest (Rust), QuickCheck (Haskell/Go)
-- Best for: serialization, parsers, mathematical operations, data transformations
-
-### Visual regression testing
-
-Catch unintended UI changes by comparing screenshots:
-
-- Capture baseline screenshots, compare against new renders
-- Pixel diff or perceptual diff algorithms
-- Tools: Percy, Chromatic, BackstopJS, Playwright visual comparisons
-- Integrate with CI — block merge on unexpected visual changes
-
-### Snapshot testing
-
-Capture output and compare against stored snapshots:
-
-- Good for: serialized output, rendered components, error messages, API responses
-- Anti-pattern: snapshotting large objects without understanding what changed
-- Always review snapshot updates — never blindly accept
-- Prefer targeted assertions over snapshots when structure is known
+-> Full patterns: `references/testing-patterns.md`
 
 ---
 
-## Test Architecture for Microservices
+## Test Architecture Decision Tree
 
-| Challenge | Strategy |
-|-----------|----------|
-| Service boundaries | Contract tests between services, not E2E through all |
-| Shared databases | Each service owns its schema — test in isolation |
-| Event-driven flows | Test producer and consumer independently with contract tests |
-| Configuration drift | Test config parsing + validation, use schema validation |
-| Flaky integration tests | Use containers (Testcontainers) for deterministic deps |
-| Cross-service transactions | Test saga/compensation logic in unit tests |
+```
+If monolith:
+  Unit tests for domain logic
+  Integration tests for DB/external service boundaries
+  E2E for critical user journeys
+
+If microservices:
+  Unit tests for business logic per service
+  Contract tests for ALL service boundaries
+  Integration tests with containers for DB/queue
+  Minimal E2E for critical cross-service flows
+
+If frontend SPA:
+  Integration tests for component behavior (user interaction level)
+  Unit tests for pure utilities and state management
+  E2E for critical user journeys
+  Visual regression for design system components
+  Accessibility tests in CI
+
+If library/SDK:
+  Property-based tests for core algorithms
+  Unit tests for public API
+  Integration tests for real-world usage examples
+  Contract tests if the library consumes external APIs
+```
 
 ---
 
@@ -277,87 +333,31 @@ Priority 4 — LOW (skip or defer):
 | 8 | Test interdependence | Tests must run in specific order | Each test sets up its own state |
 | 9 | Sleeping in tests | `sleep(2000)` for async operations | Use polling, waitFor, or event-based |
 | 10 | Copy-paste tests | Identical tests with minor variations | Use parameterized tests |
+| 11 | AI trust without review | Accept generated tests without checking assertions | Review with mutation testing mindset |
+| 12 | Coverage theater | High line coverage, zero branch coverage | Measure branch coverage, use mutation testing |
 
 ---
 
 ## Review Protocol
 
-### Phase 1: Discover
-
-1. Find test config and detect framework
-2. Glob for test files and note naming patterns
-3. Check coverage config and reports if available
-4. Identify mock library and patterns in use
-5. Map test files to source files — find orphaned source without tests
-
-### Phase 2: Evaluate
-
-For each test file:
-
-- [ ] Tests are co-located with source (or in a parallel `tests/` directory matching the project convention)
-- [ ] Test names describe behavior, not implementation
-- [ ] Each test has a single assertion focus (AAA pattern)
-- [ ] Mocks are at the right boundary (mock external deps, not internal logic)
-- [ ] Edge cases covered: empty, null, boundary, error paths
-- [ ] No test depends on execution order or shared mutable state
-- [ ] No real network/DB calls in unit tests
-- [ ] Setup/teardown resets state properly
-- [ ] No type-system escapes that hide errors in tests
-- [ ] Tests actually fail when the code is wrong (not just testing mocks)
-
-### Phase 3: Report
-
-```
-## Test Suite Assessment
-
-### Summary
-[1-3 sentences: overall test health, biggest gaps]
-
-### Coverage Map
-| Package/Module | Test Files | Tests | Coverage | Critical Paths Tested |
-|---------------|-----------|-------|----------|----------------------|
-
-### Quality Scores
-| Dimension | Score (1-5) | Notes |
-|-----------|-------------|-------|
-| Naming clarity | | |
-| Mock boundaries | | |
-| Edge case coverage | | |
-| Assertion quality | | |
-| Determinism | | |
-
-### Missing Tests (by priority)
-| Priority | Module | What to Test | Why |
-|----------|--------|-------------|-----|
-
-### Anti-Patterns Found
-| # | File | Anti-Pattern | Fix |
-|---|------|-------------|-----|
-
-### Recommendations
-1. [Priority-ordered actions]
-```
+-> Full protocol: `workflows/review.md`
 
 ---
 
-## New Project?
+## Related Knowledge
 
-When setting up test infrastructure from scratch:
-
-| Language | Unit Testing | Integration | E2E | Coverage |
-|----------|-------------|-------------|-----|----------|
-| **TypeScript/JS** | Vitest | Vitest + Testcontainers | Playwright | v8 via Vitest |
-| **Python** | pytest | pytest + testcontainers | Playwright | coverage.py |
-| **Go** | stdlib `testing` | testcontainers-go | Playwright | `go test -cover` |
-| **Rust** | cargo nextest | testcontainers-rs | N/A | cargo-llvm-cov |
-| **Java/Kotlin** | JUnit 5 + Mockito | Testcontainers | Playwright | JaCoCo |
-
-Configure CI to run tests on every PR. Start with unit tests, add integration when services stabilize.
-
----
+Load these knowledge skills when the task touches their domain:
+- `/typescript` `/react` `/vue` — framework-specific test patterns
+- `/database` — test data management, fixtures, testcontainers
+- `/api-design` — contract testing, OpenAPI validation
+- `/frontend` — component testing, visual regression, accessibility
+- `/security` — security-sensitive test paths, input sanitization
+- `/performance` — load testing, benchmarking, stress testing
+- `/devops` — CI pipeline test configuration, test parallelization
+- `/observability` — shift-right testing, production monitoring
 
 ## References
 
 Load on demand when deeper guidance is needed:
 
-- `references/testing-patterns.md` — detailed patterns for contract, mutation, property-based, and visual regression testing
+- `references/testing-patterns.md` — contract, mutation, property-based, visual regression, snapshot, accessibility, flaky test, fixture, and test data patterns

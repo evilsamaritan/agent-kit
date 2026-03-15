@@ -16,7 +16,7 @@ Unified template with optional sections. Include only what applies to your skill
 ```markdown
 ---
 name: skill-name
-description: <Verb> <what>. Use when <trigger phrases>.
+description: Verb phrase describing what and when. Use when trigger phrases match user intent.
 allowed-tools: Read, Write, Edit, Bash, Glob, Grep
 ---
 
@@ -169,6 +169,97 @@ Not every skill needs every section. Use this table to decide what to include.
 |------|-----------|---------|
 | Create X | [create.md](workflows/create.md) | For new X |
 | Migrate Y | [migrate.md](workflows/migrate.md) | For existing Y |
+```
+
+---
+
+## Structure Templates by Class
+
+Choose the template that matches your skill's taxonomy class (see CLAUDE.md "Skill Taxonomy").
+
+### Role Skill Template
+
+Type: role. Persona with workflows, owns a domain. Must be vendor-agnostic in SKILL.md.
+
+```markdown
+# Role Name
+
+You ANALYZE, DESIGN, IMPLEMENT, and REVIEW [domain].
+
+## What this role owns
+## What this role does not own
+## Operating modes
+## Critical rules
+## Workflow routing
+## Anti-Patterns
+## Related Knowledge
+## References
+```
+
+### Broad Knowledge Skill Template
+
+Type: knowledge, scope: broad. Must be vendor/framework agnostic in SKILL.md. Framework refs go in `references/<framework>.md`.
+
+```markdown
+# Domain Name
+
+Expert-level [domain] knowledge.
+
+## Scope and boundaries
+## Decision tree
+## Core rules / patterns
+## Context Adaptation
+## Anti-Patterns
+## Related Knowledge
+## References
+```
+
+### Specialized / Language / Framework Skill Template
+
+Type: knowledge, scope: specialized | language | framework | platform-tech. May be specific by design. Language/framework: SKILL.md < 200 lines, 2-4 reference files, no workflows.
+
+```markdown
+# Technology Name
+
+Expert-level [technology] knowledge.
+
+## Core concepts / Mental model
+## Decision points
+## Hard rules
+## Anti-Patterns
+## Related Knowledge / Sibling boundaries
+## References
+```
+
+### Regulatory Skill Template
+
+Type: knowledge, scope: regulatory. Evergreen principles in SKILL.md, volatile data (dates, enforcement trends, prices) in references/.
+
+```markdown
+# Domain Name
+
+## Scope and boundaries
+## Decision tree
+## Core rules / patterns
+## Context Adaptation
+## Anti-Patterns
+## Related Knowledge
+## References
+```
+
+### Meta Skill Template
+
+Type: meta. Skills that create/manage other skills or agents.
+
+```markdown
+# Skill Name
+
+## Purpose
+## Critical rules
+## Flow selection
+## Quick reference
+## Validation
+## References
 ```
 
 ---

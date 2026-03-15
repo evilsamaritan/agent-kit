@@ -9,7 +9,10 @@
 - [Reverse Proxy Patterns](#reverse-proxy-patterns)
 - [SSL/TLS Configuration](#ssltls-configuration)
 - [Rollback Strategies](#rollback-strategies)
+- [Ephemeral / Preview Environments](#ephemeral--preview-environments)
 - [IaC and GitOps Concepts](#iac-and-gitops-concepts)
+- [Policy as Code](#policy-as-code)
+- [FinOps in CI/CD](#finops-in-cicd)
 - [Server Hardening](#server-hardening)
 - [Common Deployment Failures](#common-deployment-failures)
 
@@ -256,6 +259,43 @@ Rules:
 
 ---
 
+## Ephemeral / Preview Environments
+
+Short-lived, isolated deployments spun up per PR or branch. Auto-destroyed on merge/close.
+
+### When to Use
+
+- Feature testing in isolation before staging
+- QA review of visual changes
+- E2E test execution against real infrastructure
+- Reducing staging bottlenecks (parallel feature validation)
+
+### Implementation Approaches
+
+| Approach | Complexity | Best For |
+|----------|-----------|----------|
+| Docker Compose + dynamic ports | Low | Single-server, small teams |
+| Kubernetes namespaces per PR | Medium | Teams already on Kubernetes |
+| Managed platforms (Vercel preview, Netlify deploy previews) | Low | Frontend-only or JAMstack |
+| IaC-driven (Terraform workspace per PR) | High | Full-stack with infrastructure |
+
+### Lifecycle
+
+```
+PR opened --> provision environment --> run tests --> post URL to PR
+PR updated --> update environment --> re-run tests
+PR merged/closed --> destroy environment --> clean up resources
+```
+
+### Cost Control
+
+- Set TTL (time-to-live) on environments: auto-destroy after 24-72h of inactivity
+- Use spot/preemptible instances for preview environments
+- Share databases (with isolated schemas) instead of provisioning per-PR databases
+- Scale to zero when idle
+
+---
+
 ## IaC and GitOps Concepts
 
 ### Infrastructure as Code
@@ -267,8 +307,8 @@ Define infrastructure in version-controlled files, not manual console clicks.
 | Terraform / OpenTofu | HCL | Multi-cloud, provider ecosystem |
 | Pulumi | TypeScript/Python/Go | Developers who prefer real languages |
 | Ansible | YAML | Configuration management, server setup |
-| CloudFormation | JSON/YAML | AWS-native |
-| CDK | TypeScript/Python | AWS with type safety |
+| CloudFormation / CDK | JSON/YAML/TypeScript | AWS-native |
+| SST | TypeScript | AWS serverless with type safety |
 
 ### GitOps
 
@@ -278,7 +318,7 @@ Declarative infrastructure with git as the source of truth.
 Git repo (desired state)
   |
   v (sync)
-GitOps operator (ArgoCD, Flux)
+GitOps operator (e.g., ArgoCD, FluxCD)
   |
   v (reconcile)
 Live infrastructure (actual state)
@@ -289,6 +329,62 @@ Principles:
 - Changes go through pull requests (audit trail)
 - Automated sync from git to infrastructure
 - Drift detection and auto-reconciliation
+
+### GitOps Operator Selection
+
+| If you need... | Choose |
+|----------------|--------|
+| Web UI, team RBAC, fast onboarding | ArgoCD (centralized hub-and-spoke) |
+| Modular toolkit, multi-source sync, no UI | FluxCD (decentralized, library approach) |
+| No Kubernetes | File-based deploy with git as source of truth |
+
+### GitOps Repository Strategy
+
+| Pattern | Description | Best For |
+|---------|-------------|----------|
+| **Monorepo** | App code + manifests in same repo | Small teams, simple apps |
+| **Split repo** | App repo triggers manifest repo update | Teams with separate platform teams |
+| **Environment branches** | Branch per environment (dev, staging, prod) | Simple promotion model |
+| **Directory per environment** | Single branch, directory structure for envs | Recommended for most teams |
+
+---
+
+## Policy as Code
+
+Enforce governance programmatically. Policies run as admission controllers, CI gates, or reconciliation loops.
+
+### Enforcement Points
+
+| Point | Tools | What to enforce |
+|-------|-------|-----------------|
+| **CI pipeline** | OPA/conftest, Checkov, tfsec | IaC validation, cost limits, security rules |
+| **Kubernetes admission** | Kyverno (YAML), OPA/Gatekeeper (Rego) | Pod security, resource limits, image policies |
+| **Runtime** | Network policies, RBAC, resource quotas | Access control, blast radius |
+| **IaC pre-deploy** | Sentinel, OPA, Checkov | Drift prevention, compliance |
+
+### Common Policies
+
+- Require non-root containers
+- Block `latest` image tag in production
+- Enforce resource limits on all pods
+- Require labels/annotations (owner, cost-center)
+- Block public load balancers without approval
+- Enforce encrypted storage volumes
+- Require signed images for production deploys
+
+---
+
+## FinOps in CI/CD
+
+Integrate cost awareness into the delivery pipeline.
+
+| Practice | Implementation |
+|----------|---------------|
+| **Budget alerts** | Notify when environment cost exceeds threshold |
+| **Environment TTLs** | Auto-destroy dev/preview environments after inactivity |
+| **Right-sizing checks** | Flag over-provisioned resources in IaC review |
+| **Cost regression detection** | Compare infrastructure cost before/after changes |
+| **Spot/preemptible for non-prod** | Use cheaper compute for dev, test, preview |
 
 ---
 

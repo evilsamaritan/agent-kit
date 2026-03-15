@@ -10,6 +10,8 @@ Syntax and features that vary across database engines. Consult when working with
 - [MongoDB](#mongodb)
 - [Redis / KeyDB](#redis--keydb)
 - [Time-Series Extensions](#time-series-extensions)
+- [Vector Search Extensions](#vector-search-extensions)
+- [Edge Databases](#edge-databases-sqlite-based)
 - [Engine Selection Guide](#engine-selection-guide)
 
 ---
@@ -52,6 +54,77 @@ WITH recent_orders AS (
   SELECT * FROM orders WHERE created_at > NOW() - INTERVAL '1 hour'
 )
 SELECT account_id, COUNT(*) FROM recent_orders GROUP BY account_id;
+```
+
+### PostgreSQL 17 Features
+
+```sql
+-- JSON_TABLE: transform JSON into relational rows
+SELECT jt.*
+FROM api_responses,
+     JSON_TABLE(payload, '$.items[*]' COLUMNS (
+       id TEXT PATH '$.id',
+       name TEXT PATH '$.name',
+       price NUMERIC PATH '$.price'
+     )) AS jt;
+
+-- EXPLAIN with SERIALIZE and MEMORY options
+EXPLAIN (ANALYZE, BUFFERS, SERIALIZE, MEMORY) SELECT ...;
+
+-- Incremental backups (pg_basebackup --incremental)
+-- Logical replication failover slots for HA
+```
+
+### PostgreSQL 18 Features
+
+```sql
+-- UUIDv7: time-ordered UUIDs (no extension needed)
+DEFAULT uuidv7()
+
+-- Virtual generated columns (computed on read, no storage cost)
+ALTER TABLE orders ADD COLUMN total_display TEXT
+  GENERATED ALWAYS AS (quantity || ' x ' || price) VIRTUAL;
+
+-- Temporal primary key (constraint over ranges)
+CREATE TABLE room_bookings (
+  room_id INT,
+  booked_during TSTZRANGE,
+  guest TEXT,
+  PRIMARY KEY (room_id, booked_during WITHOUT OVERLAPS)
+);
+
+-- OLD/NEW in RETURNING clause
+UPDATE orders SET status = 'shipped'
+WHERE order_id = $1
+RETURNING OLD.status AS previous_status, NEW.status AS current_status;
+```
+
+Key improvements: asynchronous I/O subsystem (up to 3x read performance), skip scan for multi-column B-tree indexes, OAuth authentication support.
+
+### Declarative Partitioning
+
+```sql
+-- Range partitioning by time
+CREATE TABLE events (
+  id UUID DEFAULT gen_random_uuid(),
+  created_at TIMESTAMPTZ NOT NULL,
+  payload JSONB
+) PARTITION BY RANGE (created_at);
+
+CREATE TABLE events_2025 PARTITION OF events
+  FOR VALUES FROM ('2025-01-01') TO ('2026-01-01');
+CREATE TABLE events_2026 PARTITION OF events
+  FOR VALUES FROM ('2026-01-01') TO ('2027-01-01');
+
+-- Hash partitioning by tenant
+CREATE TABLE orders (
+  tenant_id UUID NOT NULL,
+  order_id UUID NOT NULL
+) PARTITION BY HASH (tenant_id);
+
+CREATE TABLE orders_p0 PARTITION OF orders FOR VALUES WITH (MODULUS 4, REMAINDER 0);
+CREATE TABLE orders_p1 PARTITION OF orders FOR VALUES WITH (MODULUS 4, REMAINDER 1);
+-- ...
 ```
 
 ### Connection Pooling
@@ -272,15 +345,86 @@ SELECT add_compression_policy('metrics', INTERVAL '7 days');
 
 ---
 
+## Vector Search Extensions
+
+### pgvector (PostgreSQL)
+
+```sql
+-- Enable extension
+CREATE EXTENSION IF NOT EXISTS vector;
+
+-- Add vector column
+ALTER TABLE documents ADD COLUMN embedding vector(1536);
+
+-- HNSW index (better recall, recommended for most use cases)
+CREATE INDEX idx_documents_embedding ON documents
+  USING hnsw (embedding vector_cosine_ops) WITH (m = 16, ef_construction = 64);
+
+-- IVFFlat index (faster build, good for large datasets)
+CREATE INDEX idx_documents_embedding_ivf ON documents
+  USING ivfflat (embedding vector_cosine_ops) WITH (lists = 100);
+
+-- Similarity search with relational filter
+SELECT id, title, embedding <=> $1::vector AS distance
+FROM documents
+WHERE category = 'technical'
+ORDER BY embedding <=> $1::vector
+LIMIT 10;
+```
+
+### MongoDB Atlas Vector Search
+
+```javascript
+// Vector search index (created via Atlas UI or API)
+// Search query with vector + filter
+db.documents.aggregate([
+  {
+    $vectorSearch: {
+      index: "vector_index",
+      path: "embedding",
+      queryVector: queryEmbedding,
+      numCandidates: 100,
+      limit: 10,
+      filter: { category: "technical" }
+    }
+  }
+]);
+```
+
+---
+
+## Edge Databases (SQLite-Based)
+
+SQLite-based distributed databases for edge and local-first architectures.
+
+**When to consider**: read-heavy workloads, per-tenant isolation, low-latency edge reads, local-first apps.
+
+**Key properties**:
+- Single-writer, multi-reader model (reads scale horizontally)
+- Sub-10ms reads for co-located requests
+- Per-tenant database isolation is natural (one SQLite file per tenant)
+- Embedded replicas sync automatically with primary
+
+**Limitations**:
+- Single writer -- not suitable for write-heavy concurrent workloads
+- Limited SQL dialect compared to PostgreSQL/MySQL
+- Ecosystem tooling is younger
+
+Popular choices include: Turso/LibSQL, Cloudflare D1, LiteFS, electric-sql.
+
+---
+
 ## Engine Selection Guide
 
-| Requirement | Recommended Engine | Rationale |
-|------------|-------------------|-----------|
-| General-purpose OLTP | PostgreSQL | Richest feature set, strong consistency |
-| High read throughput, simple schema | MySQL | Mature replication, wide support |
-| Embedded / edge / mobile | SQLite | Zero-config, single-file, no server |
-| Flexible schema, horizontal scale | MongoDB | Document model, built-in sharding |
-| Caching, sessions, real-time | Redis | In-memory speed, rich data structures |
-| Time-series, IoT, metrics | TimescaleDB / InfluxDB | Time-partitioning, retention policies |
-| Analytics, OLAP | ClickHouse / DuckDB | Columnar storage, fast aggregations |
-| Multi-model (graph + document) | ArangoDB / SurrealDB | When data has complex relationships |
+Use the decision tree in SKILL.md to choose a database type first. This table maps requirements to popular engines within each category.
+
+| Requirement | Popular Choices | Key Differentiator |
+|------------|----------------|-------------------|
+| General-purpose OLTP | PostgreSQL, MySQL, MariaDB, CockroachDB | PostgreSQL: richest type system. MySQL: widest hosting. CockroachDB: distributed SQL. |
+| Embedded / edge / mobile | SQLite, Turso/LibSQL, Cloudflare D1 | SQLite: zero-config. Turso: distributed edge replicas. D1: Cloudflare-native. |
+| Flexible schema, horizontal scale | MongoDB, CouchDB, FerretDB | MongoDB: mature sharding. FerretDB: MongoDB-compatible on PostgreSQL. |
+| Caching, sessions, real-time | Redis, KeyDB, Valkey, DragonflyDB | Redis: ecosystem. Valkey: open-source fork. Dragonfly: multi-threaded. |
+| Time-series, IoT, metrics | TimescaleDB, InfluxDB, QuestDB | TimescaleDB: PostgreSQL extension. InfluxDB: purpose-built. |
+| Analytics, OLAP | ClickHouse, DuckDB, StarRocks | ClickHouse: distributed. DuckDB: embedded analytical. |
+| Vector search | pgvector, Qdrant, Weaviate, Milvus, Pinecone | pgvector: use if already on PostgreSQL. Specialized: higher scale/recall. |
+| Multi-model | SurrealDB, ArangoDB | When data has graph + document + relational needs. |

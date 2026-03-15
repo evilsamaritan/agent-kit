@@ -10,6 +10,9 @@ Universal patterns for backend services. Adapt to your project's language and fr
 - [Graceful Shutdown](#graceful-shutdown)
 - [Health Checks](#health-checks)
 - [Circuit Breaker](#circuit-breaker)
+- [Retry with Backoff](#retry-with-backoff)
+- [Bulkhead](#bulkhead)
+- [Timeout](#timeout)
 - [OpenAPI-First Design](#openapi-first-design)
 - [Middleware Pipeline Patterns](#middleware-pipeline-patterns)
 - [Request Context Propagation](#request-context-propagation)
@@ -160,6 +163,87 @@ Transitions:
 ### When NOT to use
 - Local database queries (use connection pool limits instead)
 - In-process function calls
+
+---
+
+## Retry with Backoff
+
+Automatically retry transient failures with increasing delays.
+
+```
+Retry strategy:
+  attempt 1 → immediate
+  attempt 2 → wait base_delay (e.g., 100ms)
+  attempt 3 → wait base_delay * 2 + jitter
+  attempt 4 → wait base_delay * 4 + jitter
+  give up   → after max_retries (e.g., 3-5)
+```
+
+### Principles
+- Add random jitter to prevent thundering herd on recovery
+- Only retry on transient errors (5xx, timeout, connection reset) — never on 4xx
+- Set a maximum number of retries with a total timeout cap
+- Make the operation idempotent before adding retries
+- Log each retry attempt with attempt number and delay
+
+### When to use
+- HTTP calls to external services returning 502/503/504
+- Message queue publish failures
+- Distributed lock acquisition
+
+### When NOT to use
+- Validation errors (4xx) — retrying won't help
+- Operations that are not idempotent without an idempotency key
+
+---
+
+## Bulkhead
+
+Isolate resources per dependency to prevent one slow dependency from starving others.
+
+```
+Without bulkhead:
+  Shared pool (100 threads) → Service A (slow) consumes 95 → Service B starved
+
+With bulkhead:
+  Pool A (50 threads) → Service A (slow) consumes 50, hits limit
+  Pool B (50 threads) → Service B unaffected, still serving
+```
+
+### Principles
+- Assign separate thread/connection pools per external dependency
+- Set pool size based on expected throughput and acceptable latency
+- Reject excess requests immediately (fail fast) rather than queuing unbounded
+- Monitor pool utilization — approaching limits signals capacity issues
+
+### When to use
+- Multiple external service dependencies with different reliability profiles
+- Shared infrastructure resources (DB pools, HTTP clients)
+
+### When NOT to use
+- Single-dependency services (pool limits are sufficient)
+- In-process computations
+
+---
+
+## Timeout
+
+Set explicit time limits on every outbound call to prevent indefinite blocking.
+
+### Principles
+- Every outbound HTTP call, DB query, and queue operation must have a timeout
+- Set timeouts shorter than the caller's timeout (cascading timeouts)
+- Use connect timeout (short, e.g., 1-3s) + read timeout (longer, e.g., 5-30s)
+- Return a clear error when timeout is exceeded — do not silently retry
+- Propagate deadline/timeout context across service boundaries
+
+### Layered timeout strategy
+```
+Client request timeout:     30s (overall request budget)
+  → Downstream service A:  10s (must complete within caller's budget)
+    → Database query:        5s (must complete within A's budget)
+  → Downstream service B:   5s
+```
 
 ---
 

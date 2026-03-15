@@ -27,10 +27,11 @@ Collect all data needed for checks:
 
 Execute all checks from the checklist:
 
-**Category A: Frontmatter (9 checks)**
+**Category A: Frontmatter (12 checks)**
 - Parse frontmatter YAML
 - Validate name format, description quality, field validity
 - Check model, tools, permissionMode values
+- Validate memory, background, isolation fields
 
 **Category B: Structure (7 checks)**
 - Verify body has clear sections

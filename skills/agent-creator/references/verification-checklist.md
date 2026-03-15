@@ -1,10 +1,10 @@
 # Agent Verification Checklist
 
-27 checks across 4 categories.
+30 checks across 4 categories.
 
 ## Contents
 
-- [Category A: Frontmatter](#category-a-frontmatter) — 9 checks
+- [Category A: Frontmatter](#category-a-frontmatter) — 12 checks
 - [Category B: Structure](#category-b-structure) — 7 checks
 - [Category C: Content Quality](#category-c-content-quality) — 6 checks
 - [Category D: Anti-Patterns](#category-d-anti-patterns) — 5 checks
@@ -26,9 +26,12 @@
 | A4 | CRITICAL | `description` field exists and is non-empty | Add description with trigger phrases |
 | A5 | WARNING | `description` includes trigger phrases ("When to use", "Use when", "Use this agent") | Add trigger context so Claude knows when to delegate |
 | A6 | WARNING | `model` value is valid (`sonnet`, `opus`, `haiku`, `inherit`) or absent | Fix to valid value or remove |
-| A7 | WARNING | `tools` is comma-separated string (not YAML list) | Convert to comma-separated format |
+| A7 | WARNING | `tools` is either a comma-separated string or a YAML array (both valid) | Verify format is consistent within the file |
 | A8 | WARNING | `permissionMode` value is valid or absent | Fix to valid value |
 | A9 | SUGGESTION | `color` is set for visual distinction | Add color field |
+| A10 | WARNING | `memory` value is valid (`user`, `project`, `local`) or absent | Fix to valid scope or remove |
+| A11 | WARNING | `background` value is boolean or absent | Fix to `true` or `false` |
+| A12 | WARNING | `isolation` value is `worktree` or absent | Fix to `worktree` or remove |
 
 ### A: Detailed Checks
 

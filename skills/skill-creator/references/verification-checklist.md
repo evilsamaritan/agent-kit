@@ -1,12 +1,12 @@
 # Skill Verification Checklist
 
-43 checks across 5 categories. Each check has an ID, severity, rule, and fix guidance.
+48 checks across 5 categories. Each check has an ID, severity, rule, and fix guidance.
 
 ## Contents
 
 - [Category A: Frontmatter](#category-a-frontmatter) — 11 checks (A1-A11)
-- [Category B: Structure](#category-b-structure) — 12 checks (B1-B12)
-- [Category C: Content Quality](#category-c-content-quality) — 12 checks (C1-C12)
+- [Category B: Structure](#category-b-structure) — 15 checks (B1-B15)
+- [Category C: Content Quality](#category-c-content-quality) — 14 checks (C1-C14)
 - [Category D: Anti-Patterns](#category-d-anti-patterns) — 7 checks (D1-D7)
 - [Category E: Deployment](#category-e-deployment) — 1 check (E1)
 - [Verification Report Format](#verification-report-format)
@@ -25,7 +25,7 @@
 | A1 | CRITICAL | `name` field exists and is non-empty | Add `name: <skill-name>` to frontmatter |
 | A2 | CRITICAL | `name` matches directory name exactly | Rename either `name` field or directory to match |
 | A3 | CRITICAL | `description` field exists and is non-empty | Add `description:` with trigger phrases |
-| A4 | CRITICAL | `name` is lowercase + hyphens only, max 64 chars | Rename to kebab-case, trim if over 64 chars |
+| A4 | CRITICAL | `name` is lowercase + hyphens only, max 64 chars, no consecutive hyphens, must not start/end with hyphen | Rename to kebab-case, trim if over 64 chars, fix hyphen issues |
 | A5 | WARNING | `description` starts with a verb (Create, Run, Add, Write, etc.) | Rewrite to start with action verb in imperative form |
 | A6 | WARNING | `description` includes "Use when" trigger phrases | Append: ". Use when [trigger phrases]." |
 | A7 | WARNING | `description` is single line (no YAML multi-line `>` or `\|`) | Collapse to single line |
@@ -39,6 +39,8 @@
 **A1-A4: Parse frontmatter**
 ```
 Read SKILL.md → extract YAML between --- markers → validate fields
+A4 name rules: lowercase a-z + hyphens, max 64 chars, no consecutive hyphens (--),
+must not start or end with hyphen, must match directory name.
 ```
 
 **A5: Verb check**
@@ -54,30 +56,13 @@ Description value must not start with `>` or `|`
 `description.length` should be 80-300 chars. Under 80 is likely too vague. Over 300 is wasting space.
 
 **A9: XML bracket check**
-```
-Search description value for < or > characters.
-Frontmatter is injected into Claude's system prompt — angle brackets could be
-interpreted as XML tags, which is a security restriction per Anthropic guidelines.
-```
+Search description for `<` or `>` characters. Angle brackets in frontmatter may be interpreted as XML tags in the system prompt.
 
 **A10: Negative trigger check**
-```
-If skills/ contains another skill with overlapping domain (similar name or description):
-  Check if description includes "Do NOT use for" or "Not for" to disambiguate.
-  Example: "Advanced data analysis for CSV files. Do NOT use for simple data exploration
-  (use data-viz skill instead)."
-Only flag if there is a plausible sibling skill with overlap.
-```
+If a sibling skill has overlapping domain, check for "Do NOT use for" in description. Only flag when overlap is plausible.
 
 **A11: Internal flag check**
-```
-Parse frontmatter for `internal: true`.
-If present:
-  - PASS (skill is internal, included in verify/improve by default)
-If absent:
-  - Verify/improve flows should skip this skill unless user explicitly forces.
-  - Mark as PASS with note: "Non-internal skill — skipped by default"
-```
+If `internal: true` is present, skill is included in verify/improve by default. If absent, mark PASS with note: "Non-internal skill -- skipped by default."
 
 ---
 
@@ -86,7 +71,7 @@ If absent:
 | ID | Severity | Check | Fix |
 |----|----------|-------|-----|
 | B1 | CRITICAL | `SKILL.md` exists in skill directory | Create SKILL.md — skill is non-functional without it |
-| B2 | WARNING | `SKILL.md` is under 500 lines | Extract sections to workflows/ or references/ files |
+| B2 | WARNING | `SKILL.md` is maximum 500 lines (ceiling, not target) | Extract sections to workflows/ or references/ files |
 | B3 | WARNING | Supporting files are in correct directories: procedures in `workflows/`, docs in `references/`, code in `scripts/`, output files in `assets/` | Move files to appropriate directories |
 | B4 | WARNING | No unreferenced files (each sub-file is linked from SKILL.md) | Add links or remove unused files |
 | B5 | SUGGESTION | Has `## Purpose` section only if it expands on `description`. Omit if it would repeat frontmatter. Intro text after `# Heading` follows the same rule. | Add Purpose only when it adds scope, constraints, or context not in description. Remove if it duplicates. Same for intro text. |
@@ -96,7 +81,10 @@ If absent:
 | B9 | WARNING | If references/ contains files with step-by-step procedures, they should be in workflows/ instead | Move procedure files from references/ to workflows/ |
 | B10 | WARNING | Instruction tone matches content type: procedures use imperative tone, reference material uses advisory tone | Rewrite: procedures → "Do X. Then Y." Reference → "When X, consider Y." |
 | B11 | SUGGESTION | Reference files over 100 lines have a table of contents at the top | Add TOC so the agent can see the full scope when previewing |
-| B12 | WARNING | SKILL.md follows progressive disclosure: entry point with overview and routing, not full content. Router skills (2+ independent procedures) keep SKILL.md under 200 lines. | Extract detailed content to sub-files, keep SKILL.md as concise entry point |
+| B12 | WARNING | SKILL.md follows progressive disclosure: entry point with overview and routing, not full content. Multi-procedure skills (2+ independent procedures) keep SKILL.md concise. | Extract detailed content to sub-files, keep SKILL.md as concise entry point |
+| B13 | WARNING | Role skills have a "Related Knowledge" section listing relevant knowledge skills | Add `## Related Knowledge` section with bullet list of knowledge skills that complement this role |
+| B14 | WARNING | Language/framework knowledge skills follow the uniform structure: SKILL.md < 200 lines, 2-4 reference files, no workflows, no dedicated agents | Restructure: trim SKILL.md to core concepts + anti-patterns + references section, remove workflows, limit to 2-4 reference files |
+| B15 | WARNING | Framework-specific content lives in separate reference files with explicit framework names, not inline in SKILL.md | Extract framework content to `references/<framework-name>.md` and link from SKILL.md |
 
 ### B: Detailed Checks
 
@@ -124,86 +112,29 @@ For each file in workflows/, references/, scripts/:
   If not found → orphaned file.
 ```
 
-**B7: Progressive disclosure — extraction check**
-```
-Scan SKILL.md for long sections:
-  - Count lines in each ## section
-  - If a procedure section > 60 lines → flag: "Extract to workflows/"
-  - If a knowledge/reference section > 60 lines → flag: "Extract to references/"
+**B7: Progressive disclosure -- extraction check**
+Count lines in each `##` section of SKILL.md. Flag procedures > 60 lines ("Extract to workflows/"), knowledge > 60 lines ("Extract to references/"). For skills with 2+ independent procedures, each should be in a separate `workflows/` file with SKILL.md as router.
 
-For skills with 2+ independent procedures (different user intents):
-  - Check that each procedure is in a separate workflows/ file
-  - Check that SKILL.md has a routing table linking to them
-  - If procedures are inline in SKILL.md → flag: "Extract to workflows/, use SKILL.md as router"
-```
-
-**B8: Content placement validation**
-```
-For each file in workflows/:
-  Check content is procedural (numbered steps, imperative instructions).
-  If content is mostly reference material → flag: "Should be in references/"
-
-For each file in references/:
-  Check content is knowledge (tables, decision trees, advisory).
-  If content has numbered step-by-step procedures → flag: "Should be in workflows/"
-
-Signals for procedures: numbered steps, "Step N:", checklists, imperative verbs
-Signals for knowledge: tables, decision trees, "when X, prefer Y", pattern catalogs
-```
-
-**B9: Procedure in references check**
-```
-If references/ contains files named workflow-*.md or files with step-by-step procedures:
-  Flag: "Procedure files should be in workflows/, not references/"
-  Fix: Move to workflows/ and update links in SKILL.md
-```
+**B8-B9: Content placement validation**
+Workflows/ must contain procedural content (numbered steps, imperative). References/ must contain knowledge (tables, decision trees, advisory). Flag misplacements. Procedure signals: numbered steps, "Step N:", checklists. Knowledge signals: tables, "when X, prefer Y", pattern catalogs.
 
 **B10: Tone check**
-```
-Scan each section of SKILL.md and sub-files for tone:
-
-Imperative tone markers (expected for procedures):
-  numbered steps, "must", "always", "run this command", "do X", "verify Y"
-
-Advisory tone markers (expected for reference material):
-  "consider", "options", "depending on", decision trees, "prefer X", "when Y"
-
-Flag mismatches:
-  - Procedure section with advisory language ("you might want to consider...")
-    → Fix: rewrite to imperative ("Run X. If error, run Y.")
-  - Reference section with rigid step-by-step commands
-    → Fix: rewrite as reference material with decision guidance
-  - Procedure missing explicit step ordering
-    → Fix: add numbered steps with clear sequencing
-```
+Procedures must use imperative tone ("Do X. Then Y. Verify Z."). Reference material must use advisory tone ("When X, consider Y."). Flag mismatches: advisory language in procedures, rigid step-by-step in references, missing step numbering.
 
 **B11: Reference file TOC check**
-```
-For each file in references/:
-  Count lines. If > 100 lines:
-    Check if first 10 lines contain a table of contents (## Contents, ## TOC,
-    or a list of ## section links).
-    If no TOC → flag: "Long reference file without table of contents"
-    Fix: Add TOC at top listing all ## sections with anchors.
-    This helps the agent see the full scope without reading the entire file.
-```
+Reference files over 100 lines must have a table of contents (list of `##` section anchors) in the first 10 lines.
 
 **B12: Progressive disclosure check**
-```
-Evaluate SKILL.md as an entry point:
+SKILL.md must be an entry point, not full content. Flag inline procedures/references > 60 lines. Multi-procedure skills (2+ procedures): keep SKILL.md concise with routing table. Flag > 50% content overlap between SKILL.md and sub-files.
 
-1. Does SKILL.md contain detailed procedures that should be in workflows/?
-   - If inline procedure > 60 lines → flag
-2. Does SKILL.md contain detailed reference material that should be in references/?
-   - If inline reference > 60 lines → flag
-3. For router skills (2+ independent procedures):
-   - Is SKILL.md under 200 lines?
-   - Does it have a routing table (Quick Reference) linking to workflows?
-   - If not → flag: "Router skill should have concise SKILL.md with routing table"
-4. Is content duplicated between SKILL.md and sub-files?
-   - Compare section headers and content overlap
-   - If > 50% overlap → flag: "Duplicated content between SKILL.md and sub-file"
-```
+**B13: Related Knowledge section check**
+Role skills (those with `workflows/` directory) must have a "## Related Knowledge" section listing relevant knowledge skills.
+
+**B14: Language skill standard compliance**
+Language/framework knowledge skills: SKILL.md < 200 lines, 2-4 reference files, no workflows, no dedicated agent.
+
+**B15: Framework refs as extensions check**
+Framework-specific content > 10 lines in SKILL.md must be extracted to `references/<framework-name>.md`. SKILL.md covers core technology only.
 
 ---
 
@@ -223,76 +154,34 @@ Evaluate SKILL.md as an entry point:
 | C8 | SUGGESTION | `allowed-tools` is appropriately scoped (not just "all") | Restrict to tools actually needed |
 | C9 | SUGGESTION | Sections follow logical order (Purpose → How → Validate) | Reorder sections |
 | C10 | SUGGESTION | Decision points in procedures have AskUserQuestion guidance | Add AskUserQuestion guidance at decision points where user input is needed |
+| C13 | WARNING | SKILL.md teaches patterns, not products — no vendor lock-in in the skill router | Remove vendor-specific assumptions from SKILL.md. Reference files may mention specific tools as examples, but SKILL.md must remain technology-agnostic. |
+| C14 | WARNING | Skills comparing tools or vendors lead with a decision tree, not a feature comparison table | Replace feature comparison tables with a decision tree (If X → use Y. If Z → use W.) at the top of the comparison section |
 
 ### C: Detailed Checks
 
 **C1: Filler phrase scan**
-Search for these patterns (case-insensitive):
-```
-"it's important to"
-"please note that"
-"make sure to"
-"keep in mind"
-"remember to"
-"you should always"
-"it is recommended"
-"it's worth noting"
-"as mentioned"
-"note that"
-"be sure to"
-```
+Search (case-insensitive) for: "it's important to", "please note that", "make sure to", "keep in mind", "remember to", "you should always", "it is recommended", "it's worth noting", "as mentioned", "note that", "be sure to".
 
 **C3: Procedure format**
-If a section titled "Workflow", "Steps", or "Procedure" exists:
-- Steps should be `1.`, `2.`, `3.` (numbered)
-- Not `- `, `* ` (bulleted)
+Sections titled "Workflow", "Steps", or "Procedure" must use numbered steps (`1.`, `2.`), not bullets.
 
 **C5: Error handling check**
-```
-If SKILL.md has a `## Commands` or `## Run` section:
-  Must have `## Error Handling` or error table
-  Table format: `| Error | Cause | Solution |`
-If no Commands section → N/A (mark as PASS)
-```
+If SKILL.md has `## Commands` or `## Run` section, it must have an error handling table (`| Error | Cause | Solution |`). N/A if no Commands section.
 
 **C10: Decision point interaction check**
-```
-Scan procedures (in SKILL.md and workflows/) for decision points:
-  - "If A → ... If B → ..."
-  - "Choose between..."
-  - "Depends on..."
-
-For each decision point:
-  Check if there's guidance on user interaction (AskUserQuestion, "ask the user", etc.)
-  If decision is non-trivial and has no interaction guidance → flag
-```
-
-**C12: Critical instruction placement**
-```
-Scan SKILL.md for critical markers: "NEVER", "MUST", "CRITICAL", "IMPORTANT",
-"ALWAYS", "DO NOT", "Rule:", "Constraint:"
-For each found:
-  Check if it appears in the first 1/3 of SKILL.md lines.
-  If not → flag: "Critical instruction buried at line N"
-  Fix: Move to a ## Critical Rules section near the top,
-  right after Purpose or as the second section.
-Rationale: Anthropic guide identifies "instructions buried" as a top cause
-of agents ignoring skill rules.
-```
+Scan procedures for decision points ("If A/B", "Choose between", "Depends on"). Non-trivial decisions must have AskUserQuestion guidance.
 
 **C11: Code naming pattern notation**
-```
-Search code blocks and naming sections for:
-  - Angle-bracket placeholders: <[A-Z][a-zA-Z]+> (e.g., <Trigger>, <Entity>)
-  - Curly-brace placeholders: {[A-Z][a-zA-Z]+} (e.g., {Trigger}, {Effect})
-If found in naming convention context (function/variable/class/epic naming):
-  Flag: "Use rule + examples format instead of placeholder templates"
-  Fix: Extract to ## Naming section with: `fixed` + variable + `fixed` + (e.g., concrete1, concrete2)
-  In code examples, replace placeholders with concrete names.
-If skill has 2+ code examples sharing same naming convention:
-  Flag if convention is repeated or explained inline in each example.
-  Fix: Deduplicate — define once in ## Naming, use concrete names in code blocks.
-```
+Search for `<Placeholder>` or `{Placeholder}` in naming conventions. Flag: use rule + examples format instead. Deduplicate naming conventions into `## Naming` section.
+
+**C12: Critical instruction placement**
+Search for "NEVER", "MUST", "CRITICAL", "ALWAYS", "DO NOT". Each must appear in the first 1/3 of SKILL.md. Buried instructions get ignored (U-shaped attention).
+
+**C13: Technology agnosticity check**
+SKILL.md must not assume specific vendors as the only option. Mentioning tools as examples is fine. Vendor-specific content belongs in `references/`. SKILL.md teaches patterns, not products.
+
+**C14: Decision tree presence check**
+If SKILL.md compares tools/vendors, a decision tree must precede or replace feature comparison tables. Format: "If X, use Y. If Z, use W." Tables can follow as supplementary detail.
 
 ---
 
@@ -310,9 +199,7 @@ If skill has 2+ code examples sharing same naming convention:
 
 ### D: Detailed Checks
 
-**D1: Marker scan**
-```
-Search for: TODO, FIXME, HACK, XXX, TEMP, WIP
+**D1: Marker scan** -- search for: TODO, FIXME, HACK, XXX, TEMP, WIP
 ```
 
 **D2: Stale content scan**

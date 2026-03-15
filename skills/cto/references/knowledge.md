@@ -1,15 +1,18 @@
 # CTO Domain Knowledge
 
-Decision trees, anti-patterns, maturity model, and heuristics for technical leadership.
+Decision trees, anti-patterns, maturity model, effectiveness metrics, AI governance, and heuristics for technical leadership.
 
 ## Contents
 
 - [Healthy Repository Indicators](#healthy-repository-indicators)
 - [Package Decomposition Decision Tree](#package-decomposition-decision-tree)
 - [Service Decomposition Signals](#service-decomposition-signals)
-- [Common Repository Anti-Patterns](#common-repository-anti-patterns)
+- [Common Anti-Patterns](#common-anti-patterns)
 - [Cross-Cutting Concern Patterns](#cross-cutting-concern-patterns)
 - [Engineering Maturity Model](#engineering-maturity-model)
+- [Engineering Effectiveness Metrics](#engineering-effectiveness-metrics)
+- [Architecture Decision Records](#architecture-decision-records)
+- [AI-Assisted Development Governance](#ai-assisted-development-governance)
 - [Team Topology Alignment](#team-topology-alignment)
 
 ---
@@ -26,6 +29,7 @@ New service creation is copy+modify, not reinvent
 All checks pass in under 60 seconds locally
 Build cache hit rate is high in CI
 Onboarding time under 15 minutes
+ADRs exist for non-obvious architectural choices
 ```
 
 ---
@@ -71,7 +75,7 @@ MERGE / DO NOT SPLIT when:
 
 ---
 
-## Common Repository Anti-Patterns
+## Common Anti-Patterns
 
 | # | Anti-Pattern | Description | Fix |
 |---|-------------|-------------|-----|
@@ -82,9 +86,12 @@ MERGE / DO NOT SPLIT when:
 | 5 | Kitchen sink package | One package does logging + config + DB + types — too many concerns | Split by concern or document the deliberate choice |
 | 6 | Inconsistent DI | Different dependency injection patterns across services | Pick one pattern, enforce it |
 | 7 | Orphan scripts | Scripts exist but nothing calls them | Remove or wire into CI/hooks |
-| 8 | Undocumented architecture decisions | Patterns exist but nobody wrote down why | Create ADRs for implicit decisions |
-| 9 | Monorepo without task orchestration | Running all tests/builds serially instead of in dependency order | Use workspace-aware task runner |
+| 8 | Undocumented decisions | Patterns exist but nobody wrote down why | Create ADRs for implicit decisions |
+| 9 | No task orchestration | Running all tests/builds serially instead of in dependency order | Use workspace-aware task runner |
 | 10 | Shared database access | Multiple services reading/writing the same tables | Assign ownership, create API boundaries |
+| 11 | AI code dumping | AI-generated code merged without architectural review or tests | Same review and test gates as human code |
+| 12 | Metric theater | Tracking vanity metrics without acting on them | Focus on actionable metrics tied to outcomes |
+| 13 | Golden path absence | Every team reinvents project scaffolding and CI setup | Create opinionated templates for common patterns |
 
 ---
 
@@ -130,6 +137,122 @@ MERGE / DO NOT SPLIT when:
 
 ---
 
+## Engineering Effectiveness Metrics
+
+### Delivery Metrics (DORA)
+```
+Deployment Frequency → How often code reaches production
+Lead Time for Changes → Commit to production duration
+Change Failure Rate → % of deployments causing incidents
+Mean Time to Recovery → Incident detection to resolution
+
+Performance tiers:
+  Elite:  multiple deploys/day, <1hr lead time, <5% failure, <1hr recovery
+  High:   daily-weekly deploys, <1 week lead time, <15% failure, <1 day recovery
+  Medium: weekly-monthly deploys, <1 month lead time, <30% failure, <1 week recovery
+  Low:    monthly+ deploys, >1 month lead time, >30% failure, >1 week recovery
+```
+
+### Developer Experience Metrics (SPACE)
+```
+Satisfaction → Developer survey scores, eNPS
+Performance → Code review turnaround, build times, CI wait times
+Activity → PR throughput, deploy frequency (context matters — more is not always better)
+Communication → Cross-team PR reviews, documentation contributions
+Efficiency → Feedback loop speed, time to first productive commit for new hires
+```
+
+### Metric Anti-Patterns
+- Measuring lines of code or commit counts as productivity
+- Using metrics punitively instead of diagnostically
+- Optimizing one metric at the expense of system health
+- Tracking without acting — dashboard graveyards
+
+---
+
+## Architecture Decision Records
+
+### When to Write an ADR
+```
+Write an ADR when:
+  - Choosing between competing approaches with real trade-offs
+  - A decision is hard to reverse later
+  - Multiple teams are affected by the choice
+  - Someone will ask "why did we do it this way?" in 6 months
+
+Skip an ADR when:
+  - The choice is obvious and uncontested
+  - It is easily reversible with no downstream impact
+  - It is a personal preference, not an architectural choice
+```
+
+### ADR Structure
+```
+# ADR-NNN: Title
+
+## Status
+Proposed | Accepted | Deprecated | Superseded by ADR-XXX
+
+## Context
+What is the issue? What forces are at play?
+
+## Decision
+What is the change being proposed or decided?
+
+## Consequences
+What becomes easier? What becomes harder? What are the risks?
+```
+
+### ADR Governance
+- Store ADRs in the repository alongside the code they describe
+- Review ADRs in the same process as code reviews
+- Revisit ADRs when the context that drove them changes
+- Number sequentially, never delete — deprecate and link to successor
+
+---
+
+## AI-Assisted Development Governance
+
+### Risk Zone Model
+```
+Assess AI coding tool permissions by code area risk:
+
+  Low risk (broad AI use):
+    - Boilerplate, scaffolding, test utilities
+    - Documentation, comments, config files
+    - Well-defined CRUD operations
+
+  Medium risk (AI with review):
+    - Business logic, data transformations
+    - API endpoint implementations
+    - Integration code between services
+
+  High risk (human-primary, AI-assisted):
+    - Authentication, authorization, cryptography
+    - Financial calculations, billing logic
+    - Data migration scripts, schema changes
+    - Infrastructure and deployment configuration
+```
+
+### AI Code Quality Gates
+- AI-generated code passes the same CI pipeline as human code
+- Architectural review: does the AI code follow established patterns?
+- Duplication check: AI tends to clone rather than reuse existing abstractions
+- Test coverage: AI-generated code must include tests, not just implementation
+- Dependency audit: AI may introduce unnecessary or outdated dependencies
+
+### AI Debt Indicators
+```
+Monitor these signals:
+  - AI-generated code ratio exceeding team review capacity
+  - Rising duplication rate in AI-heavy codebases
+  - Short-term churn: code merged then modified within days
+  - Pattern inconsistency: AI choosing different approaches for similar problems
+  - Dependency sprawl: new packages introduced without justification
+```
+
+---
+
 ## Team Topology Alignment
 
 Code structure should reflect team ownership. When they diverge, friction increases.
@@ -148,3 +271,9 @@ Misaligned:
 Fix: restructure packages to match team ownership, or restructure teams to match code.
 Conway's Law is a constraint, not a suggestion.
 ```
+
+### Platform Team Responsibilities
+- Golden paths: opinionated templates for new services and packages
+- Internal developer platform: self-service infrastructure provisioning
+- Shared tooling: CI pipelines, observability stack, deployment automation
+- Documentation: architecture guides, onboarding materials, ADR templates

@@ -14,9 +14,11 @@ Scan the codebase for DevOps artifacts:
 6. Reverse proxy config (nginx, Caddy, Traefik)
 7. SSL/TLS certificates or ACME config
 8. IaC manifests (Terraform, Pulumi, Ansible, CloudFormation)
-9. `.env.example` completeness
-10. Build scripts in package manager config (build, start commands)
-11. Infrastructure documentation
+9. GitOps config (ArgoCD applications, Flux kustomizations)
+10. Policy definitions (OPA, Kyverno, Sentinel, Checkov)
+11. `.env.example` completeness
+12. Build scripts in package manager config (build, start commands)
+13. Infrastructure documentation
 
 ## Phase 2: Analysis
 
@@ -62,6 +64,16 @@ Scan the codebase for DevOps artifacts:
 - [ ] Concurrency control on deploy jobs
 - [ ] SBOM generation (if supply chain security required)
 - [ ] Image signing (if supply chain security required)
+- [ ] OIDC workload identity (no long-lived cloud credentials)
+
+### GitOps / IaC Checklist
+
+- [ ] Infrastructure defined in version-controlled files (not manual)
+- [ ] Changes go through pull requests (audit trail)
+- [ ] Drift detection enabled (GitOps operator or scheduled plan)
+- [ ] Environment promotion strategy defined (dev --> staging --> prod)
+- [ ] Policy as code enforced (admission control, IaC validation)
+- [ ] Ephemeral environments configured for PR-based testing (if applicable)
 
 ### Deployment Checklist
 
@@ -125,6 +137,10 @@ Use this format for the assessment:
 |---------|-------------|--------------|-----------------|---------|---------|
 
 ### Deployment Readiness
+| Aspect | Status | Notes |
+|--------|--------|-------|
+
+### GitOps / IaC Status
 | Aspect | Status | Notes |
 |--------|--------|-------|
 

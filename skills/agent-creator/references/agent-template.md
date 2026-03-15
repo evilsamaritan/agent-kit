@@ -4,6 +4,7 @@
 
 - [Standalone Agent Template](#standalone-agent-template)
 - [Skill Agent Template](#skill-agent-template)
+- [Composite Agent Template](#composite-agent-template)
 - [Frontmatter Reference](#frontmatter-reference)
 - [Description Patterns](#description-patterns)
 - [Color Guide](#color-guide)
@@ -40,7 +41,7 @@ You are a [role] with deep expertise in [domain]. Your primary mission is [goal]
    - How to do it
 
 2. **Area 2**
-   - What to doc
+   - What to do
 
 ## Workflow
 
@@ -101,6 +102,51 @@ Choose the workflow matching your assignment:
 
 ---
 
+## Composite Agent Template
+
+Combines a role skill with knowledge skills for domain-specific specialists. Use when the agent needs both workflow guidance and deep tech stack expertise.
+
+```markdown
+---
+name: {role}-{stack}-specialist
+description: |
+  {Role description} specialized in {tech stack}.
+  Use when {specific trigger conditions}.
+model: sonnet
+color: {color}
+tools: Read, Grep, Glob, WebSearch, WebFetch, Edit, Write, Bash, Skill
+maxTurns: 30
+skills:
+  - {role-skill}      # Primary role — provides workflows
+  - {knowledge-1}     # Tech stack depth
+  - {knowledge-2}     # Domain depth
+  - {knowledge-3}     # Optional additional domain
+---
+
+You are a senior {role} specialized in {tech stack}. You combine deep {language/framework} expertise with {domain} knowledge.
+
+**Your job:** {one sentence deliverable}
+
+**Skills loaded:** {role-skill} (primary workflow), {knowledge-1}, {knowledge-2}, {knowledge-3}
+
+**Workflow:**
+1. Scan the project to detect existing patterns and conventions
+2. Follow the {role-skill} workflow for your task type
+3. Apply {knowledge-1} patterns for language/framework decisions
+4. Apply {knowledge-2} patterns for domain decisions
+
+**Rules:**
+- Follow the project's existing conventions
+- {Role-specific constraints from the role skill}
+- {Domain-specific constraints}
+
+**Done means:**
+- {Completion criteria from role skill}
+- {Domain-specific quality gates}
+```
+
+---
+
 ## Frontmatter Reference
 
 ### Required Fields
@@ -114,16 +160,17 @@ Choose the workflow matching your assignment:
 
 | Field | Default | Rules |
 |-------|---------|-------|
-| `model` | `inherit` | `sonnet`, `opus`, `haiku`, `inherit` |
+| `model` | `inherit` | `sonnet`, `opus`, `haiku`, full model ID (e.g., `claude-opus-4-6`), `inherit` |
 | `color` | none | UI background color for agent |
-| `tools` | inherit all | Comma-separated string |
+| `tools` | inherit all | Comma-separated string or array. Supports `Agent(type)` to restrict spawnable subagents |
 | `disallowedTools` | none | Tools to explicitly deny |
 | `permissionMode` | `default` | `default`, `acceptEdits`, `dontAsk`, `bypassPermissions`, `plan` |
 | `maxTurns` | unlimited | Safety limit on agentic turns |
-| `skills` | none | Array of skill names to preload |
-| `mcpServers` | none | MCP servers for this agent |
+| `skills` | none | Array of skill names — full content injected at startup |
+| `mcpServers` | none | Array: string references (reuse configured) or inline definitions (scoped to agent) |
 | `hooks` | none | `PreToolUse`, `PostToolUse`, `Stop` |
-| `memory` | none | Object: `memory: { scopes: [project] }`. Scopes: `user`, `project`, `local` |
+| `memory` | none | Persistent memory scope: `user`, `project`, or `local` |
+| `background` | `false` | `true` to always run as background task |
 | `isolation` | none | `worktree` for isolated git copy |
 
 ---

@@ -84,6 +84,14 @@ Evaluate each dimension with the checklists below.
 - [ ] TODOs are tracked (linked to issues)
 - [ ] No experimental/temporary code in main branch
 - [ ] Dependencies are up to date (no major version drift)
+- [ ] AI-generated code reviewed for duplication and pattern consistency
+
+### Engineering Effectiveness
+- [ ] Delivery metrics tracked (deployment frequency, lead time, failure rate, recovery time)
+- [ ] Developer feedback loops are fast (CI < 10 min, local checks < 60 sec)
+- [ ] ADRs exist for significant architectural decisions
+- [ ] Onboarding effectiveness measured (time to first productive commit)
+- [ ] AI coding tool usage has clear governance policy
 
 ### Cross-Cutting Concerns
 - [ ] Observability: structured logging, metrics, tracing consistent across services
@@ -145,12 +153,30 @@ Produce a structured assessment using this template.
 | API versioning | | | |
 | Security posture | | | |
 
+### Engineering Effectiveness
+| Metric | Current | Target | Gap |
+|--------|---------|--------|-----|
+| Deployment frequency | | | |
+| Lead time for changes | | | |
+| Change failure rate | | | |
+| Mean time to recovery | | | |
+| CI pipeline duration | | | |
+| Local check duration | | | |
+
+### AI Development Governance
+| Aspect | Status | Notes |
+|--------|--------|-------|
+| AI tool usage policy | | |
+| Code review gates for AI code | | |
+| Duplication monitoring | | |
+| Risk zone classification | | |
+
 ### Findings
 | # | Area | Severity | Finding | Recommendation |
 |---|------|----------|---------|----------------|
 
 ### Architecture Decisions Needed
-[Decisions that are currently implicit and should be explicit]
+[Decisions that are currently implicit and should be explicit — create ADRs]
 
 ### Recommendations
 1. [Priority order — what to fix/improve first]

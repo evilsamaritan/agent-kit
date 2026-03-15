@@ -59,15 +59,15 @@ Is this content needed for EVERY invocation?
 - Would loading it unnecessarily waste context? → extract
 
 **Rules:**
-- SKILL.md: Overview, quick reference, decision logic (< 500 lines)
+- SKILL.md: maximum 500 lines (ceiling, not target)
 - Load sub-files with: `Read workflows/<file>.md from the skill base directory`
 - Never duplicate content between SKILL.md and sub-files
 
 **When a skill has 2+ independent procedures** (different user intents, different entry points):
-- SKILL.md acts as a router — overview, quick reference table, links to workflows
+- SKILL.md acts as entry point/router — overview, quick reference table, links to workflows
 - Each procedure lives in `workflows/` as a separate file
 - Shared knowledge goes to `references/`
-- SKILL.md stays concise (< 200 lines ideal for router skills)
+- SKILL.md stays concise (under 200 lines ideal for multi-procedure skills)
 
 ---
 
@@ -285,19 +285,7 @@ description: Write E2E tests with Playwright for an AdminUI service. Use when cr
 
 ### Anti-patterns
 
-```yaml
-# Too vague — won't trigger on specific requests
-description: Helps with code quality.
-
-# Too narrow — misses legitimate triggers
-description: Run ESLint on TypeScript files.
-
-# No trigger phrases — agent can't match user intent
-description: Database migration management tool.
-
-# Duplicate info — wastes characters
-description: Create a new skill. This skill creates new skills for the skills system.
-```
+Too vague ("Helps with code quality"), too narrow ("Run ESLint on TypeScript files"), no trigger phrases ("Database migration management tool"), or duplicate info ("Create a new skill. This skill creates new skills for the skills system").
 
 ---
 
@@ -352,11 +340,7 @@ Choose an approach based on the use case:
 
 ### Validation Rules
 
-- `name` must match directory name exactly
-- `description` must not use YAML multi-line (`>`, `|`)
-- `allowed-tools` must be comma-separated string, not YAML list
-- `context: fork` requires `agent` to be set
-- No unknown fields — the agent ignores them silently
+`name` must match directory name. `name` must not start or end with a hyphen, and must not contain consecutive hyphens (`--`). `description` must not use YAML multi-line (`>`, `|`). `allowed-tools` must be comma-separated string, not YAML list. `context: fork` requires `agent`. No unknown fields (silently ignored).
 
 ---
 
@@ -375,13 +359,7 @@ Read-only skills: `Read, Grep, Glob`. File modification: `Edit, Write`. Only gra
 The `skills:` frontmatter field in agents injects full skill content into the sub-agent's context at startup. Use when the agent always needs the skill.
 
 ### Model laziness mitigation
-For skills where thoroughness matters, add to the skill body:
-```markdown
-## Performance Notes
-- Take your time to do this thoroughly
-- Quality is more important than speed
-- Do not skip validation steps
-```
+For skills where thoroughness matters, add a `## Performance Notes` section with: "Take your time to do this thoroughly. Quality is more important than speed. Do not skip validation steps."
 
 ---
 
@@ -417,12 +395,4 @@ Always edit in `skills/` or `agents/`, never in `.claude/` directories.
 
 ## Testing Checklist
 
-After creating a skill:
-
-1. **Frontmatter parses** — `name` and `description` present, valid
-2. **Accessible via symlink** — `ls .claude/skills/<name>/SKILL.md`
-3. **Trigger works** — describe the task naturally, the agent picks up the skill
-4. **Slash command works** — `/<skill-name>` invokes correctly
-5. **Sub-files load** — if workflows/references exist, verify they load on demand
-6. **Workflow completes** — run through the full workflow once
-7. **Output is correct** — generated files, commands, validations all work
+After creating a skill: (1) frontmatter parses (`name` + `description` present), (2) accessible via symlink (`ls .claude/skills/<name>/SKILL.md`), (3) trigger works (describe task naturally, agent picks up skill), (4) slash command works (`/<skill-name>`), (5) sub-files load on demand, (6) workflow completes end-to-end, (7) output is correct.

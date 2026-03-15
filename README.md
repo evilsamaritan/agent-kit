@@ -15,10 +15,18 @@ Production-grade agents and skills — domain expertise packaged as context, not
 ## Architecture
 
 ```
-skills/   → Domain knowledge (3 skills)
-agents/   → Role personas that compose skills (2 agents)
+skills/   → Domain knowledge (47 skills: 11 role, 34 knowledge, 2 meta)
+agents/   → Role personas that compose skills (11 agents)
 .claude-plugin/  → Plugin packaging for distribution
 ```
+
+### Skill Taxonomy
+
+Skills are classified by **type** (`role | knowledge | meta`) with knowledge skills having a **scope** sub-level (`broad | specialized | language | framework | platform-tech | regulatory`).
+
+- **Broad/role skills** must be framework/vendor agnostic in core SKILL.md
+- **Specialized/framework skills** may be specific by design
+- **Maximum 500 lines** for SKILL.md (ceiling, not target)
 
 | Directory | Contents |
 |-----------|----------|
@@ -70,7 +78,7 @@ Or describe what you need naturally — "create a skill for X" triggers the skil
 Key references:
 - [best-practices.md](skills/skill-creator/references/best-practices.md) — authoring patterns and conventions
 - [skill-template.md](skills/skill-creator/references/skill-template.md) — unified template with section guide
-- [verification-checklist.md](skills/skill-creator/references/verification-checklist.md) — 43-check quality validation
+- [verification-checklist.md](skills/skill-creator/references/verification-checklist.md) — 48-check quality validation
 
 ## Creating Agents
 

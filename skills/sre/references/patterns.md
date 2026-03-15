@@ -4,63 +4,15 @@ Platform-agnostic reliability patterns, common failure modes, and domain knowled
 
 ## Contents
 
-- [Observability Frameworks](#observability-frameworks)
 - [Circuit Breaker Pattern](#circuit-breaker-pattern)
 - [Retry Patterns](#retry-patterns)
-- [SLO-Based Alerting](#slo-based-alerting)
 - [Chaos Engineering Practices](#chaos-engineering-practices)
 - [Progressive Delivery Patterns](#progressive-delivery-patterns)
+- [Toil Reduction Patterns](#toil-reduction-patterns)
+- [On-Call Excellence](#on-call-excellence)
+- [Dependency Management](#dependency-management)
 - [Common Operational Failures](#common-operational-failures)
 - [Anti-Patterns](#anti-patterns)
-
----
-
-## Observability Frameworks
-
-### Golden Signals (Google SRE Book)
-
-Use for any service. Monitor all four for every user-facing service.
-
-| Signal | What to measure | Alert when |
-|--------|----------------|------------|
-| Latency | Response time at p50, p95, p99 | p99 exceeds SLO threshold |
-| Traffic | Requests/sec, messages/sec | Unexpected drop or spike |
-| Errors | Error rate (5xx, failed operations) | Error budget burn rate too high |
-| Saturation | Resource utilization approaching limits | Above 80% sustained |
-
-### RED Method (Tom Wilkie)
-
-Best for request-driven microservices:
-- **Rate**: requests per second
-- **Errors**: failed requests per second
-- **Duration**: distribution of request latency
-
-### USE Method (Brendan Gregg)
-
-Best for infrastructure resources (CPU, memory, disk, network):
-- **Utilization**: percentage of resource busy
-- **Saturation**: degree of queued work
-- **Errors**: count of error events
-
-### OpenTelemetry Integration
-
-```
-Application Code
-    |
-    v
-OpenTelemetry SDK (instrument once)
-    |
-    +---> Metrics   ---> Any metrics backend
-    +---> Traces    ---> Any tracing backend
-    +---> Logs      ---> Any log aggregator
-```
-
-Key principles:
-- Instrument with OpenTelemetry SDK, not vendor-specific libraries
-- Use semantic conventions for attribute names (http.request.method, db.system, etc.)
-- Set up context propagation (W3C Trace Context headers) across all service boundaries
-- Configure sampling: 100% for errors, percentage-based for normal traffic
-- Export via OTLP protocol to collector, then fan out to backends
 
 ---
 
@@ -122,34 +74,6 @@ Attempt 5: give up
 
 ---
 
-## SLO-Based Alerting
-
-### Burn Rate Alerting
-
-Instead of "alert if error rate > 1%", alert on how fast the error budget is being consumed.
-
-```
-Monthly SLO: 99.9% availability
-Error budget: 0.1% = 43.2 minutes/month
-
-Burn rate 1x  = budget exhausted in 30 days   (normal)
-Burn rate 14x = budget exhausted in ~2 days    (alert: page)
-Burn rate 6x  = budget exhausted in ~5 days    (alert: ticket)
-Burn rate 1x  = on track                       (no alert)
-```
-
-### Multi-Window Alert Matrix
-
-| Severity | Long window | Short window | Action |
-|----------|------------|--------------|--------|
-| Page (P1) | 1h burn rate > 14x | 5m burn rate > 14x | Wake someone up |
-| Ticket (P2) | 6h burn rate > 6x | 30m burn rate > 6x | Fix during business hours |
-| Log (P3) | 3d burn rate > 1x | 6h burn rate > 1x | Investigate when convenient |
-
-Both windows must fire to trigger the alert. This eliminates false positives from brief spikes.
-
----
-
 ## Chaos Engineering Practices
 
 ### Experiment Framework
@@ -170,6 +94,8 @@ Both windows must fire to trigger the alert. This eliminates false positives fro
 | Fill disk to 95% | Log rotation, alerting, cleanup scripts | Staging |
 | Exhaust connection pool | Pool sizing, timeout behavior, queuing | Staging |
 | Simulate clock skew | Time-dependent logic, token validation | Staging |
+| Inject certificate expiry | TLS renewal automation, alerting | Staging |
+| Corrupt DNS resolution | DNS fallback, caching, timeout handling | Staging |
 
 ### Game Day Checklist
 
@@ -179,6 +105,16 @@ Both windows must fire to trigger the alert. This eliminates false positives fro
 - [ ] Observability in place (dashboards, alerts, logs visible)
 - [ ] Team briefed (participants know the drill)
 - [ ] Results documented (what happened, what was learned)
+- [ ] Action items tracked (findings fed back into reliability backlog)
+
+### Maturity Progression
+
+```
+Level 1: Manual experiments in staging only
+Level 2: Scheduled game days with documented results
+Level 3: Automated experiments in CI/CD (staging gate)
+Level 4: Continuous chaos in production canaries with auto-rollback
+```
 
 ---
 
@@ -215,6 +151,103 @@ Use feature flags to decouple deployment from release:
 
 ---
 
+## Toil Reduction Patterns
+
+### Toil Classification
+
+| Category | Examples | Automation priority |
+|----------|---------|-------------------|
+| Deployment toil | Manual deploys, config changes, cert rotation | High -- automate first |
+| Incident toil | Manual restarts, log searching, scaling | High -- build runbook automation |
+| Operational toil | User account management, quota changes | Medium -- self-service portals |
+| Reporting toil | Manual status reports, capacity spreadsheets | Medium -- automated dashboards |
+| Maintenance toil | Dependency updates, cleanup scripts | Low -- schedule and batch |
+
+### Automation Decision Framework
+
+```
+Should you automate this?
+├── Done > 2x/week AND takes > 15 min each time → Automate now
+├── Done weekly AND error-prone (human mistakes) → Automate now
+├── Done monthly AND well-documented → Automate when capacity allows
+├── Done rarely AND requires judgment → Keep manual, improve runbook
+└── One-time task → Do not automate
+```
+
+### Toil Tracking
+
+- Measure toil hours per engineer per sprint
+- Target: < 50% of time on toil, > 50% on engineering work
+- Review toil trends quarterly -- rising toil signals scaling problems
+- Tag tickets as "toil" to make it visible in sprint retrospectives
+
+---
+
+## On-Call Excellence
+
+### Rotation Design
+
+- Minimum 2 people in rotation (primary + secondary)
+- Rotation length: 1 week is standard; longer rotations cause fatigue
+- Handoff procedure: outgoing documents active issues, pending changes, recent incidents
+- Follow-the-sun: distribute across time zones to avoid night pages
+
+### Alert Quality Standards
+
+- Every alert must be actionable (not "CPU is high" -- instead "service X is burning error budget")
+- Every alert links to a runbook with diagnosis steps
+- Track alert-to-incident ratio: target > 50% of pages result in real action
+- Regularly review and prune alerts that never lead to action
+
+### On-Call Health Metrics
+
+| Metric | Healthy | Needs attention |
+|--------|---------|----------------|
+| Pages per shift | < 5 | > 10 |
+| False positive rate | < 20% | > 40% |
+| Time to acknowledge | < 5 min | > 15 min |
+| Time to mitigate | < 30 min | > 2 hours |
+| Escalation rate | < 10% | > 30% |
+
+### Compensation and Sustainability
+
+- Compensate on-call time (pay or time off)
+- Post-incident recovery time after major incidents
+- Track interrupt rate and adjust staffing when it exceeds capacity
+- Rotate people off on-call if burnout indicators appear
+
+---
+
+## Dependency Management
+
+### Dependency Mapping
+
+For every service, document:
+- Critical dependencies (service cannot function without them)
+- Degradable dependencies (service can function in degraded mode)
+- Optional dependencies (nice-to-have, can be fully disabled)
+
+### Fallback Strategies
+
+| Dependency type | Fallback pattern |
+|----------------|-----------------|
+| Database (primary) | Read replica, cached data, queue writes for retry |
+| External API | Cached last-known-good response, default values, feature disable |
+| Auth service | Cached tokens/sessions, graceful deny with retry |
+| Search index | Degraded search (DB fallback), show cached results |
+| CDN / static assets | Origin fallback, local cache |
+
+### Blast Radius Analysis
+
+Before any change, ask:
+1. What services depend on this component?
+2. If this component fails, what is the user impact?
+3. Can dependent services degrade gracefully?
+4. How long until the failure is detected by alerts?
+5. What is the rollback procedure?
+
+---
+
 ## Common Operational Failures
 
 1. **No graceful shutdown** -- SIGKILL after timeout, uncommitted work, duplicate processing on restart
@@ -227,6 +260,8 @@ Use feature flags to decouple deployment from release:
 8. **No runbook** -- incident happens, nobody knows the recovery steps
 9. **Unbounded retries** -- failing dependency gets hammered with retries, making recovery harder
 10. **Missing timeouts** -- one slow dependency causes cascading slowdowns across the system
+11. **Single point of failure** -- no redundancy for critical path components
+12. **Toil accumulation** -- manual operational work grows faster than automation efforts
 
 ---
 
@@ -239,8 +274,11 @@ Use feature flags to decouple deployment from release:
 | Monitoring without alerting | Nobody sees the dashboard at 3am | Automated alerts with runbook links |
 | Retry without backoff | Thundering herd during outages | Exponential backoff with jitter |
 | Health check that always returns OK | Orchestrator thinks service is healthy when it's broken | Check actual dependency connectivity |
-| Logging everything at DEBUG | Disk fills, important signals lost in noise | Structured logging with appropriate levels |
 | Manual incident response | Slow response, inconsistent actions | Runbooks with automated first-response |
 | Postmortem blame culture | People hide mistakes, root causes stay unfixed | Blameless postmortems focused on systemic fixes |
 | Single point of failure in monitoring | Monitoring goes down with the system it monitors | Independent monitoring path |
 | Feature flags without cleanup | Flag debt accumulates, code becomes unreadable | Expiry dates on flags, regular cleanup |
+| No error budget policy | SLOs are numbers on a dashboard, not decision tools | Formal policy with stakeholder agreement |
+| Hero culture in on-call | One person handles everything, no knowledge sharing | Documented runbooks, pair on incidents, rotate |
+| Automating without understanding | Automated fix masks the root cause | Understand first, then automate the known-good fix |
+| No toil tracking | Toil grows invisibly until burnout | Tag and measure toil hours, review quarterly |

@@ -10,6 +10,8 @@
 - [Container Registry Workflow](#container-registry-workflow)
 - [GitHub Actions Example](#github-actions-example)
 - [GitLab CI Example](#gitlab-ci-example)
+- [OIDC Workload Identity](#oidc-workload-identity)
+- [Supply Chain Security in CI](#supply-chain-security-in-ci)
 - [Pipeline Anti-Patterns](#pipeline-anti-patterns)
 
 ---
@@ -299,6 +301,77 @@ build:
 
 ---
 
+## OIDC Workload Identity
+
+Replace long-lived credentials with short-lived tokens tied to repo/branch identity.
+
+```
+CI job starts
+  |
+  v (request OIDC token)
+CI platform issues JWT (contains repo, branch, workflow info)
+  |
+  v (present JWT)
+Cloud provider validates JWT, issues short-lived credentials
+  |
+  v (use credentials)
+CI job accesses cloud resources (registry, deploy target, secrets)
+```
+
+| CI Platform | Cloud Provider | How |
+|-------------|---------------|-----|
+| GitHub Actions | AWS | `aws-actions/configure-aws-credentials` with OIDC |
+| GitHub Actions | GCP | `google-github-actions/auth` with workload identity |
+| GitHub Actions | Azure | `azure/login` with OIDC |
+| GitLab CI | AWS/GCP/Azure | CI/CD OIDC token via `CI_JOB_JWT_V2` |
+
+Benefits: no stored secrets to rotate, credentials scoped to specific repo/branch/workflow, audit trail of all access.
+
+---
+
+## Supply Chain Security in CI
+
+### SBOM Generation
+
+Generate Software Bill of Materials for every build:
+
+```bash
+# Generate SBOM from container image
+syft myimage:tag -o spdx-json > sbom.json
+
+# Generate SBOM from source
+trivy fs --format spdx-json -o sbom.json .
+
+# Scan SBOM for known vulnerabilities
+grype sbom:sbom.json
+```
+
+### Image Signing
+
+Sign artifacts to verify provenance and integrity:
+
+```bash
+# Keyless signing with Sigstore (uses OIDC identity)
+cosign sign --yes ghcr.io/org/app:v1.0.0
+
+# Verify signature before deploy
+cosign verify ghcr.io/org/app:v1.0.0 \
+  --certificate-identity=https://github.com/org/app/.github/workflows/ci.yml@refs/heads/main \
+  --certificate-oidc-issuer=https://token.actions.githubusercontent.com
+```
+
+### SLSA Provenance Levels
+
+| Level | Requirements | Effort |
+|-------|-------------|--------|
+| **SLSA 1** | Build process documented, provenance exists | Low (enable GitHub artifact attestations) |
+| **SLSA 2** | Hosted build, signed provenance | Medium (use OIDC + cosign) |
+| **SLSA 3** | Isolated build, non-falsifiable provenance | High (hermetic builds) |
+
+Start with Level 1-2 -- achievable in weeks with modern CI platforms.
+
+---
+
 ## Pipeline Anti-Patterns
 
 | Anti-Pattern | Problem | Fix |
@@ -306,7 +379,9 @@ build:
 | No caching | Slow builds, wasted compute | Cache dependencies and layers |
 | `latest` tag only | Cannot trace image to commit | Use git SHA or semver tags |
 | Secrets in YAML | Visible to anyone with repo access | Use CI secret store |
+| Long-lived cloud credentials | Leaked key = full access | OIDC workload identity federation |
 | No concurrency control | Parallel deploys cause conflicts | Cancel or queue concurrent runs |
 | Monolithic pipeline | Slow feedback, all-or-nothing | Parallel stages, path filters |
 | No deploy gate | Broken code reaches production | Health check verification post-deploy |
 | Skipping lint/types on PR | Errors caught late | Run validation on every PR |
+| No SBOM or signing | Cannot verify what was deployed | SBOM generation + image signing in CI |

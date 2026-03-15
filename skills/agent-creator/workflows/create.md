@@ -93,12 +93,32 @@ Present to user for approval.
 
 Determine optional frontmatter fields:
 
-1. **Model**: `sonnet` (fast, cheaper), `opus` (strongest), `haiku` (fastest), `inherit` (same as parent)
+1. **Model**: `sonnet` (fast, cheaper), `opus` (strongest), `haiku` (fastest), full model ID (e.g., `claude-opus-4-6`), `inherit` (same as parent)
 2. **Color**: visual distinction in UI
-3. **Tools**: scope to needed tools (default: inherit all)
+3. **Tools**: scope to needed tools (default: inherit all). Use `Agent(type)` to restrict spawnable subagents
 4. **Permission mode**: `default` for most, `bypassPermissions` for trusted automation
 5. **Max turns**: limit for safety (default: unlimited)
-6. **Skills**: list of skills to preload (for skill agents)
+6. **Skills**: list of skills to preload (for skill/composite agents)
+7. **Memory**: persistent memory scope (`user`, `project`, `local`) for cross-session learning
+8. **Background**: `true` to always run as background task
+9. **Isolation**: `worktree` for isolated git worktree
+
+### Composite Agent Skills Selection
+
+When creating a composite agent:
+1. **Pick one role skill** — this provides workflows and primary persona
+2. **Add knowledge skills** matching the tech stack (max 3-4)
+3. **Order matters** — role skill first, then knowledge skills by importance
+4. **Verify no overlap** — don't add `docker` if `devops` is already loaded (devops covers containers)
+
+Example for "Rust backend with PostgreSQL and API design":
+```yaml
+skills:
+  - backend    # Role: provides service patterns, review workflow
+  - rust       # Language: ownership, error handling, crate selection
+  - database   # Domain: schema, migrations, query optimization
+  - api-design # Domain: REST/gRPC conventions, error contracts
+```
 
 Present configuration summary to user for approval.
 

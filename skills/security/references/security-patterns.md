@@ -12,7 +12,7 @@ Domain knowledge for application security review. Stack-agnostic patterns and se
 - [API Security Patterns](#api-security-patterns)
 - [Supply Chain Security](#supply-chain-security)
 - [Zero Trust Patterns](#zero-trust-patterns)
-- [Common Anti-Patterns](#common-anti-patterns)
+- [Common Anti-Patterns](#common-anti-patterns) (see SKILL.md for full table)
 
 ---
 
@@ -252,15 +252,4 @@ Validate at every point where data crosses a trust boundary:
 
 ## Common Anti-Patterns
 
-| Anti-pattern | Risk | Correct approach |
-|-------------|------|-----------------|
-| Secrets in source code | Credential leak via git history | Environment variables or secret manager |
-| `SELECT *` in queries | Mass assignment, data leakage | Explicit field selection |
-| Wildcard CORS (`*`) | Cross-origin attacks | Explicit origin allowlist |
-| Error messages with stack traces | Information disclosure | Generic errors to clients, detailed logs server-side |
-| Rolling your own crypto | Cryptographic weakness | Use established libraries (libsodium, OpenSSL) |
-| JWT with `alg: none` | Auth bypass | Always validate algorithm, reject `none` |
-| Storing passwords as MD5/SHA1 | Rainbow table attacks | bcrypt/scrypt/argon2 with salt |
-| Disabling TLS verification | MITM attacks | Fix certificates, do not bypass |
-| Global admin API keys | Blast radius of compromise | Scoped, rotatable, per-service keys |
-| Trusting client-side validation | Bypass via direct API calls | Server-side validation is the authority |
+See SKILL.md `## Anti-Patterns` for the full table. This reference focuses on deep patterns; anti-patterns live in the skill entry point for immediate visibility.

@@ -1,15 +1,13 @@
 ---
 name: database
-description: Review and design database schemas, migrations, indexes, queries, and data access patterns. Use when auditing schemas, writing migrations, optimizing queries, or designing data models. Covers relational (PostgreSQL, MySQL, SQLite), document (MongoDB), and key-value stores. Do NOT use for API design (use backend skill).
+description: Review and design database schemas, migrations, indexes, queries, and data access patterns. Use when auditing schemas, writing migrations, optimizing queries, or designing data models. Covers relational, document, key-value, and vector stores. Do NOT use for API design (use api-design skill).
 user-invocable: true
-allowed-tools: Read, Grep, Glob, WebSearch, WebFetch, Edit, Write, Bash
+allowed-tools: Read, Grep, Glob, WebSearch, WebFetch
 ---
 
-# Database Architect
+# Database Knowledge
 
-You are a senior database architect with deep expertise in relational and non-relational data modeling. You design schemas for complex domains -- transactional systems, audit trails, event-sourced aggregates, CQRS read models, and multi-tenant platforms. You know when to normalize, when to denormalize, and how to design for idempotent writes.
-
-You ANALYZE, DESIGN, IMPLEMENT, and REVIEW database schemas, migrations, indexes, queries, and data access patterns. You write and modify migration files, schema definitions, seed data, and query code.
+Database design and review expertise for relational, document, key-value, and vector stores.
 
 ---
 
@@ -21,152 +19,141 @@ You ANALYZE, DESIGN, IMPLEMENT, and REVIEW database schemas, migrations, indexes
 - State is derived -- compute aggregates from events/entries, never store mutable running totals.
 - Use exact numeric types for money (DECIMAL/NUMERIC) -- never floating point.
 - Timestamps must include timezone information.
+- Migrations must be backward-compatible -- the previous application version must still work after each migration step.
 
 ---
 
-## Your Domain
+## Database Type Decision Tree
 
-### Schema Design (All Relational Databases)
-- Tables, constraints, indexes, enums, triggers
-- Normalization (1NF through BCNF) and strategic denormalization
-- Primary keys: natural vs surrogate, UUID vs sequential
+```
+What is the primary workload?
+
+├─ Structured data with relationships → Relational (SQL)
+│  ├─ Embedded / edge / single-file → SQLite-based¹
+│  ├─ Read-heavy, simple schema → MySQL-compatible¹
+│  └─ Complex queries, rich types, extensibility → PostgreSQL-compatible¹
+│
+├─ Flexible schema, document-shaped data → Document store¹
+│  └─ Horizontal scale + built-in sharding needed? → Yes: sharded document store
+│
+├─ Low-latency caching, sessions, counters → In-memory key-value store¹
+│
+├─ Time-series, IoT, metrics → Time-series engine¹
+│  └─ Already on PostgreSQL? → Consider time-series extension
+│
+├─ Similarity search, embeddings, RAG → Vector store
+│  ├─ Already have a relational DB? → Use vector extension (e.g., pgvector)²
+│  └─ Dedicated vector workload at scale → Specialized vector database¹
+│
+└─ Analytics, OLAP, columnar scans → Columnar / analytical engine¹
+```
+
+¹ Popular choices listed in `references/engine-specific.md`.
+² Vector extensions allow keeping vectors and relational data in one system -- query in the same transaction, no separate infrastructure.
+
+Start with a single instance. Add read replicas when read load demands it.
+
+---
+
+## Scope and Boundaries
+
+### In Scope
+- Schema design: tables, constraints, indexes, enums, triggers, partitioning
+- Migrations: sequential, versioned, backward-compatible, zero-downtime
+- Query optimization: EXPLAIN ANALYZE, covering indexes, N+1 detection
+- Data modeling: normalization, strategic denormalization, natural vs surrogate keys
+- Transactions, isolation levels, concurrency control
+- Vector search integration in relational databases
+
+### Out of Scope
+- API design and endpoints → `api-design`
+- ORM integration and repository patterns → `backend`
+- System-level architecture (CQRS, event sourcing, sharding strategy) → `architect`
+- Query profiling and bottleneck analysis → `performance`
+- Row-level security, encryption, PII masking → `security`
+
+---
+
+## Core Patterns
+
+### Schema Design
+- Primary keys: natural vs surrogate, UUID vs sequential (prefer UUIDv7 for new systems -- time-ordered, no coordination)
 - Foreign keys, cascading rules, referential integrity
 - Check constraints for domain validation
+- Enums: database-level vs application-level trade-offs
 
-### Transactions & Consistency
+### Transactions and Consistency
 - ACID guarantees, isolation levels (read committed, repeatable read, serializable)
 - Optimistic concurrency (version columns, conditional updates)
 - Pessimistic locking (row locks, advisory locks)
 - Distributed transactions and eventual consistency trade-offs
 
 ### Idempotent Writes
-- Upsert patterns (e.g., `ON CONFLICT` in PostgreSQL, `ON DUPLICATE KEY` in MySQL)
+- Upsert patterns (ON CONFLICT / ON DUPLICATE KEY)
 - Conditional inserts with business keys
 - Deduplication via stable idempotency keys (not auto-increment IDs)
-- Version-guarded updates (`WHERE version = $expected`)
+- Version-guarded updates (WHERE version = $expected)
 
 ### Migration Strategy
-- Sequential, versioned, reversible migrations
-- Zero-downtime migrations: add column, backfill, then constrain
-- Schema migration tools: Flyway, Liquibase, Alembic, Knex, Prisma, Drizzle, golang-migrate
-- Data migrations as separate steps from schema migrations
+- Sequential, versioned, backward-compatible migrations
+- **Expand-contract pattern**: add new structure → migrate data → remove old structure
+- Zero-downtime: add column (nullable or with default), backfill, then add constraint
+- Never rename or remove columns in a single step -- use expand-contract over multiple deployments
 
-### Indexing & Query Optimization
-- B-tree, hash, GIN, GiST, and full-text indexes
-- Covering indexes, partial indexes, composite index ordering
-- Query plans (EXPLAIN ANALYZE) and common anti-patterns
-- N+1 query detection and resolution
+### Indexing and Query Optimization
+- B-tree, hash, GIN, GiST, BRIN, and full-text indexes
+- Covering indexes, partial indexes, composite index ordering (equality before range)
+- Query plans (EXPLAIN ANALYZE with BUFFERS)
+- N+1 query detection and resolution (JOIN, subquery, batch fetch)
+- Revisit indexes as query patterns evolve
 
-### Connection Management
-- Connection pooling (PgBouncer, HikariCP, application-level pools)
-- Pool sizing: connections = (core_count * 2) + disk_spindles as baseline
-- Idle/max lifetime, health checks, graceful drain on shutdown
+### Partitioning
+- Declarative partitioning (RANGE, LIST, HASH)
+- Partition pruning for query performance on large tables
+- Common strategies: by time (logs, events), by tenant, by region
+
+### Vector Search
+- Vector columns store embeddings alongside relational data
+- Index types: IVFFlat (faster build, approximate), HNSW (better recall, more memory)
+- Hybrid queries: combine vector similarity with relational filters
+- Dimensionality and distance metric must match the embedding model
 
 ### Modern Patterns
-- **CQRS data layer**: separate write models (normalized) from read models (denormalized)
-- **Event sourcing storage**: append-only event log, snapshot tables, projection rebuilds
 - **Read replicas**: routing reads to replicas, replication lag awareness
-- **Sharding strategies**: hash-based, range-based, tenant-based partitioning
+- **Logical replication**: selective table replication, CDC pipelines
 - **Time-series**: partitioning by time, retention policies, rollup aggregates
 - **Multi-tenancy**: schema-per-tenant, row-level security, shared-table with tenant_id
-
-### Document & Key-Value Stores
-- When to choose document DB vs relational (schema flexibility, nested data, horizontal scale)
-- MongoDB: collection design, embedding vs referencing, compound indexes
-- Redis/KeyDB: caching patterns, TTL strategies, pub/sub, sorted sets for leaderboards
-- DynamoDB: partition key design, GSIs, single-table design
+- **Edge databases**: SQLite-based distributed databases for low-latency edge reads
 
 ---
 
-## Review Protocol
+## Context Adaptation
 
-### Phase 1: Discovery
-Scan the codebase for data-related code:
-- Migration files, their order and contents
-- Repository classes / data access layer (ORM or raw queries)
-- Database connection setup (pool config, timeouts, replicas)
-- Schema definitions (migrations, ORM models, or DDL files)
-- Indexes, constraints, foreign keys
-- How idempotent writes are implemented
-- Transaction boundaries (what is atomic?)
+### Backend
+- Schema design: tables, constraints, indexes, enums, triggers
+- Migrations: sequential, versioned; expand-contract for zero-downtime
+- ORM patterns and query builder integration
+- Connection pooling: sizing = (cores * 2) + spindles; external pooler for production
+- Query optimization: EXPLAIN ANALYZE, N+1 detection, batch fetching
 
-### Phase 2: Analysis
+### Architect
+- Data modeling: normalization (1NF-BCNF), strategic denormalization
+- Sharding: hash-based, range-based, tenant-based partitioning
+- CQRS/event sourcing: separate write models from read models, append-only event logs
+- Database type selection (use decision tree above)
 
-**Schema Quality**
-- [ ] Primary keys are appropriate (meaningful business keys or well-chosen surrogates)
-- [ ] Foreign keys enforce referential integrity where needed
-- [ ] NOT NULL on fields that must always have values
-- [ ] CHECK constraints for valid ranges and enums
-- [ ] Timestamps include timezone (TIMESTAMPTZ in PostgreSQL, DATETIME with UTC convention in MySQL)
-- [ ] Exact numeric types for money (DECIMAL/NUMERIC, not FLOAT/DOUBLE)
-- [ ] Consistent naming convention (snake_case or camelCase -- pick one)
+### DevOps
+- Backup and restore strategies, point-in-time recovery
+- Replication setup: streaming, logical, cross-region
+- Connection pooler deployment and monitoring
+- Migration automation in CI/CD pipelines
+- Blue-green database deployments with expand-contract migrations
 
-**Idempotency**
-- [ ] Every entity has a stable business key for deduplication
-- [ ] Upserts use the business key for conflict detection
-- [ ] Updates are conditional (version guard or timestamp guard)
-- [ ] No auto-generated IDs used as deduplication keys
-- [ ] Replay of events produces identical state
-
-**Index Strategy**
-- [ ] Primary access patterns have covering indexes
-- [ ] No missing indexes on foreign key columns
-- [ ] No redundant indexes (prefix of another composite index)
-- [ ] Partial indexes where appropriate (e.g., `WHERE status = 'active'`)
-- [ ] Composite index column order matches query patterns (equality before range)
-
-**Migration Discipline**
-- [ ] Migrations are sequential and versioned
-- [ ] Each migration is a single logical change
-- [ ] Destructive changes (DROP, ALTER TYPE) have explicit rollback
-- [ ] Migrations run inside transactions where supported
-- [ ] No manual schema changes outside migration files
-
-**Connection Management**
-- [ ] Pool size appropriate for workload
-- [ ] Idle timeout prevents connection hoarding
-- [ ] Connection timeout prevents hanging on startup
-- [ ] Health check on connection checkout or periodic ping
-- [ ] Graceful shutdown drains pool
-
-**Data Integrity**
-- [ ] No orphan records possible (FK constraints or application-level cleanup)
-- [ ] Soft delete vs hard delete: consistent strategy across tables
-- [ ] Audit fields: `created_at`, `updated_at` on all mutable entities
-- [ ] Optimistic locking where concurrent updates are possible
-- [ ] No business logic in database triggers
-
-### Phase 3: Report
-
-```
-## Data Model Assessment
-
-### Summary
-[1-3 sentences on schema health and completeness]
-
-### Entity-Relationship Diagram (ASCII)
-[Current schema as ASCII ER diagram]
-
-### Schema Inventory
-| Table | Engine | Rows Est. | Indexes | Constraints | Issues |
-|-------|--------|-----------|---------|-------------|--------|
-
-### Findings
-| # | Area | Severity | Finding | File:Line | Recommendation |
-|---|------|----------|---------|-----------|----------------|
-
-### Migration Health
-[Timeline of migrations, gaps, or issues]
-
-### Missing Entities
-[What is needed but does not exist yet]
-
-### Query Patterns
-[Typical queries and whether they are well-indexed]
-
-### Recommendations
-1. [Priority order]
-```
+### Security
+- Row-level security policies for tenant isolation
+- Encryption at rest: transparent data encryption, column-level encryption
+- PII masking: views that redact sensitive columns
+- Audit trails: append-only audit log tables
 
 ---
 
@@ -182,25 +169,26 @@ Scan the codebase for data-related code:
 | Timestamps without timezone | Off-by-hours bugs in multi-region deployments | Always store with timezone (UTC) |
 | N+1 queries in loops | Linear DB roundtrips per parent record | JOIN, subquery, or batch fetch |
 | Unbounded SELECT without LIMIT | Memory exhaustion on large tables | Always paginate or cap results |
+| No partitioning on billion-row tables | Scans, vacuum, and maintenance degrade | Declarative partitioning by time or tenant |
+| Rename/drop column in single migration | Breaks previous app version during deploy | Expand-contract over multiple deploys |
+| Vector index without filters | Full-table similarity scan | Combine vector index with partition or partial index |
 
 ---
 
-## New Project?
+## Related Knowledge
 
-When setting up a database from scratch:
-
-| Decision | Options | Default recommendation |
-|----------|---------|----------------------|
-| **Engine** | PostgreSQL, MySQL, SQLite, MongoDB | PostgreSQL (most capable relational DB) |
-| **ORM / Query builder** | Prisma, Drizzle, Knex (JS); SQLAlchemy (Python); Diesel, sqlx (Rust); GORM (Go) | Drizzle (TS), sqlx (Rust), SQLAlchemy (Python) |
-| **Migration tool** | Framework-native, Flyway, golang-migrate, Alembic | Use ORM's built-in migration tool |
-| **Connection pooling** | PgBouncer, framework-native, HikariCP | Framework-native; PgBouncer for production |
-
-Start with a single instance. Add read replicas when read load demands it.
+- **backend** -- ORM integration, connection pooling, repository patterns, data access layers
+- **architect** -- Data modeling decisions, CQRS/event sourcing, sharding strategy, CAP trade-offs
+- **performance** -- Query optimization, EXPLAIN ANALYZE, index tuning, connection pool sizing
+- **security** -- Row-level security, encryption at rest, PII masking, audit trails
+- **devops** -- Backup automation, replication setup, migration CI/CD, blue-green deploys
+- **search** -- Full-text search, vector/semantic search at scale
+- **rag** -- Embedding storage, vector similarity queries for retrieval
 
 ---
 
 ## References
 
 - [schema-patterns.md](references/schema-patterns.md) -- Reusable schema design patterns (idempotent writes, ledger, event sourcing, CQRS)
-- [engine-specific.md](references/engine-specific.md) -- Engine-specific features and syntax (PostgreSQL, MySQL, SQLite, MongoDB, Redis)
+- [engine-specific.md](references/engine-specific.md) -- Engine-specific features, syntax, and selection guide
+- [review-protocol.md](workflows/review-protocol.md) -- Database review workflow for auditing existing database layers

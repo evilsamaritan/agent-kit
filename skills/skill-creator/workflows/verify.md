@@ -37,7 +37,7 @@ Collect all data needed for checks:
 
 ## Step 4: Run All Checks
 
-Execute all 43 checks from Categories A-E:
+Execute all 48 checks from Categories A-E:
 
 **Category A: Frontmatter (11 checks)**
 - Parse frontmatter YAML
@@ -45,19 +45,24 @@ Execute all 43 checks from Categories A-E:
 - Check description starts with verb, includes trigger phrases
 - Check internal field handling
 
-**Category B: Structure (12 checks)**
+**Category B: Structure (15 checks)**
 - Verify SKILL.md exists and is under 500 lines
 - Check files are properly organized (workflows/ for procedures, references/ for docs)
 - Verify progressive disclosure — SKILL.md is entry point, details in sub-files
 - Verify instruction tone matches content type
 - Verify content placement (procedures in workflows/, knowledge in references/)
+- Check role skills have Related Knowledge section
+- Check language/framework knowledge skills follow uniform structure
+- Check framework-specific content is in separate reference files
 
-**Category C: Content Quality (12 checks)**
+**Category C: Content Quality (14 checks)**
 - Scan for filler phrases
 - Check code examples use real patterns
 - Verify workflow steps are numbered
 - Check decision points are explicit
 - Verify error handling for skills with `## Commands` section
+- Check SKILL.md is technology-agnostic (no vendor lock-in)
+- Check tool/vendor comparisons lead with decision trees
 
 **Category D: Anti-Patterns (7 checks)**
 - Scan for TODO/FIXME markers
@@ -86,7 +91,7 @@ Execute all 43 checks from Categories A-E:
 |----|----------|--------|-------------|
 | A1 | CRITICAL | PASS   | name field exists |
 | A2 | CRITICAL | FAIL   | name doesn't match directory |
-| ... all 43 checks in one table ... |
+| ... all 48 checks in one table ... |
 
 ### Summary
 
@@ -102,7 +107,7 @@ Execute all 43 checks from Categories A-E:
 
 **Rules:**
 - ALL checks go into the Results table — one row per check, no grouping by category
-- Order: A1-A11, B1-B12, C1-C12, D1-D7, E1
+- Order: A1-A11, B1-B15, C1-C14, D1-D7, E1
 - PASS checks: short description (3-8 words)
 - FAIL checks: describe what's wrong
 - N/A checks (e.g. C5 for skills without `## Commands`): mark as PASS with "N/A" in description
@@ -113,7 +118,7 @@ Execute all 43 checks from Categories A-E:
 
 **MUST use `AskUserQuestion` tool before applying ANY fixes. Do NOT ask in plain text — call the tool.**
 
-If all 43 checks pass (zero failures) → skip this step, go to Step 7.
+If all 48 checks pass (zero failures) → skip this step, go to Step 7.
 
 If there are ANY failures, call `AskUserQuestion` with these exact options:
 

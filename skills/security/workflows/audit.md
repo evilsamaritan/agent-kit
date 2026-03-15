@@ -15,6 +15,7 @@ Step-by-step procedure for a comprehensive security review. Adapt to the project
    - Web frontends (XSS, CSRF, auth bypass, client-side secrets)
    - Environment configuration (secrets exposure, default values)
    - Third-party integrations (OAuth providers, payment, external APIs)
+   - AI/LLM integrations (model APIs, prompt pipelines, agent tool access, RAG data sources)
 3. Map data flows: where sensitive data enters, moves through, and exits the system
 4. Identify trust boundaries: where validated data crosses into unvalidated territory
 
@@ -89,7 +90,23 @@ Step-by-step procedure for a comprehensive security review. Adapt to the project
    - [ ] Network policies restrict inter-service communication
    - [ ] Secrets injected at runtime (not baked into images)
 
-## Phase 6: Report
+## Phase 6: OWASP Top 10:2025 Assessment
+
+Evaluate against the current OWASP Top 10:2025 (Web):
+- [ ] A01: Broken Access Control — ownership verified on every request, no IDOR
+- [ ] A02: Security Misconfiguration — no debug mode, no default creds, restrictive CORS
+- [ ] A03: Software Supply Chain Failures — lockfile integrity, dependency audit, SBOM
+- [ ] A04: Cryptographic Failures — no weak algorithms, encryption at rest/transit
+- [ ] A05: Injection — parameterized queries, schema validation at all boundaries
+- [ ] A06: Insecure Design — threat model exists, defense-in-depth applied
+- [ ] A07: Authentication Failures — strong token validation, no credential stuffing
+- [ ] A08: Software/Data Integrity Failures — signed artifacts, CI/CD pipeline integrity
+- [ ] A09: Logging & Alerting Failures — audit logs, alerts on auth failures
+- [ ] A10: Mishandling Exceptions — no fail-open, no sensitive data in errors
+
+If AI/LLM integrations present, also assess against OWASP Top 10 for LLM Applications. Load [ai-security.md](../references/ai-security.md) for details.
+
+## Phase 7: Report
 
 Produce a structured security assessment:
 
@@ -120,7 +137,7 @@ Produce a structured security assessment:
 | Entry Point | Validation | Schema | Issues |
 |------------|-----------|--------|--------|
 
-### OWASP API Top 10 Assessment
+### OWASP Top 10:2025 Assessment
 | # | Risk | Status | Notes |
 |---|------|--------|-------|
 

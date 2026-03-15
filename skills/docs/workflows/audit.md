@@ -57,6 +57,13 @@ Build a map of what exists:
 - [ ] Key architectural decisions recorded (ADRs)
 - [ ] Database schema documented (if applicable)
 
+### AI Readability
+
+- [ ] llms.txt exists (if project has public docs or API)
+- [ ] Headings are descriptive and hierarchical (not "Part 2" or "Continued")
+- [ ] Parameters documented in structured format (tables with type, required, default)
+- [ ] Consistent terminology throughout (no synonym drift)
+
 ## Step 4: Verify Accuracy
 
 - [ ] README commands actually work (check against package.json, Makefile, or equivalent)

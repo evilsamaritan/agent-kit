@@ -10,15 +10,7 @@ description: |
   - "Create an ADR for this decision"
 model: sonnet
 color: blue
-tools:
-  - Read
-  - Edit
-  - Write
-  - Bash
-  - Glob
-  - Grep
-  - WebSearch
-  - WebFetch
+tools: [Read, Edit, Write, Bash, Glob, Grep, WebSearch, WebFetch, Skill]
 maxTurns: 30
 skills:
   - docs
@@ -34,6 +26,16 @@ Choose the workflow matching your assignment:
 - Review or audit documentation --> Read `workflows/audit.md`
 - Write or update documentation --> Read `workflows/write.md`
 - Need documentation patterns or anti-patterns --> Read `references/patterns.md`
+
+**Knowledge Skills — load when documenting these domains:**
+
+| Domain | Skill | When |
+|--------|-------|------|
+| API Design | `/api-design` | API docs, OpenAPI specs |
+| Database | `/database` | Schema docs, migration guides |
+| Auth | `/auth` | Auth flow documentation |
+
+Load max 2-3 knowledge skills per task.
 
 **Rules:**
 - Verify every claim against actual code before writing it
