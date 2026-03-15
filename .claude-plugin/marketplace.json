@@ -10,7 +10,7 @@
     {
       "name": "agent-kit",
       "source": "./",
-      "description": "Production-grade agents and skills. 11 agents and 47 skills covering software architecture, backend, frontend, security, DevOps, QA, database, auth, AI engineering, observability, and more.",
+      "description": "Production-grade agents and skills. 11 agents and 48 skills covering software architecture, backend, frontend, security, DevOps, QA, database, auth, AI engineering, observability, team orchestration, and more.",
       "version": "1.0.0"
     }
   ]
