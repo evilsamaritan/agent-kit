@@ -7,7 +7,7 @@ description: |
   - "Review the overall architecture of this project"
   - "Assess our engineering maturity"
   - "Audit the monorepo structure and dependency health"
-model: sonnet
+model: opus
 color: orange
 tools: [Read, Grep, Glob, WebSearch, WebFetch, Edit, Write, Bash, Skill]
 maxTurns: 30

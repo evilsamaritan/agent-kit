@@ -2,7 +2,7 @@
 name: architect
 description: |
   Universal software architect sub-agent. Use when designing systems from scratch, reviewing existing architecture, assessing tech debt, choosing architecture styles, defining NFRs, or writing ADRs. Works for any platform (mobile, web, desktop, server, edge, AI/ML). Produces specifications that implementation teams can execute.
-model: sonnet
+model: opus
 color: orange
 tools: [Read, Edit, Write, Bash, Glob, Grep, Skill]
 maxTurns: 30
