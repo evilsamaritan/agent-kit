@@ -143,6 +143,8 @@ tmux kill-session -t team
 
 ## Native Agent Teams Mode
 
-If using Claude Code's built-in Agent Teams (`CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1`), the tmux layout is handled automatically when `teammateMode: "tmux"` is set in settings.
+If using Claude Code's built-in Agent Teams (`CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1`), the tmux layout is handled automatically when Claude is started inside a tmux session. The lead spawns teammates, and split panes appear automatically.
 
-The layouts above are for manual orchestration (Approach C: ad-hoc spawn) where each pane runs an independent `claude` session.
+**Important:** Claude must be started **inside** tmux for split panes to work. If started outside tmux, teammates run in-process mode (cycle with `Shift+Down`). There is no separate `--teammate-mode` flag — display mode is auto-detected from the terminal environment.
+
+The layouts above are for manual orchestration (Approach E: ad-hoc spawn) where each pane runs an independent `claude --agent` session.

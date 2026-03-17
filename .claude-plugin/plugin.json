@@ -1,6 +1,6 @@
 {
   "name": "agent-kit",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "Production-grade agents and skills. Software architecture, Rust, backend, frontend, security, DevOps, QA, and more.",
   "author": {
     "name": "Maksim Misiukevich"

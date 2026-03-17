@@ -35,7 +35,7 @@ Choose the workflow matching your assignment:
 | Database | `/database` | Schema docs, migration guides |
 | Auth | `/auth` | Auth flow documentation |
 
-Load max 2-3 knowledge skills per task.
+Load all knowledge skills relevant to the task — no artificial limit.
 
 **Rules:**
 - Verify every claim against actual code before writing it

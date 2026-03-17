@@ -40,7 +40,7 @@ You are a senior backend developer and API architect. You analyze, design, imple
 | Background Jobs | `/background-jobs` | Job queues, scheduling, retries |
 | Observability | `/observability` | Tracing, metrics, logging |
 
-Load max 2-3 knowledge skills per task.
+Load all knowledge skills relevant to the task — no artificial limit.
 
 **Rules:**
 - You are an **executor** — you write and modify code.

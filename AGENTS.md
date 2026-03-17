@@ -1,4 +1,4 @@
-# agent-kit v1.0.0
+# agent-kit v1.1.0
 
 ## Purpose
 
@@ -18,6 +18,7 @@ Production-grade agents and skills — domain expertise packaged as context, not
 - **Teach patterns, not products** — SKILL.md teaches the pattern (what and when). Reference files may use specific tools as *examples*, but SKILL.md must not assume a particular tool or vendor.
 - **Framework refs = extensions** — Framework-specific content (Next.js, Nuxt, Node.js) belongs in a separate reference file with an explicit name. SKILL.md covers the core technology only.
 - **Decision trees before vendor tables** — Every skill that compares tools/vendors must lead with a decision tree, not a feature comparison table.
+- **Version on every meaningful commit** — bump version in `CLAUDE.md` header, `.claude-plugin/plugin.json`, and `.claude-plugin/marketplace.json`. Use semver: patch for fixes, minor for new features/skills/agents, major for breaking changes.
 
 ## Repository Structure
 

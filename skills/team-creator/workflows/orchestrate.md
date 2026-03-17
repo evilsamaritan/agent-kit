@@ -26,7 +26,33 @@ Read references/team-catalog.md → pre-defined team compositions
 
 ## Step 2: Resolve Team Composition
 
-Based on user input, follow one of four paths:
+Based on user input, follow one of six paths:
+
+### Path 0: Single Agent
+
+User wants one specialist: "run security on src/auth/", "review with architect":
+
+1. Identify the agent from the request (match by name, role, or domain)
+2. If ambiguous, check `agents/*.md` for the best match
+3. Spawn via Agent tool with `subagent_type: "<agent-name>"`
+4. Return result — no team synthesis needed
+
+### Path 0b: Multi-Instance (same agent × N)
+
+User wants multiple copies of the same agent: "run 3 qa agents on different modules":
+
+1. Identify the agent type and the number of instances
+2. Parse individual scopes/prompts from the request
+3. Spawn all instances in parallel with `run_in_background: true`
+4. Each gets its own prompt with specific scope
+5. Wait for all → aggregate results
+
+```
+Agent tool calls (parallel):
+  subagent_type: "qa", prompt: "Review tests in api/", run_in_background: true
+  subagent_type: "qa", prompt: "Review tests in web/", run_in_background: true
+  subagent_type: "qa", prompt: "Review tests in workers/", run_in_background: true
+```
 
 ### Path A: Named Team
 

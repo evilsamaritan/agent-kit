@@ -1,6 +1,6 @@
 ---
 name: team-creator
-description: Orchestrate multi-agent teams for complex tasks — code review, feature implementation, security audit, architecture review. Use when a task needs multiple specialists working together. Spawns pre-defined or custom agent teams as pipelines or parallel workers. Do NOT use for single-domain tasks or creating agents (use agent-creator).
+description: Spawn and orchestrate agents — one agent, multiple instances of one agent, or full multi-agent teams. Use when running agents for code review, feature implementation, security audit, architecture review, or any task that benefits from specialist agents. Handles single-agent spawn, multi-instance parallel runs, pre-defined teams, and ad-hoc compositions. Do NOT use for creating new agent definitions (use agent-creator).
 allowed-tools: Read, Write, Bash, Glob, Grep, Agent, AskUserQuestion
 user-invocable: true
 argument-hint: "[team-name or task-description]"
@@ -23,28 +23,61 @@ Compose and orchestrate multi-agent teams from available agents. Select the righ
 
 ```
 What does the user want?
-├── Named team ("/team-creatorreview", "/team-creatormy-fullstack")
-│   ├── Check .claude/teams.json → saved custom team?
+├── Single agent spawn ("review this with security agent", "run frontend on this")
+│   └── Identify agent → spawn one instance → done
+│
+├── Multi-instance ("run 3 qa agents on different modules")
+│   └── Same agent type × N instances, each with its own scope/prompt
+│
+├── Named team ("/team-creator review", "/team-creator poker-ui")
+│   ├── Check .claude/teams/<name>/team.json → saved custom team?
 │   └── Check team-catalog.md → built-in team?
 │
-├── Task description ("/team-creatorimplement OAuth login")
-│   └── Analyze → propose agents → confirm with user → execute
+├── Task description ("/team-creator implement OAuth login")
+│   └── Analyze → propose agents (type + count) → confirm with user → execute
 │
-├── Ad-hoc spawn ("/team-creatorspawn 3 agents for X, Y, Z")
+├── Create/configure team ("create a team for React fullstack", "configure review team")
+│   └── Analyze needs → check existing agents → create missing via agent-creator
+│       → compose team definition → save to .claude/teams.json
+│
+├── Reconfigure team ("/team-creator reconfigure poker-ui")
+│   └── Change flow type, add/remove stages, toggle options — agents untouched
+│
+├── Ad-hoc spawn ("/team-creator spawn 3 agents for X, Y, Z")
 │   └── Each agent gets individual prompt, parallel orchestration
 │
-└── Setup ("/team-creatorsetup")
-    └── Check prerequisites for parallel mode
+└── Setup ("/team-creator setup")
+    └── Check prerequisites for Agent Teams mode
 ```
+
+**Key:** Infer from the request — how many agents, which type(s), one type or mixed. The user shouldn't have to specify the orchestration mode explicitly.
 
 → Full orchestration workflow: `workflows/orchestrate.md`
 → Setup for parallel mode: `workflows/setup.md`
 
 ---
 
-## Three Approaches
+## Approaches
 
-### A) Pre-defined Team
+### A) Single Agent
+
+```
+/team-creator run security on src/auth/
+/team-creator review this PR with architect
+```
+
+One agent, one task. Useful when the user wants a specific specialist but doesn't want to remember the Agent tool syntax. Infer the agent from the request.
+
+### B) Multi-Instance (same agent × N)
+
+```
+/team-creator run 3 qa agents: one for api/, one for web/, one for workers/
+/team-creator 4 frontend reviewers for each page component
+```
+
+Same agent type spawned multiple times with different scopes. All run in parallel with `run_in_background: true`. Each instance gets its own prompt with the specific scope.
+
+### C) Pre-defined Team
 
 ```
 /team-creator review
@@ -54,21 +87,46 @@ What does the user want?
 
 Known composition from catalog or saved config. Fastest path — no decisions needed.
 
-### B) Task-based Composition
+### D) Task-based Composition
 
 ```
 /team-creator implement OAuth with social login
 ```
 
-Skill analyzes the task, checks available agents (custom first, then default), proposes team, asks for confirmation. Optionally saves for reuse.
+Skill analyzes the task, checks available agents (custom first, then default), proposes team (type + count for each), asks for confirmation. Optionally saves for reuse.
 
-### C) Ad-hoc Spawn
+### E) Ad-hoc Spawn
 
 ```
 /team-creator spawn: agent-1 researches auth patterns, agent-2 implements API, agent-3 writes tests
 ```
 
-No team structure. Each agent gets its own prompt. Just orchestration — tmux layout + parallel execution.
+No team structure. Each agent gets its own prompt. Just orchestration — parallel execution.
+
+### F) Create Team (interactive)
+
+```
+/team-creator create a team for React + Node fullstack
+/team-creator configure review team with extra security focus
+```
+
+Interactive 5-step flow with questions at each stage:
+1. Understand project → scan codebase for tech stack
+2. Choose flow type → present 10 flow types via AskUserQuestion
+3. Configure agents → check existing, scaffold missing via agent-creator
+4. Additional options → twin reviewers? quality gates? approval gates?
+5. Generate → create agent files + `.claude/teams/<name>/team.json` + validate
+
+→ Full workflow: `workflows/create-team.md`
+
+### G) Reconfigure Team
+
+```
+/team-creator reconfigure poker-ui
+```
+
+Change flow type, add/remove stages, toggle options — without touching agent files.
+Agents are building blocks; flow config is assembly instructions. Changing the flow never breaks agents.
 
 ---
 
@@ -90,6 +148,31 @@ No team structure. Each agent gets its own prompt. Just orchestration — tmux l
 
 ---
 
+## Launch Mode Decision Tree
+
+```
+How should I launch agents?
+├── Need isolated agent for ONE task?
+│   └── Agent tool with subagent_type: "<agent-name>"
+│       Skills from frontmatter auto-injected. Default for most work.
+│
+├── Need parallel agents (same or different types)?
+│   └── Agent tool × N with run_in_background: true
+│       Each gets own context window. Results aggregated after completion.
+│
+├── Need agents to coordinate, share tasks, message each other?
+│   └── Agent Teams (CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1)
+│       Lead spawns teammates. Display: in-process (Shift+Down) or split panes (auto in tmux/iTerm2).
+│
+├── Need git isolation (parallel file edits)?
+│   └── claude --worktree <name> per agent session
+│       Each gets own branch + directory. No merge conflicts.
+│
+└── Need full CLI session as specific agent?
+    └── claude --agent <name> "<prompt>"
+        Entire session adopts agent persona, skills, and tools.
+```
+
 ## Execution Modes
 
 ### Pipeline (default — works everywhere)
@@ -106,17 +189,20 @@ architect (plan) → frontend + backend (parallel, background) → qa (test) →
 
 ### Agent Teams (opt-in — needs setup)
 
-Full peer-to-peer teams with shared task list, mailbox, tmux panes.
+Full peer-to-peer teams with shared task list and direct messaging.
 
-- Requires: `CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1` + tmux
-- Run `/team-creator setup` to check and configure prerequisites
-- Native tmux integration: `teammateMode: "tmux"`
+- Requires: `CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1` (env or settings.json `env` field)
+- Lead session spawns teammates automatically — no separate flag needed
+- **Display modes:**
+  - In-process (default): `Shift+Down` to cycle teammates, type to message
+  - Split panes: automatic when running inside tmux or iTerm2
 - **Delegate mode:** `Shift+Tab` — restricts lead to coordination only (no code edits)
 - **Task list:** `Ctrl+T` to view, tasks support dependency DAGs (task B blocked until A completes)
-- **Cycle teammates:** `Shift+Down` to switch between teammate panes
-- **Worktree isolation:** `claude --worktree task-name --tmux` for independent branches
+- **Worktree isolation:** `claude --worktree task-name` for independent branches
 - **Cost:** 3 teammates ≈ 3-4x token usage vs single session
+- **Limitation:** No session resumption, one team per session, no nested teams
 
+→ Run `/team-creator setup` to check prerequisites
 → tmux layouts: `references/tmux-layouts.md`
 
 ### Builder-Validator Pattern
@@ -132,30 +218,53 @@ Validator's read-only constraint forces it to surface problems rather than silen
 
 ---
 
-## Custom Agents in Teams
+## Flow Types (10)
 
-Custom agents created via `/agent-creator` with pre-configured skills are preferred over generic role agents:
+| Category | Type | Pattern | Cost |
+|----------|------|---------|------|
+| Dev | `pipeline` | explorer → implementer → tester → reviewer | 2-4x |
+| Dev | `pipeline-parallel` | planner → [frontend ∥ backend] → tester | 3-5x |
+| Dev | `builder-validator` | implementer ↔ reviewer (loop, max N) | 2-3x |
+| Review | `twin-review` | [reviewer-1 ∥ reviewer-2] → merge | 2x |
+| Review | `swarm-review` | [security ∥ perf ∥ quality ∥ tests] → synthesis | 4x |
+| Review | `devils-advocate` | 6 adversarial rounds (fatal → errors → perf → security → maint → tests) | 1.5x |
+| Research | `fan-out` | planner → [worker × N] → aggregator | 2-5x |
+| Research | `diverge-converge` | [approach × N] → evaluator → best | 3-4x |
+| Security | `purple-team` | red (find) → blue (fix) → red (verify) → report | 3x |
+| Any | `custom` | user-defined stages | varies |
+
+→ Details: `references/flow-catalog.md`
+
+## Team Config
+
+Teams are stored in `.claude/teams/<name>/team.json`. Agents are building blocks in flat `agents/` — they never reference their team. Flow configs reference agents by name. **Change flow without touching agents.**
 
 ```
-Custom agent (react-specialist: frontend + react + html-css)
+agents/                          ← building blocks (independent)
+├── poker-ui-explorer.md         ← naming convention: <team>-<role>
+├── poker-ui-implementer.md
+└── poker-ui-reviewer.md
+
+.claude/teams/poker-ui/          ← flow config (swappable)
+└── team.json
+```
+
+Config version tracks plugin schema version. On team launch, `validate-team.sh` checks version — if mismatch, see `references/migrations.md` for migration steps.
+
+→ Scaffold: `bash scripts/scaffold-team.sh <team> <roles...> [--skills s1,s2]`
+→ Validate: `bash scripts/validate-team.sh .claude/teams/<name>/team.json`
+→ Lint agents: `bash scripts/check-agents.sh`
+
+## Custom Agents in Teams
+
+Custom agents with pre-configured skills are preferred over generic role agents:
+
+```
+Custom agent (poker-ui-reviewer: frontend + react + html-css)
   > Generic agent (frontend: decides skills at runtime)
 ```
 
 **Priority:** custom agent with matching skills > default role agent.
-
-After composing a team, save it to `.claude/teams.json` for reuse:
-
-```json
-{
-  "teams": {
-    "my-fullstack": {
-      "agents": ["react-specialist", "node-api-dev", "qa"],
-      "flow": "pipeline",
-      "description": "Full-stack React + Node implementation"
-    }
-  }
-}
-```
 
 ---
 
@@ -183,7 +292,7 @@ Use hooks to enforce quality before agents can stop or complete tasks:
 
 | Don't | Why | Instead |
 |-------|-----|---------|
-| Spawn team for single-domain task | Overhead, slower | Use one agent directly |
+| Force team when user asked for one agent | Overhead, slower | Spawn single agent directly |
 | Skip architect/planning stage | Implementers work without design | Always plan first in pipeline |
 | Pass full agent output between stages | Context bloat | Compress to key findings + files |
 | Parallel mode without worktree isolation | Git conflicts | `claude --worktree name` or sequential |
@@ -199,11 +308,17 @@ Use hooks to enforce quality before agents can stop or complete tasks:
 
 | Task | Resource |
 |------|----------|
+| Create a team (interactive) | [workflows/create-team.md](workflows/create-team.md) |
 | Orchestrate a team | [workflows/orchestrate.md](workflows/orchestrate.md) |
 | Setup parallel mode | [workflows/setup.md](workflows/setup.md) |
+| Flow type details | [references/flow-catalog.md](references/flow-catalog.md) |
 | Pre-defined team details | [references/team-catalog.md](references/team-catalog.md) |
 | Advanced patterns | [references/orchestration-patterns.md](references/orchestration-patterns.md) |
+| Config schema versions | [references/migrations.md](references/migrations.md) |
 | tmux pane layouts | [references/tmux-layouts.md](references/tmux-layouts.md) |
+| Validate team config | `scripts/validate-team.sh` |
+| Scaffold team agents | `scripts/scaffold-team.sh` |
+| Lint agent files | `scripts/check-agents.sh` |
 | Check prerequisites | `scripts/check-env.sh` |
 
 ---

@@ -107,9 +107,9 @@ Determine optional frontmatter fields:
 
 When creating a composite agent:
 1. **Pick one role skill** — this provides workflows and primary persona
-2. **Add knowledge skills** matching the tech stack (max 3-4)
+2. **Add all knowledge skills the task requires** — no artificial limit, but each must be relevant to the request
 3. **Order matters** — role skill first, then knowledge skills by importance
-4. **Verify no overlap** — don't add `docker` if `devops` is already loaded (devops covers containers)
+4. **Verify coherence** — every skill must make sense together (e.g., `frontend + kotlin` is wrong; `backend + kotlin + database + message-queues` is right)
 
 Example for "Rust backend with PostgreSQL and API design":
 ```yaml

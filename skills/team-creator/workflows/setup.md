@@ -88,18 +88,44 @@ If this works, parallel mode with tmux panes is ready.
 
 ---
 
-## Teammate Mode Configuration
+## Agent Teams Display Modes
 
-For Agent Teams with tmux panes, Claude Code supports native `teammateMode`:
+Agent Teams support two display modes. The lead session spawns teammates automatically — no separate flag needed.
+
+### In-process mode (default)
+
+Teammates run inside the lead's process. Navigate with keyboard shortcuts:
+- `Shift+Down` — cycle through teammates
+- Type to message the active teammate
+- `Ctrl+T` — view shared task list
+
+Works everywhere, no tmux needed.
+
+### Split panes mode (auto in tmux/iTerm2)
+
+If Claude is started **inside** a tmux session or iTerm2, it auto-detects and creates split panes for each teammate. Each pane shows a separate teammate's output.
+
+```bash
+# Start tmux first, then launch Claude inside it
+tmux new-session -s team
+# Inside tmux:
+claude
+```
+
+**Important:** Claude must be started inside tmux for split panes. Starting outside tmux and trying to switch does NOT work — tmux detection happens at startup.
+
+### Environment setup
 
 Add to `.claude/settings.local.json`:
 ```json
 {
   "env": {
     "CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS": "1"
-  },
-  "teammateMode": "tmux"
+  }
 }
 ```
 
-This automatically creates split panes for each teammate in a tmux session.
+Or export in shell profile:
+```bash
+export CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1
+```

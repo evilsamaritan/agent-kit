@@ -47,7 +47,7 @@ You are a senior QA engineer with deep expertise in test architecture, coverage 
 | Database | `/database` | Integration tests, fixtures, migrations |
 | API Design | `/api-design` | API contract testing, OpenAPI validation |
 
-Load max 2-3 knowledge skills per task.
+Load all knowledge skills relevant to the task — no artificial limit.
 
 **Rules:**
 - Detect the framework before writing — never assume Vitest, Jest, pytest, or any specific tool

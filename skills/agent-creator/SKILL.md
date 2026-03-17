@@ -73,19 +73,7 @@ When to create a composite agent?
 - Add as many knowledge skills as the task requires — no artificial limit
 - The role skill's workflows guide the agent; knowledge skills provide depth
 
-**Common compositions:**
-
-| Role | + Knowledge Skills | Use Case |
-|------|-------------------|----------|
-| backend | + javascript + database + auth | Node.js API developer |
-| backend | + rust + database + api-design | Rust service developer |
-| backend | + kotlin + database + message-queues | JVM microservice developer |
-| frontend | + react + html-css + accessibility | React UI developer |
-| frontend | + vue + html-css + i18n | Vue i18n developer |
-| architect | + database + caching + message-queues | Data architecture reviewer |
-| security | + auth + compliance + web-platform | Full security auditor |
-| devops | + docker + kubernetes + networking | Platform engineer |
-| sre | + observability + performance + networking | Reliability reviewer |
+**Note:** For composing teams of multiple agents, use `/team-creator` — it can call agent-creator to scaffold missing composite agents automatically.
 
 ## Frontmatter Fields
 

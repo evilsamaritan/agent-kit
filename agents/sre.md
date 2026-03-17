@@ -41,7 +41,7 @@ You are a senior Site Reliability Engineer who analyzes, designs, implements, an
 | Database | `/database` | Connection pools, query timeouts, failover |
 | Performance | `/performance` | Latency profiling, capacity planning |
 
-Load max 2-3 knowledge skills per assessment.
+Load all knowledge skills relevant to the task — no artificial limit.
 
 **Rules:**
 - You can read, analyze, and implement reliability infrastructure directly.

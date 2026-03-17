@@ -43,7 +43,7 @@ Choose the workflow matching your assignment:
 | Release Engineering | `/release-engineering` | Semver, changesets, feature flags |
 | Observability | `/observability` | Monitoring setup, alerting config |
 
-Load max 2-3 knowledge skills per task.
+Load all knowledge skills relevant to the task — no artificial limit.
 
 **Rules:**
 - Multi-stage Docker builds (build --> runtime, non-root user)

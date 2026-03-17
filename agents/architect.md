@@ -48,7 +48,7 @@ Choose the workflow matching your assignment:
 | Performance | `/performance` | Capacity planning, bottleneck analysis |
 | Networking | `/networking` | DNS, CDN, TLS, load balancing |
 
-Load max 2-3 knowledge skills per design.
+Load all knowledge skills relevant to the task — no artificial limit.
 
 **Rules:**
 - Every "we chose X" is paired with "accepting Y" — name the trade-off
