@@ -1,6 +1,6 @@
 ---
 name: accessibility
-description: Provide accessibility expertise — WCAG 2.2 compliance, ARIA patterns, keyboard navigation, focus management, screen reader support. Use when implementing WCAG compliance, ARIA roles, keyboard navigation, accessibility auditing, or inclusive design. Do NOT use for UX decisions (product-design).
+description: Provide accessibility expertise — WCAG 2.2 compliance, ARIA patterns, keyboard navigation, focus management, screen reader support. Use when implementing WCAG compliance, ARIA roles, keyboard navigation, accessibility auditing, or inclusive design. Do NOT use for UX decisions (design).
 allowed-tools: Read, Grep, Glob, WebSearch, WebFetch
 user-invocable: true
 ---
@@ -277,8 +277,8 @@ Automated testing catches only ~30-40% of accessibility issues. Manual testing w
 
 ## Related Knowledge
 
-- **html-css** — semantic markup, landmark elements, focus styles, `:focus-visible`, `prefers-reduced-motion`
-- **product-design** — inclusive design thinking, cognitive accessibility, information hierarchy
+- **html/css** — semantic markup, landmark elements, focus styles, `:focus-visible`, `prefers-reduced-motion`
+- **design** — inclusive design thinking, cognitive accessibility, information hierarchy
 - **frontend** — component accessibility, keyboard handling, state management for screen readers
 
 ---

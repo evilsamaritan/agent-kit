@@ -1,204 +1,138 @@
 # Flow 1: Create Agent
 
-## Step 1: Gather Requirements
+## Step 1: Gather requirements
 
 Ask the user (or extract from context):
 
-- **What should the agent do?** — specific capability or domain
-- **Standalone or skill agent?**
-  - Standalone: full system prompt in body, self-contained
-  - Skill agent: thin body + `skills: [skill-name]` preloads existing skill context
+- **What profession should this agent be?** — one word, e.g. `frontend`, `backend`, `sre`.
+- **What's the specialization?** — e.g. React SPA, Go backend, Kubernetes ops.
+- **Any constraints?** — model preference, permission mode, preload scope.
 
-If the user gave a clear description, skip asking and proceed.
+If the user's description is clear, skip asking and proceed.
 
-## Step 2: Determine Agent Type
+## Step 2: Pick agent form
 
-Check if a skill already exists for this domain:
+Three forms — in practice the first one covers 90%+ of cases.
+
+| Form | When to pick |
+|------|--------------|
+| **Template agent** (default) | Any base profession. Combines role-template(s) + knowledge skills. |
+| **Standalone agent** | Behavior is unique, not reusable, doesn't fit any template. |
+| **Skill-wrapper agent** | A single meta / knowledge skill covers the whole behavior (thin body, preloaded skill). |
+
+Use `AskUserQuestion` only when ambiguous.
+
+## Step 3: Pick role-template(s)
+
+Available templates (each lives at `skills/agent-creator/templates/{name}.md`):
+
+| template | what the agent does |
+|----------|---------------------|
+| `architect` | designs before building — decisions, ADRs, options memos |
+| `implementer` | produces artifacts — code, tests, configs |
+| `reviewer` | judges artifacts — diff review or codebase audit |
+| `operator` | runs live systems — deploy, rollback, incidents |
+| `writer` | writes human-facing text — docs, ADRs, READMEs |
+
+Pick one or combine two to three when the profession spans modes. Examples:
+
+- `frontend` → `implementer`
+- `devops` → `implementer` + `operator`
+- `sre` → `operator` + `reviewer`
+- `designer` → `architect` + `implementer`
+- `security` → `reviewer` (with security knowledge skill preloaded)
+
+Order in the body: architect → implementer → reviewer → operator → writer (skip those that don't apply).
+
+## Step 4: Pick knowledge skills
+
+Preload the smallest useful set. A preloaded skill costs context; add only skills the agent routinely needs. Skills not preloaded are still auto-triggered by Claude Code when relevant.
+
+Check what's available:
 
 ```bash
 ls skills/
 ```
 
-Use `AskUserQuestion` to confirm agent type:
-
-| Option | Label | When to choose |
-|--------|-------|----------------|
-| 1 | **Skill agent** — thin wrapper + preloaded skill | A skill already exists that covers the domain |
-| 2 | **Standalone agent** — full system prompt in body | No existing skill, or agent needs unique instructions |
-| 3 | **Create skill first, then skill agent** | Domain deserves reusable skill + agent wrapper |
-
-Decision tree:
+Examples:
 
 ```
-Does a skill already exist that covers this domain?
-├── YES → Option 1: Skill agent (thin body, skills: [skill-name])
-│   Benefits: reusable skill, agent just adds model/tools/permissions config
-├── NO, but domain is reusable → Option 3: Create skill first
-│   Benefits: skill reusable by other agents and directly, agent is thin
-└── NO, unique to this agent → Option 2: Standalone agent
-    Benefits: self-contained, no dependency on skill files
+frontend   → skills: [frontend, web, html, css, accessibility]
+backend    → skills: [backend, api-design, database, auth, caching]
+devops     → skills: [docker, kubernetes, ci-cd, release-engineering]
+sre        → skills: [reliability, observability, performance]
+security   → skills: [security, auth, compliance]
+tester     → skills: [testing]
+designer   → skills: [design, html, css, accessibility]
+architect  → skills: [architecture]
+reviewer   → skills: []   (generic — picks up domain by context)
+writer     → skills: [documentation]
 ```
 
-If skill agent: verify the skill exists in `skills/` directory.
-If "create skill first": chain to `skill-creator` skill, then return here for agent creation.
+**Coherence check** — every preloaded skill must make sense alongside the others. `frontend + kotlin` is a smell (mixed stack); `backend + go + database + api-design` is coherent.
 
-## Step 3: Load Best Practices
+## Step 5: Choose a name
 
-Read `references/agent-template.md` from skill base directory.
+One word, lowercase, profession-shaped. Must match filename (without `.md`).
 
-## Step 4: Choose Name
+Good: `frontend`, `devops`, `sre`, `tester`, `mobile`, `data`.
+Bad: `frontend-dev`, `senior-backend-agent`, `ux_designer`.
 
-Generate 3 name candidates ranked best to worst.
+If a base agent with that name already exists, specialize the name: `mobile-ios`, `backend-rust`, `data-pipelines`.
 
-Naming rules:
-- Lowercase, hyphens only
-- Must match filename (without `.md`)
-- Domain-led when possible (e.g., `kotlin-backend`, `typescript-ui`)
-- Match existing patterns in `agents/`
+## Step 6: Draft description
 
-Present via `AskUserQuestion` with 3 options. The user can also enter their own name.
+Short is preferred. Include:
+- **WHAT** — role + specialization
+- **WHEN** — concrete triggers
+- **NOT** — negative triggers when overlap with other agents exists
 
-## Step 5: Write Description
-
-Draft the description. Unlike skills, agent descriptions CAN use YAML `|` for multiline.
-
-**Short description (single line):**
 ```yaml
-description: Expert code reviewer for Kotlin backend. Use when reviewing code quality, security, and patterns.
+description: Senior {profession} focused on {specialization}. Use when {triggers}. Do NOT use for {boundary cases}.
 ```
 
-**Long description (multiline `|`):**
-```yaml
-description: |
-  Use this agent for architectural decisions, system design, and technology selection.
+Multiline `|` is allowed for complex routing; keep it structured.
 
-  When to use:
-  - Designing new features that span multiple services
-  - Choosing between architectural approaches
-  - Planning data flows between systems
+## Step 7: Configure frontmatter
 
-  Example prompts:
-  - "Design a real-time notification system"
-  - "How should we implement cross-service transactions?"
-```
+| Field | Guidance |
+|-------|----------|
+| `model` | `opus` for design-heavy roles (architect, reviewer, security), `sonnet` for implementation/operations, `haiku` if quick turnaround matters more than depth |
+| `color` | Domain-based — see [agent-template.md](../references/agent-template.md#color-guide) |
+| `tools` | Scope when restricting behavior is useful; default is inherit-all |
+| `permissionMode` | `default` for most; `bypassPermissions` only for trusted automation |
+| `maxTurns` | Limit only if you've seen runaway loops |
+| `skills` | Knowledge skills to preload (from Step 4) |
+| `memory` | `project` for teams that learn over time |
+| `background` | `true` only for long-running tasks |
+| `isolation` | `worktree` when the agent writes large or risky changes |
 
-Rules:
-- Short: start with a role/expertise statement, include "Use when" triggers
-- Long: use `|` block scalar, include "When to use:" bullets and "Example prompts:"
-- Be specific about when Claude should delegate to this agent
+Present the configuration summary to the user for approval before writing.
 
-Present to user for approval.
+## Step 8: Assemble the body
 
-## Step 6: Choose Configuration
+The body is constructed by the agent-creator:
 
-Determine optional frontmatter fields:
+1. **Persona line** — one sentence. "You are a senior {profession} focused on {specialization}. {One-sentence value statement}."
+2. **Inlined role-template(s)** — read each selected template from `skills/agent-creator/templates/{name}.md` and copy the relevant sections (Mental model, Operating modes, Hard rules, Anti-patterns) into the body. Condense only where verbatim copy would be unreadable — preserve the rule content and the voice, drop repetition. Contract with `agent-creator/SKILL.md`: one voice, not stitched-together checklists.
+3. **Domain section** (optional) — project-specific conventions, framework preferences, specialization notes.
+4. **Output format** — concrete deliverable shapes.
+5. **Done means** — concrete completion criteria.
 
-1. **Model**: `sonnet` (fast, cheaper), `opus` (strongest), `haiku` (fastest), full model ID (e.g., `claude-opus-4-6`), `inherit` (same as parent)
-2. **Color**: visual distinction in UI
-3. **Tools**: scope to needed tools (default: inherit all). Use `Agent(type)` to restrict spawnable subagents
-4. **Permission mode**: `default` for most, `bypassPermissions` for trusted automation
-5. **Max turns**: limit for safety (default: unlimited)
-6. **Skills**: list of skills to preload (for skill/composite agents)
-7. **Memory**: persistent memory scope (`user`, `project`, `local`) for cross-session learning
-8. **Background**: `true` to always run as background task
-9. **Isolation**: `worktree` for isolated git worktree
+See [agent-template.md](../references/agent-template.md#template-agent) for the canonical layout.
 
-### Composite Agent Skills Selection
+## Step 9: Write the file
 
-When creating a composite agent:
-1. **Pick one role skill** — this provides workflows and primary persona
-2. **Add all knowledge skills the task requires** — no artificial limit, but each must be relevant to the request
-3. **Order matters** — role skill first, then knowledge skills by importance
-4. **Verify coherence** — every skill must make sense together (e.g., `frontend + kotlin` is wrong; `backend + kotlin + database + message-queues` is right)
+Write to `agents/<agent-name>.md`. Never to `.claude/agents/` (symlink).
 
-Example for "Rust backend with PostgreSQL and API design":
-```yaml
-skills:
-  - backend    # Role: provides service patterns, review workflow
-  - rust       # Language: ownership, error handling, crate selection
-  - database   # Domain: schema, migrations, query optimization
-  - api-design # Domain: REST/gRPC conventions, error contracts
-```
-
-Present configuration summary to user for approval.
-
-## Step 7: Generate Agent File
-
-### For standalone agents:
-
-```markdown
----
-name: agent-name
-description: |
-  Description here.
-
-  When to use:
-  - Trigger 1
-  - Trigger 2
-model: sonnet
-color: blue
----
-
-You are a [role] with expertise in [domain].
-
-## Your Responsibilities
-
-1. **Area 1**
-   - Detail
-
-2. **Area 2**
-   - Detail
-
-## Workflow
-
-1. Step 1
-2. Step 2
-
-## Rules
-
-- Rule 1
-- Rule 2
-```
-
-### For skill agents:
-
-```markdown
----
-name: agent-name
-description: |
-  Description here.
-model: sonnet
-color: green
-skills:
-  - skill-name
----
-
-You are a [role] with deep expertise in [domain].
-
-**Your job:** Execute the task assigned to you using the preloaded skill-name skill as your knowledge base.
-
-**Skill:** skill-name (preloaded — SKILL.md is already in your context)
-
-**Rules:**
-- Rule 1
-- Rule 2
-
-**Done means:**
-- Criteria 1
-- Criteria 2
-```
-
-Write file to `agents/<agent-name>.md` (source of truth in root `agents/`, symlinked from `.claude/agents/`).
-
-## Step 8: Verify
-
-Verify the agent file is valid:
+## Step 10: Verify
 
 ```bash
 ls agents/<agent-name>.md
+ls .claude/agents/<agent-name>.md
 ```
 
 After creation, offer:
-> "Agent created. Want me to run verification to check quality?"
+> "Agent created. Run verification to check quality?"
 
 If yes → chain to Flow 2 with the just-created agent.

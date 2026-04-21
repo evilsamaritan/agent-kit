@@ -32,7 +32,7 @@ The context window is a shared, finite resource. Design skills with this in mind
   - Compress: summarize verbose outputs before returning
   - Isolate: split work across sub-agents to parallelize context usage
 - **Compaction threshold** — at 70-80% context utilization, earlier messages get compressed. Front-load critical information.
-- **Description budget** — all skill descriptions combined should fit within ~2% of the context window. Sweet spot: 80-300 chars per description.
+- **Description budget** — all skill descriptions combined should fit within ~2% of the context window. Soft target 80-500 chars per description, hard cap 1024 — spend the budget on trigger phrases and negative triggers, not prose.
 
 ---
 
@@ -297,7 +297,7 @@ WHAT (imperative verb + object) + WHEN (trigger phrases) + KEY CAPABILITIES (if 
 ### Rules
 
 1. **Single line** — no multi-line YAML (`>`, `|`)
-2. **Max 1024 characters** — sweet spot is 80-300 chars (under 80 too vague, over 300 wasting budget)
+2. **Hard cap 1024 chars, soft target 80-500** — under 80 is too vague; over 500 usually means the description is duplicating SKILL.md prose. Spend the budget on trigger phrases and negative triggers, not explanations.
 3. **Start with a verb** in imperative/infinitive form — Create, Run, Add, Write, Configure
 4. **Include trigger phrases** — exact words users would say
 5. **Be specific** — mention technologies, patterns, file types
@@ -342,14 +342,13 @@ Choose an approach based on the use case:
 | Field | Rules |
 |-------|-------|
 | `name` | Lowercase + hyphens only. Max 64 chars. Must match directory name. |
-| `description` | Single line. Max 1024 chars. Include trigger phrases. Start with verb in imperative form. |
+| `description` | Single line. Soft target 80-500 chars, hard cap 1024. Include trigger phrases + negative triggers. Start with verb in imperative form. |
 
 ### Optional Fields
 
 | Field | Default | Rules |
 |-------|---------|-------|
 | `allowed-tools` | all | Comma-separated (NOT YAML list). Valid: `Read`, `Write`, `Edit`, `Bash`, `Glob`, `Grep`, `Task`, `WebSearch`, `WebFetch`, `AskUserQuestion`, `Skill`, `EnterPlanMode`. |
-| `internal` | `false` | Boolean. Set `true` for locally created skills. Only internal skills are verified/improved by default. |
 | `user-invocable` | `true` | Boolean. Set `false` to hide from `/slash` menu while keeping auto-discovery. |
 | `context` | — | Set to `fork` for isolated sub-agent execution. |
 | `agent` | `general-purpose` | Only with `context: fork`. Options: `Explore`, `Plan`, `general-purpose`. |

@@ -254,9 +254,9 @@ Optional: `llms-full.txt` concatenates full page content into a single Markdown 
 
 ## Related Knowledge
 
-- `web-platform` skill — HTTP caching, service workers, CSP (affects crawlability and Core Web Vitals)
+- `web` skill — HTTP caching, service workers, CSP (affects crawlability and Core Web Vitals)
 - `performance` skill — profiling and optimizing LCP, INP, CLS
-- `html-css` skill — semantic markup, heading hierarchy, image optimization
+- `html/css` skill — semantic markup, heading hierarchy, image optimization
 - `accessibility` skill — semantic HTML and ARIA overlap with SEO best practices
 
 ---

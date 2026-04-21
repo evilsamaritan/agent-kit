@@ -15,9 +15,9 @@ fi
 TEAM_FILE="$1"
 ERRORS=0
 
-err() { echo "ERROR: $1" >&2; ERRORS=$((ERRORS + 1)); }
+err()  { echo "ERROR: $1" >&2; ERRORS=$((ERRORS + 1)); }
 warn() { echo "WARN:  $1" >&2; }
-ok() { echo "OK     $1"; }
+ok()   { echo "OK     $1"; }
 
 # 1. File exists and is valid JSON
 if [ ! -f "$TEAM_FILE" ]; then
@@ -48,17 +48,17 @@ TEAM_VERSION=$(jq -r '.version // empty' "$TEAM_FILE")
 if [ -n "$PLUGIN_VERSION" ] && [ -n "$TEAM_VERSION" ] && [ "$TEAM_VERSION" != "$PLUGIN_VERSION" ]; then
   warn "Version mismatch: team=$TEAM_VERSION plugin=$PLUGIN_VERSION"
   warn "See skills/team-creator/references/migrations.md"
-  # Don't exit yet — continue validation, report at end
 fi
 
-# 4. All agents exist as files
-jq -r '.agents[]' "$TEAM_FILE" 2>/dev/null | while read -r agent; do
+# 4. All agents exist as files — process substitution so ERRORS survives the loop
+while IFS= read -r agent; do
+  [ -z "$agent" ] && continue
   if [ ! -f "$REPO_ROOT/agents/${agent}.md" ]; then
     err "Agent not found: agents/${agent}.md"
   else
     ok "Agent exists: $agent"
   fi
-done
+done < <(jq -r '.agents[]' "$TEAM_FILE" 2>/dev/null || true)
 
 # 5. Flow type is known
 KNOWN_FLOWS="pipeline pipeline-parallel builder-validator twin-review swarm-review devils-advocate fan-out diverge-converge purple-team custom"
@@ -71,13 +71,14 @@ if [ -n "$FLOW_TYPE" ]; then
   fi
 fi
 
-# 6. Agents in stages exist in agents array
+# 6. Agents in stages exist in agents array — process substitution for counter
 AGENTS_LIST=$(jq -r '.agents[]' "$TEAM_FILE" 2>/dev/null | sort)
-jq -r '.flow.stages[]? | if .agent then .agent elif .agents then .agents[] else empty end' "$TEAM_FILE" 2>/dev/null | sort -u | while read -r stage_agent; do
+while IFS= read -r stage_agent; do
+  [ -z "$stage_agent" ] && continue
   if ! echo "$AGENTS_LIST" | grep -qx "$stage_agent"; then
     err "Stage references agent '$stage_agent' not in agents array"
   fi
-done
+done < <(jq -r '.flow.stages[]? | if .agent then .agent elif .agents then .agents[] else empty end' "$TEAM_FILE" 2>/dev/null | sort -u || true)
 
 # 7. Report
 echo ""

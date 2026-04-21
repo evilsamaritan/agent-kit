@@ -1,6 +1,6 @@
 ---
 name: compliance
-description: Advise on regulatory compliance — GDPR, EU AI Act, SOC2, HIPAA, PCI-DSS, COPPA, data sovereignty, PII handling, audit trails, privacy by design. Use when implementing data protection, privacy controls, consent management, or cross-border transfers. Do NOT use for security (use security) or auth (use auth).
+description: Advise on regulatory compliance frameworks (GDPR, EU AI Act, SOC2, HIPAA, PCI-DSS, COPPA) and operational concerns (data sovereignty, PII handling, audit trails, privacy by design, consent management, cross-border transfers, data subject requests). Use when designing data protection programs, implementing privacy controls, choosing a compliance framework, mapping data flows, or preparing for an audit. Do NOT use for application-level security (use security), authentication flows (use auth), or PCI-specific payment processing flows (use payments).
 allowed-tools: Read, Grep, Glob, WebSearch, WebFetch
 user-invocable: true
 ---

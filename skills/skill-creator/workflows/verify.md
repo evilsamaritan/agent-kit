@@ -1,12 +1,5 @@
 # Flow 2: Verify Skill
 
-## Step 0: Check Internal Flag
-
-Parse the target skill's frontmatter. If `internal: true` is NOT set:
-
-1. Tell the user: "Skill `<name>` is not internal — skipping. Use explicit request to verify anyway."
-2. **Stop** — do not proceed unless the user explicitly confirms they want to verify a non-internal skill.
-
 ## Step 1: Identify Target Skill
 
 Determine which skill to verify:
@@ -29,7 +22,7 @@ Read `references/verification-checklist.md` from skill base directory.
 Collect all data needed for checks:
 
 1. **Read SKILL.md** — `skills/<name>/SKILL.md` (full content)
-2. **Parse frontmatter** — extract name, description, allowed-tools, internal, etc.
+2. **Parse frontmatter** — extract name, description, allowed-tools, etc.
 3. **Count lines** — SKILL.md line count (excluding frontmatter)
 4. **List workflows/** — glob for files in `skills/<name>/workflows/`
 5. **List references/** — glob for files in `skills/<name>/references/`
@@ -43,7 +36,6 @@ Execute all 48 checks from Categories A-E:
 - Parse frontmatter YAML
 - Validate name format, description quality, field validity
 - Check description starts with verb, includes trigger phrases
-- Check internal field handling
 
 **Category B: Structure (15 checks)**
 - Verify SKILL.md exists and is under 500 lines
@@ -51,7 +43,7 @@ Execute all 48 checks from Categories A-E:
 - Verify progressive disclosure — SKILL.md is entry point, details in sub-files
 - Verify instruction tone matches content type
 - Verify content placement (procedures in workflows/, knowledge in references/)
-- Check role skills have Related Knowledge section
+- Check that broad knowledge skills have a Related Knowledge section
 - Check language/framework knowledge skills follow uniform structure
 - Check framework-specific content is in separate reference files
 

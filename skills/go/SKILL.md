@@ -324,7 +324,7 @@ go tool pprof                   # CPU/memory profiling
 
 - **backend** — HTTP handlers, middleware, DI, service lifecycle
 - **database** — database/sql, sqlc, pgx, connection pooling, migrations
-- **qa** — table-driven tests, fuzzing, race detection, testcontainers
+- **testing** — table-driven tests, fuzzing, race detection, testcontainers
 - **docker** — multi-stage builds for Go binaries, scratch/distroless
 - **observability** — OpenTelemetry Go SDK, slog, pprof
 

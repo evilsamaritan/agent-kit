@@ -196,7 +196,7 @@ export default defineConfig({
 })
 ```
 
-For testing strategy beyond configuration, see the `qa` skill.
+For testing strategy beyond configuration, see the `testing` skill.
 
 ---
 

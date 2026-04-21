@@ -1,27 +1,31 @@
 # Pre-defined Team Compositions
 
+Built-in teams that `team-creator` can generate on request. Every agent name in the `Agents:` line is a real file under `agents/`. Skills are preloaded through the agent's frontmatter — the `Skills:` field in each stage documents what the agent brings to the task.
+
+---
+
 ## Review Team
 
 **Use when:** Code review, PR review, architecture assessment.
 
-**Agents:** architect → security → qa
+**Agents:** architect → security → tester
 **Flow:** Sequential (each builds on previous findings)
 
 ### Stage 1: architect
 - **Role:** Architecture and design review
-- **Skills:** architect
+- **Skills:** architecture
 - **Prompt template:** "Review architecture patterns, coupling, cohesion, SOLID principles, and design decisions in {target}. Identify structural issues, suggest improvements."
 - **Pass to next:** architectural findings, design issues, file locations, dependency concerns
 
 ### Stage 2: security
 - **Role:** Security vulnerability scan
 - **Skills:** security, auth
-- **Prompt template:** "Review for OWASP top 10, auth issues, injection vectors, secrets exposure in {target}. Architecture review found: {prev_summary}"
+- **Prompt template:** "Review for OWASP Top 10, auth issues, injection vectors, secrets exposure in {target}. Architecture review found: {prev_summary}"
 - **Pass to next:** security findings with severity ratings, affected files
 
-### Stage 3: qa
+### Stage 3: tester
 - **Role:** Test coverage and quality audit
-- **Skills:** qa
+- **Skills:** testing
 - **Prompt template:** "Audit test coverage, mock boundaries, flaky tests, edge cases in {target}. Architecture issues: {stage1_summary}. Security issues: {stage2_summary}"
 - **Output:** Unified review report with all findings prioritized
 
@@ -31,28 +35,28 @@
 
 **Use when:** Building a new feature that spans multiple domains.
 
-**Agents:** architect → (frontend ∥ backend) → qa
+**Agents:** architect → (frontend ∥ backend) → tester
 **Flow:** Pipeline with parallel middle stage
 
 ### Stage 1: architect
 - **Role:** Design the implementation approach
-- **Skills:** architect
+- **Skills:** architecture
 - **Prompt template:** "Design the implementation for: {task}. Define API contracts, component structure, data flow. Output a clear plan for frontend and backend teams."
 - **Pass to next:** implementation plan, API contracts, component specs
 
 ### Stage 2a: frontend (parallel)
 - **Role:** Implement UI components
-- **Skills:** frontend (+ react/vue if detected)
+- **Skills:** frontend, web, html, css, accessibility (+ react/vue auto-triggered if the codebase uses them)
 - **Prompt template:** "Implement the frontend for: {task}. Follow this design: {stage1_plan}. API contracts: {api_spec}"
 
 ### Stage 2b: backend (parallel)
 - **Role:** Implement API/services
-- **Skills:** backend (+ javascript/rust/kotlin if detected)
+- **Skills:** backend, api-design, database, auth, caching (+ javascript/go/rust/kotlin auto-triggered from the stack)
 - **Prompt template:** "Implement the backend for: {task}. Follow this design: {stage1_plan}. API contracts: {api_spec}"
 
-### Stage 3: qa
+### Stage 3: tester
 - **Role:** Write tests for the implementation
-- **Skills:** qa
+- **Skills:** testing
 - **Prompt template:** "Write tests for the new implementation of {task}. Frontend changes: {stage2a_files}. Backend changes: {stage2b_files}."
 - **Output:** Test files, coverage report
 
@@ -62,28 +66,28 @@
 
 **Use when:** Comprehensive project health check.
 
-**Agents:** cto → security → sre → qa
+**Agents:** architect → security → sre → tester
 **Flow:** Sequential (holistic → specific)
 
-### Stage 1: cto
-- **Role:** Holistic technical health review
-- **Skills:** cto
-- **Prompt template:** "Audit the overall technical health of this project: architecture, dependencies, code quality, engineering practices."
+### Stage 1: architect
+- **Role:** Holistic technical health review — architecture, module boundaries, dependency health, tech debt
+- **Skills:** architecture
+- **Prompt template:** "Audit the overall technical health of this project: architecture, module boundaries, dependency graph, code quality signals, tech-debt hotspots."
 - **Pass to next:** high-level findings, areas of concern, priority focus areas
 
 ### Stage 2: security
 - **Role:** Security deep-dive on flagged areas
 - **Skills:** security, auth, compliance
-- **Prompt template:** "Deep security audit. CTO flagged these areas: {stage1_concerns}. Focus on: auth flows, secrets, input validation, dependency vulnerabilities."
+- **Prompt template:** "Deep security audit. Architect flagged these areas: {stage1_concerns}. Focus on: auth flows, secrets, input validation, dependency vulnerabilities."
 
 ### Stage 3: sre
 - **Role:** Reliability and operations review
-- **Skills:** sre, observability
-- **Prompt template:** "Review reliability: health checks, graceful shutdown, error handling, observability. CTO concerns: {stage1_concerns}"
+- **Skills:** reliability, observability, performance
+- **Prompt template:** "Review reliability: health checks, graceful shutdown, error handling, observability. Architect concerns: {stage1_concerns}"
 
-### Stage 4: qa
+### Stage 4: tester
 - **Role:** Test infrastructure audit
-- **Skills:** qa
+- **Skills:** testing
 - **Prompt template:** "Audit test suite: coverage gaps, flaky tests, mock quality. Previous reviews found: {combined_summary}"
 - **Output:** Comprehensive audit report
 
@@ -96,9 +100,9 @@
 **Agents:** security → sre → devops
 **Flow:** Sequential
 
-### Stage 1: security — Application security (OWASP, auth, input validation)
-### Stage 2: sre — Operational security (health checks, secrets in runtime, logging sensitive data)
-### Stage 3: devops — Infrastructure security (container security, CI secrets, OIDC, supply chain)
+### Stage 1: security — Application security (OWASP Top 10, auth, input validation)
+### Stage 2: sre — Operational security (health checks, secrets at runtime, logging of sensitive data)
+### Stage 3: devops — Infrastructure security (container hardening, CI secrets, OIDC, supply-chain, image signing)
 
 ---
 
@@ -106,34 +110,21 @@
 
 **Use when:** UI work that needs testing.
 
-**Agents:** frontend → qa
+**Agents:** frontend → tester
 **Flow:** Pipeline
 
 ### Stage 1: frontend — Implement UI changes
-### Stage 2: qa — Write component tests, visual regression tests
+### Stage 2: tester — Write component tests, visual regression tests
 
 ---
 
 ## Backend Team
 
-**Use when:** API/service work with testing and security.
+**Use when:** API/service work with testing and security review.
 
-**Agents:** backend → qa → security
+**Agents:** backend → tester → security
 **Flow:** Pipeline
 
 ### Stage 1: backend — Implement service/API changes
-### Stage 2: qa — Write unit and integration tests
+### Stage 2: tester — Write unit and integration tests
 ### Stage 3: security — Review for vulnerabilities in new code
-
----
-
-## AI Feature Team
-
-**Use when:** AI/ML feature development.
-
-**Agents:** ai-engineer → architect → qa
-**Flow:** Pipeline
-
-### Stage 1: ai-engineer — Implement AI feature (LLM integration, prompts, evaluation)
-### Stage 2: architect — Review architecture (guardrails, fallbacks, cost, latency)
-### Stage 3: qa — Write tests (unit, integration, eval harness)

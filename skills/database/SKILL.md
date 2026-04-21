@@ -183,7 +183,6 @@ Start with a single instance. Add read replicas when read load demands it.
 - **security** -- Row-level security, encryption at rest, PII masking, audit trails
 - **devops** -- Backup automation, replication setup, migration CI/CD, blue-green deploys
 - **search** -- Full-text search, vector/semantic search at scale
-- **rag** -- Embedding storage, vector similarity queries for retrieval
 
 ---
 

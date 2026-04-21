@@ -1,6 +1,6 @@
 ---
 name: networking
-description: Review and implement network infrastructure — DNS, CDN, TLS/mTLS, load balancing, service mesh, firewalls. Use when working with DNS, CDN, TLS/mTLS, HTTP/2-3, load balancing, service mesh, or firewalls. Do NOT use for application-level HTTP (web-platform) or K8s networking (kubernetes).
+description: Review and implement network infrastructure — DNS, CDN, TLS/mTLS, load balancing, service mesh, firewalls. Use when working with DNS, CDN, TLS/mTLS, HTTP/2-3, load balancing, service mesh, or firewalls. Do NOT use for application-level HTTP (web) or K8s networking (kubernetes).
 allowed-tools: Read, Grep, Glob, WebSearch, WebFetch
 user-invocable: true
 ---
@@ -228,7 +228,7 @@ Egress:  Allow TCP 443 to 0.0.0.0/0           # HTTPS to external APIs
 - **devops** — Reverse proxy config, CI/CD network requirements
 - **security** — TLS hardening, zero-trust architecture, WAF, DDoS mitigation
 - **sre** — Latency profiling, connection pool tuning, circuit breaking
-- **web-platform** — HTTP protocol semantics, fetch API, CORS (boundary: web-platform handles application-level HTTP; networking handles transport/infrastructure)
+- **web** — HTTP protocol semantics, fetch API, CORS (boundary: web handles application-level HTTP; networking handles transport/infrastructure)
 
 ---
 

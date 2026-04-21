@@ -1,250 +1,118 @@
 ---
 name: backend
-description: Implement and review backend services, middleware, DI, service lifecycle, and resilience patterns. Use when building endpoints, reviewing service code, designing error handling, or auditing backend architecture. Do NOT use for API protocol choice (use api-design), auth flows (use auth), or schema design (use database).
+description: Patterns for backend services — dependency injection, middleware, error handling, service lifecycle, resilience, request pipelines. Language-agnostic. Use when building or reviewing services, structuring middleware, designing error contracts, or implementing graceful startup/shutdown. Do NOT use for API protocol choice (use api-design), auth flows (use auth), schemas (use database), or language idioms (use go/rust/kotlin/javascript).
 allowed-tools: Read, Grep, Glob, WebSearch, WebFetch, Edit, Write, Bash
 user-invocable: true
 ---
 
-# Backend Developer — Service & API Specialist
+# Backend Service Patterns
 
-You ANALYZE, DESIGN, IMPLEMENT, and REVIEW backend services, APIs, middleware, and service lifecycle patterns. You write and modify code. Adapt to the project's language, framework, and conventions.
+Patterns for structuring backend services — how to wire dependencies, organize middleware, handle errors, and manage lifecycle. Language-agnostic: the patterns apply whether you're in Go, Rust, Kotlin, or Node.
 
-**Critical rules:**
-- Detect the project's language, framework, and conventions before writing code. Never assume a specific stack.
-- Every new endpoint must have authentication/authorization checks and input validation.
-- Every list endpoint must support pagination.
-- Never break the error response contract.
-- Never expose internal implementation details (DB column names, stack traces) in API responses.
-- Every endpoint that receives an object ID must validate the caller's access to that object (prevent BOLA).
+## Scope and boundaries
 
----
+**This skill covers:**
+- Dependency injection / wiring / service locator patterns (including tradeoffs)
+- Middleware / interceptor pipelines and ordering
+- Error handling — error types, wrapping, mapping to transport
+- Service lifecycle — startup order, dependency readiness, graceful shutdown
+- Resilience patterns — timeouts, retries with jitter, circuit breakers, bulkheads (summary — see `reliability` for depth)
+- Request scoping — request ID, trace context, per-request resources
 
-## What This Role Owns
+**This skill does not cover:**
+- HTTP/REST/GraphQL contract design → `api-design`
+- Auth (OAuth, JWT, sessions, RBAC) → `auth`
+- Database access patterns → `database`
+- Queue producers/consumers → `message-queues`, `background-jobs`
+- Observability instrumentation → `observability`
+- Deep SRE/SLO work → `reliability`
+- Language idioms → `go`, `rust`, `kotlin`, `javascript`
 
-- Service bootstrap, lifecycle, and graceful shutdown
-- Middleware pipeline design and ordering
-- Dependency injection and service wiring
-- Input validation at the edge
-- Error response contracts and domain error types
-- Endpoint implementation (handlers, controllers)
-- Resilience patterns (circuit breaker, retry, bulkhead, timeout)
-- Request context propagation
-- Health checks (liveness, readiness)
-- Config loading and validation
-
-## What This Role Does NOT Own
-
-- **API protocol choice, OpenAPI specs, versioning strategy** → `api-design` skill
-- **Authentication/authorization flows** → `auth` skill
-- **Database schema, migrations, query optimization** → `database` skill
-- **GraphQL schema and resolvers** → `graphql` skill
-- **Observability instrumentation** → `observability` skill
-- **Caching strategy and invalidation** → `caching` skill
-- **Message queue topology** → `message-queues` skill
-- **Background job scheduling** → `background-jobs` skill
-- **Infrastructure and deployment** → `devops` / `docker` / `kubernetes` skills
-
----
-
-## Operating Modes
-
-| Mode | Trigger | Output |
-|------|---------|--------|
-| **Implement** | "build endpoint", "add middleware", "wire up DI" | Working code following project conventions |
-| **Review** | "review this service", "audit backend" | Structured findings per [workflows/review.md](workflows/review.md) |
-| **Design** | "how should I structure this service" | Architecture recommendation with trade-offs |
-| **Debug** | "this endpoint returns 500", "request hangs" | Root cause analysis and fix |
-
----
-
-## Quick Reference
-
-| Task | Details |
-|------|---------|
-| Implement endpoints | REST conventions below + project conventions |
-| Review service code | Read [workflows/review.md](workflows/review.md) |
-| DI, lifecycle, config patterns | Read [references/service-patterns.md](references/service-patterns.md) |
-| Design error contracts | Error Response Contract below |
-| Resilience patterns | Read [references/service-patterns.md](references/service-patterns.md) |
-
----
-
-## Endpoint Implementation
-
-### Resource-Oriented URLs
+## Decision tree — picking a structure
 
 ```
-Collection:     GET    /api/items                → list items
-Resource:       GET    /api/items/:id            → get item by id
-Create:         POST   /api/items                → create item
-Update:         PATCH  /api/items/:id            → partial update item
-Replace:        PUT    /api/items/:id            → full replace item
-Delete:         DELETE /api/items/:id            → remove item
-Sub-resource:   GET    /api/items/:id/comments   → list comments for item
-Action:         POST   /api/items/:id/publish    → state transition (RPC-style)
+Does the service handle one transport (HTTP only)?
+├─ yes → flat layered structure: handlers → services → repositories
+└─ no → ports-and-adapters: domain core + adapters per transport (HTTP, queue, CLI)
+
+Does the service have > 10 collaborators wired at startup?
+├─ yes → formal DI (constructor injection, explicit wiring module)
+└─ no → hand-wired composition in main/bootstrap — keep it explicit and readable
 ```
 
-### Status Codes
+## Core patterns
 
-| Code | Meaning | Use when |
-|------|---------|----------|
-| 200 | OK | Successful read or update |
-| 201 | Created | Successful resource creation |
-| 204 | No Content | Successful delete or action with no body |
-| 400 | Bad Request | Malformed input, invalid syntax |
-| 401 | Unauthorized | Missing or invalid authentication |
-| 403 | Forbidden | Authenticated but not authorized |
-| 404 | Not Found | Resource does not exist |
-| 409 | Conflict | State conflict (e.g., duplicate) |
-| 422 | Unprocessable Entity | Valid JSON but fails business rules |
-| 429 | Too Many Requests | Rate limit exceeded |
-| 500 | Internal Server Error | Unhandled server failure |
+### Dependency injection
 
-### Error Response Contract
+- **Constructor injection** is the default. Dependencies arrive through the constructor / factory function and stay immutable.
+- **Avoid service locators / global state** — they hide dependencies and break tests.
+- **Do not build DI frameworks for a small service.** Explicit wiring in `main` is simpler until the service has > ~20 collaborators.
+- **Scope matters.** Singleton (app lifetime), request-scoped (per-request), transient (new per call) — name the scope explicitly.
 
-```json
-{
-  "error": "Validation error",
-  "message": "Human-readable description of what went wrong",
-  "details": [
-    { "field": "budget", "message": "Must be a positive number" }
-  ],
-  "code": "VALIDATION_ERROR",
-  "requestId": "req_abc123"
-}
-```
+### Middleware pipeline
 
-- Always include machine-readable `code` for programmatic client handling
-- Always include human-readable `message` for debugging
-- `details` array for validation errors (field-level)
-- `requestId` for correlation with server logs
-- Never include stack traces in production responses
+Standard ordering, outermost first:
 
-### Pagination
-
-**Offset-based** (simple, good for dashboards):
-```
-GET /api/items?offset=0&limit=20
-Response: { "data": [...], "total": 150, "offset": 0, "limit": 20 }
-```
-
-**Cursor-based** (better for real-time feeds, large datasets):
-```
-GET /api/items?cursor=abc123&limit=20
-Response: { "data": [...], "nextCursor": "def456", "hasMore": true }
-```
-
-If dataset changes frequently, total count is expensive, or deep pagination needed → cursor-based. If users need page numbers and dataset is relatively static → offset-based.
-
-### Idempotency
-
-- POST/PATCH endpoints accept `Idempotency-Key` header for state-changing actions
-- Same key + same body = same response (server caches result by key)
-- Store key with TTL (e.g., 24h) to prevent duplicate processing
-
----
-
-## Middleware Pipeline
-
-Order matters. Standard pipeline (adapt to your framework):
-
-```
-1. Request ID generation (attach unique ID to every request)
-2. CORS
-3. Request logging (method, path, timing)
-4. Authentication (verify token/session)
-5. Authorization (check permissions)
+1. Panic / crash recovery
+2. Request ID + trace context
+3. Logging (start / end / duration)
+4. Authentication (identity)
+5. Authorization (permissions)
 6. Rate limiting
-7. Input validation (schema validation on body/query/params)
-8. → Handler (business logic)
-9. Error handling (catch-all, format to error contract)
-10. Response logging
-```
+7. Body parsing / validation
+8. Business handler
+9. Error mapping (exception → transport-level error)
 
-Every framework implements this differently, but the ordering principle is universal.
+Do not skip the early middleware — if your handler throws before the logging middleware runs, you won't know.
 
----
+### Error handling
 
-## Input Validation
+- **Separate error types by audience.** Internal errors (for logs, observability) vs user-visible errors (for the response). Never leak stack traces to users.
+- **Wrap, don't replace.** When crossing a layer boundary, wrap the lower-layer error with context ("reading user %d from db: %w") rather than losing it.
+- **Map at the edge.** Transport-level error codes (HTTP 4xx/5xx, gRPC codes) are decided at the outermost error mapper, not sprinkled through handlers.
+- **Retries + idempotency go together.** A retryable error must point to an idempotent operation, or it's a bug.
 
-Validate all inputs at the edge (middleware or handler entry), before any business logic:
+### Service lifecycle
 
-- **Request body**: validate against a schema
-- **Path parameters**: validate type and format (numeric IDs are numbers, UUIDs match format)
-- **Query parameters**: validate type, range, enum values
-- **Return 400** with field-level details on validation failure
-- **Never trust client input** — re-validate even if the client has its own validation
-- **Allowlist response fields** — never return raw DB objects; map to explicit response DTOs to prevent mass assignment
+- **Startup order.** Open DB connections → verify migrations → warm caches → start background workers → *then* bind the HTTP/gRPC port. Readiness checks fail until the port is bound and dependencies are green.
+- **Graceful shutdown.** On SIGTERM: stop accepting new connections → drain in-flight requests (with a deadline) → close DB/queue connections → exit. Budget per step; refuse to hang indefinitely.
+- **Health vs readiness.** *Health* = "the process is alive". *Readiness* = "can handle traffic". They are not the same endpoint.
 
----
+### Resilience — defaults
 
-## Anti-Patterns
+- **Timeouts everywhere.** No unbounded calls to external systems. Default 1–3s, tune per dependency.
+- **Retry with jitter + budget.** Exponential backoff + full jitter. Cap total retries to a budget (e.g., 3 attempts, 30s total), not just attempt count.
+- **Circuit breaker for dependencies that degrade.** Open on sustained failure; half-open probes before fully closing.
+- **Bulkhead the worst neighbor.** Don't let one slow downstream exhaust the whole connection pool.
 
-| Don't | Why | Instead |
-|-------|-----|---------|
-| Inconsistent casing (`created_at` + `createdAt`) | Breaks client expectations | Pick one convention, enforce everywhere |
-| 200 for errors (`{ "success": false }`) | Hides failures from HTTP clients | Use proper status codes |
-| Unbounded list endpoints | Memory/performance bomb | Always paginate with a default limit |
-| Leaking DB column names in API | Couples API to schema | Map to explicit response DTOs |
-| No input validation | Crashes, injection, corruption | Validate at the edge with schemas |
-| Verb URLs (`/api/publishItem`) | REST anti-pattern | `POST /api/items/:id/publish` |
-| No machine-readable error codes | Clients can't handle errors programmatically | Include `code` in every error response |
-| Breaking response shape without version bump | Breaks all clients | Version the API, deprecate gracefully |
-| Manual service instantiation bypassing DI | Untestable, inconsistent lifecycle | Register in container, inject via constructor |
-| Config re-read per request | Inconsistent state, performance waste | Load and validate config once at startup |
-| No object-level authorization check | BOLA — #1 OWASP API vulnerability | Verify caller's access on every object ID endpoint |
-| Retrying without backoff/jitter | Thundering herd on recovering service | Exponential backoff with jitter |
-| No timeout on external calls | Requests hang indefinitely | Set explicit timeouts on every outbound call |
-| Shared thread/connection pool for all dependencies | One slow dependency starves all | Isolate pools per dependency (bulkhead) |
+## Context adaptation
 
----
+**As implementer (building a new service):** pick the simplest structure; explicit wiring beats DI framework for < 20 collaborators. Install the standard middleware ordering on day one.
 
-## Framework Selection
+**As reviewer (auditing a service):** check for leaked stack traces, unbounded timeouts, missing request IDs, missing shutdown handling. These are the top four bugs that reach production.
 
-When starting a backend from scratch, present trade-offs to the user — never assume a framework.
+**As architect (designing a service):** decisions here are style guides for the team, not per-service. The middleware ordering and error-type taxonomy should be the same across all services in the same team.
 
-**Decision tree:**
-1. What language does the team know? → Start there.
-2. Is there an existing codebase? → Match its conventions.
-3. Need enterprise DI/modularity? → Full-featured framework.
-4. Need lightweight/edge deployment? → Minimal framework.
-5. Performance-critical hot path? → Systems language framework.
+**As operator (operating a service):** if readiness fails, the startup sequence is usually the culprit. The lifecycle section is your first read.
 
-Popular choices by language include: Node.js/TS (Hono, Fastify, Express, NestJS), Python (FastAPI, Django, Flask), Go (stdlib net/http + router), Rust (Axum, Actix-web), Java/Kotlin (Spring Boot, Quarkus, Ktor).
+## Anti-patterns
 
-Always ask the user before choosing. Present trade-offs, not mandates.
-
----
-
-## Done Criteria
-
-- Endpoints follow project conventions and REST principles
-- Input validation present on all endpoints
-- Error responses follow the contract (code, message, requestId)
-- Object-level authorization checks on all ID-accepting endpoints
-- List endpoints paginated
-- Middleware pipeline ordered correctly
-- Config validated at startup
-- Graceful shutdown handles in-flight requests
-- No anti-patterns from the table above
-
----
+- **Big ball of main** — hundreds of lines of startup code in `main` with no decomposition into `newApp` / `newRouter` / `newDB` factories.
+- **Middleware soup** — 20+ middlewares, ordering accidental, half of them doing logging.
+- **Panic-driven error handling** — relying on panic/recover as control flow instead of explicit error returns.
+- **Shared global mutable state** — package-level singletons that everyone reaches into. Kills tests, hides dependencies.
+- **Retry without idempotency** — retrying a POST that charges money. Once is the limit until you can prove it's idempotent.
+- **No shutdown hook** — SIGTERM kills the process mid-request, in-flight work disappears.
 
 ## Related Knowledge
 
-Load these skills when the task touches their domain:
-- `/api-design` — protocol choice, OpenAPI, versioning, pagination depth
-- `/auth` — JWT, OAuth, sessions, RBAC, Passkeys
-- `/database` — schema, migrations, queries, indexes
-- `/javascript` `/kotlin` `/rust` — language depth
-- `/caching` — cache strategy, invalidation, layers
-- `/graphql` — schema, resolvers, federation
-- `/message-queues` — Kafka, RabbitMQ, NATS
-- `/background-jobs` — job queues, scheduling, retries
-- `/observability` — tracing, metrics, logging
-- `/security` — OWASP, secrets management, supply chain
+- `api-design` — contracts before this skill's patterns apply
+- `auth` — identity/authorization middleware
+- `database` — data access patterns
+- `reliability` — SLO-driven resilience
+- `observability` — instrumenting the middleware stack
+- `go` / `rust` / `kotlin` / `javascript` — language-specific idioms for DI, error types, lifecycle
 
 ## References
 
-- [workflows/review.md](workflows/review.md) — Full service code review protocol (4-phase audit)
-- [references/service-patterns.md](references/service-patterns.md) — DI, lifecycle, config, health checks, circuit breakers, resilience patterns
+- [service-patterns.md](references/service-patterns.md) — detailed patterns with language-agnostic examples

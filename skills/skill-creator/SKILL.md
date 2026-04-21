@@ -1,8 +1,8 @@
 ---
 name: skill-creator
-description: Create, verify, or improve skills. Use when creating a new skill, scaffolding skill structure, writing SKILL.md, verifying skill quality, reviewing an existing skill, or improving skill effectiveness. Do NOT use for agent creation (use agent-creator).
-internal: true
+description: Create, verify, or improve skills (skills/**/SKILL.md). Use when creating a new skill, scaffolding skill structure, writing SKILL.md, verifying an existing skill against the quality checklist, reviewing skill description triggers, or improving skill effectiveness. Do NOT use for creating agents (use agent-creator), creating teams (use team-creator), configuring hooks (use hook-creator), or initial project setup that bundles many of the above (use init).
 allowed-tools: Read, Write, Edit, Bash, Glob, Grep, AskUserQuestion
+user-invocable: true
 ---
 
 # Skill Creator
@@ -15,9 +15,10 @@ Create new skills with proper structure, verify existing skills against quality 
 
 1. **Always edit skills in `skills/`, NEVER in `.claude/skills/`.** `.claude/skills/` is a symlink to `../skills/`. No installation or sync needed.
 2. **One skill = one domain.** Do not merge unrelated domains into a single skill.
-3. **Classify before creating.** Every skill has a type (role / knowledge / meta) and knowledge skills have a scope (broad / specialized / language / framework / platform-tech / regulatory). Classification determines structure template, agnosticity rules, and sizing.
+3. **Classify before creating.** Skills are either **knowledge** (domain expertise — preloadable into agents, auto-triggered by Claude Code) or **meta** (create / manage other entities — agents, skills, hooks, teams, project init). Knowledge skills have a scope (broad / specialized / language / framework / platform-tech / regulatory) that determines the structure template and agnosticity rules.
 4. **SKILL.md maximum 500 lines** (ceiling, not target). Extract depth to references/ and procedures to workflows/.
-5. **Teach patterns, not products.** Broad/role skills must be vendor-agnostic in SKILL.md. Framework-specific content goes in `references/<framework>.md`.
+5. **Teach patterns, not products.** Broad knowledge skills must be vendor-agnostic in SKILL.md. Framework-specific content goes in `references/<framework>.md`.
+6. **Roles live separately.** Behavioral role content does not belong in knowledge skills. Role-templates live at `skills/agent-creator/templates/*.md` and are managed by `agent-creator`, not here.
 
 ## Flow Selection
 
@@ -45,9 +46,10 @@ Classify the skill before writing anything:
 
 | Type | Purpose | Structure template |
 |------|---------|-------------------|
-| **role** | Persona with workflows, owns a domain | `What this role owns` → `Operating modes` → `Workflow routing` → `Related Knowledge` |
 | **knowledge** | Domain expertise loaded on demand | Depends on scope (see below) |
-| **meta** | Skills that create/manage other skills or agents | `Purpose` → `Critical rules` → `Flow selection` → `Quick reference` → `Validation` |
+| **meta** | Skills that create/manage other entities (agents, skills, hooks, teams, init) | `Purpose` → `Critical rules` → `Flow selection` → `Quick reference` → `Validation` |
+
+> Behavioral role content (how an agent thinks / structures work) is NOT a skill — it lives at `skills/agent-creator/templates/*.md` and is managed by `agent-creator`.
 
 Knowledge skill scopes:
 
@@ -67,7 +69,6 @@ Knowledge skill scopes:
 | `name` | Yes | Lowercase + hyphens only, max 64 chars, matches directory. No consecutive hyphens. Must not start/end with hyphen. |
 | `description` | Yes | Single line, max 1024 chars, verb + trigger phrases. Include "Do NOT use for..." if overlap with sibling skill. |
 | `allowed-tools` | No | Comma-separated string (not YAML list). Scoped: `"Bash(python:*)"` |
-| `internal` | No | Boolean. `true` for locally created skills — only internal skills are verified/improved by default |
 | `user-invocable` | No | Boolean, default `true` |
 | `context` | No | `fork` for isolated sub-agent |
 | `agent` | No | Agent type when `context: fork` |
@@ -84,7 +85,7 @@ Knowledge skill scopes:
 After creating or editing a skill, verify:
 
 1. **Accessible via symlink**: `ls .claude/skills/<skill-name>/SKILL.md`
-2. **Quality**: chain to Flow 2 (Verify) for full 48-check validation
+2. **Quality**: chain to Flow 2 (Verify) for full quality validation
 
 ## References
 

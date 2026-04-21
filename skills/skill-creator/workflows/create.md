@@ -107,7 +107,7 @@ Select the structure template matching the classification from Step 1:
 - **Meta** → Purpose / Critical rules / Flow selection / Quick reference / Validation
 
 Fill in the template:
-1. Frontmatter: `name`, `description`, `internal: true`, `allowed-tools` (scope to needed tools)
+1. Frontmatter: `name`, `description`, `allowed-tools` (scope to needed tools)
 2. Content sections based on the classification and plan from Step 3
 3. For skills with procedures: numbered steps, imperative tone
 4. For skills with reference material: tables, decision trees, advisory tone

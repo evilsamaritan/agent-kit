@@ -117,18 +117,18 @@ Assign skills based on detected tech stack:
 - Frontend detected → add `frontend` skill (+ `react`, `vue`, etc. if detected)
 - Backend detected → add `backend` skill (+ language skill)
 - Security flow → add `security`, `auth` skills
-- QA roles → add `qa` skill
+- QA roles → add `testing` skill
 
 ### 3d. Create agents
 
 For each agent, either:
 - **Scaffold script** (fast, template-based):
   ```bash
-  bash skills/team-creator/scripts/scaffold-team.sh <team-name> <role1> <role2> --skills <skill1>,<skill2>
+  delegate to /agent-creator for any agent that does not yet exist in agents/
   ```
 - **Agent-creator** (richer, interactive): invoke `/agent-creator` for complex roles that need custom personas
 
-Use scaffold for standard archetypes, agent-creator for specialized roles.
+Delegate to /agent-creator for every agent the team needs.
 
 ---
 
@@ -172,7 +172,7 @@ Enter your choices (e.g., "1a 2a 3a 4:3 5b") or press enter for defaults:
 
 ### 5a. Create agent files
 
-Run scaffold script or agent-creator for each agent that doesn't exist yet (from Step 3).
+Invoke /agent-creator for every agent that does not yet exist (from Step 3).
 
 ### 5b. Create team config
 
@@ -274,7 +274,7 @@ Triggered by "reconfigure <team-name>" or "update <team-name> team".
 4. Apply changes:
    - Flow type change → update `flow.type` and `flow.stages` in team.json
    - Options change → re-run Step 4 options menu
-   - Agent changes → add new agents (scaffold/agent-creator), remove from team.json
+   - Agent changes → add new agents (via /agent-creator), remove from team.json
    - Existing agent files are NOT deleted or modified — only team.json references change
 
 5. Re-validate:

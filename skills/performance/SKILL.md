@@ -1,6 +1,6 @@
 ---
 name: performance
-description: Analyze and optimize system performance across any runtime or infrastructure. Use when diagnosing bottlenecks, profiling latency, tuning throughput, investigating memory leaks, optimizing queries, reviewing caching strategies, or capacity planning. Do NOT use for reliability engineering or incident response.
+description: Analyze and optimize system performance across any runtime or infrastructure. Use when diagnosing bottlenecks, profiling latency, tuning throughput, investigating memory leaks, optimizing queries, reviewing caching strategies, or capacity planning. Do NOT use for SLO/SLI design or incident response (use sre), instrumentation pipelines and metrics standards (use observability), or schema/index design (use database).
 allowed-tools: Read, Grep, Glob, WebSearch, WebFetch
 user-invocable: true
 ---

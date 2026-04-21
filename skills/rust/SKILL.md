@@ -1,6 +1,6 @@
 ---
 name: rust
-description: Write, review, and architect Rust code — ownership, lifetimes, async, error handling, crate selection, API design. Use when working with .rs files, Cargo.toml, or any Rust question. Triggers on cargo, tokio, serde, axum, clippy, Edition 2024.
+description: Write, review, and architect Rust code — ownership, lifetimes, async, error handling, crate selection, API design, FFI. Use when working with .rs files, Cargo.toml, or any Rust question. Triggers on cargo, tokio, serde, axum, clippy, Edition 2024. Do NOT use for general systems-programming patterns (use backend), HTTP API design (use api-design), or other languages — pick the matching language skill (go, kotlin, javascript, zig).
 allowed-tools: Read, Grep, Glob, WebSearch, WebFetch
 user-invocable: true
 ---
@@ -145,7 +145,7 @@ cargo deny check
 
 - **backend** — service patterns, DI, middleware when building Rust services
 - **database** — sqlx patterns, connection pooling, query optimization
-- **qa** — proptest, Kani verification, cargo-mutants, test architecture
+- **testing** — proptest, Kani verification, cargo-mutants, test architecture
 
 ## References
 

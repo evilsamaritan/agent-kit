@@ -1,6 +1,6 @@
 ---
 name: i18n
-description: Implement internationalization — ICU MessageFormat, pluralization, RTL, Intl APIs, Temporal, translation workflows. Use when implementing i18n, localization, pluralization, RTL layout, Intl APIs, or translation pipelines. Do NOT use for accessibility (use accessibility) or CSS layout (use html-css).
+description: Implement internationalization — ICU MessageFormat, pluralization, RTL, Intl APIs, Temporal, translation workflows. Use when implementing i18n, localization, pluralization, RTL layout, Intl APIs, or translation pipelines. Do NOT use for accessibility (use accessibility) or CSS layout (use html/css).
 allowed-tools: Read, Grep, Glob, WebSearch, WebFetch
 user-invocable: true
 ---
@@ -217,10 +217,10 @@ auth.login.error.invalid   = "Invalid credentials"
 
 ## Related Knowledge
 
-- **html-css** -- CSS logical properties for RTL, `lang` attribute, `dir` attribute
+- **html/css** -- CSS logical properties for RTL, `lang` attribute, `dir` attribute
 - **accessibility** -- screen reader language switching, translated ARIA labels
 - **frontend** -- component-level i18n integration, locale-aware routing
-- **web-platform** -- Temporal API, Intl APIs, browser compatibility
+- **web** -- Temporal API, Intl APIs, browser compatibility
 
 ## References
 

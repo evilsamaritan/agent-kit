@@ -177,24 +177,7 @@ Not every skill needs every section. Use this table to decide what to include.
 
 Choose the template that matches your skill's taxonomy class (see CLAUDE.md "Skill Taxonomy").
 
-### Role Skill Template
-
-Type: role. Persona with workflows, owns a domain. Must be vendor-agnostic in SKILL.md.
-
-```markdown
-# Role Name
-
-You ANALYZE, DESIGN, IMPLEMENT, and REVIEW [domain].
-
-## What this role owns
-## What this role does not own
-## Operating modes
-## Critical rules
-## Workflow routing
-## Anti-Patterns
-## Related Knowledge
-## References
-```
+> **Note on roles.** Behavioral role content (how an agent thinks / structures work) is not a skill in v2. Role-templates live at `skills/agent-creator/templates/*.md` and are managed by `agent-creator`. This file covers **knowledge** and **meta** skill templates only.
 
 ### Broad Knowledge Skill Template
 
@@ -273,7 +256,6 @@ description: Verb phrase. Use when trigger phrases.  # Max 1024 chars, single li
 
 # Optional — behavior
 allowed-tools: Read, Bash, Edit              # Comma-separated, NOT YAML list. Scoped: "Bash(python:*)"
-internal: true                               # Locally created skill, included in verify/improve
 user-invocable: true                         # Show in /slash menu (default: true)
 context: fork                                # Isolated sub-agent execution
 agent: general-purpose                       # Agent type for context: fork

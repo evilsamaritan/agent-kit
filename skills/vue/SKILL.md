@@ -1,6 +1,6 @@
 ---
 name: vue
-description: Build Vue.js apps with Composition API, reactivity, Pinia, Vue Router, SFC patterns, Vapor mode. Use when working with Vue composables, reactivity, Pinia stores, Vue Router, SFC script setup, or Vapor mode. Do NOT use for HTML/CSS (use html-css) or web platform APIs (use web-platform).
+description: Build Vue.js apps with Composition API, reactivity, Pinia, Vue Router, SFC patterns, Vapor mode. Use when working with Vue composables, reactivity, Pinia stores, Vue Router, SFC script setup, or Vapor mode. Do NOT use for HTML/CSS (use html/css) or web platform APIs (use web).
 allowed-tools: Read, Grep, Glob, WebSearch, WebFetch
 user-invocable: true
 ---
@@ -211,9 +211,9 @@ Compiler-driven rendering — no virtual DOM. Components compile to direct DOM o
 ## Related Knowledge
 
 - **javascript** — Vue TypeScript integration, typed props, composable types
-- **html-css** — semantic markup, layout, CSS features used in SFC styles
+- **html/css** — semantic markup, layout, CSS features used in SFC styles
 - **accessibility** — ARIA in Vue templates, keyboard handling
-- **web-platform** — fetch API, service workers, browser APIs used alongside Vue
+- **web** — fetch API, service workers, browser APIs used alongside Vue
 - **feature-sliced-design** — Feature-Sliced Design for Vue project structure
 - **frontend** — cross-framework component, state, and performance patterns
 

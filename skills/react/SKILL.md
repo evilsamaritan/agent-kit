@@ -1,6 +1,6 @@
 ---
 name: react
-description: React expertise — hooks, Server Components, Suspense, RSC data flow, state management. Use when working with React hooks, Server Components, Suspense, server actions, or state management (Zustand, Jotai, TanStack Query). Do NOT use for HTML/CSS (use html-css) or web platform APIs (use web-platform).
+description: React expertise — hooks, Server Components, Suspense, RSC data flow, state management. Use when working with React hooks, Server Components, Suspense, server actions, or state management (Zustand, Jotai, TanStack Query). Do NOT use for HTML/CSS (use html/css) or web platform APIs (use web).
 allowed-tools: Read, Grep, Glob, WebSearch, WebFetch
 user-invocable: true
 ---
@@ -212,9 +212,9 @@ What kind of state?
 ## Related Knowledge
 
 - **javascript** — type patterns, generics for typed hooks and components
-- **html-css** — semantic markup, layout patterns, CSS features
+- **html/css** — semantic markup, layout patterns, CSS features
 - **accessibility** — ARIA patterns, keyboard navigation, focus management
-- **web-platform** — fetch API, service workers, browser APIs
+- **web** — fetch API, service workers, browser APIs
 
 ## References
 

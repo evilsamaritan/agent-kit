@@ -7,13 +7,6 @@ This flow can be triggered two ways:
 1. **Chained from Flow 2 (Verify)** — verification report identified issues, user said "fix these"
 2. **Independent** — user says "this skill doesn't work well" or "improve this skill"
 
-## Step 0: Check Internal Flag
-
-Parse the target skill's frontmatter. If `internal: true` is NOT set:
-
-1. Tell the user: "Skill `<name>` is not internal — skipping. Use explicit request to improve anyway."
-2. **Stop** — do not proceed unless the user explicitly confirms they want to modify a non-internal skill.
-
 ## Step 1: Identify Target Skill
 
 If chained from verify: skill is already identified, skip to Step 2.

@@ -243,7 +243,7 @@ Only switch from JSON when: measured serialization cost > 10% of message process
 - **message-queues** -- event-driven backends that feed real-time frontends (broker -> WebSocket fan-out)
 - **api-design** -- protocol selection, HTTP/2 streaming, API patterns that complement real-time
 - **graphql** -- GraphQL subscriptions use WebSocket or SSE as transport layer
-- **web-platform** -- HTTP/2, HTTP/3, fetch API, service workers, browser connection limits
+- **web** -- HTTP/2, HTTP/3, fetch API, service workers, browser connection limits
 - **networking** -- TLS, load balancing, QUIC/HTTP/3 infrastructure for WebTransport
 - **performance** -- measuring serialization overhead, connection pooling, backpressure tuning
 - **caching** -- cache invalidation strategies that trigger real-time updates

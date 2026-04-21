@@ -1,207 +1,138 @@
 ---
 name: frontend
-description: Review, implement, and advise on frontend code — components, state, styling, a11y, performance, design systems. Use when building or reviewing UI components, pages, hooks, or frontend patterns. Any framework. Do NOT use for HTML/CSS depth (html-css), a11y audits (accessibility), or UX (product-design).
+description: Frontend engineering patterns — bundlers, workspaces, code quality tooling, component patterns, state management choices, build configuration. Framework-agnostic. Use when configuring bundlers, structuring a monorepo frontend, auditing code-quality tooling, or picking state/data-fetching patterns. Do NOT use for framework specifics (use react/vue), HTML/CSS depth (use html/css), accessibility (use accessibility), or UX design (use design).
 allowed-tools: Read, Grep, Glob, WebSearch, WebFetch, Edit, Write, Bash
 user-invocable: true
 ---
 
-# Frontend — Universal Web UI Specialist
+# Frontend Engineering Patterns
 
-You ANALYZE, DESIGN, IMPLEMENT, and REVIEW frontend code — components, pages, state management, styling, accessibility, and responsive design. You write and modify code. Adapt to the project's framework and tooling.
+Frontend infrastructure and patterns that cut across frameworks — build tooling, module systems, workspace organization, code-quality stacks, and framework-agnostic component patterns.
 
----
+## Scope and boundaries
 
-## Rules
+**This skill covers:**
+- Bundler choice and config (Vite, webpack, esbuild, Rspack, Turbopack, Parcel)
+- Workspace and monorepo structure (npm/pnpm/yarn workspaces, Turborepo, Nx)
+- Code-quality tooling stack (ESLint, Biome, Prettier, TypeScript project references)
+- Framework-agnostic component patterns (composition, compound components, render props, slots)
+- Data-fetching / server-state patterns at a conceptual level
+- Build output: tree-shaking, code-splitting, differential serving
 
-- Discover the project's stack before giving advice. Do not prescribe a framework.
-- Use the project's component library primitives — do not reimplement them.
-- Use the project's design token system — do not use hardcoded values.
-- Every interactive element must be keyboard-accessible.
-- Every page must handle loading, error, and empty states.
-- Accessibility standard: WCAG 2.2 AA minimum.
+**This skill does not cover:**
+- React-specific hooks, RSC, Suspense → `react`
+- Vue-specific composition API, reactivity → `vue`
+- HTML semantics, CSS layout → `html/css`
+- ARIA, keyboard nav, WCAG → `accessibility`
+- UX/IA/interaction design → `design`
+- i18n/l10n → `i18n`
+- JS/TS language patterns → `javascript`
+- Web platform APIs (CORS, service workers) → `web`
+- SEO → `seo`
 
----
-
-## What This Role Owns
-
-- Component architecture: composition, hierarchy, interfaces, colocation
-- State management: choosing patterns, wiring data flow, caching strategy
-- Styling: design tokens, theming, responsive adaptation, dark mode
-- Accessibility implementation: semantic HTML, ARIA, keyboard, focus
-- Performance: Core Web Vitals, code splitting, lazy loading, bundle size
-- Build tooling: Vite ecosystem (build, dev, test), bundler selection
-- Code quality: linting (oxlint/Biome/ESLint), formatting, commit hooks
-- Workspace management: package manager selection, monorepo tooling
-- Testing strategy: unit, component, integration, visual, E2E layers
-- Frontend project structure and conventions
-
-## What This Role Does NOT Own
-
-- UX decisions, user journeys, information architecture — defer to `/product-design`
-- Deep HTML/CSS patterns, CSS architecture — defer to `/html-css`
-- Full accessibility audits, WCAG compliance checklists — defer to `/accessibility`
-- HTTP protocols, CORS, CSP, service workers, PWA — defer to `/web-platform`
-- SEO meta tags, structured data — defer to `/seo`
-- Framework-specific deep patterns — defer to `/react`, `/vue`, etc.
-- Backend APIs, database, infrastructure — out of scope
-
----
-
-## Operating Modes
-
-**Implement** — Build components, pages, hooks/composables, state management.
-Discover stack first. Follow project conventions. Handle all UI states (loading, error, empty).
-
-**Review** — Audit existing frontend code.
-Load `workflows/review.md`. Check components, styling, a11y, performance.
-
-**Advise** — Answer questions, recommend patterns, compare approaches.
-Present trade-offs, not mandates. Ask the user before choosing.
-
-**New project** — Help set up a frontend from scratch.
-See [New Project](#new-project) section below. Present options, let user decide.
-
----
-
-## Component Architecture
-
-- Composition over inheritance: small, focused components composed together
-- Separation of concerns: data-fetching logic separate from presentation
-- Typed interfaces: minimal props/inputs, avoid passing more data than needed
-- Colocation: component + styles + tests + types in the same directory
-- Single responsibility: one component = one purpose, under 150 lines of template
-- Descriptive naming: PascalCase, domain-specific (e.g., `OrderStatusBadge` not `Badge`)
-
-## State Management Decision Tree
+## Decision tree — picking a bundler
 
 ```
-What kind of state?
-├── Server data (API responses, cached entities)?
-│   └── Async data layer (caching, revalidation, optimistic updates)
-│       Popular choices: TanStack Query, SWR, Apollo, RTK Query
-│
-├── Global UI state (theme, sidebar open, notifications)?
-│   ├── Low-frequency changes → Context / provide-inject
-│   └── High-frequency changes → External store or signals
-│       Popular choices: Zustand, Pinia, Jotai, framework signals
-│
-├── Form state (inputs, validation, dirty tracking)?
-│   └── Form library or controlled inputs
-│       Popular choices: React Hook Form, VeeValidate, Formly
-│
-├── URL state (filters, pagination, search)?
-│   └── Router query params — single source of truth
-│
-└── Local component state (toggles, hover, animation)?
-    └── Component-level primitive (useState, ref, signal, createSignal)
+Are you building an app (not a lib)?
+├─ yes →
+│  Need SSR/SSG/RSC?
+│  ├─ yes → use the framework's bundler (Next/Nuxt/SvelteKit) — don't roll your own
+│  └─ no → Vite (SPA default; fast, sensible)
+└─ no (you're building a library) →
+   Is it pure JS/TS?
+   ├─ yes → tsup / unbuild / pkgroll — simple, declarative
+   └─ no (styles, assets) → Vite in library mode, or Rollup directly
+
+Migrating off webpack?
+  Rspack (webpack-compatible config, much faster)
+  or Turbopack (Next.js path)
 ```
 
-**Rule:** Keep state as close to where it's used as possible. Lift only when two+ components need the same data. Derived state should be computed, not stored.
+Don't change bundler for speed alone — dev-time speed matters, prod bundle size matters more.
 
-## Styling & Design Tokens
+## Decision tree — picking a workspace manager
 
-- Semantic tokens over raw values: `--color-destructive` not `#ef4444`
-- Consistent spacing scale: 4px or 8px grid
-- Typography scale tied to purpose
-- One styling approach per project — do not mix strategies
-- Scoped styles: avoid global style leaks
-- Dark mode via CSS custom properties, not hardcoded color overrides
+```
+Single team, < 5 packages?
+  pnpm workspaces (simple, fast, low memory)
 
-## Accessibility Essentials
+Multi-team, many packages, cross-package dependency graph?
+  pnpm + Turborepo (for caching) — most common modern stack
+  Nx if you need strong plugin ecosystem + codegen
 
-- Semantic HTML: `<nav>`, `<main>`, `<section>`, `<button>` — not div soup
-- ARIA labels for icon-only buttons and status indicators
-- Keyboard navigation: Tab, Enter/Space for all interactive elements
-- Focus management: visible focus rings, logical tab order, focus trap in modals
-- Color contrast: WCAG AA minimum (4.5:1 text, 3:1 large text/UI)
-- Reduced motion: respect `prefers-reduced-motion`
+Polyglot monorepo (JS + Go + Python)?
+  Bazel (if you can afford the ramp) or Pants
+```
 
-## Responsive Design
+## Code-quality stack — defaults
 
-- Mobile-first: base styles for mobile, progressive enhancement upward
-- Three breakpoints usually sufficient: ~640px, ~768px, ~1024px
-- Touch targets: minimum 44x44px on mobile
-- Container queries for component-level responsiveness
-- Viewport units: use `dvh`/`svh` for mobile, not `vh`
+Pick one per axis. Don't install two linters.
 
-## Performance
+| axis | default | alt |
+|------|---------|-----|
+| linter | ESLint (flat config) | Biome (single binary, faster, fewer plugins) |
+| formatter | Prettier | Biome |
+| type checker | `tsc --noEmit` in CI + project references | — |
+| pre-commit | lint-staged + husky (or simple-git-hooks) | — |
 
-- Core Web Vitals: LCP < 2.5s, INP < 200ms, CLS < 0.1
-- Code splitting: lazy-load routes and heavy components
-- Image optimization: modern formats (WebP/AVIF), `srcset`, lazy loading
-- Virtual scrolling for large lists (100+ items)
-- Bundle analysis: identify large dependencies, tree-shake unused exports
-- Font loading: `font-display: swap`, preload critical fonts
+**Rules:**
+- Linter stops at correctness; formatter stops at style. They are different jobs.
+- One source of truth for config — root `eslint.config.js`, not per-package.
+- Fast feedback over thorough: type check on save in IDE, full lint in CI.
 
-## Testing Strategy
+## Component patterns — framework-agnostic
 
-| Layer | What | When |
-|-------|------|------|
-| Unit | Pure logic, utils, formatters | Always |
-| Component | Render, interaction, state | Core components |
-| Integration | Page-level flows, routing | Critical user paths |
-| Visual | Screenshot comparison | Design-sensitive UI |
-| E2E | Full user journeys | Smoke tests, critical flows |
+- **Composition over inheritance.** No component extends another; it composes children, slots, or props.
+- **Compound components** — when a set of elements share internal state (`Select`, `Tabs`, `Disclosure`).
+- **Headless / render-prop / slot patterns** — separate behavior (state machine) from presentation (markup). Same state, many skins.
+- **Container vs presentational** is a heuristic, not a rule. Modern frameworks blur the line — use it when it simplifies, drop it when it adds boilerplate.
+- **Controlled vs uncontrolled.** Controlled = parent owns state. Uncontrolled = child owns it, parent reads via ref/event. Both valid. Don't mix.
 
-**Rule:** Test behavior, not implementation. Query by role > test ID > CSS selector.
+## Data-fetching / server-state — concepts
 
----
+- **Local state ≠ server state.** Server state is cache with invalidation; local state is UI toggles. Different tools.
+- **Server-state library** (TanStack Query / SWR / Apollo) handles: caching, dedup, revalidation, retry, optimistic updates. Never hand-roll these.
+- **Suspense / streaming** lets you render shells before data. Requires framework support.
 
-## Anti-Patterns
+Framework specifics in `react` / `vue`.
 
-| Anti-Pattern | Problem | Fix |
-|-------------|---------|-----|
-| Spinners everywhere | Jarring, no layout hint | Skeleton screens matching final layout |
-| Color-only status | Inaccessible to colorblind users | Add text label or icon alongside color |
-| No error recovery | Error message with no action | Inline error + retry button |
-| Div soup | `<div onClick>` — no keyboard support | Use `<button>`, semantic HTML |
-| Hardcoded colors | `#3b82f6` in markup instead of token | Use semantic design tokens |
-| No empty states | Blank page when list is empty | Helpful message + call-to-action |
-| Prop drilling | Data passed through 3+ levels | Composition, context, or stores |
-| Fetching in render | Data fetch inside component template | Move to hooks/composables/services |
-| Layout shifts | Content pops in, page jumps | Explicit dimensions, skeleton placeholders |
-| Mixing CSS strategies | Tailwind + CSS Modules + inline styles | Pick one approach per project |
+## Build output — what matters
 
----
+- **Tree-shaking** requires ESM + side-effect-free packages. Mark `"sideEffects": false` in package.json where true.
+- **Code-splitting** by route is default. By component only when the component is large and optional.
+- **Ship modern JS to modern browsers.** Differential serving via `<script type="module">` + `<script nomodule>` if legacy matters; otherwise just ship ES2020+.
+- **Bundle analysis.** `vite-bundle-visualizer` / `source-map-explorer` / `bundle-analyzer`. Check what you ship — regressions creep.
 
-## New Project?
+## Context adaptation
 
-When starting a frontend from scratch, detect project conventions first. Present trade-offs, not mandates. Ask the user before choosing.
+**As implementer:** pick the simplest stack that matches scale. Default: Vite + pnpm + ESLint + Prettier + TypeScript. Don't pre-optimize.
 
-| Decision | How to choose |
-|----------|---------------|
-| **Framework** | SPA vs SSR vs SSG needs; team expertise; ecosystem |
-| **Language** | TypeScript for new projects unless team prefers JS |
-| **State management** | Separate server state from client state; keep state close |
-| **Styling** | Team preference; design system needs; bundle size |
-| **Component library** | Customization needs vs speed; built-in a11y vs manual |
-| **Build tool** | Existing toolchain; plugin ecosystem; build speed |
-| **Testing** | Coverage goals; CI speed; visual regression needs |
+**As reviewer:** check for mismatched tooling (lint + format overlap), stale deps with security issues, missing tree-shaking markers, missing bundle analysis in CI.
 
----
+**As architect:** frontend architecture is 70% workspace structure + 30% framework choice. Decide both early; migrations are painful.
 
-## Quick Reference
+## Anti-patterns
 
-| Task | Resource |
-|------|----------|
-| Review a frontend project | [workflows/review.md](workflows/review.md) |
-| Component patterns, framework mapping, CSS architecture | [references/patterns.md](references/patterns.md) |
-| Build tool selection, Vite/Rolldown/Turbopack/Rspack, bundle optimization | [references/bundlers.md](references/bundlers.md) |
-| Linting, formatting, git hooks, import organization | [references/code-quality.md](references/code-quality.md) |
-| Package managers, workspaces, monorepo orchestration | [references/workspaces.md](references/workspaces.md) |
-
----
+- **Tooling sprawl** — two linters, two formatters, three CI workflows for the same thing.
+- **Custom bundler config from scratch** — 95% of cases are covered by defaults. Reach for custom only when the generic path fails.
+- **Framework lock-in in "shared" packages.** A package that imports React is not shared — it's a React package. Own the naming.
+- **Monorepo cargo-cult.** A single-team, single-app codebase doesn't need Turborepo.
+- **Barrel-file everything.** `index.ts` re-exports kill tree-shaking and slow the TS compiler.
+- **Pre-commit hooks that run the full test suite.** Commits will get skipped. Run tests in CI, not on commit.
 
 ## Related Knowledge
 
-Load these knowledge skills when the task overlaps their domain:
-- `/javascript` — type system, generics, utility types
-- `/react` `/vue` — framework-specific hooks, Server Components, composition API
-- `/html-css` — semantic markup, CSS layout, modern CSS features
-- `/accessibility` — WCAG 2.2, ARIA patterns, screen readers, inclusive testing
-- `/web-platform` — HTTP, fetch, CORS, CSP, service workers, View Transitions API
-- `/seo` — meta tags, JSON-LD, Core Web Vitals for ranking
-- `/i18n` — internationalization, RTL, locale-aware UI
-- `/performance` — profiling, Core Web Vitals optimization, capacity planning
-- `/product-design` — UX decisions, user journeys, design system governance
-- `/feature-sliced-design` — project structure methodology
+- `react`, `vue` — framework specifics
+- `html/css` — markup and layout depth
+- `accessibility` — WCAG, ARIA, keyboard
+- `javascript` — language and tsconfig depth
+- `web` — browser APIs
+- `feature-sliced-design` — an architectural convention for organizing frontend code
+- `performance` — render performance, Core Web Vitals
+
+## References
+
+- [bundlers.md](references/bundlers.md) — bundler decision tree with configs
+- [workspaces.md](references/workspaces.md) — monorepo patterns
+- [code-quality.md](references/code-quality.md) — lint / format / types / hooks stack
+- [patterns.md](references/patterns.md) — framework-agnostic component patterns

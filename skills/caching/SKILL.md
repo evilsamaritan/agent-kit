@@ -208,7 +208,7 @@ When to warm?
 
 - **database** — query optimization that reduces cache need, connection pooling
 - **performance** — cache hit rate analysis, capacity planning
-- **web-platform** — Cache-Control headers, service worker caching strategies
+- **web** — Cache-Control headers, service worker caching strategies
 - **observability** — cache metrics, dashboards, alerting on hit rate degradation
 - **sre** — cache failure modes, circuit breakers, graceful degradation
 

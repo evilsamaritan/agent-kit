@@ -1,8 +1,19 @@
-# agent-kit v1.1.0
+# agent-kit v2.0.0
 
 ## Purpose
 
 Production-grade agents and skills — domain expertise packaged as context, not code.
+
+## Concept
+
+Agents are named after **professions**. Each profession is assembled from two ingredients:
+
+- **Role-templates** — behavioral primitives ("how to think, how to structure work"). Live in `skills/agent-creator/templates/*.md`. NOT runtime skills — `agent-creator` inlines them into the agent body at creation time. Templates: `architect`, `implementer`, `reviewer`, `operator`, `writer`.
+- **Knowledge skills** — domain expertise. Vendor-neutral (`database`, `caching`) or technology-specific (`react`, `rust`). Auto-triggered by Claude Code at runtime OR preloaded into agents via `skills:` frontmatter.
+
+**Meta skills** — create and manage the rest (agents, skills, hooks, teams, project init).
+
+**Base agent professions:** `architect`, `frontend`, `backend`, `devops`, `sre`, `security`, `tester`, `designer`, `reviewer`, `writer`.
 
 ## Rules
 
@@ -24,58 +35,26 @@ Production-grade agents and skills — domain expertise packaged as context, not
 
 | Directory | Purpose |
 |-----------|---------|
-| `agents/` | Sub-agent definitions (YAML frontmatter + persona + workflow) |
-| `skills/` | Skill packages (SKILL.md + workflows/ + references/ + scripts/) |
+| `agents/` | Base agents (one-word profession names) |
+| `skills/` | **Flat** — knowledge skills + meta skills, no subcategories, no `category:` field |
+| `skills/agent-creator/templates/` | Role-templates (architect, implementer, reviewer, operator, writer) |
 | `.claude-plugin/` | Plugin manifest and marketplace metadata |
-| `docs/` | Project documentation and roadmaps |
 
-## Skill Taxonomy
+## Skills are flat
 
-Skills are classified by **type** and **scope**:
-
-| Type | Purpose | Examples |
-|------|---------|---------|
-| **role** | Persona with workflows, owns a domain | frontend, backend, security, ai-engineer |
-| **knowledge** | Domain expertise loaded on demand | database, auth, caching, react, rust |
-| **meta** | Skills that create/manage other skills or agents | skill-creator, agent-creator |
-
-Knowledge skills have a **scope** sub-level:
-
-| Scope | Meaning | Agnostic rule | Examples |
-|-------|---------|---------------|---------|
-| **broad** | Wide domain, multiple technologies | Must be vendor/framework agnostic in SKILL.md | database, search, caching |
-| **specialized** | Narrow sub-domain | May be specific by design | graphql, realtime, payments |
-| **language** | Programming language | Specific by design | javascript, rust, kotlin |
-| **framework** | Framework/library | Specific by design | react, vue, feature-sliced-design |
-| **platform-tech** | Platform-level technology | Specific by design | docker, kubernetes |
-| **regulatory** | Compliance/regulatory domain | Evergreen principles in core, volatile data in references/ | compliance |
-
-**Rule:** Broad/role skills must be framework/vendor agnostic in core SKILL.md. Specialized/framework skills may be specific by design.
+No `category:` field, no subdirectories. Meta skills are identified by function (names ending in `-creator`, or `init`, `team-*`). Everything else is knowledge.
 
 ## Skill Standard
 
 - **SKILL.md** — maximum 500 lines (ceiling, not target). Compact core guide with decision trees, patterns, anti-patterns, context adaptation, quick references. For multi-procedure skills, also acts as entry point/router to workflows.
 - **references/** — Split by topic, loaded on demand. No size limit per file — depth matters. Split when a single reference exceeds ~500 lines or covers clearly distinct subtopics.
 - **workflows/** — Step-by-step procedures (review protocols, creation flows). Optional — not every skill needs workflows.
-- All skills are `user-invocable: true` unless marked `internal: true`
+- All user-facing skills are `user-invocable: true`.
 - Framework-specific content belongs in a separate reference file with an explicit name. SKILL.md covers the core technology only.
-- Cross-domain skills include a **Context Adaptation** section showing relevant aspects per role
-- Agents can preload any combination of skills via `skills:` field
-- Volatile content (dates, prices, enforcement trends) belongs in references/, not core SKILL.md
+- Agents can preload any combination of skills via `skills:` field.
+- Volatile content (dates, prices, enforcement trends) belongs in references/, not core SKILL.md.
 
 ### Structure Templates by Class
-
-**Role skill:**
-```
-## What this role owns
-## What this role does not own
-## Operating modes
-## Critical rules
-## Workflow routing
-## Anti-Patterns
-## Related Knowledge
-## References
-```
 
 **Broad knowledge skill:**
 ```
@@ -120,6 +99,24 @@ Note: Evergreen principles in SKILL.md, volatile data (dates, fines, enforcement
 ## References
 ```
 
+## Role-template standard (special asset — NOT a skill)
+
+Role-templates live in `skills/agent-creator/templates/*.md`. They are plain markdown files (no YAML frontmatter, no directory) — assets consumed by `agent-creator` which inlines them into new agent bodies.
+
+```
+## Mental model        # How this role thinks
+## Operating modes     # Plan / Implement / Verify / Report
+## Hard rules          # Must-do and never-do
+## Output format       # What the agent produces
+## Anti-patterns       # Common failure modes
+```
+
+Role-templates:
+- Are **domain-agnostic** — never mention `react`, `docker`, `go`, etc.
+- Describe **behavior only** — how to think, how to structure work, how to communicate.
+- Are **short** — 100–200 lines. Longer means domain crept in.
+- Are **composable** — an agent may inline 1–3 templates without conflict.
+
 ## Context Engineering Principles
 
 Context window is a shared resource. Every token competes with the user's actual work.
@@ -145,7 +142,7 @@ Context window is a shared resource. Every token competes with the user's actual
 ```yaml
 ---
 name: skill-name                    # Required. Lowercase + hyphens, max 64 chars, matches directory.
-description: Verb phrase. Use when trigger phrases.  # Required. Single line, max 1024 chars.
+description: Verb phrase. Use when trigger phrases.  # Required. Single line; soft target 80-500 chars, hard cap 1024.
 allowed-tools: Read, Edit, Bash     # Comma-separated string (NOT YAML list).
 user-invocable: true                # Show in /slash menu (default: true). Recommended for all skills.
 context: fork                       # Isolated sub-agent execution.
@@ -172,20 +169,20 @@ skill-name/
 
 ## Agent Anatomy
 
-Agents are sub-agent definitions in `agents/`. YAML frontmatter configures behavior; body defines persona and workflow.
+Agents are sub-agent definitions in `agents/`. YAML frontmatter configures behavior; body contains the inlined role-template(s) + persona + reference pointers.
 
 ### Frontmatter fields
 
 ```yaml
 ---
-name: agent-name                    # Required.
+name: agent-name                    # Required. One word, profession-style (architect, frontend, devops).
 description: What + when.           # Required.
 tools: [Read, Edit, Bash]           # Allowed tools (array or comma-separated string).
 disallowedTools: [Write]            # Denied tools (array or comma-separated string).
 model: sonnet                       # Model override (sonnet, opus, haiku, full ID, inherit).
 permissionMode: bypassPermissions   # default | acceptEdits | dontAsk | bypassPermissions | plan
 maxTurns: 20                        # Max agentic turns.
-skills: [skill-a, skill-b]         # Preload full skill content into agent context.
+skills: [skill-a, skill-b]         # Preload knowledge skills into agent context.
 mcpServers: [server-name]           # Available MCP servers (string refs or inline defs).
 memory: project                     # Persistent memory scope: user, project, local.
 background: true                    # Run in background.
@@ -197,51 +194,32 @@ hooks: {}                           # Lifecycle hooks.
 
 ### Body structure
 
-```markdown
-You are a [role] with [expertise].
+The body is assembled by `agent-creator`:
 
-**Your job:** [one sentence deliverable]
-
-**Skill and workflow:**
-Skill: <skill-name>
-Workflow: <path-to-workflow>
-
-**References (load when needed):**
-- `references/X.md` — for Y decisions
-
-**Output format:**
-1. [Deliverable 1]
-2. [Deliverable 2]
-
-**Rules:**
-- [Constraint 1]
-- [Constraint 2]
-
-**Done means:**
-- [Completion criteria]
-```
+1. **Inlined role-template(s)** — copy of `skills/agent-creator/templates/{role}.md` content, one per role.
+2. **Persona** — "You are a [profession] who [specialization]" — domain focus specific to this agent.
+3. **Skill pointers** — references to preloaded knowledge skills for reasoning about domain.
+4. **Output format + Done criteria** — concrete deliverables.
 
 ## Creating Skills
 
-Use the skill-creator: `/agent-kit:skill-creator` or describe what you need ("create a skill for X").
-
-References:
-- `skills/skill-creator/references/best-practices.md` — authoring patterns
-- `skills/skill-creator/references/skill-template.md` — unified template
-- `skills/skill-creator/references/verification-checklist.md` — 48-check validation
+Use `skill-creator`: describe what you need ("create a skill for X"). See `skills/skill-creator/`.
 
 ## Creating Agents
 
-Use the agent-creator: describe what you need ("create an agent for X").
+Use `agent-creator`: describe what you need ("create an agent for X"). See `skills/agent-creator/`.
 
-1. Define the role — what domain expertise does this agent have?
-2. Choose skills — which skills should preload into agent context?
-3. Set constraints — permission mode, allowed tools, max turns.
-4. Write persona — imperative tone, explicit deliverables, completion criteria.
-5. Place in `agents/` — filename = `agent-name.md`.
+1. Pick **role-template(s)** from `skills/agent-creator/templates/` — defines behavior.
+2. Pick **knowledge skills** to preload — defines domain.
+3. Write the **persona** line — who this agent is professionally.
+4. Set constraints (permissions, tools, max turns).
+5. Place the file in `agents/` with a one-word profession name.
 
 ## References
 
-- [best-practices.md](skills/skill-creator/references/best-practices.md) — skill authoring conventions
-- [skill-template.md](skills/skill-creator/references/skill-template.md) — unified skill template
-- [verification-checklist.md](skills/skill-creator/references/verification-checklist.md) — 48-check verification
+- [skill-creator](skills/skill-creator/) — authoring knowledge and meta skills
+- [agent-creator](skills/agent-creator/) — assembling agents from role-templates + knowledge skills
+- [team-creator](skills/team-creator/) — composing teams from existing agents
+- [team-orchestrator](skills/team-orchestrator/) — running saved teams
+- [hook-creator](skills/hook-creator/) — lifecycle hooks
+- [init](skills/init/) — project bootstrap router

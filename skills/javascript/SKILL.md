@@ -1,6 +1,6 @@
 ---
 name: javascript
-description: Apply JavaScript language patterns — ES2025+ modules, async model, runtime selection, TypeScript type system. Use when working with JS/TS modules (ESM/CJS), async/await, event loop, runtime choice (Node/Bun/Deno), TypeScript types, generics, or tsconfig. Do NOT use for React patterns (use react) or web platform APIs (use web-platform).
+description: Apply JavaScript language patterns — ES2025+ modules, async model, runtime selection, TypeScript type system. Use when working with JS/TS modules (ESM/CJS), async/await, event loop, runtime choice (Node/Bun/Deno), TypeScript types, generics, or tsconfig. Do NOT use for React patterns (use react) or web platform APIs (use web).
 allowed-tools: Read, Grep, Glob, WebSearch, WebFetch
 user-invocable: true
 ---
@@ -183,7 +183,7 @@ Rule: if a generic has > 3 type parameters, refactor.
 - **react** / **vue** — framework-specific patterns, typed hooks
 - **backend** — server frameworks, middleware, API patterns
 - **frontend** — component architecture, bundling, build tools
-- **web-platform** — browser APIs, fetch, service workers
+- **web** — browser APIs, fetch, service workers
 
 ## References
 

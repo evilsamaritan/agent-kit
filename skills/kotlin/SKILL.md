@@ -185,7 +185,7 @@ kotlin { jvmToolchain(21) }
 
 - **backend** — service patterns, DI, middleware when building Kotlin backend services
 - **database** — Exposed/Ktorm ORM patterns, connection pooling
-- **qa** — testing coroutines, Turbine for Flow testing
+- **testing** — testing coroutines, Turbine for Flow testing
 
 ## References
 

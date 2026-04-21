@@ -1,6 +1,6 @@
 ---
 name: search
-description: Implement search systems — full-text indexing, hybrid search, autocomplete, relevance tuning, facets. Use when building search, choosing engines, tuning relevance, or adding autocomplete. Do NOT use for database queries (use database) or RAG pipelines (use rag).
+description: Implement search systems — full-text indexing, hybrid search, autocomplete, relevance tuning, facets. Use when building search, choosing engines, tuning relevance, or adding autocomplete. Do NOT use for database queries (use database).
 allowed-tools: Read, Grep, Glob, WebSearch, WebFetch
 user-invocable: true
 ---
@@ -26,7 +26,7 @@ What is the primary constraint?
 ├── Already running PostgreSQL and search is secondary feature
 │   └── Database-native full-text search (tsvector + GIN index)
 └── Primary use case is semantic / vector search
-    └── Dedicated vector DB or hybrid-capable engine (see rag skill)
+    └── Dedicated vector DB or hybrid-capable engine — see the `database` skill for pgvector / Milvus / Weaviate tradeoffs
 ```
 
 **Scale thresholds (approximate):**
@@ -234,7 +234,6 @@ Feed search analytics into relevance tuning. Zero-result queries reveal indexing
 
 ## Related Knowledge
 
-- **rag** -- Embedding model selection, RAG pipeline design, vector DB comparison, chunking strategies
 - **database** -- pgvector, database-level full-text search (PostgreSQL tsvector), sync pipelines
 - **performance** -- Search latency optimization, caching strategies for search results
 - **caching** -- Query result caching, search suggestion caching

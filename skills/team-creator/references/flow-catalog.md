@@ -32,7 +32,7 @@ explorer → implementer → tester → reviewer
   "stages": [
     { "agent": "architect", "mode": "plan", "tools": "readonly" },
     { "agent": "backend", "mode": "implement" },
-    { "agent": "qa", "mode": "test" },
+    { "agent": "tester", "mode": "test" },
     { "agent": "security", "mode": "review", "tools": "readonly" }
   ]
 }
@@ -78,7 +78,7 @@ planner → [frontend ∥ backend] → tester → reviewer
         { "agent": "backend", "scope": "src/api/, src/services/" }
       ]
     },
-    { "agent": "qa", "mode": "test" },
+    { "agent": "tester", "mode": "test" },
     { "agent": "architect", "mode": "review", "tools": "readonly" }
   ]
 }
@@ -115,7 +115,7 @@ implementer ↔ reviewer  (loop until approve or max_iterations)
   "flow": "builder-validator",
   "stages": [
     { "agent": "backend", "mode": "implement" },
-    { "agent": "qa", "mode": "review", "tools": "readonly" }
+    { "agent": "tester", "mode": "review", "tools": "readonly" }
   ],
   "max_iterations": 3,
   "exit_on": "approve"
@@ -145,7 +145,7 @@ Two independent reviewers analyze the same code, findings merged.
 **Variants:**
 - **Same-model twins:** Two instances of same agent (different prompts)
 - **Cross-model twins:** opus reviewer + sonnet reviewer (different cost/perspective)
-- **Cross-role twins:** security reviewer + qa reviewer (different dimensions)
+- **Cross-role twins:** security + tester reviewers (different dimensions)
 
 **Agent roles:**
 
@@ -162,8 +162,8 @@ Two independent reviewers analyze the same code, findings merged.
   "stages": [
     {
       "parallel": [
-        { "agent": "qa", "mode": "review", "tools": "readonly", "id": "twin-a" },
-        { "agent": "qa", "mode": "review", "tools": "readonly", "id": "twin-b", "model": "sonnet" }
+        { "agent": "tester", "mode": "review", "tools": "readonly", "id": "twin-a" },
+        { "agent": "tester", "mode": "review", "tools": "readonly", "id": "twin-b", "model": "sonnet" }
       ]
     }
   ],
@@ -196,7 +196,7 @@ Two independent reviewers analyze the same code, findings merged.
 | security reviewer | Security only | Read, Grep, Glob | readonly |
 | performance reviewer | Performance only | Read, Grep, Glob | readonly |
 | maintainability reviewer | Maintainability only | Read, Grep, Glob | readonly |
-| testing reviewer | Test gaps only | Read, Grep, Glob | readonly |
+| tester (test-gap lane)       | Test gaps only       | Read, Grep, Glob | readonly |
 | synthesizer (orchestrator) | Merge all | Read | readonly |
 
 **team.json:**
@@ -209,7 +209,7 @@ Two independent reviewers analyze the same code, findings merged.
         { "agent": "security", "mode": "review", "dimension": "security", "tools": "readonly" },
         { "agent": "performance", "mode": "review", "dimension": "performance", "tools": "readonly" },
         { "agent": "architect", "mode": "review", "dimension": "maintainability", "tools": "readonly" },
-        { "agent": "qa", "mode": "review", "dimension": "testing", "tools": "readonly" }
+        { "agent": "tester", "mode": "review", "dimension": "testing", "tools": "readonly" }
       ]
     }
   ],
@@ -254,7 +254,7 @@ reviewer: round-1 (fatal) → round-2 (errors) → round-3 (perf) → round-4 (s
 {
   "flow": "devils-advocate",
   "stages": [
-    { "agent": "qa", "mode": "review", "tools": "readonly" }
+    { "agent": "tester", "mode": "review", "tools": "readonly" }
   ],
   "rounds": [
     "fatal-flaws",
@@ -350,7 +350,7 @@ Explore multiple approaches in parallel, evaluate, pick the best.
         { "agent": "architect", "variant": "cqrs", "isolation": "worktree" }
       ]
     },
-    { "agent": "cto", "mode": "evaluate", "tools": "readonly" }
+    { "agent": "architect", "mode": "evaluate", "tools": "readonly" }
   ],
   "evaluation_criteria": ["complexity", "performance", "maintainability"]
 }
@@ -432,7 +432,7 @@ User defines stages manually. Full control over agent order, parallelism, and mo
         { "agent": "frontend", "scope": "web/" }
       ]
     },
-    { "agent": "qa", "mode": "test" },
+    { "agent": "tester", "mode": "test" },
     {
       "parallel": [
         { "agent": "security", "mode": "review", "tools": "readonly" },

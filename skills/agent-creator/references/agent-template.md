@@ -2,46 +2,80 @@
 
 ## Contents
 
-- [Standalone Agent Template](#standalone-agent-template)
-- [Skill Agent Template](#skill-agent-template)
-- [Composite Agent Template](#composite-agent-template)
+- [Template Agent](#template-agent) — default: inlines role-template(s) + preloaded knowledge skills
+- [Standalone Agent](#standalone-agent) — fully custom body, no role-template
+- [Skill-Wrapper Agent](#skill-wrapper-agent) — thin body + single skill preload
 - [Frontmatter Reference](#frontmatter-reference)
 - [Description Patterns](#description-patterns)
 - [Color Guide](#color-guide)
 
 ---
 
-## Standalone Agent Template
+## Template Agent
 
-Full system prompt in body. Use when agent needs unique instructions not available as a skill.
+**Default form.** The agent body is assembled by inlining role-template(s) from `skills/agent-creator/templates/` and referencing preloaded knowledge skills.
 
 ```markdown
 ---
-name: agent-name
-description: |
-  Role description and expertise area.
-
-  When to use:
-  - Trigger scenario 1
-  - Trigger scenario 2
-
-  Example prompts:
-  - "Example user request 1"
-  - "Example user request 2"
-model: sonnet
-color: blue
+name: {profession}              # one word, lowercase
+description: Senior {profession}. Use when {concrete triggers}. Do NOT use for {boundary cases}.
+model: sonnet                   # opus for design-heavy; sonnet for execution
+color: {color}
+skills: [{knowledge-skill-1}, {knowledge-skill-2}, ...]
+tools: [Read, Grep, Glob, Edit, Write, Bash, Skill]
 ---
 
-You are a [role] with deep expertise in [domain]. Your primary mission is [goal].
+You are a senior {profession} focused on {specialization}. {One-sentence value statement.}
+
+## Role — {template-name}                     # inlined from templates/{template-name}.md
+
+{Condensed body of the template: mental model, operating modes, hard rules, anti-patterns.}
+
+## {Additional domain context}                # optional, brief
+
+{Project-specific conventions, framework preferences, tech-stack specifics.}
+
+## Output format
+
+1. {Deliverable 1 with structure}
+2. {Deliverable 2}
+3. {Deliverable 3}
+
+## Done means
+
+- {Concrete completion criterion 1}
+- {Concrete completion criterion 2}
+- {Concrete completion criterion 3}
+```
+
+**Composition variants:**
+- **Single template** — most agents (frontend, backend, writer).
+- **Two templates** — agents that span modes. Examples: `sre` = operator + reviewer, `tester` = implementer + reviewer, `devops` = implementer + operator, `designer` = architect + implementer.
+- **Three templates** — rare; reserved for cross-mode agents like `security` that need reviewer + auditor-scoped scanning + architectural threat modeling.
+
+When inlining multiple templates, order by workflow sequence (architect → implementer → reviewer → operator → writer), skipping what doesn't apply. Label sections clearly.
+
+---
+
+## Standalone Agent
+
+Fully custom body — no role-template inlining. Use when the behavior is unique and not reusable.
+
+```markdown
+---
+name: {agent-name}
+description: {What + when}.
+model: sonnet
+color: {color}
+tools: [Read, Edit, Write, Bash, Glob, Grep]
+---
+
+You are a {role} with deep expertise in {domain}. Your primary mission is {goal}.
 
 ## Your Responsibilities
 
-1. **Area 1**
-   - What to do
-   - How to do it
-
-2. **Area 2**
-   - What to do
+1. **{Area 1}** — {what to do, how}
+2. **{Area 2}** — {what to do, how}
 
 ## Workflow
 
@@ -52,97 +86,46 @@ You are a [role] with deep expertise in [domain]. Your primary mission is [goal]
 
 ## Rules
 
-- Rule 1 (specific, actionable)
-- Rule 2
+- {Rule 1 — specific, actionable}
+- {Rule 2}
 
 ## Done Criteria
 
-- Criteria 1
-- Criteria 2
+- {Criterion 1}
+- {Criterion 2}
 ```
 
 ---
 
-## Skill Agent Template
+## Skill-Wrapper Agent
 
-Thin wrapper that delegates to a preloaded skill. Use when a skill already covers the domain.
-
-```markdown
----
-name: agent-name
-description: |
-  Production [domain] sub-agent. Use when the task involves [triggers].
-  Spawned as a sub-agent with full [skill-name] skill context preloaded.
-model: sonnet
-color: green
-tools: Read, Edit, Write, Bash, Glob, Grep
-maxTurns: 30
-skills:
-  - skill-name
----
-
-You are a senior [role] with deep expertise in [domain].
-
-**Your job:** Execute the task assigned to you using the preloaded [skill-name] skill as your knowledge base.
-
-**Skill:** [skill-name] (preloaded — SKILL.md is already in your context)
-
-Choose the workflow matching your assignment:
-- Task type A → Read `workflows/a.md`
-- Task type B → Read `workflows/b.md`
-
-**Rules:**
-- Rule 1
-- Rule 2
-
-**Done means:**
-- Criteria 1
-- Criteria 2
-```
-
----
-
-## Composite Agent Template
-
-Combines a role skill with knowledge skills for domain-specific specialists. Use when the agent needs both workflow guidance and deep tech stack expertise.
+Thin wrapper that delegates to a preloaded meta or knowledge skill. Use when the skill covers the whole behavior.
 
 ```markdown
 ---
-name: {role}-{stack}-specialist
-description: |
-  {Role description} specialized in {tech stack}.
-  Use when {specific trigger conditions}.
+name: {agent-name}
+description: {Production domain} sub-agent. Use when the task involves {triggers}. Runs with full {skill-name} skill context preloaded.
 model: sonnet
 color: {color}
-tools: Read, Grep, Glob, WebSearch, WebFetch, Edit, Write, Bash, Skill
-maxTurns: 30
-skills:
-  - {role-skill}      # Primary role — provides workflows
-  - {knowledge-1}     # Tech stack depth
-  - {knowledge-2}     # Domain depth
-  - {knowledge-3}     # Optional additional domain
+tools: [Read, Edit, Write, Bash, Glob, Grep]
+skills: [{skill-name}]
 ---
 
-You are a senior {role} specialized in {tech stack}. You combine deep {language/framework} expertise with {domain} knowledge.
+You are a senior {role} with deep expertise in {domain}.
 
-**Your job:** {one sentence deliverable}
+**Your job:** Execute the task using the preloaded `{skill-name}` skill as your knowledge base.
 
-**Skills loaded:** {role-skill} (primary workflow), {knowledge-1}, {knowledge-2}, {knowledge-3}
-
-**Workflow:**
-1. Scan the project to detect existing patterns and conventions
-2. Follow the {role-skill} workflow for your task type
-3. Apply {knowledge-1} patterns for language/framework decisions
-4. Apply {knowledge-2} patterns for domain decisions
+Choose the workflow matching your assignment:
+- Task type A → follow `workflows/a.md` in the skill
+- Task type B → follow `workflows/b.md` in the skill
 
 **Rules:**
-- Follow the project's existing conventions
-- {Role-specific constraints from the role skill}
-- {Domain-specific constraints}
+- {Rule 1}
+- {Rule 2}
 
 **Done means:**
-- {Completion criteria from role skill}
-- {Domain-specific quality gates}
+- {Criterion 1}
+- {Criterion 2}
 ```
 
 ---
@@ -153,20 +136,20 @@ You are a senior {role} specialized in {tech stack}. You combine deep {language/
 
 | Field | Rules |
 |-------|-------|
-| `name` | Lowercase + hyphens only. Must match filename (without .md). |
-| `description` | When Claude should delegate. Single-line or multiline `\|`. |
+| `name` | Lowercase, single word for base agents (profession). Must match filename. |
+| `description` | When Claude should delegate. Single-line or multiline `\|`. Includes WHAT + WHEN + negative triggers. |
 
 ### Optional Fields
 
 | Field | Default | Rules |
 |-------|---------|-------|
-| `model` | `inherit` | `sonnet`, `opus`, `haiku`, full model ID (e.g., `claude-opus-4-6`), `inherit` |
-| `color` | none | UI background color for agent |
+| `model` | `inherit` | `sonnet`, `opus`, `haiku`, full model ID, or `inherit` |
+| `color` | none | UI background color for the agent |
 | `tools` | inherit all | Comma-separated string or array. Supports `Agent(type)` to restrict spawnable subagents |
 | `disallowedTools` | none | Tools to explicitly deny |
 | `permissionMode` | `default` | `default`, `acceptEdits`, `dontAsk`, `bypassPermissions`, `plan` |
 | `maxTurns` | unlimited | Safety limit on agentic turns |
-| `skills` | none | Array of skill names — full content injected at startup |
+| `skills` | none | Array of knowledge-skill names — full content injected at startup |
 | `mcpServers` | none | Array: string references (reuse configured) or inline definitions (scoped to agent) |
 | `hooks` | none | `PreToolUse`, `PostToolUse`, `Stop` |
 | `memory` | none | Persistent memory scope: `user`, `project`, or `local` |
@@ -182,31 +165,29 @@ You are a senior {role} specialized in {tech stack}. You combine deep {language/
 Best for focused, single-purpose agents:
 
 ```yaml
-description: Expert code reviewer for Kotlin backend. Use when reviewing code quality, security, and patterns.
+description: Senior frontend developer. Use when implementing UI components, pages, or styling. Do NOT use for UX design (use designer) or deep HTML/CSS (use html/css skill).
 ```
 
-### Long (multiline |)
+### Long (multiline `|`)
 
-Best for agents with multiple triggers or complex routing:
+Best for agents with multiple triggers or nuanced routing:
 
 ```yaml
 description: |
-  Use this agent for architectural decisions, system design, and technology selection.
-  Supports agent teams — can delegate to specialized agents.
+  Senior SRE / reliability engineer. Use when defining SLOs, designing health probes,
+  reviewing graceful shutdown, writing runbooks, running an incident, or reducing toil.
 
-  When to use:
-  - Designing new features that span multiple services
-  - Choosing between architectural approaches
-
-  Example prompts:
-  - "Design a real-time notification system"
+  Do NOT use for:
+  - CI/CD pipelines → use devops
+  - Observability instrumentation → use observability knowledge skill
+  - Performance profiling → use performance
 ```
 
 ### Rules
 
-- Include specific trigger phrases — Claude matches these against user requests
-- Mention technologies, patterns, file types relevant to the agent
-- For agents that overlap with others, add disambiguation
+- Include specific trigger phrases — Claude matches these against user requests.
+- Always include negative triggers ("Do NOT use for…") when the agent overlaps with another.
+- Mention technologies, patterns, or file types relevant to the agent.
 
 ---
 
@@ -215,12 +196,14 @@ description: |
 Choose color based on domain for visual consistency:
 
 | Color | Suggested domain |
-|-------|-----------------|
-| `green` | Backend, Kotlin, server-side |
-| `blue` | Code quality, review, enforcement |
-| `orange` | Architecture, planning, design |
-| `cyan` | Frontend, TypeScript, UI |
+|-------|------------------|
+| `purple` | Architecture, planning, design decisions |
+| `green` | Backend, server-side |
+| `cyan` | Frontend, UI |
 | `magenta` | DevOps, infrastructure, deployment |
+| `red` | Security, SRE, incident work |
 | `yellow` | Testing, QA |
-| `red` | Security, critical operations |
-| `purple` | Data, analytics, reporting |
+| `blue` | Code review, general quality |
+| `pink` | Design, UX |
+| `indigo` | Writing, documentation |
+| `orange` | Miscellaneous / flag |

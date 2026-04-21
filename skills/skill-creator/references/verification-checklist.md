@@ -32,7 +32,6 @@
 | A8 | WARNING | `description` is 80-300 chars (sweet spot for trigger matching) | Expand if too short, trim if too long |
 | A9 | WARNING | `description` contains no XML angle brackets (`<` or `>`) | Remove XML tags — frontmatter appears in system prompt, angle brackets are a security restriction |
 | A10 | SUGGESTION | `description` includes negative triggers if skill could be confused with another | Add "Do NOT use for..." to disambiguate from similar skills |
-| A11 | SUGGESTION | If `internal: true` is absent, verify/improve flows skip this skill unless explicitly forced | No fix needed — informational flag for non-internal skills |
 
 ### A: Detailed Checks
 
@@ -61,9 +60,6 @@ Search description for `<` or `>` characters. Angle brackets in frontmatter may 
 **A10: Negative trigger check**
 If a sibling skill has overlapping domain, check for "Do NOT use for" in description. Only flag when overlap is plausible.
 
-**A11: Internal flag check**
-If `internal: true` is present, skill is included in verify/improve by default. If absent, mark PASS with note: "Non-internal skill -- skipped by default."
-
 ---
 
 ## Category B: Structure
@@ -82,7 +78,7 @@ If `internal: true` is present, skill is included in verify/improve by default. 
 | B10 | WARNING | Instruction tone matches content type: procedures use imperative tone, reference material uses advisory tone | Rewrite: procedures → "Do X. Then Y." Reference → "When X, consider Y." |
 | B11 | SUGGESTION | Reference files over 100 lines have a table of contents at the top | Add TOC so the agent can see the full scope when previewing |
 | B12 | WARNING | SKILL.md follows progressive disclosure: entry point with overview and routing, not full content. Multi-procedure skills (2+ independent procedures) keep SKILL.md concise. | Extract detailed content to sub-files, keep SKILL.md as concise entry point |
-| B13 | WARNING | Role skills have a "Related Knowledge" section listing relevant knowledge skills | Add `## Related Knowledge` section with bullet list of knowledge skills that complement this role |
+| B13 | WARNING | Broad knowledge skills list related knowledge in a "Related Knowledge" section | Add `## Related Knowledge` section with bullet list of knowledge skills that complement this role |
 | B14 | WARNING | Language/framework knowledge skills follow the uniform structure: SKILL.md < 200 lines, 2-4 reference files, no workflows, no dedicated agents | Restructure: trim SKILL.md to core concepts + anti-patterns + references section, remove workflows, limit to 2-4 reference files |
 | B15 | WARNING | Framework-specific content lives in separate reference files with explicit framework names, not inline in SKILL.md | Extract framework content to `references/<framework-name>.md` and link from SKILL.md |
 
@@ -128,7 +124,7 @@ Reference files over 100 lines must have a table of contents (list of `##` secti
 SKILL.md must be an entry point, not full content. Flag inline procedures/references > 60 lines. Multi-procedure skills (2+ procedures): keep SKILL.md concise with routing table. Flag > 50% content overlap between SKILL.md and sub-files.
 
 **B13: Related Knowledge section check**
-Role skills (those with `workflows/` directory) must have a "## Related Knowledge" section listing relevant knowledge skills.
+Broad / cross-cutting knowledge skills should have a "## Related Knowledge" section listing siblings users may also want.
 
 **B14: Language skill standard compliance**
 Language/framework knowledge skills: SKILL.md < 200 lines, 2-4 reference files, no workflows, no dedicated agent.
