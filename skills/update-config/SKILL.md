@@ -117,6 +117,16 @@ bash skills/update-config/scripts/update-settings.sh show
 
 ---
 
+## Validation
+
+After writing settings.json:
+
+1. Re-read the file and confirm the change is present.
+2. Run `cat <path>` (or `jq empty <path>`) to verify JSON is valid (no parse errors).
+3. Report to the user what was added, where, and the resolved scope.
+
+---
+
 ## Related Knowledge
 
 - `hook-creator` — designs + validates hook commands; delegates the write here

@@ -62,7 +62,7 @@ If multiline (|): check all lines.
 | B2 | WARNING | Body starts with role/expertise statement ("You are a...") | Add opening role statement |
 | B3 | WARNING | For standalone agents: body has structured sections (## headers) | Add sections: Responsibilities, Workflow, Rules |
 | B4 | WARNING | For skill agents: `skills:` field references existing skills | Verify skill exists in `skills/` directory |
-| B5 | WARNING | Body is under 500 lines (excessive length reduces adherence) | Extract to skill or condense |
+| B5 | WARNING | Body size: soft target 500 lines, ceiling ~550 (excessive length reduces adherence) | Extract to skill or condense |
 | B6 | SUGGESTION | Has explicit "Done criteria" or "Success criteria" section | Add done criteria so agent knows when to stop |
 | B7 | SUGGESTION | For standalone agents: has "Rules" or "Guidelines" section | Add rules section with specific DO/DON'T items |
 
@@ -78,7 +78,9 @@ For each skill in skills: array:
 **B5: Line count check**
 ```
 Count lines in body (after frontmatter closing ---).
-If > 500 → flag: "Consider extracting to a skill"
+Soft target: 500 lines. Ceiling: ~550 lines.
+If > 550 → flag: "Consider extracting to a skill"
+If 500–550 → suggestion: "Approaching ceiling — condense where possible"
 ```
 
 ---

@@ -175,4 +175,4 @@ When building a team's roster, the workflow checks `agents/` for matching specia
 
 - `/team-orchestrator` — run, monitor, and stop existing teams (consumes team.json)
 - `/agent-creator` — create base or specialized agents for teams
-- `/hook-creator` — configure quality gates (TeammateIdle, TaskCompleted) — when available
+- `/hook-creator` — configure quality gates (TeammateIdle, TaskCompleted)

@@ -85,6 +85,17 @@ new Intl.DateTimeFormat('de-DE', { dateStyle: 'long' }).format(date)
 new Intl.NumberFormat('ja-JP', { style: 'currency', currency: 'JPY' }).format(1234)
 // --> "Y=1,234"
 
+// Intl.NumberFormat v3 (Baseline 2023): roundingMode, roundingIncrement,
+// roundingPriority, trailingZeroDisplay, signDisplay: "negative"
+new Intl.NumberFormat('en-US', {
+  style: 'currency', currency: 'USD',
+  trailingZeroDisplay: 'stripIfInteger',  // "$20" instead of "$20.00"
+  roundingMode: 'halfExpand',
+  signDisplay: 'negative',
+}).format(19.99);
+// Essential for price formatting ("19.99" vs "19.9900"), currency display,
+// scientific notation.
+
 // Relative time
 new Intl.RelativeTimeFormat('en', { numeric: 'auto' }).format(-1, 'day')
 // --> "yesterday"

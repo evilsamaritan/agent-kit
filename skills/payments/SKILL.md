@@ -35,36 +35,18 @@ tokenize → authorize → capture → settle → reconcile → refund
 
 ---
 
-## Provider Selection Decision Tree
+## Choosing a payment path
 
-```
-What are you building?
-├── SaaS / digital products (need tax + compliance handled)?
-│   ├── Want zero tax/compliance burden? → Merchant of Record (Paddle, LemonSqueezy)
-│   │   MoR = they are the seller of record, handle VAT/GST/sales tax globally
-│   └── Want full control + own merchant account? → Stripe / Adyen
-├── Marketplace / platform with payouts to sellers?
-│   ├── US + simple → Stripe Connect
-│   └── Global + complex → Adyen for Platforms / Stripe Connect
-├── Enterprise / high-volume / multi-region?
-│   └── Adyen (interchange++, 250+ methods, unified online+POS)
-├── In-person / retail POS?
-│   ├── SMB / US-focused → Square
-│   └── Enterprise / global → Adyen
-├── Consumer checkout trust matters most?
-│   └── PayPal / Braintree (highest consumer recognition)
-└── Cross-border / multi-currency priority?
-    └── Adyen or Airwallex
-```
+Pick path by business need, not by provider brand:
 
-### Provider Comparison (supplementary to decision tree)
+- **One-time card checkout, global** → Card processor with hosted fields (keeps PCI scope low).
+- **Subscriptions** → Platform with native billing + invoicing + dunning.
+- **Marketplace / payouts to merchants** → Platform with Connect / multi-party flows.
+- **Regional coverage (LATAM / APAC / India)** → Local aggregator or orchestrator (see `references/provider-comparison.md`).
+- **SaaS, merchant-of-record needed** → MoR providers handle sales tax globally.
+- **Crypto / stablecoins** → On-chain processor.
 
-| Factor | Stripe | Adyen | Braintree | Square | Paddle/LS |
-|--------|--------|-------|-----------|--------|-----------|
-| **Model** | Gateway | Gateway | Gateway | Gateway | MoR |
-| **Best for** | Startups, SaaS | Enterprise, global | PayPal ecosystem | SMB, POS | SaaS, no tax ops |
-| **Tax handling** | Add-on (Stripe Tax) | Partial | No | No | Included |
-| **POS** | Terminal | Unified | Limited | Core strength | No |
+For concrete provider short-lists per path, see [provider-comparison.md](references/provider-comparison.md).
 
 ---
 
@@ -86,6 +68,23 @@ When do you need orchestration?
 - **A/B testing** — route traffic splits to compare provider performance
 
 Implement via provider adapter pattern (in-house) or dedicated orchestration platforms for complex multi-PSP setups.
+
+---
+
+## SCA and 3DS2
+
+**SCA (Strong Customer Authentication)** — required by PSD2 (EU/UK) for most online card payments. Two of: knowledge (PIN), possession (device), inherence (biometric).
+
+**3DS2 (EMV 3DS)** — technical protocol that carries SCA. Default path: frictionless flow when issuer's risk engine approves; challenge flow otherwise.
+
+Key rules:
+- **Never bypass 3DS2 on EU/UK cards** unless a valid SCA exemption applies (low-value ≤€30, TRA — transaction risk analysis, MIT — merchant-initiated, corporate cards). Exemptions must be passed explicitly to the acquirer.
+- **Liability shift** — successful 3DS2 authentication shifts fraud liability from merchant to issuer (except for recurring MIT post-initial).
+- **Recurring payments** — first transaction authenticated (CIT with SCA), subsequent MIT flagged to skip challenge.
+- **Test in both frictionless and challenge modes** — most issuers step-up unpredictably; one path is not enough.
+- **Abandon 3DS1** — officially retired October 2022; any remaining usage fails.
+
+Per-region: EU/UK → mandatory. US → issuer-optional but rising. India → mandatory (RBI). Most LATAM → optional but growing.
 
 ---
 
@@ -216,7 +215,8 @@ Integration via specialized gateways or provider add-ons. Regulatory landscape e
 
 ## References
 
+- [provider-comparison.md](references/provider-comparison.md) — Provider selection tree, comparison matrix, pattern-to-provider short-list, regional coverage
 - [payment-patterns.md](references/payment-patterns.md) — Provider-agnostic interfaces, adapter pattern, idempotency, reconciliation, refund flows, multi-currency
 - [stripe-patterns.md](references/stripe-patterns.md) — Stripe-specific SDK code: PaymentIntent, Payment Element, webhooks, subscriptions, testing
 
-Load references when you need implementation code, provider adapter interfaces, or Stripe-specific patterns.
+Load references when you need provider short-lists, implementation code, provider adapter interfaces, or Stripe-specific patterns.

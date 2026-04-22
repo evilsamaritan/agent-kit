@@ -8,10 +8,6 @@ user-invocable: true
 
 # Agent Creator
 
-## Purpose
-
-Create new custom agents, verify existing agents against quality standards, or improve agents based on feedback. Assembles agents by inlining role-template(s) from `templates/` and wiring in knowledge skills via the `skills:` frontmatter field.
-
 ## Concept
 
 An agent is named after a **profession** and is built from two ingredients:

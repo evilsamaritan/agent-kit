@@ -226,7 +226,7 @@ Signature: RSASHA256(base64url(header) + "." + base64url(payload), privateKey)
 
 ## Related Knowledge
 
-- `/security` — OWASP Top 10 (A07:2025 Authentication Failures), secrets management, zero trust
+- `/security` — OWASP Top 10 (A07 Identification and Authentication Failures), secrets management, zero trust
 - `/compliance` — GDPR consent, SOC2 controls, HIPAA auth requirements, PCI DSS 4.0
 - `/web` — CORS, CSP, cookies, FedCM browser API details
 - `/api-design` — API authentication patterns, rate limiting per key

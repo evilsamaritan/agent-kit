@@ -225,9 +225,9 @@ Egress:  Allow TCP 443 to 0.0.0.0/0           # HTTPS to external APIs
 
 - **kubernetes** — Ingress controllers, NetworkPolicy, service mesh integration, cert-manager
 - **docker** — Container networking (bridge, host, overlay), port mapping, DNS resolution
-- **devops** — Reverse proxy config, CI/CD network requirements
+- **ci-cd** — Reverse proxy config, CI/CD network requirements
 - **security** — TLS hardening, zero-trust architecture, WAF, DDoS mitigation
-- **sre** — Latency profiling, connection pool tuning, circuit breaking
+- **reliability** — Latency profiling, connection pool tuning, circuit breaking
 - **web** — HTTP protocol semantics, fetch API, CORS (boundary: web handles application-level HTTP; networking handles transport/infrastructure)
 
 ---

@@ -11,7 +11,7 @@
       "name": "agent-kit",
       "source": "./",
       "description": "Production-grade agents named after professions — architect, frontend, backend, devops, sre, security, tester, designer, reviewer, writer. Each agent composes behavioral role-templates with domain knowledge skills across architecture, backend, frontend, security, DevOps, SRE, testing, design, and documentation.",
-      "version": "2.0.0"
+      "version": "2.1.0"
     }
   ]
 }

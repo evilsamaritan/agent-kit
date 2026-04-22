@@ -4,6 +4,7 @@ Data structures, Lua scripts, pub/sub, clustering, and persistence.
 
 ## Contents
 
+- [Licensing and Valkey](#licensing-and-valkey)
 - [Data Structure Selection](#data-structure-selection)
 - [Data Structure Patterns](#data-structure-patterns)
 - [Lua Scripts](#lua-scripts)
@@ -14,6 +15,12 @@ Data structures, Lua scripts, pub/sub, clustering, and persistence.
 - [Persistence](#persistence)
 - [Connection Management](#connection-management)
 - [Memory Management](#memory-management)
+
+---
+
+## Licensing note
+
+Redis OSS 7.2 and earlier -- BSD. Redis 7.4+ -- dual SSPL / RSALv2 (not open-source under OSI). Valkey is the Linux Foundation fork of Redis 7.2, permissively licensed (BSD-3-Clause), API-compatible. For new deployments on self-hosted or permissively-licensed infra, prefer Valkey. Dragonfly is a modern Redis-compatible alternative with different architecture (multi-threaded).
 
 ---
 

@@ -34,11 +34,14 @@ Semantic markup carries meaning to assistive technology, crawlers, and reader mo
 | Page/section banner | `<header>` | `<div class="header">` |
 | Page/section footer | `<footer>` | `<div class="footer">` |
 | Primary content (one per page) | `<main>` | `<div id="main">` |
+| Search/filter form container | `<search>` | `<div role="search">` |
 | Disclosure widget (expand/collapse) | `<details>` + `<summary>` | custom div toggle |
 | Modal dialog | `<dialog>` + `showModal()` | `<div role="dialog">` |
 | No semantic meaning | `<div>` / `<span>` | — |
 
-Landmark roles are implicit: `<nav>` = `role="navigation"`, `<main>` = `role="main"`, `<aside>` = `role="complementary"`, `<header>` in body = `role="banner"`, `<footer>` in body = `role="contentinfo"`. Never add redundant ARIA roles to semantic elements.
+Landmark roles are implicit: `<nav>` = `role="navigation"`, `<main>` = `role="main"`, `<aside>` = `role="complementary"`, `<search>` = `role="search"`, `<header>` in body = `role="banner"`, `<footer>` in body = `role="contentinfo"`. Never add redundant ARIA roles to semantic elements.
+
+`<search>` — landmark container for search/filter forms (Baseline 2024). Role implicitly `search`. Use instead of `<div role="search">`.
 
 ---
 

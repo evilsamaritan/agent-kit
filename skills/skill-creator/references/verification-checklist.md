@@ -1,11 +1,11 @@
 # Skill Verification Checklist
 
-48 checks across 5 categories. Each check has an ID, severity, rule, and fix guidance.
+46 checks across 5 categories. Each check has an ID, severity, rule, and fix guidance.
 
 ## Contents
 
-- [Category A: Frontmatter](#category-a-frontmatter) — 11 checks (A1-A11)
-- [Category B: Structure](#category-b-structure) — 15 checks (B1-B15)
+- [Category A: Frontmatter](#category-a-frontmatter) — 10 checks (A1-A10)
+- [Category B: Structure](#category-b-structure) — 14 checks (B1-B13, B15)
 - [Category C: Content Quality](#category-c-content-quality) — 14 checks (C1-C14)
 - [Category D: Anti-Patterns](#category-d-anti-patterns) — 7 checks (D1-D7)
 - [Category E: Deployment](#category-e-deployment) — 1 check (E1)
@@ -29,7 +29,7 @@
 | A5 | WARNING | `description` starts with a verb (Create, Run, Add, Write, etc.) | Rewrite to start with action verb in imperative form |
 | A6 | WARNING | `description` includes "Use when" trigger phrases | Append: ". Use when [trigger phrases]." |
 | A7 | WARNING | `description` is single line (no YAML multi-line `>` or `\|`) | Collapse to single line |
-| A8 | WARNING | `description` is 80-300 chars (sweet spot for trigger matching) | Expand if too short, trim if too long |
+| A8 | WARNING | `description` length: soft target 80-500 chars, hard cap 1024 (budget for trigger phrases + negative triggers) | Expand if under 80, trim if over 1024. Over 500 is acceptable when negative triggers add value. |
 | A9 | WARNING | `description` contains no XML angle brackets (`<` or `>`) | Remove XML tags — frontmatter appears in system prompt, angle brackets are a security restriction |
 | A10 | SUGGESTION | `description` includes negative triggers if skill could be confused with another | Add "Do NOT use for..." to disambiguate from similar skills |
 
@@ -43,7 +43,7 @@ must not start or end with hyphen, must match directory name.
 ```
 
 **A5: Verb check**
-Match first word against: Create, Run, Add, Write, Configure, Deploy, Build, Check, Generate, Update, Delete, Fix, Install, Manage, Set, Test, Verify, Analyze, Implement, Scaffold, Execute, Monitor, Debug, Migrate, Transform, Validate, Orchestrate, Review
+Match first word against: Create, Run, Add, Write, Configure, Deploy, Build, Check, Generate, Update, Delete, Fix, Install, Manage, Set, Test, Verify, Analyze, Implement, Scaffold, Execute, Monitor, Debug, Migrate, Transform, Validate, Orchestrate, Review, Design, Apply, Provide
 
 **A6: Trigger phrase check**
 Description must contain at least one of: "Use when", "use when", "Use for", "use for"
@@ -52,7 +52,7 @@ Description must contain at least one of: "Use when", "use when", "Use for", "us
 Description value must not start with `>` or `|`
 
 **A8: Length check**
-`description.length` should be 80-300 chars. Under 80 is likely too vague. Over 300 is wasting space.
+`description.length` soft target 80-500 chars, hard cap 1024. Under 80 is too vague. 80-500 is the ideal range for trigger matching. 500-1024 is acceptable when the skill has multiple sibling overlaps and needs negative triggers. Over 1024 fails — collapse description, move detail into SKILL.md.
 
 **A9: XML bracket check**
 Search description for `<` or `>` characters. Angle brackets in frontmatter may be interpreted as XML tags in the system prompt.
@@ -67,11 +67,11 @@ If a sibling skill has overlapping domain, check for "Do NOT use for" in descrip
 | ID | Severity | Check | Fix |
 |----|----------|-------|-----|
 | B1 | CRITICAL | `SKILL.md` exists in skill directory | Create SKILL.md — skill is non-functional without it |
-| B2 | WARNING | `SKILL.md` is maximum 500 lines (ceiling, not target) | Extract sections to workflows/ or references/ files |
+| B2 | WARNING | `SKILL.md` size: soft target 500 lines, ceiling ~550. Over 550 indicates extraction needed. | Extract sections to workflows/ or references/ files |
 | B3 | WARNING | Supporting files are in correct directories: procedures in `workflows/`, docs in `references/`, code in `scripts/`, output files in `assets/` | Move files to appropriate directories |
 | B4 | WARNING | No unreferenced files (each sub-file is linked from SKILL.md) | Add links or remove unused files |
-| B5 | SUGGESTION | Has `## Purpose` section only if it expands on `description`. Omit if it would repeat frontmatter. Intro text after `# Heading` follows the same rule. | Add Purpose only when it adds scope, constraints, or context not in description. Remove if it duplicates. Same for intro text. |
-| B6 | SUGGESTION | Has `## Validation` section for skills with procedures | Add validation steps |
+| B5 | SUGGESTION | Has `## Purpose` section only if it expands on `description`. Always optional. Omit if it would repeat frontmatter. Intro text after `# Heading` follows the same rule. | Add Purpose only when it adds scope, constraints, or context not in description. Remove if it duplicates. Same for intro text. |
+| B6 | SUGGESTION | Has `## Validation` section for skills that produce artifacts (files, configs, code). Optional for router/dispatcher meta-skills that delegate. | Add validation steps only when the skill itself writes or modifies something the agent can verify. |
 | B7 | WARNING | Procedures > 60 lines are extracted to `workflows/`, knowledge > 60 lines to `references/` | Extract long sections to sub-files following progressive disclosure |
 | B8 | WARNING | Content placement is correct: procedures in workflows/, knowledge in references/ (not swapped) | Move procedure files from references/ to workflows/ and vice versa |
 | B9 | WARNING | If references/ contains files with step-by-step procedures, they should be in workflows/ instead | Move procedure files from references/ to workflows/ |
@@ -79,14 +79,16 @@ If a sibling skill has overlapping domain, check for "Do NOT use for" in descrip
 | B11 | SUGGESTION | Reference files over 100 lines have a table of contents at the top | Add TOC so the agent can see the full scope when previewing |
 | B12 | WARNING | SKILL.md follows progressive disclosure: entry point with overview and routing, not full content. Multi-procedure skills (2+ independent procedures) keep SKILL.md concise. | Extract detailed content to sub-files, keep SKILL.md as concise entry point |
 | B13 | WARNING | Broad knowledge skills list related knowledge in a "Related Knowledge" section | Add `## Related Knowledge` section with bullet list of knowledge skills that complement this role |
-| B14 | WARNING | Language/framework knowledge skills follow the uniform structure: SKILL.md < 200 lines, 2-4 reference files, no workflows, no dedicated agents | Restructure: trim SKILL.md to core concepts + anti-patterns + references section, remove workflows, limit to 2-4 reference files |
 | B15 | WARNING | Framework-specific content lives in separate reference files with explicit framework names, not inline in SKILL.md | Extract framework content to `references/<framework-name>.md` and link from SKILL.md |
+
+> **B14 removed** in v2.1.0. The universal B2 line budget (soft 500, ceiling ~550) applies to language/framework skills too. Use B7 / B15 to enforce extraction when needed.
 
 ### B: Detailed Checks
 
 **B2: Line count**
 ```
-Count lines in SKILL.md (excluding frontmatter). If > 500, flag.
+Count lines in SKILL.md (excluding frontmatter).
+Soft target: ≤ 500. Ceiling: ≤ 550. Flag if > 550.
 Identify longest sections as extraction candidates.
 ```
 
@@ -126,9 +128,6 @@ SKILL.md must be an entry point, not full content. Flag inline procedures/refere
 **B13: Related Knowledge section check**
 Broad / cross-cutting knowledge skills should have a "## Related Knowledge" section listing siblings users may also want.
 
-**B14: Language skill standard compliance**
-Language/framework knowledge skills: SKILL.md < 200 lines, 2-4 reference files, no workflows, no dedicated agent.
-
 **B15: Framework refs as extensions check**
 Framework-specific content > 10 lines in SKILL.md must be extracted to `references/<framework-name>.md`. SKILL.md covers core technology only.
 
@@ -150,7 +149,7 @@ Framework-specific content > 10 lines in SKILL.md must be extracted to `referenc
 | C8 | SUGGESTION | `allowed-tools` is appropriately scoped (not just "all") | Restrict to tools actually needed |
 | C9 | SUGGESTION | Sections follow logical order (Purpose → How → Validate) | Reorder sections |
 | C10 | SUGGESTION | Decision points in procedures have AskUserQuestion guidance | Add AskUserQuestion guidance at decision points where user input is needed |
-| C13 | WARNING | SKILL.md teaches patterns, not products — no vendor lock-in in the skill router | Remove vendor-specific assumptions from SKILL.md. Reference files may mention specific tools as examples, but SKILL.md must remain technology-agnostic. |
+| C13 | WARNING | SKILL.md teaches patterns, not products. One or two de-facto standards named as examples is allowed; vendor enumeration (3+ competitors listed in decision trees, comparison tables, or "popular X" lists) belongs in references/. Decision trees must be structured primarily by **pattern or constraint**, not by product. | Move vendor enumeration and product-first decision trees to `references/<topic>-providers.md`. Keep SKILL.md structured by pattern/use-case. |
 | C14 | WARNING | Skills comparing tools or vendors lead with a decision tree, not a feature comparison table | Replace feature comparison tables with a decision tree (If X → use Y. If Z → use W.) at the top of the comparison section |
 
 ### C: Detailed Checks
@@ -173,8 +172,17 @@ Search for `<Placeholder>` or `{Placeholder}` in naming conventions. Flag: use r
 **C12: Critical instruction placement**
 Search for "NEVER", "MUST", "CRITICAL", "ALWAYS", "DO NOT". Each must appear in the first 1/3 of SKILL.md. Buried instructions get ignored (U-shaped attention).
 
-**C13: Technology agnosticity check**
-SKILL.md must not assume specific vendors as the only option. Mentioning tools as examples is fine. Vendor-specific content belongs in `references/`. SKILL.md teaches patterns, not products.
+**C13: Technology agnosticity check (A+B criteria)**
+
+**Criterion A (count):** In SKILL.md, naming a single de-facto standard as an example is allowed (Redis for in-memory cache, Kafka for streaming, S3 for object storage). Enumerating 3+ competing vendors inline (e.g., "Elasticsearch, OpenSearch, Meilisearch, Typesense, Algolia") is vendor lock-in — move to `references/`.
+
+**Criterion B (structure):** Decision trees in SKILL.md must branch primarily on **patterns / use-cases / constraints**, not on products. "If you need full-text search on a relational DB → pgvector / tsvector path" is fine. "Provider Selection: choose between AWS S3, GCS, Azure Blob, Cloudflare R2, Backblaze B2..." as the first axis is not — invert to pattern-first, list providers in `references/`.
+
+Flag when either criterion is violated. Allowed patterns:
+- Redirect ("For Redis data structures, see `references/redis-patterns.md`") — OK.
+- Single standard as example ("e.g., Kafka") — OK.
+- Comparison table of 3+ products in SKILL.md — move to references/.
+- Decision tree with product names as the first branching axis — restructure by pattern.
 
 **C14: Decision tree presence check**
 If SKILL.md compares tools/vendors, a decision tree must precede or replace feature comparison tables. Format: "If X, use Y. If Z, use W." Tables can follow as supplementary detail.
@@ -196,12 +204,11 @@ If SKILL.md compares tools/vendors, a decision tree must precede or replace feat
 ### D: Detailed Checks
 
 **D1: Marker scan** -- search for: TODO, FIXME, HACK, XXX, TEMP, WIP
-```
 
 **D2: Stale content scan**
 ```
-Search for: year patterns (202\d), "latest version", "currently", "as of"
-Evaluate whether the content will go stale.
+Search for: year patterns (202\d), "latest version", "currently", "as of", specific calendar dates.
+Evaluate whether the content will go stale. Volatile data (dates, fines, enforcement trends) belongs in references/, not core SKILL.md.
 ```
 
 **D3: Duplication check**

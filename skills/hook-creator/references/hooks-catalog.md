@@ -4,6 +4,7 @@
 |-------|-----------|----------------------|--------|--------|----------------|---------|
 | **PreToolUse** | Before any tool call | `{tool_name, tool_input, session_id, transcript_path, cwd}` | Allow tool | **Block tool**, stderr → Claude as feedback | Logged as error, tool runs anyway | Regex on `tool_name` |
 | **PostToolUse** | After tool call completes | `{tool_name, tool_input, tool_response, ...}` | No-op | Logged but tool already ran (cannot undo) | Logged as error | Regex on `tool_name` |
+| **PermissionRequest** | When the harness asks the user to approve a tool call | `{tool_name, tool_input, session_id, ...}` | Allow default prompt | **Auto-decide** (stdout JSON / stderr feedback) | Logged as error, user prompted normally | Regex on `tool_name` |
 | **UserPromptSubmit** | Before Claude processes user input | `{prompt, session_id, ...}` | Pass prompt as-is | **Block prompt**, stderr → Claude | Logged | None |
 | **PreCompact** | Before context auto-compaction | `{session_id, transcript_path, ...}` | Allow compaction | **Block compaction**, stderr → Claude | Logged | None |
 | **SessionStart** | When a session opens | `{session_id, source: "user" \| "agent" \| "resumption"}` | Stdout appended to context | Logged | Logged | None |

@@ -1,6 +1,6 @@
 ---
 name: reliability
-description: Site reliability patterns — SLOs, SLIs, error budgets, health checks, graceful shutdown, circuit breakers, chaos engineering, incident response, postmortems, toil reduction, on-call practices. Use when defining SLOs, designing health probes, reviewing shutdown behavior, writing runbooks, running an incident, or reducing toil. Do NOT use for CI/CD (use ci-cd), observability instrumentation (use observability), or performance profiling (use performance).
+description: Apply site reliability patterns — SLOs, SLIs, error budgets, health checks, graceful shutdown, circuit breakers, chaos engineering, incident response, postmortems, toil reduction, on-call practices. Use when defining SLOs, designing health probes, reviewing shutdown behavior, writing runbooks, running an incident, or reducing toil. Do NOT use for CI/CD (use ci-cd), observability instrumentation (use observability), or performance profiling (use performance).
 allowed-tools: Read, Grep, Glob, WebSearch, WebFetch, Edit, Write, Bash
 user-invocable: true
 ---

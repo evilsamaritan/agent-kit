@@ -1,6 +1,6 @@
 ---
 name: kubernetes
-description: Kubernetes expertise — manifests, Helm charts, Gateway API, operators, RBAC, HPA/VPA/KEDA, Karpenter, native sidecars, debugging. Use when working with K8s manifests, Helm, Gateway API, RBAC, autoscaling, network policies, or cluster debugging. Do NOT use for container building (use docker) or CI/CD (use devops).
+description: Kubernetes expertise — manifests, Helm charts, Gateway API, operators, RBAC, HPA/VPA/KEDA, Karpenter, native sidecars, debugging. Use when working with K8s manifests, Helm, Gateway API, RBAC, autoscaling, network policies, or cluster debugging. Do NOT use for container building (use docker) or CI/CD (use ci-cd).
 allowed-tools: Read, Grep, Glob, WebSearch, WebFetch
 user-invocable: true
 ---
@@ -16,7 +16,7 @@ user-invocable: true
 - ALWAYS create PodDisruptionBudgets for production workloads
 - ALWAYS use namespace-scoped Roles over ClusterRoles unless cross-namespace access is required
 - ALWAYS apply Pod Security Standards (`restricted` profile for production namespaces)
-- Use Gateway API for new projects -- Ingress NGINX retiring March 2026
+- Use Gateway API for new projects -- Ingress API is in maintenance mode; prefer Gateway API for new workloads
 - Omit CPU limits on HPA-managed workloads -- let HPA handle horizontal scaling
 
 ---
@@ -248,7 +248,7 @@ Isolation requirement?
 | No network policies | Any pod can reach any pod | Default deny + explicit allow |
 | `latest` image tag | Non-deterministic deployments | Pinned tag + digest |
 | No probes | Traffic to unhealthy pods | readiness + liveness + startup probes |
-| New projects using Ingress | Ingress NGINX retiring March 2026 | Gateway API for greenfield |
+| New projects using Ingress | Ingress API is in maintenance mode; prefer Gateway API for new workloads | Gateway API for greenfield |
 | CPU limits on HPA workloads | Throttling under load, HPA conflicts | Omit CPU limits, let HPA scale horizontally |
 | Sidecar in `containers[]` with lifecycle hacks | Fragile ordering, shutdown races | Native sidecar (`initContainers` + `restartPolicy: Always`) |
 | Cluster Autoscaler for dynamic workloads | Slow provisioning, poor bin-packing | Karpenter (seconds vs minutes, right-sized nodes) |
@@ -279,11 +279,11 @@ Isolation requirement?
 ## Related Knowledge
 
 - **docker** -- build container images consumed by Kubernetes workloads
-- **devops** -- CI/CD pipelines deploying to clusters, GitOps workflows
+- **ci-cd** -- CI/CD pipelines deploying to clusters, GitOps workflows
 - **networking** -- DNS, TLS/mTLS, service mesh, load balancing
 - **security** -- RBAC hardening, pod security standards, supply chain
 - **observability** -- distributed tracing, metrics, logging for cluster workloads
-- **sre** -- SLOs, PDBs, incident response for cluster reliability
+- **reliability** -- SLOs, PDBs, incident response for cluster reliability
 
 ## References
 

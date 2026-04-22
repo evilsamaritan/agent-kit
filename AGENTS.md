@@ -1,4 +1,4 @@
-# agent-kit v2.0.0
+# agent-kit v2.1.0
 
 ## Purpose
 
@@ -24,7 +24,7 @@ Agents are named after **professions**. Each profession is assembled from two in
 - Skill `name` must match its directory name exactly (lowercase, hyphens only).
 - Description is the sole trigger — include WHAT it does + WHEN to use it + trigger phrases.
 - Do not duplicate content between SKILL.md and sub-files. SKILL.md routes; sub-files contain depth.
-- SKILL.md: maximum 500 lines (ceiling, not target). References have no hard limit — split by topic.
+- SKILL.md: soft target 500 lines, ceiling ~550 (applies uniformly to all skill classes). References have no hard limit — split by topic.
 - Do NOT add `Co-Authored-By` to commit messages.
 - **Teach patterns, not products** — SKILL.md teaches the pattern (what and when). Reference files may use specific tools as *examples*, but SKILL.md must not assume a particular tool or vendor.
 - **Framework refs = extensions** — Framework-specific content (Next.js, Nuxt, Node.js) belongs in a separate reference file with an explicit name. SKILL.md covers the core technology only.
@@ -46,7 +46,7 @@ No `category:` field, no subdirectories. Meta skills are identified by function 
 
 ## Skill Standard
 
-- **SKILL.md** — maximum 500 lines (ceiling, not target). Compact core guide with decision trees, patterns, anti-patterns, context adaptation, quick references. For multi-procedure skills, also acts as entry point/router to workflows.
+- **SKILL.md** — soft target 500 lines, ceiling ~550. Compact core guide with decision trees, patterns, anti-patterns, context adaptation, quick references. For multi-procedure skills, also acts as entry point/router to workflows.
 - **references/** — Split by topic, loaded on demand. No size limit per file — depth matters. Split when a single reference exceeds ~500 lines or covers clearly distinct subtopics.
 - **workflows/** — Step-by-step procedures (review protocols, creation flows). Optional — not every skill needs workflows.
 - All user-facing skills are `user-invocable: true`.
@@ -91,13 +91,15 @@ Note: Evergreen principles in SKILL.md, volatile data (dates, fines, enforcement
 
 **Meta skill:**
 ```
-## Purpose
+## Purpose            # Optional — only if it adds context beyond description
 ## Critical rules
 ## Flow selection
 ## Quick reference
-## Validation
+## Validation         # Optional — include for producer meta-skills (write files/configs), skip for routers/dispatchers that delegate
 ## References
 ```
+
+Meta sub-types: **Producer** (writes files — `skill-creator`, `agent-creator`, `update-config`, `hook-creator`) includes Validation. **Router / dispatcher** (delegates — `init`, `team-creator`, `team-orchestrator`) may skip Validation.
 
 ## Role-template standard (special asset — NOT a skill)
 

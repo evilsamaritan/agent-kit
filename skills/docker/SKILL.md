@@ -1,6 +1,6 @@
 ---
 name: docker
-description: Build and secure container images. Use when writing Dockerfiles, multi-stage builds, Compose v2, buildx/bake, distroless/Chainguard, SBOM, image signing, health checks, or docker init. Do NOT use for orchestration (use kubernetes) or CI/CD pipelines (use devops).
+description: Build and secure container images. Use when writing Dockerfiles, multi-stage builds, Compose v2, buildx/bake, distroless/Chainguard, SBOM, image signing, health checks, or docker init. Do NOT use for orchestration (use kubernetes) or CI/CD pipelines (use ci-cd).
 allowed-tools: Read, Grep, Glob, WebSearch, WebFetch
 user-invocable: true
 ---
@@ -204,5 +204,6 @@ Bake: define build targets in HCL/JSON/Compose. Parallelizes independent targets
 
 - [dockerfile-patterns.md](references/dockerfile-patterns.md) — Language-specific Dockerfile patterns, optimization techniques, and BuildKit features
 - [compose-patterns.md](references/compose-patterns.md) — Compose v2 advanced patterns, networking, volumes, and production configurations
+- [container-patterns.md](references/container-patterns.md) — General container runtime patterns, security, restart policies
 
 Load references when you need language-specific Dockerfile templates or complex Compose configurations.

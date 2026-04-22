@@ -11,33 +11,18 @@ Full-text and hybrid search expertise: engine selection, index design, query pat
 
 ---
 
-## Engine Selection Decision Tree
+## Choosing a search engine
 
-Choose an engine by constraints, not features. Walk the tree top-down, take the first branch that matches.
+Decide by workload, not by product:
 
-```
-What is the primary constraint?
-├── No infrastructure team / zero ops budget
-│   └── Managed search-as-a-service (hosted SaaS)
-├── Dataset > 10M documents OR complex aggregations / analytics
-│   └── Distributed engine with sharding and clustering
-├── Dataset < 10M, need fast setup, typo tolerance out of the box
-│   └── Lightweight engine (single-node, minimal config)
-├── Already running PostgreSQL and search is secondary feature
-│   └── Database-native full-text search (tsvector + GIN index)
-└── Primary use case is semantic / vector search
-    └── Dedicated vector DB or hybrid-capable engine — see the `database` skill for pgvector / Milvus / Weaviate tradeoffs
-```
+- **Full-text on existing Postgres, small scale** → tsvector / pg_search (no new infra).
+- **Hybrid (full-text + vector) on Postgres** → pgvector + tsvector or ParadeDB-class extension.
+- **Large-scale full-text with aggregations** → Lucene-based distributed engine.
+- **Hosted SaaS, fastest integration** → managed search platform.
+- **Edge / client-side** → WASM-delivered local index.
+- **Embeddings-first semantic** → dedicated vector DB.
 
-**Scale thresholds (approximate):**
-
-| Document count | Engine class | Notes |
-|---------------|-------------|-------|
-| < 100K | Lightweight engine or DB-native search | Single node, sub-50ms latency |
-| 100K -- 10M | Any engine class works | Choose by feature needs and ops capacity |
-| > 10M | Distributed engine | Sharding, replication, cluster management required |
-
-Popular engines by class: distributed (Elasticsearch, OpenSearch), lightweight (Meilisearch, Typesense), SaaS (Algolia), DB-native (PostgreSQL tsvector, ParadeDB). See [search-patterns.md](references/search-patterns.md) for engine-specific query DSL and setup examples.
+Product short-list per workload: [engine-catalog.md](references/engine-catalog.md).
 
 ---
 
@@ -89,6 +74,8 @@ Combine lexical (BM25) and semantic (vector) search. Hybrid consistently outperf
 2. Tune alpha (text vs vector weight) based on query type -- exact terms favor BM25, conceptual queries favor vector
 3. Consider adaptive retrieval -- route queries to the best method based on intent (keyword-heavy vs conceptual)
 4. Measure NDCG/MRR before and after enabling hybrid
+
+**Learned sparse retrieval** -- SPLADE, uniCOIL: sparse lexical vectors from a transformer. Bridges BM25 (lexical) and dense (semantic) -- strong on rare terms where dense fails. Consider for hybrid pipelines alongside BM25 + dense.
 
 ### Vector Index Considerations
 
@@ -240,6 +227,7 @@ Feed search analytics into relevance tuning. Zero-result queries reveal indexing
 
 ## References
 
+- [engine-catalog.md](references/engine-catalog.md) -- Engine comparison (Elasticsearch, OpenSearch, Meilisearch, Typesense, Algolia, Postgres extensions, Vespa, vector DBs, Orama), workload shortlist, scale thresholds, licensing notes
 - [search-patterns.md](references/search-patterns.md) -- Engine-specific query DSL (Elasticsearch, Meilisearch, Typesense), index mapping templates, hybrid query examples, sync pipeline architecture, relevance test suite template
 
-Load reference when you need engine-specific query DSL examples, index mapping templates, or sync pipeline architecture.
+Load references when you need an engine short-list, engine-specific query DSL examples, index mapping templates, or sync pipeline architecture.

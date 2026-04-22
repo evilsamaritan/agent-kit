@@ -199,7 +199,7 @@ Expert-level [domain] knowledge.
 
 ### Specialized / Language / Framework Skill Template
 
-Type: knowledge, scope: specialized | language | framework | platform-tech. May be specific by design. Language/framework: SKILL.md < 200 lines, 2-4 reference files, no workflows.
+Type: knowledge, scope: specialized | language | framework | platform-tech. May be specific by design. Follow the universal line budget (soft 500, ceiling ~550). Language/framework skills typically stay compact (~200-300 lines) because the detail belongs in references; workflows are usually unnecessary but not forbidden.
 
 ```markdown
 # Technology Name
@@ -237,13 +237,17 @@ Type: meta. Skills that create/manage other skills or agents.
 ```markdown
 # Skill Name
 
-## Purpose
+## Purpose                # Optional — only if it adds context beyond description
 ## Critical rules
 ## Flow selection
 ## Quick reference
-## Validation
+## Validation             # Optional — for producer meta-skills (those that write files/configs)
 ## References
 ```
+
+**Meta sub-types:**
+- **Producer** — writes files or configs (`skill-creator`, `agent-creator`, `update-config`, `hook-creator`). Should include `## Validation` describing how to verify output.
+- **Router / dispatcher** — delegates to other skills (`init`, `team-creator`, `team-orchestrator`). `## Validation` is optional; delegatees own their verification.
 
 ---
 

@@ -1,7 +1,7 @@
 ---
 name: frontend
-description: Frontend engineering patterns — bundlers, workspaces, code quality tooling, component patterns, state management choices, build configuration. Framework-agnostic. Use when configuring bundlers, structuring a monorepo frontend, auditing code-quality tooling, or picking state/data-fetching patterns. Do NOT use for framework specifics (use react/vue), HTML/CSS depth (use html/css), accessibility (use accessibility), or UX design (use design).
-allowed-tools: Read, Grep, Glob, WebSearch, WebFetch, Edit, Write, Bash
+description: Apply frontend engineering patterns — bundlers, workspaces, code quality tooling, component patterns, state management choices, build configuration. Framework-agnostic. Use when configuring bundlers, structuring a monorepo frontend, auditing code-quality tooling, or picking state/data-fetching patterns. Do NOT use for framework specifics (use react/vue), HTML/CSS depth (use html/css), accessibility (use accessibility), or UX design (use design).
+allowed-tools: Read, Grep, Glob
 user-invocable: true
 ---
 
@@ -12,7 +12,7 @@ Frontend infrastructure and patterns that cut across frameworks — build toolin
 ## Scope and boundaries
 
 **This skill covers:**
-- Bundler choice and config (Vite, webpack, esbuild, Rspack, Turbopack, Parcel)
+- Bundler choice and config (Vite, webpack, esbuild, Rspack, Rolldown, Turbopack, Parcel)
 - Workspace and monorepo structure (npm/pnpm/yarn workspaces, Turborepo, Nx)
 - Code-quality tooling stack (ESLint, Biome, Prettier, TypeScript project references)
 - Framework-agnostic component patterns (composition, compound components, render props, slots)
@@ -47,6 +47,8 @@ Migrating off webpack?
   Rspack (webpack-compatible config, much faster)
   or Turbopack (Next.js path)
 ```
+
+**Rolldown** — Rust-based Rollup-compatible bundler, planned as Vite's native default bundler (replacing esbuild + Rollup). Expect mention in Vite 7+.
 
 Don't change bundler for speed alone — dev-time speed matters, prod bundle size matters more.
 
@@ -100,7 +102,7 @@ Framework specifics in `react` / `vue`.
 
 - **Tree-shaking** requires ESM + side-effect-free packages. Mark `"sideEffects": false` in package.json where true.
 - **Code-splitting** by route is default. By component only when the component is large and optional.
-- **Ship modern JS to modern browsers.** Differential serving via `<script type="module">` + `<script nomodule>` if legacy matters; otherwise just ship ES2020+.
+- **Ship modern JS to modern browsers.** Differential serving via `<script type="module">` + `<script nomodule>` if legacy matters; otherwise just ship modern JS (ES2022+).
 - **Bundle analysis.** `vite-bundle-visualizer` / `source-map-explorer` / `bundle-analyzer`. Check what you ship — regressions creep.
 
 ## Context adaptation

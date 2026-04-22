@@ -186,7 +186,7 @@ Use hooks to enforce quality before agents can stop or complete tasks:
 - **TeammateIdle** — exit code 2 sends feedback, agent continues working (e.g., "tests still failing")
 - **TaskCompleted** — exit code 2 blocks completion (e.g., lint fails → task stays in-progress)
 
-→ For configuring these hooks safely, delegate to `/hook-creator` (when available).
+→ For configuring these hooks safely, delegate to `/hook-creator`.
 
 ---
 

@@ -1,6 +1,6 @@
 ---
 name: go
-description: Write idiomatic Go — goroutines, channels, interfaces, error handling, generics, modules, testing. Use when working with .go files, go.mod, or any Go question. Triggers on goroutine, channel, context.Context, go build, golangci-lint. Do NOT use for general backend patterns (use backend) or infrastructure (use devops).
+description: Write idiomatic Go — goroutines, channels, interfaces, error handling, generics, modules, testing. Use when working with .go files, go.mod, or any Go question. Triggers on goroutine, channel, context.Context, go build, golangci-lint. Do NOT use for general backend patterns (use backend) or infrastructure (use ci-cd).
 allowed-tools: Read, Grep, Glob, WebSearch, WebFetch
 user-invocable: true
 ---
@@ -253,6 +253,34 @@ myproject/
 ---
 
 ## Common Patterns
+
+### Iterators (Go 1.23+)
+
+`iter.Seq[V]`, `iter.Seq2[K, V]` — first-class range-over-func. Use for custom collections, lazy sequences, database cursor iteration. `for x := range mySeq { ... }` eliminates callback-style iteration.
+
+```go
+import "iter"
+
+// iter.Seq[V] — single-value sequence
+func Numbers(n int) iter.Seq[int] {
+    return func(yield func(int) bool) {
+        for i := range n {
+            if !yield(i) { return }
+        }
+    }
+}
+
+// iter.Seq2[K, V] — key/value sequence (like map ranges)
+func Enumerate[T any](s []T) iter.Seq2[int, T] {
+    return func(yield func(int, T) bool) {
+        for i, v := range s {
+            if !yield(i, v) { return }
+        }
+    }
+}
+
+for i, v := range Enumerate(items) { ... }
+```
 
 ### Functional Options
 

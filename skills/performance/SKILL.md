@@ -1,6 +1,6 @@
 ---
 name: performance
-description: Analyze and optimize system performance across any runtime or infrastructure. Use when diagnosing bottlenecks, profiling latency, tuning throughput, investigating memory leaks, optimizing queries, reviewing caching strategies, or capacity planning. Do NOT use for SLO/SLI design or incident response (use sre), instrumentation pipelines and metrics standards (use observability), or schema/index design (use database).
+description: Analyze and optimize system performance across any runtime or infrastructure. Use when diagnosing bottlenecks, profiling latency, tuning throughput, investigating memory leaks, optimizing queries, reviewing caching strategies, or capacity planning. Do NOT use for SLO/SLI design or incident response (use reliability), instrumentation pipelines and metrics standards (use observability), or schema/index design (use database).
 allowed-tools: Read, Grep, Glob, WebSearch, WebFetch
 user-invocable: true
 ---
@@ -170,13 +170,13 @@ Adapt your analysis based on the domain of the system under review.
 - **Memory profiling**: heap snapshots, allocation tracking, GC tuning, leak detection
 - **Load testing**: baseline establishment, stress testing, soak testing, spike testing
 
-### SRE
+### Reliability
 - **Capacity planning**: saturation forecasting, resource headroom, scaling triggers
 - **Saturation monitoring**: USE method (Utilization, Saturation, Errors) per resource
 - **Tail latency**: p99/p999 tracking, latency budgets, hedged requests, deadline propagation
 - **Continuous profiling**: always-on low-overhead production profiling — flame graphs aggregated over time reveal chronic bottlenecks that load tests miss
 
-### DevOps
+### CI/CD
 - **Build performance**: incremental builds, dependency caching, parallelized compilation
 - **CI pipeline speed**: test parallelism, cache layers, conditional stages, artifact reuse
 - **Container resource limits**: CPU/memory requests and limits, OOMKill prevention, right-sizing
@@ -198,6 +198,6 @@ Adapt your analysis based on the domain of the system under review.
 - **observability** — Metrics (RED/USE), distributed tracing, continuous profiling, alerting on performance degradation
 - **caching** — Cache strategy selection, invalidation patterns, multi-layer architecture, stampede prevention
 - **database** — Query optimization, index design, connection pooling, schema design
-- **sre** — SLO-driven performance targets, capacity planning, load testing in production
+- **reliability** — SLO-driven performance targets, capacity planning, load testing in production
 - **backend** — Service architecture, connection management, async patterns
-- **devops** — Container resource limits, CI pipeline speed, build performance
+- **ci-cd** — Container resource limits, CI pipeline speed, build performance

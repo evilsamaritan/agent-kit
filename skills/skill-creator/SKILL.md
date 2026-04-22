@@ -16,7 +16,7 @@ Create new skills with proper structure, verify existing skills against quality 
 1. **Always edit skills in `skills/`, NEVER in `.claude/skills/`.** `.claude/skills/` is a symlink to `../skills/`. No installation or sync needed.
 2. **One skill = one domain.** Do not merge unrelated domains into a single skill.
 3. **Classify before creating.** Skills are either **knowledge** (domain expertise — preloadable into agents, auto-triggered by Claude Code) or **meta** (create / manage other entities — agents, skills, hooks, teams, project init). Knowledge skills have a scope (broad / specialized / language / framework / platform-tech / regulatory) that determines the structure template and agnosticity rules.
-4. **SKILL.md maximum 500 lines** (ceiling, not target). Extract depth to references/ and procedures to workflows/.
+4. **SKILL.md size: soft target 500 lines, ceiling ~550.** Over 550 — extract depth to references/ and procedures to workflows/. Applies uniformly to all skill classes.
 5. **Teach patterns, not products.** Broad knowledge skills must be vendor-agnostic in SKILL.md. Framework-specific content goes in `references/<framework>.md`.
 6. **Roles live separately.** Behavioral role content does not belong in knowledge skills. Role-templates live at `skills/agent-creator/templates/*.md` and are managed by `agent-creator`, not here.
 
@@ -67,7 +67,7 @@ Knowledge skill scopes:
 | Field | Required | Rules |
 |-------|----------|-------|
 | `name` | Yes | Lowercase + hyphens only, max 64 chars, matches directory. No consecutive hyphens. Must not start/end with hyphen. |
-| `description` | Yes | Single line, max 1024 chars, verb + trigger phrases. Include "Do NOT use for..." if overlap with sibling skill. |
+| `description` | Yes | Single line, soft target 80-500 chars, hard cap 1024. Verb + trigger phrases. Include "Do NOT use for..." if overlap with sibling skill. |
 | `allowed-tools` | No | Comma-separated string (not YAML list). Scoped: `"Bash(python:*)"` |
 | `user-invocable` | No | Boolean, default `true` |
 | `context` | No | `fork` for isolated sub-agent |
@@ -79,6 +79,7 @@ Knowledge skill scopes:
 | `license` | No | Open-source license for distribution |
 | `compatibility` | No | Environment requirements, 1-500 chars |
 | `metadata` | No | Custom key-value pairs (author, version, mcp-server) |
+| `meta` | No | Boolean. Set `true` for meta-skills (create/manage other skills, agents, hooks, teams). Used by tooling to distinguish meta from knowledge. |
 
 ## Validation
 
@@ -92,6 +93,7 @@ After creating or editing a skill, verify:
 - [create.md](workflows/create.md) — Flow 1: Create Skill
 - [verify.md](workflows/verify.md) — Flow 2: Verify Skill
 - [improve.md](workflows/improve.md) — Flow 3: Improve Skill
+- [optimize-description.md](workflows/optimize-description.md) — Iterative refinement of skill descriptions for better trigger matching
 - [best-practices.md](references/best-practices.md) — Skill authoring patterns and guidelines
 - [verification-checklist.md](references/verification-checklist.md) — All verification checks
 - [skill-template.md](references/skill-template.md) — Unified skill template with class-specific sections

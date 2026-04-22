@@ -1,6 +1,6 @@
 ---
 name: testing
-description: Testing strategy and patterns — test pyramid, unit/integration/e2e/contract tests, mock boundaries, fixtures, flaky test diagnosis, coverage strategy, test data management, property-based and snapshot testing. Use when writing tests, auditing test suites, planning coverage, diagnosing flakiness, reviewing mock usage, or designing a test strategy. Do NOT use for CI/CD pipelines (use ci-cd), performance profiling (use performance), or production code review (use security or language skills).
+description: Design testing strategy and patterns — test pyramid, unit/integration/e2e/contract tests, mock boundaries, fixtures, flaky test diagnosis, coverage strategy, test data management, property-based and snapshot testing. Use when writing tests, auditing test suites, planning coverage, diagnosing flakiness, reviewing mock usage, or designing a test strategy. Do NOT use for CI/CD pipelines (use ci-cd), performance profiling (use performance), or production code review (use security or language skills).
 allowed-tools: Read, Grep, Glob, Edit, Write, Bash
 user-invocable: true
 ---

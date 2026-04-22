@@ -1,6 +1,6 @@
 ---
 name: seo
-description: SEO expertise — meta tags, Open Graph, JSON-LD, robots.txt, sitemap, SSR/SSG, Core Web Vitals, GEO, IndexNow, llms.txt. Use when implementing structured data, sitemaps, hreflang, AI search optimization, or crawlability. Do NOT use for performance profiling (use performance) or accessibility (use accessibility).
+description: Implement SEO — meta tags, Open Graph, JSON-LD, robots.txt, sitemap, SSR/SSG, Core Web Vitals, GEO, IndexNow, llms.txt. Use when implementing structured data, sitemaps, hreflang, AI search optimization, or crawlability. Do NOT use for performance profiling (use performance) or accessibility (use accessibility).
 allowed-tools: Read, Grep, Glob, WebSearch, WebFetch
 user-invocable: true
 ---

@@ -94,20 +94,18 @@ Upload → Validate → Store Original → Queue Processing → Generate Variant
 
 ---
 
-## Provider Selection Decision Tree
+## Choosing object storage
 
-```
-What drives the decision?
-├── Existing cloud ecosystem?
-│   ├── AWS-native → S3 (Lambda triggers, IAM, CloudFront)
-│   ├── GCP-native → GCS (Firebase, resumable uploads, BigQuery export)
-│   ├── Azure-native → Blob Storage (Entra ID, Functions triggers)
-│   └── Cloudflare-native → R2 (Workers, zero egress, built-in CDN)
-├── Egress-heavy workload? → Prefer zero-egress providers (R2, Backblaze B2 + CF)
-├── Ultra-low latency needed? → Co-located storage (Express One Zone, regional buckets)
-├── S3-compatible tooling required? → R2, GCS interop, MinIO, Tigris
-└── Multi-cloud / portable? → Abstract behind storage interface, use S3-compatible API
-```
+Pick by constraint, not by brand:
+
+- **Lowest-latency reads in one cloud** → native bucket (same cloud as compute).
+- **Multi-cloud / avoid egress fees** → S3-compatible edge object store with zero egress (see references).
+- **Self-hosted / on-prem** → S3-compatible open-source server.
+- **Archival / cold** → per-cloud cold tier (infrequent access, glacier-class).
+- **CDN-integrated** → CDN-native object store (fewer hops, unified cache).
+- **Compliance-bound region** → provider with local region + BAA / DPA.
+
+Short-list per path: [object-storage-providers.md](references/object-storage-providers.md).
 
 ### Storage Tiers (All Major Providers)
 
@@ -208,6 +206,7 @@ Upload → Quarantine bucket → Scan → Clean? → Move to production bucket
 
 ## References
 
+- [object-storage-providers.md](references/object-storage-providers.md) — Provider comparison, use-case shortlist, egress/pricing notes, compliance considerations
 - [storage-patterns.md](references/storage-patterns.md) — Signed URL generation, multipart upload, CDN setup, image processing, lifecycle policies (multi-provider examples)
 
-Load reference when implementing SDK code, CDN configuration, or image processing pipelines.
+Load references when implementing SDK code, CDN configuration, image processing pipelines, or picking a provider short-list.

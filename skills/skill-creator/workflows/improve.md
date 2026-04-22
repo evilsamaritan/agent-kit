@@ -97,3 +97,9 @@ Offer to chain to Flow 2:
 > "Changes applied. Want me to run verification to confirm everything is clean?"
 
 If yes → chain to Flow 2 (Verify) with the improved skill.
+
+---
+
+## Sub-flow: Description Triggers
+
+If the feedback is specifically about the skill not triggering (or over-triggering) on the right queries, chain to [optimize-description.md](optimize-description.md) — it runs a static trigger-fraction check (recall / specificity) on a `.trigger-fixture.json` and iterates the description until both metrics pass ≥80%.

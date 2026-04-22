@@ -20,9 +20,9 @@ Expert-level JavaScript and TypeScript knowledge. ES2025+ language, module syste
 - Iterators & generators: `Symbol.iterator`, `function*`, `yield`, lazy evaluation
 - Optional chaining (`?.`) and nullish coalescing (`??`) — prefer over `&&` chains
 - `structuredClone()` for deep copy (not `JSON.parse(JSON.stringify())`)
-- `Array.groupBy()`, `Set` methods (union, intersection, difference) — ES2025
+- `Object.groupBy()` / `Map.groupBy()`, `Set` methods (union, intersection, difference) — ES2025
 - `using` / `await using` — explicit resource management (TC39 Stage 3, TS 5.2+)
-- Temporal API for dates (replacing Date) — available via polyfill
+- Temporal: Stage 3, shipping in Node 22+ behind --experimental-vm-modules; becoming Stage 4 / native baseline in browsers. Check `Temporal` availability before use; fall back to polyfill for older runtimes.
 - Import attributes: `import data from './data.json' with { type: 'json' }`
 
 ---
@@ -150,7 +150,7 @@ Rule: if a generic has > 3 type parameters, refactor.
     "exactOptionalPropertyTypes": true,
     "isolatedModules": true,
     "skipLibCheck": true,
-    "target": "ES2022",
+    "target": "ES2024",
     "module": "NodeNext",
     "moduleResolution": "NodeNext"
   }

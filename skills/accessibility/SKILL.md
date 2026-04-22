@@ -65,18 +65,22 @@ Target AA for all projects. AAA is aspirational; specific criteria can be adopte
 
 ## Compliance Landscape
 
-| Framework | Scope | Standard | Status |
-|-----------|-------|----------|--------|
-| **EAA** (EU) | E-commerce, apps, digital services in EU | EN 301 549 / WCAG 2.1 AA | Enforced since June 28, 2025 |
-| **ADA Title II** (US) | State and local government websites | WCAG 2.1 AA | Deadline April 2026 |
-| **ADA Title III** (US) | Private sector websites (case law) | WCAG 2.1/2.2 AA | Active litigation |
-| **Section 508** (US) | Federal agencies | WCAG 2.0 AA (updating) | Active |
+| Framework | Scope | Standard |
+|-----------|-------|----------|
+| **EAA** (EU) | E-commerce, apps, digital services in EU | EN 301 549 / WCAG 2.1 AA |
+| **ADA Title II** (US) | State and local government websites | WCAG 2.1 AA |
+| **ADA Title III** (US) | Private sector websites (case law) | WCAG 2.1/2.2 AA |
+| **Section 508** (US) | Federal agencies | WCAG 2.0 AA (updating) |
+
+**Evergreen rule:** EAA applies to digital products/services offered to EU consumers; ADA Title III covers public accommodations in the US; ADA Title II covers US state and local government; Section 508 covers US federal agencies. Each jurisdiction sets its own effective dates, exemptions, and penalties.
 
 **EAA key points:** Applies to any provider offering digital services to EU consumers regardless of location. Exempts micro-enterprises (<10 employees). Requires published accessibility statements. Each member state sets its own penalties.
 
 **WCAG 2.2** is ISO/IEC 40500:2025 — the international reference standard.
 
 **WCAG 3.0** (W3C Accessibility Guidelines): Working Draft stage. Bronze/Silver/Gold scoring model replacing A/AA/AAA. Not for compliance — expected final recommendation ~2028+. Continue using WCAG 2.2 AA.
+
+Specific compliance dates, deadlines, and penalty ranges are volatile — see [enforcement-timeline.md](references/enforcement-timeline.md).
 
 ---
 

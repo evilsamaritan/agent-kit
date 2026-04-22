@@ -85,6 +85,10 @@ while (true) {
 
 **Storage quota:** `navigator.storage.estimate()` returns `{ usage, quota }`. Request persistent storage with `navigator.storage.persist()`.
 
+**Partitioned cookies (CHIPS)** — third-party cookies with `Partitioned` attribute + `Secure` + `SameSite=None`. Isolated per top-level site. Required for iframe embeds in a cookie-partitioned browser. See `Set-Cookie: ...; Secure; SameSite=None; Partitioned`.
+
+**Storage Access API** — call `document.requestStorageAccess()` from a user-gestured iframe to request unpartitioned cross-site cookie access. Use for legitimate embeds (SSO widgets, payment iframes) that need cross-site state.
+
 ---
 
 ## CORS Decision Tree

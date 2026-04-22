@@ -32,8 +32,6 @@ What are you building?
 └── Default → Vanilla Vue + Vite (add meta-framework only when needed)
 ```
 
-Always ask the user before choosing. Present trade-offs, not mandates.
-
 ### Vanilla Vue + Vite Setup
 
 Scaffold with `create-vue` (official scaffolding tool):

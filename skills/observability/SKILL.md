@@ -1,6 +1,6 @@
 ---
 name: observability
-description: Design observability systems — tracing, metrics (RED/USE), logging, alerting, profiling, eBPF, pipelines. Use when implementing instrumentation, metrics, logging, profiling, or alerting. Do NOT use for SLO/SLI (use sre) or bottleneck analysis (use performance).
+description: Design observability systems — tracing, metrics (RED/USE), logging, alerting, profiling, eBPF, pipelines. Use when implementing instrumentation, metrics, logging, profiling, or alerting. Do NOT use for SLO/SLI (use reliability) or bottleneck analysis (use performance).
 allowed-tools: Read, Grep, Glob, WebSearch, WebFetch
 user-invocable: true
 ---
@@ -247,12 +247,12 @@ Alert on symptoms (error rate, latency), not causes (CPU, threads). See alerting
 - Application-specific metrics (orders processed, payments completed)
 - Correlate logs with trace IDs (inject trace context into logger)
 
-### SRE
+### Reliability
 - Service overview dashboards (RED), resource usage dashboards (USE)
 - Alert routing: page for P1, team channel for P2-P3
 - SLO monitoring: burn rate alerts for error budget consumption
 
-### DevOps
+### CI/CD
 - Log aggregation pipeline: collector → storage backend
 - Metric collection: scrape-based or push-based via OTel Collector
 - Retention policy: high-res 15d, downsampled 90d, archived 1y
@@ -289,8 +289,8 @@ Alert on symptoms (error rate, latency), not causes (CPU, threads). See alerting
 
 ## Related Knowledge
 
-- **sre** — SLO/SLI management, error budgets, incident response, operational readiness
+- **reliability** — SLO/SLI management, error budgets, incident response, operational readiness
 - **performance** — Profiling, bottleneck analysis, capacity planning
-- **devops** — CI/CD pipelines, infrastructure provisioning, deployment strategies
+- **ci-cd** — CI/CD pipelines, infrastructure provisioning, deployment strategies
 - **kubernetes** — Container orchestration, cluster observability, network policies
 - **security** — Security event monitoring, audit trails

@@ -27,7 +27,7 @@ Does the skill own a domain with workflows and operating modes?
 Classification determines:
 - **Structure template** to use (see CLAUDE.md "Structure Templates by Class")
 - **Agnosticity rules** (broad/role = vendor-agnostic in SKILL.md)
-- **Sizing expectations** (language/framework: SKILL.md < 200 lines, 2-4 refs, no workflows)
+- **Sizing expectations** (all classes: soft 500, ceiling ~550 lines; language/framework typically compact 200-300 lines because detail lives in references/)
 
 ## Step 2: Gather Requirements
 
@@ -88,7 +88,7 @@ WHAT (imperative verb + object) + WHEN (trigger phrases) + KEY CAPABILITIES (if 
 ```
 
 Rules:
-- Single line, max 1024 chars (sweet spot: 80-300 chars)
+- Single line, soft target 80-500 chars, hard cap 1024 (500-1024 is fine when negative triggers add value)
 - Start with a verb (Create, Run, Add, Write, Configure, etc.)
 - Include "Use when" with trigger phrases -- exact words users would say
 - Be specific -- mention technologies, patterns, file types

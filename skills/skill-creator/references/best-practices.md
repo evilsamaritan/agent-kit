@@ -59,7 +59,7 @@ Is this content needed for EVERY invocation?
 - Would loading it unnecessarily waste context? → extract
 
 **Rules:**
-- SKILL.md: maximum 500 lines (ceiling, not target)
+- SKILL.md: soft target 500 lines, ceiling ~550 lines. Works for all skill classes (broad, specialized, language, framework, meta, regulatory).
 - Load sub-files with: `Read workflows/<file>.md from the skill base directory`
 - Never duplicate content between SKILL.md and sub-files
 
@@ -67,7 +67,7 @@ Is this content needed for EVERY invocation?
 - SKILL.md acts as entry point/router — overview, quick reference table, links to workflows
 - Each procedure lives in `workflows/` as a separate file
 - Shared knowledge goes to `references/`
-- SKILL.md stays concise (under 200 lines ideal for multi-procedure skills)
+- SKILL.md stays concise (router pattern naturally trims line count)
 
 ---
 

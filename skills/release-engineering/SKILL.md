@@ -1,6 +1,6 @@
 ---
 name: release-engineering
-description: Design release strategies — versioning, changesets, feature flags, progressive delivery, monorepo releases, rollback. Use when choosing semver vs calver, implementing changesets, designing feature flag lifecycle, or planning canary/blue-green rollouts. Do NOT use for CI/CD pipelines (use devops) or container deployment (use docker/kubernetes).
+description: Design release strategies — versioning, changesets, feature flags, progressive delivery, monorepo releases, rollback. Use when choosing semver vs calver, implementing changesets, designing feature flag lifecycle, or planning canary/blue-green rollouts. Do NOT use for CI/CD pipelines (use ci-cd) or container deployment (use docker/kubernetes).
 allowed-tools: Read, Grep, Glob, WebSearch, WebFetch
 user-invocable: true
 ---
@@ -230,7 +230,7 @@ Combine with feature flags: deploy code to all instances, control exposure via f
 
 ## Context Adaptation
 
-### DevOps
+### CI/CD
 - Pipeline config for releases: build -> test -> version -> publish -> deploy stages
 - Artifact management: container registry tagging, npm publish, GitHub Releases
 
@@ -248,8 +248,8 @@ Combine with feature flags: deploy code to all instances, control exposure via f
 
 ## Related Knowledge
 
-- **devops** — CI/CD pipelines that execute release processes, deployment strategy implementation
-- **sre** — SLOs/error budgets that gate releases, incident response for failed deploys
+- **ci-cd** — CI/CD pipelines that execute release processes, deployment strategy implementation
+- **reliability** — SLOs/error budgets that gate releases, incident response for failed deploys
 - **observability** — metrics and monitoring for progressive delivery decisions
 - **backend** — feature flag implementation, database migration coordination
 - **frontend** — cache busting on release, service worker updates
@@ -257,3 +257,4 @@ Combine with feature flags: deploy code to all instances, control exposure via f
 ## References
 
 - `references/release-patterns.md` — changeset setup, conventional commits config, feature flag implementation, deployment strategy examples, rollback procedures, monorepo release workflow
+- `references/deployment-patterns.md` — Deployment modalities: VPS, GitOps, IaC, server hardening, FinOps
