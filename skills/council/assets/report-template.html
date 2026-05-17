@@ -1,0 +1,286 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Council Verdict — {{TITLE}}</title>
+  <style>
+    :root {
+      --bg:        #ffffff;
+      --surface:   #fafaf9;
+      --ink:       #1a1a1a;
+      --ink-soft:  #4a4a4a;
+      --muted:     #6b6b6b;
+      --border:    #e7e5e2;
+      --rule:      #ededea;
+      --accent:    #2563eb;
+      --accent-bg: #f5f8ff;
+      --warn:      #b45309;
+      --good:      #15803d;
+    }
+
+    * { box-sizing: border-box; }
+
+    html, body {
+      margin: 0;
+      padding: 0;
+      background: var(--bg);
+      color: var(--ink);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+                   "Helvetica Neue", Arial, sans-serif;
+      font-size: 16px;
+      line-height: 1.6;
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
+    }
+
+    main {
+      max-width: 720px;
+      margin: 0 auto;
+      padding: 48px 24px 96px;
+    }
+
+    header {
+      border-bottom: 1px solid var(--rule);
+      padding-bottom: 24px;
+      margin-bottom: 32px;
+    }
+
+    header h1 {
+      font-size: 28px;
+      font-weight: 600;
+      letter-spacing: -0.01em;
+      margin: 0 0 8px;
+      color: var(--ink);
+    }
+
+    header .timestamp {
+      color: var(--muted);
+      font-size: 14px;
+      margin: 0;
+    }
+
+    section { margin: 40px 0; }
+
+    h2 {
+      font-size: 18px;
+      font-weight: 600;
+      margin: 0 0 12px;
+      letter-spacing: -0.005em;
+      color: var(--ink);
+    }
+
+    p {
+      margin: 0 0 12px;
+      color: var(--ink-soft);
+    }
+
+    blockquote {
+      margin: 0;
+      padding: 16px 20px;
+      background: var(--surface);
+      border-left: 3px solid var(--border);
+      color: var(--ink);
+      font-size: 15px;
+      border-radius: 0 6px 6px 0;
+    }
+
+    .verdict h2 {
+      font-size: 20px;
+      margin-top: 32px;
+    }
+    .verdict h2:first-child { margin-top: 0; }
+
+    .verdict h2.agrees  { color: var(--good); }
+    .verdict h2.clashes { color: var(--warn); }
+    .verdict h2.recommendation,
+    .verdict h2.next-step {
+      color: var(--accent);
+    }
+    .verdict .recommendation + .verdict-body,
+    .verdict .next-step + .verdict-body {
+      border-left: 3px solid var(--accent);
+      padding: 12px 16px;
+      background: var(--accent-bg);
+      border-radius: 0 6px 6px 0;
+      color: var(--ink);
+    }
+    .verdict .recommendation + .verdict-body p:last-child,
+    .verdict .next-step + .verdict-body p:last-child { margin-bottom: 0; }
+
+    .alignment-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+      margin-top: 12px;
+    }
+    .alignment-grid .cell {
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 14px 16px;
+      background: var(--bg);
+    }
+    .alignment-grid .cell h3 {
+      margin: 0 0 6px;
+      font-size: 13px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      color: var(--muted);
+    }
+    .alignment-grid .cell p {
+      font-size: 14px;
+      margin: 0;
+      color: var(--ink);
+    }
+
+    details {
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      margin: 8px 0;
+      background: var(--bg);
+    }
+    details > summary {
+      cursor: pointer;
+      padding: 12px 16px;
+      font-weight: 500;
+      font-size: 15px;
+      list-style: none;
+      user-select: none;
+      color: var(--ink);
+    }
+    details > summary::-webkit-details-marker { display: none; }
+    details > summary::after {
+      content: "+";
+      float: right;
+      color: var(--muted);
+      font-weight: 400;
+      transition: transform 120ms ease;
+    }
+    details[open] > summary::after { content: "−"; }
+    details > .details-body {
+      padding: 12px 16px 16px;
+      border-top: 1px solid var(--rule);
+      color: var(--ink-soft);
+      font-size: 15px;
+    }
+    details > .details-body p:last-child { margin-bottom: 0; }
+
+    .review-block {
+      padding: 12px 0;
+      border-bottom: 1px solid var(--rule);
+    }
+    .review-block:last-child { border-bottom: none; }
+    .review-block h4 {
+      margin: 0 0 6px;
+      font-size: 13px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      color: var(--muted);
+    }
+    .review-block p { font-size: 14px; }
+
+    footer {
+      margin-top: 64px;
+      padding-top: 24px;
+      border-top: 1px solid var(--rule);
+      color: var(--muted);
+      font-size: 13px;
+    }
+    footer code {
+      font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+      font-size: 12.5px;
+      background: var(--surface);
+      padding: 2px 6px;
+      border-radius: 4px;
+      color: var(--ink-soft);
+    }
+
+    @media (max-width: 600px) {
+      main { padding: 32px 16px 64px; }
+      .alignment-grid { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <header>
+      <h1>Council Verdict</h1>
+      <p class="timestamp">{{TIMESTAMP_HUMAN}}</p>
+    </header>
+
+    <section class="question">
+      <h2>The question</h2>
+      <blockquote>{{FRAMED_QUESTION_HTML}}</blockquote>
+    </section>
+
+    <section class="verdict">
+      <h2 class="agrees">Where the council agrees</h2>
+      <div class="verdict-body">{{VERDICT_AGREES_HTML}}</div>
+
+      <h2 class="clashes">Where the council clashes</h2>
+      <div class="verdict-body">{{VERDICT_CLASHES_HTML}}</div>
+
+      <h2>Blind spots the council caught</h2>
+      <div class="verdict-body">{{VERDICT_BLIND_SPOTS_HTML}}</div>
+
+      <h2 class="recommendation">The recommendation</h2>
+      <div class="verdict-body">{{VERDICT_RECOMMENDATION_HTML}}</div>
+
+      <h2 class="next-step">The one thing to do first</h2>
+      <div class="verdict-body">{{VERDICT_NEXT_STEP_HTML}}</div>
+    </section>
+
+    <section class="alignment">
+      <h2>Advisor alignment</h2>
+      <div class="alignment-grid">
+        <div class="cell">
+          <h3>Aligned on</h3>
+          <p>{{ALIGNED_ON}}</p>
+        </div>
+        <div class="cell">
+          <h3>Diverged on</h3>
+          <p>{{DIVERGED_ON}}</p>
+        </div>
+      </div>
+    </section>
+
+    <section class="advisors">
+      <h2>Advisor responses</h2>
+      <details>
+        <summary>The Contrarian</summary>
+        <div class="details-body">{{RESPONSE_CONTRARIAN_HTML}}</div>
+      </details>
+      <details>
+        <summary>The First Principles Thinker</summary>
+        <div class="details-body">{{RESPONSE_FIRST_PRINCIPLES_HTML}}</div>
+      </details>
+      <details>
+        <summary>The Expansionist</summary>
+        <div class="details-body">{{RESPONSE_EXPANSIONIST_HTML}}</div>
+      </details>
+      <details>
+        <summary>The Outsider</summary>
+        <div class="details-body">{{RESPONSE_OUTSIDER_HTML}}</div>
+      </details>
+      <details>
+        <summary>The Executor</summary>
+        <div class="details-body">{{RESPONSE_EXECUTOR_HTML}}</div>
+      </details>
+    </section>
+
+    <section class="peer-review">
+      <h2>Peer review highlights</h2>
+      <details>
+        <summary>Show all 5 peer reviews</summary>
+        <div class="details-body">{{PEER_REVIEW_BLOCKS_HTML}}</div>
+      </details>
+    </section>
+
+    <footer>
+      <p>Counciled on {{TIMESTAMP_HUMAN}}. Transcript: <code>{{TRANSCRIPT_FILENAME}}</code></p>
+    </footer>
+  </main>
+</body>
+</html>
