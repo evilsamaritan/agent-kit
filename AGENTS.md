@@ -1,4 +1,4 @@
-# agent-kit v2.2.0
+# agent-kit v2.3.0
 
 ## Purpose
 
@@ -39,6 +39,7 @@ Agents are named after **professions**. Each profession is assembled from two in
 | `skills/` | **Flat** — knowledge skills + meta skills, no subcategories, no `category:` field |
 | `skills/agent-creator/templates/` | Role-templates (architect, implementer, reviewer, operator, writer) |
 | `.claude-plugin/` | Plugin manifest and marketplace metadata |
+| `scripts/` | Repository-wide compatibility and maintenance utilities |
 
 ## Skills are flat
 

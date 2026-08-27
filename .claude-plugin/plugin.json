@@ -1,6 +1,6 @@
 {
   "name": "agent-kit",
-  "version": "2.2.0",
+  "version": "2.3.0",
   "description": "Production-grade agents named after professions — architect, frontend, backend, devops, sre, security, tester, designer, reviewer, writer. Each agent combines a behavioral role-template (architect, implementer, reviewer, operator, writer) with domain knowledge skills.",
   "author": {
     "name": "Maksim Misiukevich"
@@ -12,6 +12,7 @@
     "agents",
     "skills",
     "context-engineering",
+    "obsidian",
     "role-templates",
     "architecture",
     "backend",

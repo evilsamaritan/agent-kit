@@ -68,6 +68,16 @@ npx skills add agent-kit/<skill-name>
 npx skills find <query>
 ```
 
+### Share instructions with Claude Code
+
+Keep `AGENTS.md` canonical and create a sibling `CLAUDE.md` symlink for Claude
+Code. The script is idempotent and does not overwrite existing files or foreign
+symlinks:
+
+```bash
+./scripts/link-claude-md.sh /path/to/project /path/to/another-project
+```
+
 ## Creating Skills
 
 Use the built-in skill creator:
