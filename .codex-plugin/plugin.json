@@ -1,0 +1,32 @@
+{
+  "name": "agent-kit",
+  "version": "3.0.0",
+  "description": "Reusable profession profiles, engineering skills, and native-agent helpers for Claude Code and Codex.",
+  "author": {
+    "name": "Maksim Misiukevich",
+    "url": "https://github.com/evilsamaritan"
+  },
+  "homepage": "https://github.com/evilsamaritan/agent-kit#readme",
+  "repository": "https://github.com/evilsamaritan/agent-kit",
+  "license": "MIT",
+  "keywords": [
+    "codex",
+    "agents",
+    "skills",
+    "context-engineering",
+    "software-engineering"
+  ],
+  "skills": "./skills/",
+  "interface": {
+    "displayName": "Agent Kit",
+    "shortDescription": "Profiles and skills for native engineering agents.",
+    "longDescription": "A reusable library of profession profiles, domain skills, and helpers that configure and orchestrate native Claude and Codex agents.",
+    "developerName": "Maksim Misiukevich",
+    "category": "Developer Tools",
+    "capabilities": [
+      "Write"
+    ],
+    "websiteURL": "https://github.com/evilsamaritan/agent-kit",
+    "defaultPrompt": "Configure or orchestrate the right Agent Kit profession profiles and skills for this project."
+  }
+}

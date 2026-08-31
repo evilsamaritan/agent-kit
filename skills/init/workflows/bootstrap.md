@@ -1,123 +1,51 @@
-# Workflow: Bootstrap
+# Bootstrap Agent Kit in a Project
 
-End-to-end project initialization in 6 steps. The skill never writes files itself — it delegates every action to another meta-skill via the Skill tool.
+## Step 1: Detect current state
 
----
+1. Follow `detect-stack.md` and inspect the actual dependency/config files behind each signal.
+2. Read `.agent-kit/agents.json` when present.
+3. List existing native agents in `.claude/agents/` and `.codex/agents/`.
+4. Separate Agent Kit generated files from user-owned files by the generated marker.
 
-## Step 1: Detect stack
+## Step 2: Derive responsibilities
 
-Run heuristics from `workflows/detect-stack.md`:
+Map the project and request to recurring responsibilities rather than inventing a large permanent team. Typical responsibilities are implementation, architecture, testing, security review, operations, and documentation.
 
-```bash
-# Quick scan
-ls package.json go.mod pyproject.toml Cargo.toml 2>/dev/null
-glob '*.csproj' '*.gemspec' 'pom.xml' 'build.gradle*'
-```
+Use `../references/dispatch-matrix.md` to choose profession profiles and exact skill sets. One profile can produce multiple project variants when the stack needs them, such as `backend-node` and `backend-rust`.
 
-Compose a one-line summary of detected stack: "Node + TypeScript + React + Vite".
+## Step 3: Resolve material choices
 
-If detection finds nothing or is ambiguous, mark stack as **unknown** and rely on user answers in Step 2.
+Infer routines from repository evidence. Ask only if unresolved:
 
----
+- whether the project intentionally supports only one runtime;
+- whether a proposed agent may edit/run commands or must stay read-only;
+- whether a model override materially changes cost/capability;
+- which service or package is primary in an ambiguous polyglot repository.
 
-## Step 2: Ask 5 questions
+## Step 4: Present one plan
 
-Use AskUserQuestion with these exact questions (single message, all 5 at once):
+Show a compact table:
 
-1. **Project type** — web app / CLI tool / library / data pipeline / mixed
-2. **Primary tasks** *(multi-select)* — feature development / code review / security audits / refactoring / documentation
-3. **Team size** — single specialist agent / pair (2 agents) / small team (3–5 agents) / experimental Agent Teams mode
-4. **Quality gates** — none / advisory (warnings only) / blocking (hooks fail the action)
-5. **Shortcuts** *(multi-select)* — custom slash commands / scheduled tasks / none
+| Agent | Profile | Exact skills | Access | Targets |
+|-------|---------|--------------|--------|---------|
 
-If the user invoked with a recipe name (`/init small-react-app`), skip questions and use the preset from `references/recipes.md`. Always show the resolved answers in Step 3 so the user can correct them.
+Mark preserved existing entries and generated files that will be updated or pruned. Do not ask once per agent.
 
----
+## Step 5: Dispatch configuration
 
-## Step 3: Derive plan
+1. Invoke `skill-creator` first only for genuinely missing reusable knowledge.
+2. Invoke `agent-creator` once with the complete create/update/delete set.
+3. Have it update `.agent-kit/agents.json`, materialize both runtimes, and run `--check`.
 
-Look up `references/dispatch-matrix.md` for each combination of (project type × primary tasks × team size). Build a list of actions:
+Do not create a saved team or proprietary workflow. `agent-orchestrator` will assemble task-specific teams later from the available agents.
 
-```
-PLAN
-─────────────────────────────────────────
-1. [agent-creator]  Create agent: frontend-builder (skills: frontend, react)        [new]
-2. [agent-creator]  Create agent: testing-reviewer (skills: testing)                [new]
-3. [team-creator]   Create team: dev-team (flow: pipeline-parallel)                 [new]
-4. [hook-creator]   Add Stop hook: timeout 60 npm test                              [new]
-5. [hook-creator]   Add PostToolUse hook on Edit|Write: lint                        [new]
-6. [update-config]  Add /review slash command                                       [new]
-─────────────────────────────────────────
-6 actions to perform.
-```
+## Step 6: Report
 
-Mark items with `[exists]` if the target file/config is already present. Default behavior for `[exists]` is **skip** — but the user can mark them for overwrite in the next step.
+Report:
 
----
-
-## Step 4: Single confirmation
-
-Show the full plan + ask:
-
-```
-Proceed with this plan?
-  [yes]    — execute all new items, skip exists
-  [overwrite all]  — execute new + replace exists
-  [edit]   — let me uncheck specific items
-  [no]     — abort, no changes made
-```
-
-If user picks **edit**, present items as a checklist via AskUserQuestion (multi-select). Recompute the plan from the unchecked set.
-
-If user picks **no**, exit cleanly. No partial state.
-
----
-
-## Step 5: Dispatch in order
-
-For each action in the confirmed plan, invoke the target meta-skill via the Skill tool:
-
-```
-For action in plan:
-  skill = action.target_meta_skill
-  args = action.args
-
-  result = invoke Skill(skill=skill, args=args)
-
-  if result.failed:
-    ask user: retry / skip / abort
-    handle accordingly
-
-  record outcome
-```
-
-Important: **Skill tool runs the target in the main conversation**. Do NOT spawn via Agent. The four meta-skills (agent-creator, skill-creator, team-creator, hook-creator) and update-config all expect main-conversation execution.
-
----
-
-## Step 6: Final report
-
-After all dispatches complete, show:
-
-```
-BOOTSTRAP COMPLETE
-─────────────────────────────────────────
-Created:
-  ✓ 2 agents in agents/
-  ✓ 1 team in .claude/teams/dev-team/
-  ✓ 2 hooks in .claude/settings.json
-  ✓ 1 slash command in .claude/settings.json
-
-Skipped (already existed):
-  - agents/architect.md
-
-Failed:
-  ✗ /review slash command — settings.json not writable
-
-Next steps:
-  1. Test the team:  /team-orchestrator dev-team
-  2. Verify hooks:   bash skills/hook-creator/scripts/list-hooks.sh
-  3. Try shortcut:   /review
-```
-
-If anything failed, link the user to the relevant troubleshoot workflow (e.g., `hook-creator/workflows/troubleshoot.md` for hook failures).
+- portable source: `.agent-kit/agents.json`;
+- created/updated native Claude files;
+- created/updated native Codex files;
+- selected profiles and exact skills;
+- validation commands and outcomes;
+- preserved user-owned agents.

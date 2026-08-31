@@ -7,7 +7,7 @@ Unified template with optional sections. Include only what applies to your skill
 - [Full Template](#full-template)
 - [Section Guide](#section-guide)
 - [Frontmatter Quick Reference](#frontmatter-quick-reference)
-- [Common allowed-tools Combinations](#common-allowed-tools-combinations)
+- [Permission Fields](#permission-fields)
 
 ---
 
@@ -17,7 +17,6 @@ Unified template with optional sections. Include only what applies to your skill
 ---
 name: skill-name
 description: Verb phrase describing what and when. Use when trigger phrases match user intent.
-allowed-tools: Read, Write, Edit, Bash, Glob, Grep
 ---
 
 # Skill Name
@@ -55,13 +54,13 @@ command --flags
 - **If A** → use approach X (simpler, fits most cases)
 - **If B** → use approach Y (more complex, needed when...)
 
-Present choice to user for confirmation.
+Ask only when the choice materially changes the result and cannot be inferred from the request or repository.
 
 ### Step 3: Generate Artifacts
 
 1. Create directory structure
 2. Write primary file
-3. Show generated content to user before writing
+3. Write the requested in-scope artifact; preview first only when a material choice remains unresolved
 
 ### Step 4: Validate
 
@@ -247,7 +246,7 @@ Type: meta. Skills that create/manage other skills or agents.
 
 **Meta sub-types:**
 - **Producer** — writes files or configs (`skill-creator`, `agent-creator`, `update-config`, `hook-creator`). Should include `## Validation` describing how to verify output.
-- **Router / dispatcher** — delegates to other skills (`init`, `team-creator`, `team-orchestrator`). `## Validation` is optional; delegatees own their verification.
+- **Router / dispatcher** — delegates to other skills (`init`, `agent-orchestrator`). `## Validation` is optional; delegatees own their verification.
 
 ---
 
@@ -258,14 +257,21 @@ Type: meta. Skills that create/manage other skills or agents.
 name: kebab-case-name           # Max 64 chars, must match directory
 description: Verb phrase. Use when trigger phrases.  # Max 1024 chars, single line
 
-# Optional — behavior
-allowed-tools: Read, Bash, Edit              # Comma-separated, NOT YAML list. Scoped: "Bash(python:*)"
-user-invocable: true                         # Show in /slash menu (default: true)
+# Optional — routing and behavior
+when_to_use: Extra Claude trigger examples   # Claude Code extension; keep description portable
+allowed-tools: Bash(script *)                # One-turn permission grant, not a tool restriction
+disallowed-tools: Write, Edit                # One-turn Claude Code restriction
+user-invocable: false                        # Hide from direct invocation (default: true)
 context: fork                                # Isolated sub-agent execution
 agent: general-purpose                       # Agent type for context: fork
 model: model-id                              # Override model (agent-specific)
+effort: high                                 # Model-dependent effort override
+background: false                            # With fork, wait for the result
 argument-hint: "[issue-number]"              # Autocomplete hint for arguments
+arguments: issue-number format               # Named positional arguments
 disable-model-invocation: false              # Prevent auto-loading
+paths: "src/**/*.ts"                         # Path-scoped activation
+shell: bash                                  # Dynamic-context shell
 hooks: {}                                    # Lifecycle hooks (PreToolUse, PostToolUse, Stop)
 
 # Optional — distribution
@@ -279,12 +285,8 @@ metadata:                                    # Custom key-value pairs
 
 ---
 
-## Common allowed-tools Combinations
+## Permission Fields
 
-| Skill Focus | Tools |
-|-------------|-------|
-| Read-only research | `Read, Grep, Glob` |
-| Code modification | `Read, Edit, Bash, Glob, Grep` |
-| File creation | `Read, Write, Glob, Bash` |
-| Full access | `Read, Grep, Glob, Bash, Edit, Write` |
-| Interactive workflow | `Read, Write, Edit, Bash, Glob, Grep, AskUserQuestion` |
+`allowed-tools` is a portable pre-approval field. In Claude Code it does not restrict which tools exist, and values such as bare `Bash`, `Write`, or `Edit` bypass prompts while the skill is active. Declare the grant intentionally; prefer command-scoped forms when the workflow needs only deterministic commands.
+
+`disallowed-tools` temporarily removes tools while the skill is active. Use it when a workflow must be read-only or must never ask a user in the background. For durable policy, configure runtime permissions instead of skill frontmatter.

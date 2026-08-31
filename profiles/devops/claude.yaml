@@ -1,0 +1,4 @@
+# Claude Code overlay. Merged on top of PROFILE.md at generation time.
+model: sonnet
+color: orange
+tools: [Read, Grep, Glob, WebSearch, WebFetch, Edit, Write, Bash, Skill]

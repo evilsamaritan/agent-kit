@@ -1,6 +1,6 @@
 # Workflow: Detect Stack
 
-Heuristics for inferring a project's tech stack from filesystem signals. The result is a short string used to inform agent/team selection in `bootstrap.md`.
+Heuristics for inferring a project's tech stack from filesystem signals. The result informs profession-profile and skill selection in `bootstrap.md`.
 
 ---
 
@@ -83,9 +83,9 @@ detect() {
 
 ---
 
-## Mapping stack → recommended agents (default)
+## Mapping stack → recommended profiles (default)
 
-| Detected | Default role agents to suggest |
+| Detected | Default profiles to consider |
 |----------|------------------------------|
 | Node + React/Vue + Vite | frontend, testing |
 | Node + Express/Fastify | backend, testing, security |
@@ -98,7 +98,7 @@ detect() {
 | Has CI workflows | + devops |
 | Library (no app entry point) | architect, testing, docs |
 
-These are **suggestions, not mandates** — the dispatch matrix in `references/dispatch-matrix.md` combines them with the user's answers about primary tasks and team size.
+These are suggestions, not mandates. The dispatch matrix combines them with recurring project responsibilities and exact stack skills.
 
 ---
 
@@ -107,4 +107,4 @@ These are **suggestions, not mandates** — the dispatch matrix in `references/d
 - **Always ask** if confidence is low/medium
 - **Always ask** if multiple primary stacks could fit (full-stack monorepo with Node + Python services)
 - **Show then confirm** if confidence is high — never silently proceed with a guess
-- **Never** infer team-size or quality-gate preferences from stack — those are user-preference questions
+- Do not encode task-time agent counts from stack; `agent-orchestrator` chooses instances per task.

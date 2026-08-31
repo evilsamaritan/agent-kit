@@ -1,2 +1,6 @@
 /.idea/
 .DS_Store
+
+# Harness-local project configuration; plugin packages use the *-plugin directories.
+/.claude/
+/.agents/

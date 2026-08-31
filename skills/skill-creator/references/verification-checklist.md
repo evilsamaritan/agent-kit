@@ -1,10 +1,10 @@
 # Skill Verification Checklist
 
-46 checks across 5 categories. Each check has an ID, severity, rule, and fix guidance.
+48 checks across 5 categories. Each check has an ID, severity, rule, and fix guidance.
 
 ## Contents
 
-- [Category A: Frontmatter](#category-a-frontmatter) — 10 checks (A1-A10)
+- [Category A: Frontmatter](#category-a-frontmatter) — 12 checks (A1-A12)
 - [Category B: Structure](#category-b-structure) — 14 checks (B1-B13, B15)
 - [Category C: Content Quality](#category-c-content-quality) — 14 checks (C1-C14)
 - [Category D: Anti-Patterns](#category-d-anti-patterns) — 7 checks (D1-D7)
@@ -32,6 +32,8 @@
 | A8 | WARNING | `description` length: soft target 80-500 chars, hard cap 1024 (budget for trigger phrases + negative triggers) | Expand if under 80, trim if over 1024. Over 500 is acceptable when negative triggers add value. |
 | A9 | WARNING | `description` contains no XML angle brackets (`<` or `>`) | Remove XML tags — frontmatter appears in system prompt, angle brackets are a security restriction |
 | A10 | SUGGESTION | `description` includes negative triggers if skill could be confused with another | Add "Do NOT use for..." to disambiguate from similar skills |
+| A11 | WARNING | `allowed-tools` is an intentional pre-approval matching the workflow and is never described as a restriction | Correct the semantics. Narrow a grant only when its extra approval bypass is not required by the trusted workflow. |
+| A12 | WARNING | Frontmatter contains only recognized portable or target-runtime fields; custom taxonomy lives under `metadata` | Remove unknown top-level fields such as `meta`; move custom data under `metadata` |
 
 ### A: Detailed Checks
 
@@ -59,6 +61,12 @@ Search description for `<` or `>` characters. Angle brackets in frontmatter may 
 
 **A10: Negative trigger check**
 If a sibling skill has overlapping domain, check for "Do NOT use for" in description. Only flag when overlap is plausible.
+
+**A11: Permission semantics check**
+In Claude Code, `allowed-tools` pre-approves the listed tools for the invoking turn and does not restrict availability. Verify that bare high-impact grants such as `Bash`, `Write`, or `Edit` are intentional for the skill's trusted workflow. Scope them when only a deterministic command needs pre-approval; use `disallowed-tools` or runtime policy when actual restriction is required.
+
+**A12: Field compatibility check**
+Recognized Claude Code extensions include `when_to_use`, `argument-hint`, `arguments`, `disable-model-invocation`, `user-invocable`, `allowed-tools`, `disallowed-tools`, `model`, `effort`, `context`, `agent`, `background`, `hooks`, `paths`, and `shell`. Portable Agent Skills metadata includes `name`, `description`, `license`, `compatibility`, `metadata`, and `allowed-tools`. Store custom taxonomy inside the `metadata` map, not as an unknown top-level key.
 
 ---
 
@@ -146,9 +154,9 @@ Framework-specific content > 10 lines in SKILL.md must be extracted to `referenc
 | C12 | WARNING | Critical instructions (rules, constraints, "NEVER" items) are in the first third of SKILL.md | Move critical rules to the top — buried instructions get ignored |
 | C6 | SUGGESTION | Tables used for structured data instead of paragraphs | Convert repeated key-value content to tables |
 | C7 | SUGGESTION | Examples show real use cases, not abstract ones | Replace abstract examples with concrete codebase examples |
-| C8 | SUGGESTION | `allowed-tools` is appropriately scoped (not just "all") | Restrict to tools actually needed |
+| C8 | SUGGESTION | Any `allowed-tools` grant matches the workflow's intended approval UX and trust boundary | Keep intentional grants; narrow accidental or unnecessarily broad pre-approvals |
 | C9 | SUGGESTION | Sections follow logical order (Purpose → How → Validate) | Reorder sections |
-| C10 | SUGGESTION | Decision points in procedures have AskUserQuestion guidance | Add AskUserQuestion guidance at decision points where user input is needed |
+| C10 | SUGGESTION | Material, non-inferable decision points explicitly request user input | Add a concise question only where choosing without the user would materially change scope, permissions, cost, or public behavior |
 | C13 | WARNING | SKILL.md teaches patterns, not products. One or two de-facto standards named as examples is allowed; vendor enumeration (3+ competitors listed in decision trees, comparison tables, or "popular X" lists) belongs in references/. Decision trees must be structured primarily by **pattern or constraint**, not by product. | Move vendor enumeration and product-first decision trees to `references/<topic>-providers.md`. Keep SKILL.md structured by pattern/use-case. |
 | C14 | WARNING | Skills comparing tools or vendors lead with a decision tree, not a feature comparison table | Replace feature comparison tables with a decision tree (If X → use Y. If Z → use W.) at the top of the comparison section |
 
@@ -164,7 +172,7 @@ Sections titled "Workflow", "Steps", or "Procedure" must use numbered steps (`1.
 If SKILL.md has `## Commands` or `## Run` section, it must have an error handling table (`| Error | Cause | Solution |`). N/A if no Commands section.
 
 **C10: Decision point interaction check**
-Scan procedures for decision points ("If A/B", "Choose between", "Depends on"). Non-trivial decisions must have AskUserQuestion guidance.
+Scan procedures for decision points ("If A/B", "Choose between", "Depends on"). Routine, reversible choices should be inferred from context. Material choices that cannot be inferred must explicitly request user input.
 
 **C11: Code naming pattern notation**
 Search for `<Placeholder>` or `{Placeholder}` in naming conventions. Flag: use rule + examples format instead. Deduplicate naming conventions into `## Naming` section.
@@ -241,16 +249,16 @@ If SKILL.md has < 30 lines of actual content (excluding frontmatter, headers, bl
 
 | ID | Severity | Check | Fix |
 |----|----------|-------|-----|
-| E1 | CRITICAL | Skill accessible via `.claude/skills/<name>/SKILL.md` (symlink or direct) | Verify `skills/<name>/SKILL.md` exists — `.claude/skills` is a symlink to `../skills/`. If file missing, create it. |
+| E1 | CRITICAL | Canonical skill exists and is exposed by both plugin packages | Verify `skills/<name>/SKILL.md` exists, Claude's root skill discovery can include it, and `.codex-plugin/plugin.json` exposes `./skills/`. |
 
 ### E: Detailed Checks
 
-**E1: Symlink access check**
+**E1: Package exposure check**
 ```
-Check that .claude/skills/<skill-name>/SKILL.md is readable.
-The repo uses symlinks: .claude/skills → ../skills/
-So the actual file must exist at skills/<skill-name>/SKILL.md.
-If not found → skill is not accessible. The agent cannot load it.
+Check that skills/<skill-name>/SKILL.md exists.
+Check that the Claude plugin uses root skills/ discovery or declares that directory.
+Check that .codex-plugin/plugin.json exposes ./skills/.
+If any check fails, the installed plugin cannot load the skill consistently.
 ```
 
 ---

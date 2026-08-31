@@ -1,7 +1,7 @@
 {
   "name": "agent-kit",
-  "version": "2.3.0",
-  "description": "Production-grade agents named after professions — architect, frontend, backend, devops, sre, security, tester, designer, reviewer, writer. Each agent combines a behavioral role-template (architect, implementer, reviewer, operator, writer) with domain knowledge skills.",
+  "version": "3.0.0",
+  "description": "Reusable profession profiles, engineering skills, and native-agent helpers for Claude Code and Codex.",
   "author": {
     "name": "Maksim Misiukevich"
   },
@@ -21,5 +21,17 @@
     "devops",
     "sre",
     "testing"
+  ],
+  "agents": [
+    "./.claude-plugin/agents/architect.md",
+    "./.claude-plugin/agents/backend.md",
+    "./.claude-plugin/agents/designer.md",
+    "./.claude-plugin/agents/devops.md",
+    "./.claude-plugin/agents/frontend.md",
+    "./.claude-plugin/agents/reviewer.md",
+    "./.claude-plugin/agents/security.md",
+    "./.claude-plugin/agents/sre.md",
+    "./.claude-plugin/agents/tester.md",
+    "./.claude-plugin/agents/writer.md"
   ]
 }

@@ -4,14 +4,14 @@
     "name": "Maksim Misiukevich"
   },
   "metadata": {
-    "description": "Curated collection of production-grade agents composed from role-templates and knowledge skills"
+    "description": "Reusable profession profiles, engineering skills, and native-agent helpers"
   },
   "plugins": [
     {
       "name": "agent-kit",
       "source": "./",
-      "description": "Production-grade agents named after professions — architect, frontend, backend, devops, sre, security, tester, designer, reviewer, writer. Each agent composes behavioral role-templates with domain knowledge skills across architecture, backend, frontend, security, DevOps, SRE, testing, design, and documentation.",
-      "version": "2.3.0"
+      "description": "Reusable profession profiles and engineering skills that materialize native Claude and Codex project agents without replacing either runtime's orchestration.",
+      "version": "3.0.0"
     }
   ]
 }

@@ -4,13 +4,13 @@
 
 Before gathering requirements, determine the skill's taxonomy class:
 
-1. **Type**: role / knowledge / meta
+1. **Type**: knowledge / meta. If the request is behavioral role content, route to `agent-creator` and its role-templates instead of creating a runtime skill.
 2. **Scope** (knowledge only): broad / specialized / language / framework / platform-tech / regulatory
 
 Classification decision tree:
 ```
-Does the skill own a domain with workflows and operating modes?
-├── Yes → type: role
+Is this primarily behavioral guidance for a profession or worker?
+├── Yes → route to agent-creator / role-template; do not create a skill
 └── No
     Does it create or manage other skills/agents?
     ├── Yes → type: meta
@@ -26,7 +26,7 @@ Does the skill own a domain with workflows and operating modes?
 
 Classification determines:
 - **Structure template** to use (see CLAUDE.md "Structure Templates by Class")
-- **Agnosticity rules** (broad/role = vendor-agnostic in SKILL.md)
+- **Agnosticity rules** (broad knowledge = vendor-agnostic in SKILL.md)
 - **Sizing expectations** (all classes: soft 500, ceiling ~550 lines; language/framework typically compact 200-300 lines because detail lives in references/)
 
 ## Step 2: Gather Requirements
@@ -75,9 +75,7 @@ Naming rules:
 - Namespace by domain if ambiguous (e.g., `kotlin-be-create-dao`, `frontend-add-page`)
 - Match existing patterns in `skills/`
 
-Present via `AskUserQuestion` with 3 options. The user can also enter their own name.
-
-Proceed only after confirmation.
+If the user supplied a valid name or one candidate clearly matches repository conventions, use it. Present the candidates with `AskUserQuestion` only when naming is a real unresolved choice.
 
 ## Step 6: Write Description
 
@@ -94,20 +92,19 @@ Rules:
 - Be specific -- mention technologies, patterns, file types
 - Add "Do NOT use for..." if skill could be confused with another
 
-Present to user for approval. Iterate if needed.
+Use the draft directly when it faithfully reflects the request. Ask only when sibling boundaries or intended triggers remain ambiguous.
 
 ## Step 7: Generate SKILL.md
 
 Load `references/skill-template.md` from skill base directory.
 
 Select the structure template matching the classification from Step 1:
-- **Role** → What this role owns / Operating modes / Workflow routing / Related Knowledge
 - **Broad knowledge** → Scope and boundaries / Decision tree / Core rules / Context Adaptation
 - **Specialized / language / framework** → Core concepts / Decision points / Hard rules / Anti-Patterns
 - **Meta** → Purpose / Critical rules / Flow selection / Quick reference / Validation
 
 Fill in the template:
-1. Frontmatter: `name`, `description`, `allowed-tools` (scope to needed tools)
+1. Frontmatter: portable `name` + `description`; omit `allowed-tools` unless a reviewed one-turn permission grant is necessary
 2. Content sections based on the classification and plan from Step 3
 3. For skills with procedures: numbered steps, imperative tone
 4. For skills with reference material: tables, decision trees, advisory tone
@@ -139,15 +136,10 @@ For skills with multiple independent procedures: each procedure is a separate fi
 
 ## Step 9: Verify Access
 
-**IMPORTANT**: All files must be written to `skills/<skill-name>/`, NOT `.claude/skills/`.
-
-The repo uses symlinks (`.claude/skills` → `../skills/`), so no installation step is needed. Verify the skill is accessible:
+Write all files to `skills/<skill-name>/`. The Claude plugin discovers the root `skills/` directory and the Codex manifest exposes `./skills/`, so no project-local mirror is needed. Verify the canonical source:
 
 ```bash
-ls .claude/skills/<skill-name>/SKILL.md
+test -f skills/<skill-name>/SKILL.md
 ```
 
-After creation, offer:
-> "Skill created. Want me to run verification to check quality?"
-
-If yes → chain to Flow 2 with the just-created skill.
+After creation, chain to Flow 2 automatically and fix any safe in-scope issues before reporting completion.

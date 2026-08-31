@@ -1,6 +1,6 @@
 # architect role-template
 
-This template defines the **architect** role: how to think, decide, and document before a single line of code is written. It is inlined into agent bodies by `agent-creator`. Domain knowledge (architecture patterns, NFR frameworks) comes from the `architecture` knowledge skill — this template carries behavior only.
+This template defines the **architect** role: how to think, decide, and document before a single line of code is written. Agent bodies are written from it by `agent-creator` and rewritten in their own domain's terms — nothing is copied verbatim, and edits here never propagate to existing agents. Domain knowledge (architecture patterns, NFR frameworks) comes from the `architecture` knowledge skill — this template carries behavior only.
 
 ## Mental model
 
@@ -54,4 +54,4 @@ Never leave an output in prose without structure. The reader should be able to e
 
 ## How this composes
 
-Agents that inline this template typically also inline `implementer` (e.g. `designer`). When multiple templates are combined, the `architect` mode is always the **first** — design before build. Switch to the next template once the decision is documented and the implementer has an unambiguous spec to execute.
+Agents written from this template typically also declare `implementer` (e.g. `designer`). When multiple templates are combined, the `architect` mode is always the **first** — design before build. Switch to the next template once the decision is documented and the implementer has an unambiguous spec to execute.

@@ -1,113 +1,141 @@
-# agent-kit
+# Agent Kit
 
-Production-grade agents and skills — domain expertise packaged as context, not code.
+Agent Kit is a reusable library of software-engineering skills, profession profiles, and helpers for Claude Code and Codex. It packages context and configuration; it does not replace either runtime's native agents, subagents, teammates, workflows, or thread controls.
 
-## Philosophy
+## Mental model
 
-**Context Engineering, not Prompt Engineering.** The performance of an AI agent depends on the entire information pipeline: system prompts, tool definitions, retrieved documents, conversation history. The context window is a finite shared resource — every token loaded competes with the user's actual work. In agent workflows, tool outputs alone consume ~84% of available tokens.
-
-**Skills are the knowledge layer.** MCP servers provide tools (the kitchen); skills provide recipes. A skill covers a domain — deep knowledge of a technology (React, Kubernetes) or a cross-cutting concern (security, observability). Skills are structured text that shape agent behavior through expertise, not through code.
-
-**Progressive disclosure keeps context lean.** Information loads in three levels: YAML frontmatter (always in system prompt, triggers skill selection), SKILL.md body (loaded when skill is relevant), and linked files in workflows/ and references/ (loaded on demand). Every token must earn its place.
-
-**Open standard.** Skills follow the [agentskills.io](https://agentskills.io) specification — they work across Claude Code, Cursor, Windsurf, and 30+ other tools. Claude-first by default; other agents may need adaptation.
-
-## Architecture
-
-Agents are named after **professions**. Each profession is assembled from two ingredients:
-
-- **Role-templates** — behavioral primitives ("how to think, how to structure work"). Live in `skills/agent-creator/templates/`. Copied into the agent body at creation time by the agent-creator meta skill.
-- **Knowledge skills** — domain expertise. Either vendor-neutral (`database`, `caching`) or technology-specific (`react`, `rust`). Auto-triggered by the runtime or preloaded into agents via `skills:` in frontmatter.
-
-**Meta skills** create and manage the rest (agents, skills, hooks, teams, project init).
-
-```
-skills/                            # flat — knowledge + meta, no subcategories
-├── <knowledge-skill>/             # SKILL.md + references + workflows (optional)
-└── agent-creator/
-    ├── templates/                 # role-template assets (architect, implementer, reviewer, operator, writer)
-    ├── SKILL.md
-    └── workflows/
-
-agents/                            # professions — architect, frontend, backend, devops, sre,
-                                   # security, tester, designer, reviewer, writer
-.claude-plugin/                    # plugin manifest
+```text
+Agent Kit library                  Project source                    Native runtime
+skills/                            .agent-kit/agents.json            .claude/agents/*.md
+profiles/                 +        selected profiles + skills  →     .codex/agents/*.toml
+role templates                                                     Claude/Codex orchestration
 ```
 
-Role-templates are **not runtime skills** — the agent-creator inlines them into the agent body. Knowledge skills can live their own life and get picked up by Claude Code on trigger, or preloaded into agents deliberately.
+- A **profile** is a reusable profession such as backend, frontend, tester, or reviewer.
+- A **skill** is reusable domain knowledge such as Rust, React, databases, testing, or accessibility.
+- A **project agent** is a profile configured with the exact skills needed by one project.
+- `agent-orchestrator` chooses the professions, instances, effort, and task split for a concrete task, then uses the host runtime's native delegation.
 
-## Key Principles
+The same project composition can generate both Claude and Codex agents, so switching runtimes does not require copying prompts or rebuilding the team by hand.
 
-- **Description is the sole trigger** — must answer WHAT + WHEN with phrases users would actually say
-- **Progressive disclosure** — frontmatter → body → linked files (3 levels of context loading)
-- **Context is finite** — tool outputs consume ~84% of tokens; budget every line
-- **Code over language** — scripts are deterministic; natural language is not
-- **Composability** — skills load simultaneously and must work alongside each other
-- **Test triggering** — 90%+ coverage on relevant queries, zero false positives
-- **Teach patterns, not products** — SKILL.md teaches the pattern; reference files may use specific vendors as examples
-- **Decision trees before vendor tables** — any skill comparing tools leads with a decision tree
+## Repository layout
+
+```text
+profiles/<name>/
+├── PROFILE.md                    # portable profession behavior
+├── claude.yaml                   # Claude defaults
+└── codex.yaml                    # Codex defaults
+
+skills/<name>/                    # shared knowledge and meta skills
+skills/agent-creator/             # project materialization + profile maintenance
+skills/agent-orchestrator/        # native task-time composition
+
+.claude-plugin/agents/            # generated bundled Claude agents
+.claude-plugin/marketplace.json   # shared repository marketplace catalog
+.codex-plugin/plugin.json         # Codex plugin manifest
+scripts/generate-profiles.mjs     # profile canon → package artifacts
+```
+
+The repository itself does not ship project-local `.claude/` or `.agents/` configuration. Those namespaces belong to consuming projects or local harness setup. The repository marketplace stays under `.claude-plugin/marketplace.json`, which Claude uses natively and current Codex clients accept as a legacy-compatible marketplace source.
 
 ## Installation
 
-### As Plugin (full kit)
+### Claude Code
 
 ```bash
 /plugin marketplace add evilsamaritan/agent-kit
 /plugin install agent-kit@agent-kit
 ```
 
-### Individual skills
+### Codex
+
+```bash
+codex plugin marketplace add evilsamaritan/agent-kit
+codex plugin add agent-kit@agent-kit
+```
+
+Start a new Codex task after installation so the plugin skills enter the session.
+
+## Configure agents for a project
+
+Ask naturally:
+
+```text
+Create agents for this project for both Claude and Codex.
+Use a Rust backend profile with database and API skills, plus a tester.
+```
+
+`agent-creator` writes the portable project source:
+
+```json
+{
+  "schema_version": 1,
+  "agents": [
+    {
+      "name": "backend-rust",
+      "profile": "backend",
+      "skills": ["backend", "api-design", "database", "rust"],
+      "runtimes": ["claude", "codex"]
+    },
+    {
+      "name": "tester",
+      "profile": "tester",
+      "skills": ["testing", "rust"],
+      "runtimes": ["claude", "codex"]
+    }
+  ]
+}
+```
+
+It then materializes:
+
+```text
+.claude/agents/backend-rust.md
+.claude/agents/tester.md
+.codex/agents/backend-rust.toml
+.codex/agents/tester.toml
+```
+
+Generated targets can be rebuilt after an Agent Kit update. Profiles and skills remain in the installed library rather than being copied into every project.
+
+## Run a task team
+
+Ask `agent-orchestrator` for the outcome rather than spelling out runtime mechanics:
+
+```text
+Implement OAuth login. Choose the team, split the work, and use the native workflow for this runtime.
+```
+
+The orchestrator discovers the project's materialized agents, chooses the minimum useful composition, assigns non-overlapping work, and delegates through Claude or Codex directly. If a Codex client cannot apply named custom-agent config yet, it passes the same profile and skill composition to a generic native subagent as a capability-gated fallback. It does not create a proprietary `team.json` or agent runtime.
+
+## Create and share skills
+
+Use `skill-creator` or ask “create a skill for X”. Skills live once under `skills/<name>/` and are exposed by both plugin manifests.
+
+Individual skills can also be installed with:
 
 ```bash
 npx skills add agent-kit/<skill-name>
 ```
 
-### Browse available skills
+## Maintain the profile library
+
+Profile authors edit only `profiles/<name>/`, then regenerate package artifacts:
 
 ```bash
-npx skills find <query>
+node scripts/generate-profiles.mjs
+node scripts/generate-profiles.mjs --check
 ```
 
-### Share instructions with Claude Code
+Role templates under `skills/agent-creator/templates/` describe reusable behavior. Profile bodies adapt them to a profession; templates are not copied verbatim at runtime.
 
-Keep `AGENTS.md` canonical and create a sibling `CLAUDE.md` symlink for Claude
-Code. The script is idempotent and does not overwrite existing files or foreign
-symlinks:
+## Validation
 
 ```bash
-./scripts/link-claude-md.sh /path/to/project /path/to/another-project
+bash scripts/validate-repository.sh
 ```
 
-## Creating Skills
-
-Use the built-in skill creator:
-
-```
-/agent-kit:skill-creator
-```
-
-Or describe what you need naturally — "create a skill for X" triggers the skill-creator automatically.
-
-Key references:
-- [best-practices.md](skills/skill-creator/references/best-practices.md) — authoring patterns and conventions
-- [skill-template.md](skills/skill-creator/references/skill-template.md) — unified template with section guide
-- [verification-checklist.md](skills/skill-creator/references/verification-checklist.md) — quality validation checklist
-
-## Creating Agents
-
-Use the agent-creator:
-
-```
-/agent-kit:agent-creator
-```
-
-The agent-creator assembles an agent by:
-1. Picking one or more **role-templates** from `skills/agent-creator/templates/` — these define behavior and are inlined into the agent body.
-2. Selecting **knowledge skills** to preload via `skills:` in frontmatter.
-3. Writing a short **persona** line and domain-specific output / done criteria.
-4. Setting constraints — permission mode, allowed tools, max turns.
-
-See [AGENTS.md](AGENTS.md) for full frontmatter reference and body structure.
+The validator checks plugin manifests, skill metadata, profile canon, generated package drift, and a temporary project materialization for native Claude and Codex targets.
 
 ## License
 

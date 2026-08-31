@@ -1,0 +1,4 @@
+# Claude Code overlay. Merged on top of PROFILE.md at generation time.
+model: opus
+color: purple
+tools: [Read, Edit, Write, Bash, Glob, Grep, Skill]

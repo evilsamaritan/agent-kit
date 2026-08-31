@@ -17,7 +17,7 @@ Read `references/verification-checklist.md` from skill base directory.
 
 ## Step 3: Read and Parse Skill
 
-**IMPORTANT**: Always read from `skills/<name>/` — this is the source of truth. Never read from `.claude/skills/` (that's a symlink install target).
+Always read from `skills/<name>/` — this is the source of truth exposed by both plugin packages.
 
 Collect all data needed for checks:
 
@@ -26,19 +26,19 @@ Collect all data needed for checks:
 3. **Count lines** — SKILL.md line count (excluding frontmatter)
 4. **List workflows/** — glob for files in `skills/<name>/workflows/`
 5. **List references/** — glob for files in `skills/<name>/references/`
-6. **Check access** — verify `.claude/skills/<name>/SKILL.md` is readable via symlink
+6. **Check packaging** — verify the canonical file exists and the plugin manifests expose `skills/`
 
 ## Step 4: Run All Checks
 
 Execute all 48 checks from Categories A-E:
 
-**Category A: Frontmatter (11 checks)**
+**Category A: Frontmatter (12 checks)**
 - Parse frontmatter YAML
 - Validate name format, description quality, field validity
 - Check description starts with verb, includes trigger phrases
 
-**Category B: Structure (15 checks)**
-- Verify SKILL.md exists and is under 500 lines
+**Category B: Structure (14 checks)**
+- Verify SKILL.md exists and stays within the ~550-line ceiling
 - Check files are properly organized (workflows/ for procedures, references/ for docs)
 - Verify progressive disclosure — SKILL.md is entry point, details in sub-files
 - Verify instruction tone matches content type
@@ -63,7 +63,7 @@ Execute all 48 checks from Categories A-E:
 - Flag thin wrappers
 
 **Category E: Deployment (1 check)**
-- Verify skill is accessible via `.claude/skills/` symlink
+- Verify the canonical skill is included by the Claude and Codex plugin packages
 
 ## Step 5: Generate Report
 
@@ -73,7 +73,7 @@ Execute all 48 checks from Categories A-E:
 ## Skill Verification Report: <skill-name>
 
 **Lines:** <N> (SKILL.md) + <M> (workflows) + <K> (references)
-**Internal:** <yes | no>
+**User-invocable:** <true | false | default true>
 **Workflows:** <N files listed>
 **References:** <N files listed>
 
@@ -99,39 +99,20 @@ Execute all 48 checks from Categories A-E:
 
 **Rules:**
 - ALL checks go into the Results table — one row per check, no grouping by category
-- Order: A1-A11, B1-B15, C1-C14, D1-D7, E1
+- Order: A1-A12, B1-B13, B15, C1-C14, D1-D7, E1
 - PASS checks: short description (3-8 words)
 - FAIL checks: describe what's wrong
 - N/A checks (e.g. C5 for skills without `## Commands`): mark as PASS with "N/A" in description
 
-## Step 6: Apply Fixes
+## Step 6: Apply Fixes When Authorized
 
-**IMPORTANT**: All edits must be applied to `skills/<skill-name>/`, NOT `.claude/skills/` (symlink target).
+Apply all edits to `skills/<skill-name>/`, the shared plugin source.
 
-**MUST use `AskUserQuestion` tool before applying ANY fixes. Do NOT ask in plain text — call the tool.**
+- **Review/verify only:** report failures; do not mutate files.
+- **Fix/improve/actualize:** apply safe in-scope local fixes and re-verify.
+- **Material choice:** ask before changing permissions, external dependencies, public behavior, or scope.
 
-If all 48 checks pass (zero failures) → skip this step, go to Step 7.
-
-If there are ANY failures, call `AskUserQuestion` with these exact options:
-
-| Option | Label | Description |
-|--------|-------|-------------|
-| 1 | Apply all fixes | Fix everything: CRITICAL + WARNING + SUGGESTION |
-| 2 | Critical & Warning only | Fix CRITICAL and WARNING failures, skip suggestions |
-| 3 | Let me choose | Review each fix individually and decide one by one |
-| 4 | Skip fixes | Just the report, don't modify any files |
-
-Then based on the user's choice:
-
-- **"Apply all fixes"** → apply all recommended fixes
-- **"Critical & Warning only"** → apply only CRITICAL and WARNING fixes, skip SUGGESTION
-- **"Let me choose"** → present each fix one by one, user decides per fix
-- **"Skip fixes"** → proceed to Step 7 without changes
-
-For each fix applied:
-1. Show the current content and proposed change
-2. Apply the edit using `Edit` tool
-3. Confirm the fix was applied
+For each applied fix, keep the diff narrow and preserve unrelated user edits.
 
 ## Step 7: Re-verify and Chain
 

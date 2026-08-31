@@ -1,134 +1,113 @@
 ---
 name: agent-creator
-description: Create, verify, or improve custom agents (agents/*.md). Use when creating a new agent, scaffolding agent file, picking role-template(s) and knowledge skills, verifying an existing agent, or improving agent effectiveness. Do NOT use for creating skills (use skill-creator), creating teams of agents (use team-creator), running existing agents (use team-orchestrator), configuring hooks (use hook-creator), or initial project setup that bundles many of the above (use init).
-meta: true
-allowed-tools: Read, Write, Edit, Bash, Glob, Grep, AskUserQuestion
+description: Create, update, delete, sync, or verify project agents assembled from reusable Agent Kit profession profiles and knowledge skills. Use when setting up backend/frontend/tester or other agents for a project, changing their skill combinations, generating native Claude and Codex agent files, or maintaining the bundled profile library. Do NOT use to run agents or assemble a task workflow (use agent-orchestrator) or to create knowledge skills (use skill-creator).
+compatibility: Full Agent Kit plugin installation is required for bundled profiles and materializer dependencies.
 user-invocable: true
+argument-hint: "[create|update|delete|sync|verify] [agent or profile]"
 ---
 
 # Agent Creator
 
-## Concept
+## Critical rules
 
-An agent is named after a **profession** and is built from two ingredients:
+- A **profile** is the reusable profession stored by Agent Kit. A **project agent** is a configured instance of a profile rendered into a host runtime's native format.
+- In a consuming project, edit only `.agent-kit/agents.json`, then run the materializer. Never hand-copy or hand-edit generated `.claude/agents/*.md` or `.codex/agents/*.toml` files.
+- In the Agent Kit repository, edit profile sources only under `profiles/<name>/`, then run `scripts/generate-profiles.mjs`. Never edit `.claude-plugin/agents/` or generated orchestrator profile references.
+- Skills are the agent's exact project knowledge composition when `skills` is present in `.agent-kit/agents.json`. If omitted, the profile defaults apply.
+- Use native runtime targets: Claude Markdown custom agents and Codex TOML custom agents. Do not create a shared pseudo-runtime, wrapper agent, or proprietary execution protocol.
+- Preserve non-generated runtime files. The materializer refuses to overwrite them and prunes only files carrying the Agent Kit generated marker.
+- Default to both Claude and Codex project targets so the project can switch runtimes. Narrow `runtimes` only when the user explicitly wants one host.
+- Ask before expanding access, selecting a materially more expensive model, or deleting a non-generated file. Routine profile/skill selection and regeneration are part of the requested operation.
 
-- **Role-template(s)** — behavioral primitives that describe how to think and structure work. Live at `templates/architect.md`, `templates/implementer.md`, `templates/reviewer.md`, `templates/operator.md`, `templates/writer.md`. Inlined into the agent body at creation time — copy the Mental model, Operating modes, Hard rules, and Anti-patterns sections and condense only where verbatim copy would be unreadable. The agent body should read as one voice, not a stitched-together checklist.
-- **Knowledge skills** — domain expertise (react, database, security, etc.). Referenced via the `skills:` array in the agent frontmatter; preloaded into the agent's context by the runtime.
+## Model
 
-Put together with a short persona line that says who this agent is professionally. The agent body is:
-1. Persona line ("You are a senior <profession> specialized in <domain>.")
-2. Inlined role-template content (one or more)
-3. Output format + "done means" specific to this agent
-
-## Critical Rules
-
-- **Always edit agents in `agents/`** — this is the source of truth. NEVER edit in `.claude/agents/` (it's a symlink to `../agents/`)
-- **Agents are NOT skills** — different frontmatter, different mechanism, different directory
-- **Inlining, not linking** — the role-template content is copied into the agent body. Future edits to a template do NOT propagate to existing agents automatically.
-- **Subagents cannot spawn other subagents** — keep that in mind when choosing `tools`
-- **Agent names are professions, one word** — `frontend`, `devops`, `writer`. Not `frontend-dev`, not `senior-writer-agent`.
-
-## Flow Selection
-
-1. **"Create" / "new" / "scaffold"** → Flow 1: Create
-2. **"Verify" / "review" / "check"** → Flow 2: Verify
-3. **"Improve" / "fix" / "refactor"** → Flow 3: Improve
-4. **Ambiguous** → `AskUserQuestion` with create / verify / improve options
-
-## Quick Reference
-
-| Task | Workflow |
-|------|----------|
-| Create an agent | [workflows/create.md](workflows/create.md) |
-| Verify an agent | [workflows/verify.md](workflows/verify.md) |
-| Improve an agent | [workflows/improve.md](workflows/improve.md) |
-
-## Composition — picking ingredients
-
-### Step 1: pick role-template(s)
-
-Each template defines behavior for one kind of work. An agent may inline one or several templates when the profession spans multiple modes.
-
-| template | use for |
-|----------|---------|
-| `architect` | agents that design before building — architects, designers (UX) |
-| `implementer` | agents that produce artifacts — frontend, backend, tester, devops |
-| `reviewer` | agents that judge artifacts against criteria — reviewer, security, tester (for audits) |
-| `operator` | agents that run live systems — devops, sre |
-| `writer` | agents that produce human-facing text — writer |
-
-When multiple templates are inlined, order them by the workflow sequence: architect → implementer → reviewer → operator → writer (some skipped). Within the agent body, label each section clearly.
-
-### Step 2: pick knowledge skills
-
-Preload the smallest useful set. A skill costs context; only add it if the agent routinely needs that knowledge preloaded rather than auto-triggered.
-
-Examples of typical agent compositions:
-
-```
-frontend   → implementer + [frontend, web, html, css, accessibility]
-backend    → implementer + [api-design, database, auth, caching, backend]
-devops     → implementer + operator + [docker, kubernetes, ci-cd, release-engineering]
-sre        → operator + reviewer + [reliability, observability, performance]
-security   → reviewer + [security, auth, compliance]
-tester     → implementer + reviewer + [testing]
-designer   → architect + implementer + [design, html, css, accessibility]
-architect  → architect + [architecture]
-reviewer   → reviewer + []  (generic — picks up knowledge by context)
-writer     → writer + [documentation]
+```text
+Agent Kit library                  Project source                    Native targets
+profiles/backend/                 .agent-kit/agents.json            .claude/agents/backend-rust.md
+skills/backend/          +        backend + rust + database   →     .codex/agents/backend-rust.toml
+role templates                                                     host-native subagent/workflow
 ```
 
-### Step 3: write the persona + done criteria
+Agent Kit remains the source of profession behavior and reusable skills. The project stores only its composition and optional overrides. Runtime files are derived artifacts.
 
-Short. One sentence each:
-- Who this agent is ("You are a senior frontend engineer focused on React-based SPAs with strict accessibility requirements.")
-- What "done" looks like for this agent ("Deliver a reviewable diff with tests, run type-check + unit tests locally, report files touched and caveats.")
+## Flow selection
 
-## Agent Types
+| Request | Workflow |
+|---------|----------|
+| Create, update, or delete project agents | [workflows/configure-project.md](workflows/configure-project.md) |
+| Sync project runtime files after an Agent Kit update | [workflows/configure-project.md](workflows/configure-project.md), materialize existing config |
+| Create or improve a reusable profession profile in this repository | [workflows/maintain-profile.md](workflows/maintain-profile.md) |
+| Verify project agents or the profile library | [workflows/verify.md](workflows/verify.md) |
 
+Route “choose a team”, “run agents”, or “make a workflow for this task” to `agent-orchestrator`. Route “create a skill for X” to `skill-creator`.
+
+## Composition
+
+### Profession profile
+
+A profile supplies:
+
+- persona and domain-adapted role behavior;
+- default knowledge skills;
+- default effort and access intent;
+- Claude and Codex model defaults.
+
+Read [references/profile-catalog.md](../agent-orchestrator/references/profile-catalog.md) to discover bundled profiles, then load only the selected `profiles/<name>.md` reference when project configuration needs its detail.
+
+### Project skills
+
+Choose the smallest exact set the project agent routinely needs. Start from profile defaults, then replace them when the stack calls for a different composition.
+
+```text
+backend-rust → profile backend + [backend, api-design, database, rust]
+backend-node → profile backend + [backend, api-design, database, javascript, web]
+frontend-react → profile frontend + [frontend, react, web, html, css, accessibility]
 ```
-Agent composition options:
-├── Template agent — inlines role-template(s) + preloaded skills (DEFAULT)
-│   The standard profession agent described above.
-├── Standalone agent — fully custom body, no role-template
-│   Use when: the agent's behavior doesn't fit any template and is not reusable.
-└── Skill-wrapper agent — thin body + single skill preloaded via `skills:`
-    Use when: a meta skill (e.g., hook-creator) is the entire behavior.
+
+Do not preload every possibly related skill. Other installed skills remain discoverable on demand.
+
+### Access
+
+| access | Claude default tools | Codex sandbox default |
+|--------|----------------------|-----------------------|
+| `read-only` | read/search/web/skills | `read-only` |
+| `edits` | read + file edits | `workspace-write` |
+| `full` | read + edits + shell | `workspace-write` |
+
+The current runtime session can impose stricter policy or override a child default. `access` is the intended default, not a way to bypass the host.
+
+## Materializer
+
+The deterministic script lives at [scripts/materialize-agents.mjs](scripts/materialize-agents.mjs). Resolve it from this skill's directory and run it with the project root:
+
+```bash
+node skills/agent-creator/scripts/materialize-agents.mjs --project-root /path/to/project
+node skills/agent-creator/scripts/materialize-agents.mjs --project-root /path/to/project --check
+node skills/agent-creator/scripts/materialize-agents.mjs --project-root /path/to/project --prune
 ```
 
-**Note:** For composing teams of multiple agents, use `team-creator` — it composes existing agents from `agents/` into a team, but it does NOT create new agents. If the team needs a new agent, this skill creates it first.
-
-## Frontmatter Fields
-
-| Field | Required | Type | Rules |
-|-------|----------|------|-------|
-| `name` | Yes | string | Lowercase, single word, must match filename |
-| `description` | Yes | string/`\|` | When to delegate to this agent. Multiline `\|` for complex descriptions |
-| `model` | No | string | `sonnet`, `opus`, `haiku`, full model ID, or `inherit` (default: `inherit`) |
-| `color` | No | string | `orange`, `blue`, `magenta`, `green`, `red`, `purple`, `cyan`, `yellow`, `pink`, `indigo` |
-| `tools` | No | string \| array | `Read, Edit, Bash` or `[Read, Edit, Bash]` |
-| `disallowedTools` | No | string \| array | Tools to explicitly deny |
-| `permissionMode` | No | string | `default`, `acceptEdits`, `dontAsk`, `bypassPermissions`, `plan` |
-| `maxTurns` | No | number | Maximum agentic turns before stopping |
-| `skills` | No | array | Knowledge skills to preload |
-| `mcpServers` | No | array | MCP servers: string references or inline definitions |
-| `hooks` | No | object | Lifecycle hooks (`PreToolUse`, `PostToolUse`, `Stop`) |
-| `memory` | No | string | Persistent memory scope: `user`, `project`, or `local` |
-| `background` | No | boolean | `true` to always run as background task (default: `false`) |
-| `isolation` | No | string | `worktree` for isolated git worktree |
+When Agent Kit is installed as a plugin, use the script's installed absolute path rather than assuming the consuming project contains `skills/agent-creator/`.
 
 ## Validation
 
-After creating or editing an agent, verify:
-1. **File exists**: `ls agents/<agent-name>.md`
-2. **Symlink accessible**: `ls .claude/agents/<agent-name>.md`
-3. **Quality**: run Flow 2 (Verify) for checklist validation
+For a project:
+
+1. Validate `.agent-kit/agents.json` against [references/project-config.md](references/project-config.md).
+2. Run the materializer.
+3. Run it again with `--check`; any drift is a failure.
+4. Parse generated Codex files as TOML and inspect generated Claude frontmatter.
+5. Confirm non-generated native agents were preserved.
+
+For the Agent Kit profile library:
+
+1. Run `node scripts/generate-profiles.mjs`.
+2. Run `node scripts/generate-profiles.mjs --check`.
+3. Run `bash scripts/validate-repository.sh`.
+4. Apply [references/verification-checklist.md](references/verification-checklist.md).
 
 ## References
 
-- [templates/](templates/) — role-template assets inlined into agents
-- [workflows/create.md](workflows/create.md) — Flow 1: Create Agent
-- [workflows/verify.md](workflows/verify.md) — Flow 2: Verify Agent
-- [workflows/improve.md](workflows/improve.md) — Flow 3: Improve Agent
-- [references/agent-template.md](references/agent-template.md) — Agent file template and frontmatter reference
-- [references/verification-checklist.md](references/verification-checklist.md) — Quality validation checklist
+- [references/project-config.md](references/project-config.md) — project composition schema
+- [references/profile-template.md](references/profile-template.md) — reusable profile source format
+- [references/verification-checklist.md](references/verification-checklist.md) — project and library checks
+- [templates/](templates/) — role behavior used when authoring profiles

@@ -1,6 +1,6 @@
 # operator role-template
 
-This template defines the **operator** role: how to perform and manage operations against a live system. Inlined into agent bodies by `agent-creator`. Domain expertise (Kubernetes, reliability patterns, observability tooling) comes from preloaded knowledge skills — this template carries behavior only.
+This template defines the **operator** role: how to perform and manage operations against a live system. Agent bodies are written from it by `agent-creator` and rewritten in their own domain's terms — nothing is copied verbatim, and edits here never propagate to existing agents. Domain expertise (Kubernetes, reliability patterns, observability tooling) comes from preloaded knowledge skills — this template carries behavior only.
 
 ## Mental model
 
@@ -72,4 +72,4 @@ Blameless, factual: **Timeline**, **Root cause**, **Contributing factors**, **Wh
 
 ## How this composes
 
-Agents that inline this template typically also inline `implementer` (e.g. `devops` builds the pipelines) or `reviewer` (e.g. `sre` audits reliability). Pair with knowledge skills for the specific stack: `docker`, `kubernetes`, `reliability`, `observability`, `ci-cd`, `release-engineering`. The template tells the agent **how to operate safely**; the skills tell it **what the specific tooling requires**.
+Agents written from this template typically also declare `implementer` (e.g. `devops` builds the pipelines) or `reviewer` (e.g. `sre` audits reliability). Pair with knowledge skills for the specific stack: `docker`, `kubernetes`, `reliability`, `observability`, `ci-cd`, `release-engineering`. The template tells the agent **how to operate safely**; the skills tell it **what the specific tooling requires**.

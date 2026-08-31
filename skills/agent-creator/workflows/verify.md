@@ -1,107 +1,32 @@
-# Flow 2: Verify Agent
+# Verify Profiles and Project Agents
 
-## Step 1: Identify Target Agent
+## Step 1: Choose scope
 
-Determine which agent to verify:
+- `.agent-kit/agents.json` or generated project targets named → verify the consuming project.
+- `profiles/<name>/` or profile library named → verify the Agent Kit source.
+- Ambiguous inside Agent Kit → verify both the library and one temporary project materialization.
 
-- **User specified a name** → use it
-- **Ambiguous** → List available agents, use `AskUserQuestion`:
-  ```bash
-  ls agents/
-  ```
+## Step 2: Load the checklist
 
-## Step 2: Load Verification Checklist
+Read `../references/verification-checklist.md` in full.
 
-Read `references/verification-checklist.md` from skill base directory.
+## Step 3: Verify a consuming project
 
-## Step 3: Read and Parse Agent
+1. Read `.agent-kit/agents.json` and every referenced native target.
+2. Run the installed materializer with `--check`.
+3. Parse generated Codex targets as TOML.
+4. Validate Claude frontmatter and selected skills.
+5. Verify generated paths match each entry's runtime list.
+6. Verify non-generated agent files were not modified.
 
-Collect all data needed for checks:
+## Step 4: Verify the profile library
 
-1. **Read agent file** — `agents/<name>.md` (full content)
-2. **Parse frontmatter** — extract all fields
-3. **Count lines** — body line count (excluding frontmatter)
-4. **Check skills references** — if `skills:` field exists, verify referenced skills exist
+1. Read `PROFILE.md`, `claude.yaml`, and `codex.yaml` for each target profile.
+2. Run `node scripts/generate-profiles.mjs --check`.
+3. Confirm every declared role has one exact body section and every default skill exists.
+4. Confirm generated Claude agents and orchestrator references match their profiles.
+5. Run `bash scripts/validate-repository.sh`.
 
-## Step 4: Run All Checks
+## Step 5: Report and fix
 
-Execute all checks from the checklist:
-
-**Category A: Frontmatter (12 checks)**
-- Parse frontmatter YAML
-- Validate name format, description quality, field validity
-- Check model, tools, permissionMode values
-- Validate memory, background, isolation fields
-
-**Category B: Structure (7 checks)**
-- Verify body has clear sections
-- Check system prompt quality
-- Verify agent type consistency (standalone vs skill)
-
-**Category C: Content Quality (6 checks)**
-- Scan for filler phrases
-- Check specificity of instructions
-- Verify rules are actionable
-
-**Category D: Anti-Patterns (5 checks)**
-- Duplicate content with other agents
-- Overly broad description
-- Missing done criteria
-
-## Step 5: Generate Report
-
-**Format:**
-
-```markdown
-## Agent Verification Report: <agent-name>
-
-**Type:** <standalone | skill agent>
-**Model:** <model>
-**Body lines:** <N>
-**Skills:** <list or none>
-
-### Results
-
-| ID | Severity | Status | Description |
-|----|----------|--------|-------------|
-| A1 | CRITICAL | PASS   | name field exists |
-| ... |
-
-### Summary
-
-- CRITICAL: X pass, Y fail
-- WARNING: X pass, Y fail
-- SUGGESTION: X pass, Y fail
-
-### Recommended Fixes
-
-1. [ID] Fix description...
-```
-
-## Step 6: Apply Fixes
-
-**MUST use `AskUserQuestion` before applying ANY fixes.**
-
-If all checks pass → skip to Step 7.
-
-If there are failures, call `AskUserQuestion` with options:
-
-| Option | Label |
-|--------|-------|
-| 1 | Apply all fixes |
-| 2 | Critical & Warning only |
-| 3 | Let me choose |
-| 4 | Skip fixes |
-
-For each fix applied:
-1. Show current content and proposed change
-2. Apply the edit
-3. Confirm the fix
-
-## Step 7: Re-verify
-
-After applying fixes:
-1. Re-run failed checks
-2. Output updated summary
-3. If all CRITICAL pass: "Agent is healthy."
-4. If CRITICAL failures remain: list them for manual resolution
+Lead with failures, including file paths and the violated contract. When the user requested a fix or completion, repair safe in-scope issues, regenerate, and rerun every failed check. Do not treat a green narrow check as proof of the full cross-runtime contract.

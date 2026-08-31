@@ -1,6 +1,6 @@
 # reviewer role-template
 
-This template defines the **reviewer** role: how to judge an artifact against criteria. The artifact is a *diff* (change review) or a *codebase* (systematic audit). Inlined into agent bodies by `agent-creator`. Domain-specific rubrics (security OWASP, a11y WCAG, performance anti-patterns) come from preloaded knowledge skills — this template carries behavior only.
+This template defines the **reviewer** role: how to judge an artifact against criteria. The artifact is a *diff* (change review) or a *codebase* (systematic audit). Agent bodies are written from it by `agent-creator` and rewritten in their own domain's terms — nothing is copied verbatim, and edits here never propagate to existing agents. Domain-specific rubrics (security OWASP, a11y WCAG, performance anti-patterns) come from preloaded knowledge skills — this template carries behavior only.
 
 ## Mental model
 
@@ -61,4 +61,4 @@ Explicit list of axes you excluded, modules you skipped, assumptions you made. T
 
 ## How this composes
 
-This template is used by agents scoped to a specific rubric by knowledge skills: `reviewer + security` = security review; `reviewer + accessibility` = a11y audit; `reviewer + performance` = perf review. The template tells the agent **how to review**; the skill tells it **what to check for**. An agent can also inline `architect` for spec reviews, or `auditor`-style scope for full-codebase sweeps — they are the same mode, different input scope.
+This template is used by agents scoped to a specific rubric by knowledge skills: `reviewer + security` = security review; `reviewer + accessibility` = a11y audit; `reviewer + performance` = perf review. The template tells the agent **how to review**; the skill tells it **what to check for**. An agent can also declare `architect` for spec reviews, or `auditor`-style scope for full-codebase sweeps — they are the same mode, different input scope.

@@ -1,10 +1,10 @@
 # Workflow: Optimize Skill Description
 
-Description is the **sole** trigger that determines whether a skill loads when relevant — or stays silent when not. A weak description makes a great skill invisible; an over-broad description steals triggers from siblings.
+Description is the **portable** trigger that determines whether a skill loads when relevant — or stays silent when not. Claude Code can add `when_to_use` and `paths`, but the base description must route correctly in Codex and other Agent Skills runtimes.
 
 This workflow runs static trigger-fraction tests on a skill's description: a list of synthetic queries that *should* trigger the skill, and a list that *should not*. Confirms description quality before committing.
 
-This is a static, deterministic check — no LLM grader. The richer LLM-judge / A-B / Eval modes from Anthropic skill-creator v2 are out of scope for this workflow (planned for a future iteration).
+The fixture is the deterministic regression baseline. When the target runtimes and models are available, supplement it with an A/B evaluation using the same queries; do not replace the stable fixture with ad-hoc impressions.
 
 ---
 
@@ -13,7 +13,7 @@ This is a static, deterministic check — no LLM grader. The richer LLM-judge / 
 User says "improve the description for X" or this workflow is chained from `improve.md`. Either way, read the current description from frontmatter:
 
 ```bash
-head -10 skills/<bucket>/<name>/SKILL.md | sed -n '/^description:/p'
+head -10 skills/<name>/SKILL.md | sed -n '/^description:/p'
 ```
 
 ---
@@ -33,7 +33,7 @@ Compose two lists of natural-language queries (8–12 each):
 - Overlapping keywords with different intent ("rate limit" → backend not security, depends on context)
 - Generic phrases ("performance issue" alone — too vague)
 
-Save the fixture as `skills/<bucket>/<name>/.trigger-fixture.json`:
+Save the fixture as `skills/<name>/references/trigger-fixture.json` and link it from SKILL.md:
 
 ```json
 {
@@ -53,9 +53,9 @@ Save the fixture as `skills/<bucket>/<name>/.trigger-fixture.json`:
 
 ---
 
-## Step 3: Manual classification pass
+## Step 3: Classification pass
 
-For each query, predict whether the *current* description would trigger the skill. This is what the LLM-judge would do — but here we do it ourselves with the description fresh in mind.
+For each query, classify whether the current portable description should route to the skill. Record the rationale so another reviewer can reproduce borderline decisions.
 
 For each query, mark:
 - ✓ TP (true positive) — should trigger AND description matches
@@ -67,7 +67,7 @@ Tally:
 - Recall = TP / (TP + FN) — how many real triggers we catch
 - Specificity = TN / (TN + FP) — how many false triggers we reject
 
-Goal: **>80% recall AND >80% specificity**. If either is below, iterate on description.
+Baseline goal: **≥80% recall AND ≥80% specificity**, with no high-cost false positive that steals a clearly owned sibling task. Tighten thresholds when the skill has enough real examples.
 
 ---
 
@@ -87,12 +87,13 @@ Rerun Step 3 after each edit. Stop when both ≥80%.
 
 ---
 
-## Step 5: Commit and document
+## Step 5: Verify and document
 
 After acceptance:
 1. Update the description in `SKILL.md`
-2. Keep the fixture file at `.trigger-fixture.json` for future regression checks
-3. Note in commit message: "improve <name> description: recall +X%, specificity +Y%"
+2. Keep the fixture at `references/trigger-fixture.json` for future regression checks
+3. If target runtimes are available, run the same fixture against the before/after descriptions and record model/runtime, recall, specificity, and any task-level regressions
+4. Summarize the measured change in the final report or commit message
 
 ---
 
@@ -106,9 +107,4 @@ After acceptance:
 
 ## What this workflow does NOT do
 
-This is a **static** check based on your judgment. It does not:
-- Run an LLM-judge (Anthropic v2 Grader)
-- A/B test two description versions (Anthropic v2 Comparator)
-- Measure real triggering against past conversations (would require trace data)
-
-Those remain on the roadmap. For now: deterministic, manual, repeatable — captured fixtures provide regression coverage.
+The fixture does not by itself prove live runtime selection or task quality. It complements, rather than replaces, model/runtime A/B tests and real trace analysis when those are available.

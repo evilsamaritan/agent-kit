@@ -200,8 +200,8 @@ The transcript is plain Markdown — original question, framed question, all res
 
 ## Related knowledge
 
-- `team-orchestrator` — runs saved agent teams from `team.json`. Use it when you have a defined multi-agent workflow. Use *this* skill for ad-hoc decision pressure-testing where the advisor lineup is fixed (the five thinking lenses).
-- `team-creator` — creates teams of named agents. The council does **not** create or persist any agent — it spawns ephemeral sub-agents with inline personas.
+- `agent-orchestrator` — composes profession agents for a task using the host's native delegation. Use *this* skill for decision pressure-testing where the advisor lineup is fixed to five thinking lenses.
+- `agent-creator` — materializes persistent profession agents. The council does **not** create or persist agents; its advisors are ephemeral.
 - `architecture` skill — when the decision is structural (DDD vs hexagonal, monolith vs microservices), pair the council with the architecture skill so the Executor and First Principles advisors have real patterns to anchor on.
 
 ---

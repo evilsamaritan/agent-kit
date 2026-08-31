@@ -1,6 +1,6 @@
 ---
 name: hook-creator
-description: Design and validate Claude Code hooks (PreToolUse, PostToolUse, Stop, SessionStart, SessionEnd, UserPromptSubmit, PreCompact, Notification, SubagentStop, TeammateIdle, TaskCompleted). Use when adding a hook, auditing existing hooks, troubleshooting a hook that did not fire or fired wrongly, designing quality gates for Agent Teams, or reviewing hook security. Provides static command analyzer and dry-run with synthetic payloads. Do NOT use to write settings.json directly (delegate writes to update-config skill) or to spawn agents (use team-orchestrator).
+description: Design and validate Claude Code hooks (PreToolUse, PostToolUse, Stop, SessionStart, SessionEnd, UserPromptSubmit, PreCompact, Notification, SubagentStop, TeammateIdle, TaskCompleted). Use when adding a hook, auditing existing hooks, troubleshooting a hook that did not fire or fired wrongly, designing quality gates for native Agent Teams, or reviewing hook security. Provides static command analyzer and dry-run with synthetic payloads. Do NOT use to write settings.json directly (delegate writes to update-config skill) or to spawn agents (use agent-orchestrator).
 allowed-tools: Read, Write, Bash, Glob, Grep, AskUserQuestion, Skill
 user-invocable: true
 argument-hint: "[add|audit|troubleshoot] [event-name]"
@@ -175,4 +175,4 @@ The validator emits both WARNING and DANGER levels. DANGER is a hard stop — re
 ## Related Knowledge
 
 - `update-config` — actual write to settings.json (this skill delegates to it)
-- `/team-orchestrator` — uses TeammateIdle / TaskCompleted hooks for quality gates
+- `agent-orchestrator` — may use native teammate hooks when the host runtime exposes them

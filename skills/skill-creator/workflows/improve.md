@@ -42,16 +42,16 @@ Identify root causes:
 
 | Symptom | Possible Root Cause |
 |---------|-------------------|
-| Skill doesn't trigger | Description missing trigger keywords |
+| Skill doesn't trigger | Portable description misses the key use case; Claude-only `when_to_use`/`paths` may be needed for extra routing |
 | Agent doesn't follow steps | Steps are ambiguous, missing decision points |
 | Output is wrong/incomplete | Missing context, wrong examples, stale content |
-| Too verbose / wastes tokens | Content not properly split into sub-files (progressive disclosure) |
+| Too verbose / wastes tokens | Repeated rules, routine steps, or conditional detail are loaded into every invocation |
 | Agent improvises too much | Tone too advisory for procedural content, steps not specific enough |
 | Agent is too rigid | Tone too imperative for reference material, missing adaptation guidance |
 
-## Step 4: Propose Changes
+## Step 4: Bound Changes
 
-Present a structured change proposal to the user:
+Build a structured change set. Present it before editing only when a material choice remains unresolved; otherwise use it as the implementation checklist:
 
 ```markdown
 ## Proposed Changes for <skill-name>
@@ -73,30 +73,24 @@ Present a structured change proposal to the user:
 - [ ] workflows/migrate.md — migration procedure
 ```
 
-Use `AskUserQuestion` to confirm:
-- **"Apply all changes"**
-- **"Let me choose which changes to apply"**
-- **"Modify the proposal first"**
+If the user asked to improve, fix, refactor, audit-and-actualize, or otherwise change the skill, the request authorizes safe in-scope local edits. Ask only when a proposed change materially expands scope, changes permissions, introduces external dependencies, or chooses among meaningfully different contracts.
 
 ## Step 5: Apply Changes
 
-For each approved change:
+For each in-scope change:
 
 1. Read the target file
 2. Apply the edit using `Edit` tool (or `Write` for new files)
 3. Confirm the change was applied
 
-After all changes, verify the skill is accessible via symlink:
+After all changes, verify the canonical skill source exists:
 ```bash
-ls .claude/skills/<skill-name>/SKILL.md
+test -f skills/<skill-name>/SKILL.md
 ```
 
-## Step 6: Verify (Optional)
+## Step 6: Verify
 
-Offer to chain to Flow 2:
-> "Changes applied. Want me to run verification to confirm everything is clean?"
-
-If yes → chain to Flow 2 (Verify) with the improved skill.
+Always chain to Flow 2 after editing. Re-run failed checks and the repository validator before reporting completion.
 
 ---
 

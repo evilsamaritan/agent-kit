@@ -24,15 +24,15 @@ Consolidated knowledge for writing high-quality skills. The context window is a 
 
 The context window is a shared, finite resource. Design skills with this in mind.
 
-- **Context is finite** — tool outputs consume ~84% of tokens in agent workflows. Every line in a skill competes with the user's actual work.
+- **Context is finite** — tool output and repeated instructions often dominate long agent runs. Every loaded line competes with the user's actual work.
 - **Lost-in-Middle effect** — models have U-shaped attention across long contexts. Place critical instructions at the start and end, not in the middle.
 - **Four-Bucket strategy** for context management:
   - Write: store information externally (files, databases)
   - Select: retrieve only what's relevant (targeted reads, not bulk loads)
   - Compress: summarize verbose outputs before returning
   - Isolate: split work across sub-agents to parallelize context usage
-- **Compaction threshold** — at 70-80% context utilization, earlier messages get compressed. Front-load critical information.
-- **Description budget** — all skill descriptions combined should fit within ~2% of the context window. Soft target 80-500 chars per description, hard cap 1024 — spend the budget on trigger phrases and negative triggers, not prose.
+- **Compaction is runtime-managed** — do not depend on a fixed threshold or on early details surviving unchanged. Persist durable state externally and front-load critical constraints.
+- **Description budget is runtime-managed** — Codex budgets the initial skill list and may shorten descriptions; Claude Code truncates combined `description` + `when_to_use` text. Front-load the key use case and keep `description` sufficient on its own.
 
 ---
 
@@ -153,7 +153,7 @@ How you write instructions affects how the agent executes them. Match tone to co
 | Mixed (structured + flexible) | Structured with adaptation | "Do X. Adapt Y based on [context]. Verify Z." |
 
 **How tone affects agent behavior:**
-- **Imperative**: Agent follows steps exactly, minimal deviation. Ask user when uncertain.
+- **Imperative**: Agent follows steps exactly with minimal deviation. It infers routine reversible details and asks only about material uncertainty.
 - **Advisory**: Agent uses as reference material. Decides what to apply based on situation.
 - **Structured with adaptation**: Agent follows the structure and sequence, but adapts content to the specific context.
 
@@ -196,15 +196,15 @@ Name: lowercase, hyphens only (`my-skill-name`).
 Skills should interact with the user at decision points, not dump information.
 
 **Rules:**
-- Use `AskUserQuestion` for choices between approaches
+- Use `AskUserQuestion` for material choices between approaches that cannot be inferred safely
 - Present options with clear trade-offs
 - Confirm destructive or irreversible actions
-- Show generated content for approval before writing files
+- When the user requested creation or modification, apply safe in-scope local writes without a redundant approval round
 
 **When to interact:**
 - Naming decisions (skill name, file names)
 - Architecture choices (which template, which approach)
-- Before writing files (show preview, get confirmation)
+- Before external, destructive, costly, permission-expanding, or materially scope-changing actions
 - When requirements are ambiguous
 
 **When NOT to interact:**
@@ -212,9 +212,9 @@ Skills should interact with the user at decision points, not dump information.
 - File reading and analysis (do silently)
 - Obvious next steps in a defined workflow
 
-### 3. Decision Points: Ask, Don't Prescribe
+### 3. Decision Points: Infer, Then Ask When Material
 
-At decision points with multiple valid approaches, use `Ask:` blocks to gather user constraints before recommending. This is the agnostic alternative to hardcoded defaults — the skill helps the user choose, it doesn't choose for them.
+At decision points with multiple valid approaches, first inspect the request, repository, and established conventions. Use `Ask:` blocks only when the remaining choice materially changes scope, permissions, cost, public behavior, or reversibility.
 
 **Pattern:**
 ```markdown
@@ -225,10 +225,10 @@ Ask: What framework is the project using?
 ```
 
 **Rules:**
-- Place `Ask:` before decision trees and comparison tables
+- Place `Ask:` before decision trees only when the relevant constraint cannot be inferred
 - Frame questions around constraints (framework, scale, team size, existing tooling)
 - Present 2-4 options with clear trade-offs, not exhaustive lists
-- Use `AskUserQuestion` tool at runtime for interactive decisions
+- Use `AskUserQuestion` at runtime for unresolved material decisions
 - Default recommendations are OK as tiebreakers, but present alternatives
 
 **When to use:**
@@ -279,7 +279,7 @@ Skills should anticipate common failures and provide recovery paths.
 
 ## Description Writing Guide
 
-The description is the **sole trigger mechanism** — the agent uses it to decide when to apply the skill.
+The description is the **portable trigger mechanism**. Claude Code can append `when_to_use` and apply `paths`, but Codex and other Agent Skills runtimes must be able to route from `description` alone.
 
 ### Formula
 
@@ -348,27 +348,34 @@ Choose an approach based on the use case:
 
 | Field | Default | Rules |
 |-------|---------|-------|
-| `allowed-tools` | all | Comma-separated (NOT YAML list). Valid: `Read`, `Write`, `Edit`, `Bash`, `Glob`, `Grep`, `Task`, `WebSearch`, `WebFetch`, `AskUserQuestion`, `Skill`, `EnterPlanMode`. |
+| `allowed-tools` | none | Portable pre-approval field. In Claude Code it grants listed tools while the skill is active without restricting unlisted tools. String or YAML list. |
+| `disallowed-tools` | none | One-turn Claude Code restriction. String or YAML list. |
+| `when_to_use` | — | Claude Code routing extension. Extra trigger examples; keep `description` portable. |
 | `user-invocable` | `true` | Boolean. Set `false` to hide from `/slash` menu while keeping auto-discovery. |
 | `context` | — | Set to `fork` for isolated sub-agent execution. |
 | `agent` | `general-purpose` | Only with `context: fork`. Options: `Explore`, `Plan`, `general-purpose`. |
 | `model` | conversation model | Override model for this skill. Agent-specific model IDs. |
+| `effort` | session effort | Model-dependent override: `low`, `medium`, `high`, `xhigh`, or `max`. |
+| `background` | `true` with fork | With `context: fork`, set `false` to wait for the result. |
 | `hooks` | — | Lifecycle hooks: `PreToolUse`, `PostToolUse`, `Stop`. See AGENTS.md for format. |
 | `argument-hint` | — | Autocomplete hint for arguments (e.g., `[issue-number]`, `[filename]`). |
+| `arguments` | — | Named positional arguments for `$name` substitution. |
 | `disable-model-invocation` | `false` | Prevent agent from auto-loading this skill. |
 | `license` | — | Open-source license (e.g., `MIT`, `Apache-2.0`). For distribution. |
 | `compatibility` | — | Environment requirements, 1-500 chars (intended product, system packages, network access). |
 | `metadata` | — | Custom key-value pairs: `author`, `version`, `mcp-server`, `category`, `tags`. |
+| `paths` | — | Claude Code activation globs for path-specific skills. |
+| `shell` | `bash` | Shell for dynamic context blocks (`bash` or `powershell`). |
 
 **String substitution:** `$ARGUMENTS` (or `$1`, `$2`, `$ARGUMENTS[0]`) substitutes user input. `${CLAUDE_SESSION_ID}` provides session-specific paths.
 
 **Dynamic context injection:** `` `!command` `` in skill body injects live command output at load time.
 
-**Scoped tool access:** `allowed-tools` supports scoped syntax: `"Bash(python:*) Bash(npm:*) WebFetch"` restricts Bash to specific commands.
+**Scoped permission grants:** `allowed-tools` supports scoped syntax such as `"Bash(python:*) Bash(npm:*) WebFetch"`; only matching Bash commands are pre-approved. Other tools still exist unless runtime policy or `disallowed-tools` removes them.
 
 ### Validation Rules
 
-`name` must match directory name. `name` must not start or end with a hyphen, and must not contain consecutive hyphens (`--`). `description` must not use YAML multi-line (`>`, `|`). `allowed-tools` must be comma-separated string, not YAML list. `context: fork` requires `agent`. No unknown fields (silently ignored).
+For this portable repository, `name` matches the directory, uses lowercase kebab-case, and `description` stays single-line. `context: fork` may name an `agent`; otherwise the runtime default applies. Unknown Claude-only fields can break Skills API or claude.ai uploads even when Claude Code accepts them, so distinguish portable metadata from runtime extensions.
 
 ---
 
@@ -377,8 +384,8 @@ Choose an approach based on the use case:
 ### Scripts for deterministic validation
 Replace natural language validation instructions with executable scripts in `scripts/`. A script either passes or fails — no interpretation ambiguity.
 
-### Tool restriction with `allowed-tools`
-Read-only skills: `Read, Grep, Glob`. File modification: `Edit, Write`. Only grant `Bash` when the skill runs commands.
+### Permission grants and restrictions
+`allowed-tools` pre-approves tools while the skill is active in Claude Code; it does not limit availability. Match the grant to the intended approval UX and trust boundary. Prefer a scoped grant when only a deterministic command should run without a prompt. Use `disallowed-tools` or runtime permission policy when actual restriction is required.
 
 ### Fork context for isolation
 `context: fork` runs the skill as a sub-agent with its own context window. Use for skills that consume significant context to avoid polluting the main conversation.
@@ -386,8 +393,8 @@ Read-only skills: `Read, Grep, Glob`. File modification: `Edit, Write`. Only gra
 ### Skills preloading in agents
 The `skills:` frontmatter field in agents injects full skill content into the sub-agent's context at startup. Use when the agent always needs the skill.
 
-### Model laziness mitigation
-For skills where thoroughness matters, add a `## Performance Notes` section with: "Take your time to do this thoroughly. Quality is more important than speed. Do not skip validation steps."
+### Model and effort tuning
+Do not add generic “think harder” or “take your time” prose. Preserve outcome, evidence, validation, and stop criteria; compare model/effort changes on representative tasks and keep an override only when it measurably improves the contract.
 
 ---
 
@@ -407,20 +414,22 @@ Skills are NOT packages. Do not add:
 
 ## Skills Distribution
 
-Skills live in `skills/<name>/`, agents in `agents/<name>.md`. IDE directories (`.claude/skills/`, `.claude/agents/`, `.cursor/skills/`, etc.) are directory-level symlinks — `.claude/skills → ../skills/` and `.claude/agents → ../agents/`. No installation or sync step is required.
+Skills live in `skills/<name>/`; reusable profession profiles live in `profiles/<name>/`. Agent Kit materializes project agents into each runtime's native directory instead of copying skill or profile sources.
 
 | Aspect | Details |
 |--------|---------|
 | Skills source | `skills/<name>/` |
-| Agents source | `agents/<name>.md` |
-| Access | `.claude/skills → ../skills/`, `.claude/agents → ../agents/` |
-| External skills | `npx skills add <package>` (agents auto-resolved via symlinks) |
+| Profile source | `profiles/<name>/PROFILE.md` |
+| Project composition | `.agent-kit/agents.json` |
+| Runtime targets | `.claude/agents/*.md`, `.codex/agents/*.toml` |
+| Package exposure | Claude root `skills/` discovery; Codex manifest `./skills/` |
+| External skills | `npx skills add <package>` |
 | Discovery | `npx skills find <query>` |
 
-Always edit in `skills/` or `agents/`, never in `.claude/` directories.
+Always edit reusable knowledge in `skills/`, reusable professions in `profiles/`, and project composition in `.agent-kit/agents.json`. Never hand-edit generated runtime agents.
 
 ---
 
 ## Testing Checklist
 
-After creating a skill: (1) frontmatter parses (`name` + `description` present), (2) accessible via symlink (`ls .claude/skills/<name>/SKILL.md`), (3) trigger works (describe task naturally, agent picks up skill), (4) slash command works (`/<skill-name>`), (5) sub-files load on demand, (6) workflow completes end-to-end, (7) output is correct.
+After creating a skill: (1) frontmatter parses (`name` + `description` present), (2) canonical source exists and both plugin packages expose `skills/`, (3) positive and negative trigger fixtures route correctly, (4) direct invocation works, (5) sub-files load on demand, (6) workflow completes end-to-end, (7) output meets explicit acceptance criteria, and (8) `./scripts/validate-repository.sh` passes.

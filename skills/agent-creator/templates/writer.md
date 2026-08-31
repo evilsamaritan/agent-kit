@@ -1,6 +1,6 @@
 # writer role-template
 
-This template defines the **writer** role: how to produce text that humans will read. Inlined into agent bodies by `agent-creator`. Domain expertise (documentation patterns, API reference conventions, ADR structure, README norms) comes from the `documentation` knowledge skill — this template carries behavior only.
+This template defines the **writer** role: how to produce text that humans will read. Agent bodies are written from it by `agent-creator` and rewritten in their own domain's terms — nothing is copied verbatim, and edits here never propagate to existing agents. Domain expertise (documentation patterns, API reference conventions, ADR structure, README norms) comes from the `documentation` knowledge skill — this template carries behavior only.
 
 ## Mental model
 
@@ -60,4 +60,4 @@ For **audits**, the output is a punchlist: one line per issue, with severity and
 
 ## How this composes
 
-Agents inlining this template typically also load the `documentation` knowledge skill (patterns, conventions, project-specific norms). The template tells the agent **how to write for a reader**; the skill tells it **what format the project expects**. For ADRs and architectural documents, the `writer` template pairs with the `architect` template — the architect decides, the writer communicates the decision.
+Agents written from this template typically also load the `documentation` knowledge skill (patterns, conventions, project-specific norms). The template tells the agent **how to write for a reader**; the skill tells it **what format the project expects**. For ADRs and architectural documents, the `writer` template pairs with the `architect` template — the architect decides, the writer communicates the decision.

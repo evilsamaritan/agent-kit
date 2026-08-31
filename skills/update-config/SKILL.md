@@ -1,6 +1,6 @@
 ---
 name: update-config
-description: Configure the Claude Code harness by writing to settings.json — permissions allowlists, environment variables, hooks, slash-command registration. Use when the request is "allow this command", "move permission to user settings", "set DEBUG=true", "add a hook that runs on Stop", "whenever the model does X run Y". Owns all writes to ~/.claude/settings.json, .claude/settings.json, and .claude/settings.local.json. Do NOT use for hook design or validation (use hook-creator first), team config (use team-creator), or creating new agents/skills (use agent-creator/skill-creator).
+description: Configure the Claude Code harness by writing to settings.json — permissions allowlists, environment variables, hooks, slash-command registration. Use when the request is "allow this command", "move permission to user settings", "set DEBUG=true", "add a hook that runs on Stop", or "whenever the model does X run Y". Owns writes to Claude settings files. Do NOT use for hook design or validation (use hook-creator first), project-agent composition (use agent-creator), or creating knowledge skills (use skill-creator).
 allowed-tools: Read, Write, Edit, Bash, Glob, Grep, AskUserQuestion
 user-invocable: true
 argument-hint: "[allow|env|hook|slash] <value>"
@@ -131,4 +131,4 @@ After writing settings.json:
 
 - `hook-creator` — designs + validates hook commands; delegates the write here
 - `init` — project bootstrap; calls this skill to register default slash commands and quality hooks
-- `team-orchestrator` — quality gates via `TeammateIdle`/`TaskCompleted` hooks go through this skill
+- `agent-orchestrator` — native teammate quality gates still route settings writes through this skill
