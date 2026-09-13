@@ -432,4 +432,4 @@ Always edit reusable knowledge in `skills/`, reusable professions in `profiles/`
 
 ## Testing Checklist
 
-After creating a skill: (1) frontmatter parses (`name` + `description` present), (2) canonical source exists and both plugin packages expose `skills/`, (3) positive and negative trigger fixtures route correctly, (4) direct invocation works, (5) sub-files load on demand, (6) workflow completes end-to-end, (7) output meets explicit acceptance criteria, and (8) `./scripts/validate-repository.sh` passes.
+After creating a skill: (1) frontmatter parses (`name` + `description` present), (2) canonical source exists and both plugin packages expose `skills/`, (3) the description covers observed requests without stealing sibling tasks, (4) direct invocation works, (5) sub-files load on demand, (6) workflow completes end-to-end, (7) output meets explicit acceptance criteria, and (8) `./scripts/validate-repository.sh` passes.

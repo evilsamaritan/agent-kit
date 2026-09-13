@@ -1,414 +1,223 @@
-# Architecture Patterns
+# Architecture Styles and System Shapes
+
+Architecture styles constrain dependencies, state, communication, and deployment. They are compatible building blocks, not exclusive labels for an entire codebase.
 
 ## Contents
 
-- [Choosing an Architecture Style](#choosing-an-architecture-style)
-- [Layered Architecture (N-Tier)](#layered-architecture-n-tier)
-- [Hexagonal Architecture (Ports and Adapters)](#hexagonal-architecture-ports--adapters)
-- [Clean Architecture](#clean-architecture)
-- [Domain-Driven Design (DDD)](#domain-driven-design-ddd)
+- [Choose the decision level](#choose-the-decision-level)
+- [Selection map](#selection-map)
+- [Simple and modular monoliths](#simple-and-modular-monoliths)
+- [Layered architecture](#layered-architecture)
+- [Hexagonal and clean architecture](#hexagonal-and-clean-architecture)
+- [Domain-driven design](#domain-driven-design)
+- [Microservices](#microservices)
+- [Event-driven architecture](#event-driven-architecture)
 - [CQRS](#cqrs)
-- [Event Sourcing](#event-sourcing)
-- [Monolith vs Modular Monolith vs Microservices](#monolith-vs-modular-monolith-vs-microservices)
-- [Serverless / FaaS](#serverless--faas)
-- [Cell-Based Architecture](#cell-based-architecture)
-- [Edge Computing](#edge-computing)
-- [Data Mesh](#data-mesh)
-- [Feature Flags and Trunk-Based Development](#feature-flags-and-trunk-based-development)
+- [Event sourcing](#event-sourcing)
+- [Serverless, cells, and edge](#serverless-cells-and-edge)
+- [Combining styles](#combining-styles)
 
----
+## Choose the decision level
 
-## Choosing an Architecture Style
+Separate three decisions that are often conflated:
 
-```
-Business logic is the main complexity?
-  YES → DDD + Hexagonal or Clean Architecture
+| Decision | Examples | Independent of |
+|---|---|---|
+| Code organization | layered, hexagonal, feature-oriented modules | number of deployments |
+| Domain boundaries | capabilities, bounded contexts, state owners | process and network placement |
+| Runtime topology | one process, services, functions, cells, edge nodes | internal code style |
 
-Event-driven / data pipeline?
-  YES → Event-driven architecture (streaming, pipes-and-filters)
+A modular monolith can use hexagonal boundaries and events. A microservice can still be an unstructured transaction script. Moving code over a network does not create better architecture.
 
-Simple CRUD, few business rules?
-  YES → Layered (3-tier) / MVC
+## Selection map
 
-Short-lived, request-driven, unpredictable traffic?
-  YES → Serverless / FaaS
+Start with the forces:
 
-Read and write workloads radically different?
-  YES → Consider CQRS for the hot path (not the whole system)
+```text
+Need the lowest coordination and operational cost?
+  -> one deployable; add explicit modules when change boundaries appear
 
-Need complete audit trail / temporal queries?
-  YES → Event Sourcing (with CQRS)
+Is business policy the primary complexity and infrastructure volatile?
+  -> core plus ports/adapters; optionally use DDD to discover the model
 
-Need independent failure isolation at massive scale?
-  YES → Cell-based architecture (partition by tenant/region)
+Do independently owned capabilities need independent release, scale,
+security, or failure isolation?
+  -> consider services, but only with independent data and operations
 
-Team > 50, team autonomy is the constraint?
-  YES → Microservices (if and only if above is true)
-```
+Do independent consumers react to completed facts at different times?
+  -> consider events; preserve clear ownership and delivery semantics
 
----
+Are read and write models materially different?
+  -> separate query representation; adopt full CQRS only if needed
 
-## Layered Architecture (N-Tier)
+Is history itself authoritative?
+  -> consider event sourcing for the bounded scope that needs it
 
-**Structure:** Presentation → Business Logic → Data Access → Database  
-Each layer depends only on the layer below.
-
-**Use when:** Simple CRUD, small team, rapid prototyping, well-understood domain.
-
-**Weakness:** Domain logic leaks between layers. Database structure drives the design. Hard to test business logic without infrastructure.
-
-**Improvement:** Apply DIP to the data access layer — define a repository interface in the business layer, implement it in data access. This is the minimal refactor toward hexagonal.
-
----
-
-## Hexagonal Architecture (Ports & Adapters)
-
-**Core idea:** The application core (domain + use cases) has zero knowledge of HTTP, databases, UI, or external services. Communication happens through:
-- **Ports:** interfaces owned by the core (e.g., `OrderRepository`, `EmailSender`)
-- **Adapters:** implementations living outside the core (e.g., `PostgresOrderRepository`, `SendGridEmailSender`)
-
-**Structure:**
-```
-Core (domain + use cases)
-  ├── ports/
-  │   ├── OrderRepository (interface)
-  │   └── EmailSender (interface)
-  └── domain/
-      └── Order, OrderService, ...
-
-Infrastructure (adapters)
-  ├── PostgresOrderRepository implements OrderRepository
-  ├── SendGridEmailSender implements EmailSender
-  └── HttpOrderController (drives the application)
+Does locality, tenant isolation, or burst-to-zero dominate?
+  -> evaluate edge, cells, or functions after operational constraints
 ```
 
-**Dependency rule:** Everything depends on the core. Core depends on nothing external.
+Prefer a local code boundary before a process boundary, and a process boundary before a network boundary. Cross a boundary only when its benefit exceeds coordination, latency, failure, compatibility, and operational costs.
 
-**Use when:** You need to swap infrastructure (testing with in-memory, migrating DBs, adding a new UI). Business logic is the primary complexity. You want testable domain logic without real infrastructure.
+## Simple and modular monoliths
 
-**Testing benefit:** The entire core can be tested without any infrastructure — inject test doubles for all ports.
+### Simple monolith
 
----
+One deployable with minimal internal ceremony fits a small or uncertain domain where rapid learning dominates. It becomes unhealthy when unrelated capabilities share mutable state and every change touches the same central code.
 
-## Clean Architecture
+### Modular monolith
 
-**Same principle as hexagonal, adds explicit layer names:**
+One deployable contains modules with explicit contracts and controlled dependencies.
 
+**Useful when:**
+
+- domain or feature boundaries are known;
+- transactional work benefits from local calls;
+- independent deployment is not a demonstrated constraint;
+- the team wants low operational cost with strong internal separation.
+
+**Required discipline:**
+
+- each invariant and table has an owner;
+- cross-module access uses public contracts;
+- dependency direction is enforced;
+- internal models do not leak through shared utility packages;
+- module boundaries have contract and integration tests.
+
+**Warning:** a folder-per-module without import control, state ownership, and contracts is only visual modularity.
+
+## Layered architecture
+
+Layered architecture separates presentation, application, domain, and infrastructure concerns.
+
+**Useful when:** flow is mostly request/response, policy is straightforward, and consistent separation improves comprehension.
+
+**Costs:** changes organized by capability may cross every layer; generic service/repository layers can become pass-through ceremony; dependencies may drift toward the database model.
+
+Organize by capability first when possible, then use layers inside each capability. Enforce dependency direction rather than assuming folder names create it.
+
+## Hexagonal and clean architecture
+
+Both place application/domain policy inside and mechanisms outside.
+
+```text
+driver adapters -> use-case contracts -> domain policy
+                                      -> required ports <- driven adapters
 ```
-Entities (enterprise business rules)
-  ↑ depends on nothing
-Use Cases (application business rules)
-  ↑ depends on Entities
-Interface Adapters (controllers, presenters, gateways)
-  ↑ depends on Use Cases
-Frameworks & Drivers (UI, DB, web)
-  ↑ depends on Interface Adapters
-```
 
-**Dependency Rule:** Source code dependencies point inward only. Inner circles know nothing about outer circles.
+**Useful when:**
 
-**"Screaming Architecture":** The top-level folder structure should reveal the domain intent, not the technology: `orders/`, `payments/`, `inventory/` — not `controllers/`, `services/`, `repositories/`.
+- domain policy should outlive transports or storage;
+- several drivers invoke the same use cases;
+- external dependencies need semantic translation;
+- tests need deterministic control of time, identity, I/O, or vendors.
 
-**vs. Hexagonal:** Conceptually equivalent. Clean Architecture prescribes layer names and the screaming architecture principle. Hexagonal emphasizes the ports/adapters metaphor and the symmetry between drivers (UI/API calling the core) and driven (DB/external services called by the core).
+**Costs:** extra types, mapping, composition, and navigation. Avoid one interface per class or ports that merely reproduce a vendor API.
 
----
+The core owns port semantics. An adapter translates external behavior into that semantic contract. Keep framework and persistence types at the edge.
 
-## Domain-Driven Design (DDD)
+## Domain-driven design
 
-Use when: Business logic is complex and evolves. Domain experts exist. The system's value is in how it models the real-world domain.
+DDD is a modeling approach, not a deployment topology.
 
-### Strategic DDD
+Use strategic DDD when language and business rules differ across parts of a complex domain:
 
-**Bounded Context:** An explicit boundary within which a domain model is consistent. The same word can mean different things in different contexts.
-- "Customer" in Billing ≠ "Customer" in Support ≠ "Customer" in Shipping
-- Bounded contexts often become module/service boundaries
+- **bounded context** — one internally consistent model and vocabulary;
+- **context map** — relationships and translation between models;
+- **core domain** — differentiating capability deserving the deepest investment;
+- **supporting/generic domain** — necessary but less differentiating capability.
 
-**Ubiquitous Language:** A shared vocabulary between developers and domain experts, used consistently in code, tests, and conversations. If code uses different terms than the business uses, there's a translation layer accumulating bugs.
+Use tactical patterns only where they clarify real invariants:
 
-**Subdomain classification:**
-- **Core domain:** Where competitive advantage lives. Invest heavily. Build, don't buy.
-- **Supporting domain:** Necessary but not differentiating. Build lean.
-- **Generic domain:** Commodity capability. Buy or use open source.
+- **entity** for identity across change;
+- **value object** for immutable value semantics;
+- **aggregate** for a transactional invariant boundary;
+- **domain service** for policy belonging to no single entity;
+- **domain event** for a meaningful completed fact;
+- **repository** when the domain benefits from collection-like persistence semantics.
 
-**Context Map patterns** (how bounded contexts relate):
-- **Shared Kernel:** Two contexts share a small, explicitly agreed model
-- **Customer/Supplier:** Upstream publishes, downstream consumes; downstream has negotiating power
-- **Anticorruption Layer:** Downstream translates upstream's model into its own — prevents conceptual pollution
-- **Published Language:** A well-documented interchange language (e.g., standard event schema)
+Avoid DDD terminology when the domain is simple, experts do not use the model, or objects merely wrap CRUD records.
 
-### Tactical DDD
+## Microservices
 
-**Entity:** Has identity. Mutable over time. Identity persists through state changes.  
-`Order#1234` is the same order whether it's Draft or Shipped.
+Microservices create independent runtime, data, release, and failure boundaries.
 
-**Value Object:** Defined by its attributes. No identity. Immutable.  
-`Money(100, "USD")` equals any other `Money(100, "USD")`. No ID.
+**Evidence that may justify a service boundary:**
 
-**Aggregate:** A cluster of entities and value objects treated as a unit for data changes.  
-- Has one **Aggregate Root** — the only entry point to the cluster
-- External objects hold references only to the Root, never to internal entities
-- A transaction modifies at most one aggregate
-- `Order` is the root; `OrderItem` is internal — you never access `OrderItem` directly
+- a cohesive capability has independent ownership and release cadence;
+- it needs materially different scale, locality, trust, or availability;
+- its data and invariants can be owned without shared writes;
+- the contract is stable enough to absorb network and versioning costs;
+- the organization can test, deploy, observe, secure, and operate it independently.
 
-**Domain Event:** Something meaningful that happened in the domain.  
-`OrderPlaced`, `PaymentConfirmed`, `InventoryReserved`.  
-Events reveal workflow, decouple bounded contexts, and enable audit trails.
+**Evidence against:**
 
-**Repository:** Abstracts data access. Domain sees a collection-like interface; infrastructure handles persistence.
+- synchronous chatty calls dominate normal work;
+- services share tables or must deploy in lockstep;
+- one team owns the entire call chain;
+- retries, partial failure, compatibility, and observability are unspecified;
+- the split follows technical layers rather than capabilities.
 
-**Domain Service:** Business logic that doesn't naturally belong to any entity (e.g., `PricingService.calculate(order, promotions)`).
+Start by enforcing the boundary inside one deployable. Extract when runtime independence becomes a demonstrated requirement. For migrations, route one characterized capability through a seam and keep rollback possible.
 
----
+## Event-driven architecture
+
+Events communicate completed facts to independent consumers.
+
+**Useful when:** consumers have different lifecycles, the producer need not wait for their work, replay/audit has value, or spikes require buffering.
+
+**Costs:** eventual visibility, delivery semantics, ordering, duplicates, schema evolution, tracing, recovery, and harder end-to-end reasoning.
+
+Keep commands and events distinct:
+
+- command: request one owner to attempt an action;
+- event: report that an owned fact already happened.
+
+Do not publish vague state-change notifications that force every consumer to query internals. Publish stable domain facts without exposing the producer's storage model.
 
 ## CQRS
 
-**Command Query Responsibility Segregation:** Separate the write model (commands that change state) from the read model (queries that return data).
+CQRS separates the models used to change state from those used to answer queries. It ranges from separate code paths over one store to independently maintained read models.
 
-```
-Write side:                    Read side:
-Command → CommandHandler    →  Read Model (denormalized view)
-          → Aggregate           updated via events or sync
-          → Event               ↑
-          → Write DB        ←  QueryHandler → Read DB
-```
+**Useful when:** command rules are rich, query shapes differ materially, read projections need independent optimization, or multiple views derive from the same facts.
 
-**Use when:**
-- Read and write workloads have different scaling needs
-- You need multiple read representations of the same data
-- Combined with Event Sourcing (natural fit)
-- High-throughput write side with complex read requirements
+**Costs:** model duplication, projection lag, reconciliation, more test paths, and user-visible consistency decisions.
 
-**Do NOT use when:**
-- Simple CRUD — overhead is not justified
-- Team lacks experience with eventual consistency
-- Read/write loads are balanced and similar in shape
+Do not adopt separate infrastructure merely because commands and queries are different functions. Escalate the separation only as measured forces require it.
 
-**The hidden cost:** Eventual consistency between write and read models. Users may see stale data. This requires UX design, not just technical design.
+## Event sourcing
 
----
+Event sourcing makes the event history authoritative and derives current state by folding that history.
 
-## Event Sourcing
+**Useful when:** temporal truth, auditability, reconstruction, or domain history is essential and events form a stable business model.
 
-**Store events, not state.** Current state is derived by replaying events.
+**Costs:** event schema evolution, replay semantics, snapshots, projection rebuilds, deletion/privacy constraints, concurrency, and difficult correction of bad historical facts.
 
-```
-OrderCreated → ItemAdded → ItemAdded → OrderSubmitted → PaymentConfirmed
-↓ replay
-Order { id: 123, items: [...], status: Confirmed }
-```
+An event-driven system does not require event sourcing. Prefer state storage plus an outbox when current state is authoritative and reliable publication is the actual need.
 
-**Use when:**
-- Audit trail is a core requirement (financial, healthcare, compliance)
-- Temporal queries needed: "what was the state at time T?"
-- Business rules may change retroactively (replay events under new rules)
-- Event-driven integration between bounded contexts
+## Serverless, cells, and edge
 
-**Do NOT use when:**
-- Simple CRUD — operational overhead is unjustifiable
-- Team is unfamiliar — learning curve is steep
-- Queries require complex current-state joins (need separate read models)
+These are topology responses to particular operational forces.
 
-**Operational requirements:**
-- Snapshotting (for aggregates with thousands of events)
-- Event versioning / upcasting (for schema evolution)
-- Idempotent event handlers (events may be replayed)
+| Shape | Useful force | Main cost |
+|---|---|---|
+| Functions/serverless | bursty independent handlers, managed scaling, low idle use | platform constraints, cold paths, distributed state and observability |
+| Cells | tenant/region partitioning and blast-radius isolation | routing, duplicated infrastructure, cross-cell operations |
+| Edge/local execution | latency, offline operation, privacy, bandwidth, locality | synchronization, fleet/version management, constrained compute |
 
----
+Keep domain policy portable across topology when that portability is valuable. Do not hide topology-specific failure and consistency semantics behind an interface that promises more than it can deliver.
 
-## Monolith vs Modular Monolith vs Microservices
+## Combining styles
 
-### Decision framework (industry consensus)
+Real systems combine styles at bounded scopes. Example:
 
-| Team size | Revenue / scale | Recommended |
-|-----------|----------------|-------------|
-| < 10 engineers | Any | Monolith |
-| 10–50 engineers | Any | Modular Monolith |
-| > 50 engineers | < $10M | Modular Monolith |
-| > 50 engineers | > $10M | Microservices (if team autonomy is the real constraint) |
-
-**90% of "microservices" teams still batch-deploy like monoliths** — getting the operational complexity with none of the independence benefit. This is a **distributed monolith** — the worst outcome.
-
-### Modular Monolith
-
-Single deployable unit. Internally divided into modules with enforced boundaries.
-
-**Characteristics:**
-- Modules have explicit APIs (no direct database sharing between modules)
-- Inter-module calls are synchronous in-process
-- Single deployment, single database (per module schema or separate schemas)
-- Independent module development is possible via interface contracts
-
-**Shopify serves millions of merchants from a modular Ruby monolith.**  
-**GitHub serves 50M+ daily users from a Rails monolith.**
-
-### Microservices
-
-Independent deployable services, each owning its own data.
-
-**Justified when:**
-- Independent deployment velocity is the primary constraint (team A can't be blocked by team B)
-- Different scaling requirements across components
-- Different technology requirements across components
-- > 50 engineers with well-defined team ownership
-
-**NOT justified when:**
-- Team is small (coordination overhead exceeds benefit)
-- Services always deploy together (you have a distributed monolith)
-- Services share a database (you have a distributed monolith)
-- Latency budget doesn't allow for network hops between components
-
-### Strangler Fig Pattern (migrating monolith → microservices)
-
-Incrementally extract services from a monolith:
-1. Identify a bounded context to extract
-2. Add a facade/proxy in front of the monolith
-3. Implement the new service behind the facade
-4. Route traffic to the new service
-5. Remove the old code from the monolith
-6. Repeat
-
-Never do a big-bang rewrite. Extract one bounded context at a time.
-
----
-
-## Serverless / FaaS
-
-**Core idea:** Deploy individual functions that run on demand. The cloud provider manages servers, scaling, and availability.
-
-**Structure:**
-```
-API Gateway → Function A (handler)
-            → Function B (handler)
-            → Function C (handler)
-Each function: stateless, short-lived, auto-scaled
+```text
+one modular deployment
+  -> capability-oriented modules
+  -> hexagonal boundary around volatile integrations
+  -> direct calls for invariant-bearing commands
+  -> domain events for independent reactions
+  -> one read projection for a materially different query
 ```
 
-**Use when:**
-- Unpredictable or bursty traffic (pay-per-invocation, zero cost at zero load)
-- Event-driven processing (S3 upload triggers, queue consumers, webhooks)
-- Prototyping and MVPs (zero infrastructure management)
-- Glue logic between managed services
-
-**Do NOT use when:**
-- Long-running processes (Lambda timeout: 15min)
-- Low-latency requirements (cold start: 100ms–2s depending on runtime)
-- High-throughput steady-state (sustained load is cheaper on containers)
-- Complex workflows with shared state (state management becomes external complexity)
-
-**Hidden costs:** Vendor lock-in (cloud-specific triggers and APIs), cold start latency, debugging difficulty (no local state), observability gaps.
-
-**Mitigation:** Use serverless frameworks (SST, Serverless Framework) and define infrastructure as code. Keep functions thin — business logic in libraries, not in handlers.
-
----
-
-## Cell-Based Architecture
-
-**Core idea:** Partition the system into independent, self-contained cells. Each cell serves a subset of users/tenants and contains a full stack (compute, storage, cache). Failures are isolated to a single cell.
-
-**Structure:**
-```
-Router (assigns users to cells)
-  → Cell A: [API, DB, Cache] → serves Tenant 1, 2, 3
-  → Cell B: [API, DB, Cache] → serves Tenant 4, 5, 6
-  → Cell C: [API, DB, Cache] → serves Tenant 7, 8, 9
-```
-
-**Use when:**
-- Multi-tenant SaaS at scale (failure isolation per tenant group)
-- Regulatory requirements demand data residency (cell per region)
-- Blast radius reduction is critical (outage affects only one cell, not all users)
-- Scaling beyond what a single deployment can handle
-
-**Do NOT use when:**
-- Single-tenant systems or small scale
-- Cross-tenant operations are frequent (cells are isolated by design)
-- Team lacks operational maturity for multi-cell deployment
-
-**Key design decisions:**
-- Cell sizing: how many tenants per cell?
-- Cell routing: DNS-based, API gateway, or application-level
-- Cross-cell operations: avoid when possible; use async replication when needed
-- Cell provisioning: automate fully — manual cell setup doesn't scale
-
-**AWS, Slack, and Shopify use cell-based architecture** to isolate failures and scale independently.
-
----
-
-## Edge Computing
-
-**Core idea:** Process data near where it is generated rather than sending everything to a centralized cloud. Reduces latency, lowers bandwidth costs, and enables offline operation.
-
-**Structure:**
-```
-Edge devices (sensors, user devices)
-  → Edge nodes / micro data centers (local processing, filtering, inference)
-  → Cloud (long-term storage, model training, aggregation)
-```
-
-**Use when:**
-- Ultra-low latency is required (< 50ms response time)
-- Bandwidth is constrained or expensive (IoT, video processing)
-- Offline or intermittent connectivity must be supported
-- Data privacy or sovereignty requires local processing (data cannot leave a region)
-- AI inference must happen locally (on-device ML, real-time vision)
-
-**Do NOT use when:**
-- All users have reliable, low-latency cloud connectivity
-- Processing requires centralized data aggregation (analytics, training)
-- The system is simple enough for a single deployment location
-- Team lacks operational capability for distributed edge management
-
-**Key design decisions:**
-- What runs at the edge vs. in the cloud? (filter/process locally, aggregate centrally)
-- How do edge nodes synchronize with central systems? (eventual consistency, CRDT, sync protocols)
-- How are edge deployments updated? (OTA updates, canary rollout per edge location)
-- What happens when an edge node loses connectivity? (local queue, store-and-forward)
-
-**Edge + AI pattern:** Run quantized models at the edge for real-time inference. Train and update models in the cloud. Push updated models to edge via deployment pipeline.
-
----
-
-## Data Mesh
-
-**Core idea:** Decentralize data ownership. Each domain team owns its analytical data as a product, with self-serve infrastructure and federated governance.
-
-**Four principles:**
-1. **Domain-oriented data ownership:** The team that generates the data owns and publishes it
-2. **Data as a product:** Data has SLOs, documentation, discoverability, and quality guarantees
-3. **Self-serve data platform:** Central platform team provides tooling, not data pipelines
-4. **Federated computational governance:** Standards enforced by automation, not a central team
-
-**Use when:**
-- Centralized data team is a bottleneck (every team waits for data engineering)
-- Multiple domains generate data that other domains consume
-- Organization is large enough to have domain teams with data engineering capability
-
-**Do NOT use when:**
-- Small team (< 20 engineers) — overhead exceeds benefit
-- Single domain — no cross-domain data sharing problem
-- Data volume is small — a simple data warehouse suffices
-
-**vs. Data Warehouse / Data Lake:**
-- Data warehouse: centralized, schema-on-write, owned by data team
-- Data lake: centralized, schema-on-read, often becomes "data swamp"
-- Data mesh: decentralized, domain-owned, data-as-a-product
-
----
-
-## Feature Flags and Trunk-Based Development
-
-**Feature flags** decouple deployment from release.
-
-Types:
-- **Release flags:** hide unfinished work in production (short-lived — days/weeks)
-- **Operational flags:** kill switches for problematic features (medium-lived)
-- **Experiment flags:** A/B tests (short-lived)
-- **Permission flags:** role/plan-based access (long-lived)
-
-**Trunk-based development:** All engineers commit to `main` daily. Feature flags hide incomplete work. No long-lived feature branches.
-
-**Empirical result:** 95% of DevOps teams using feature flags report 40% faster release cycles and 72% fewer production incidents.
-
-**Architecture implication:** Feature flags require the architecture to support conditional behavior at runtime. Every module that changes under a flag must be designed for substitutability (OCP, Strategy pattern).
-
-**Flag hygiene:** Every flag needs an expiration date. Stale flags accumulate and become untested code paths. Audit quarterly, remove within a sprint of expiry.
+Record each meaningful choice at its own scope. Avoid declaring that the entire system "is DDD" or "is event-driven" without naming where the style applies and what force it resolves.

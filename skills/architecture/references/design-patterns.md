@@ -1,332 +1,251 @@
-# Design Patterns
+# Design and Collaboration Patterns
 
-GoF patterns, modern patterns, and anti-patterns.
-**Apply patterns to solve specific problems. Never apply prophylactically.**
-
-For each pattern: what problem it solves, when to use, when NOT to use.
+Select a pattern from the pressure it resolves. Start with a direct implementation, then add structure only when variation, lifecycle, ownership, or failure behavior requires it.
 
 ## Contents
 
-- [Pattern Selection Guide](#pattern-selection-guide)
-- [Creational Patterns](#creational-patterns) — Factory Method, Abstract Factory, Builder, Prototype, Singleton
-- [Structural Patterns](#structural-patterns) — Adapter, Bridge, Composite, Decorator, Facade, Proxy
-- [Behavioral Patterns](#behavioral-patterns) — Strategy, Observer, Command, State, Chain of Responsibility, Template Method, Mediator
-- [Modern Patterns (Beyond GoF)](#modern-patterns-beyond-gof) — Repository, Unit of Work, Specification, Saga, Outbox
-- [Anti-Patterns](#anti-patterns) — God Object, Anemic Domain Model, Distributed Monolith, Big Ball of Mud, Golden Hammer
+- [Selection method](#selection-method)
+- [Quick selection map](#quick-selection-map)
+- [Direct composition](#direct-composition)
+- [Decorator and middleware](#decorator-and-middleware)
+- [Strategy and policy](#strategy-and-policy)
+- [Adapter and anticorruption layer](#adapter-and-anticorruption-layer)
+- [Facade](#facade)
+- [Factory and builder](#factory-and-builder)
+- [State machine](#state-machine)
+- [Pipeline and chain of responsibility](#pipeline-and-chain-of-responsibility)
+- [Command and handler](#command-and-handler)
+- [Observer and domain events](#observer-and-domain-events)
+- [Repository and unit of work](#repository-and-unit-of-work)
+- [Specification](#specification)
+- [Saga and process manager](#saga-and-process-manager)
+- [Transactional outbox](#transactional-outbox)
+- [Pattern combinations](#pattern-combinations)
+- [Pattern failure signals](#pattern-failure-signals)
 
----
+## Selection method
 
-## Pattern Selection Guide
+Before naming a pattern, write:
 
-Before applying any pattern, name the problem:
+1. **Stable center** — operation, invariant, or contract that should remain stable.
+2. **Variation** — behavior, representation, policy, lifecycle, or dependency that changes independently.
+3. **Selection owner** — who chooses the variation and when.
+4. **Composition semantics** — order, error propagation, cancellation, state, and side effects.
+5. **Cost ceiling** — how much indirection or runtime machinery the problem warrants.
 
-| Problem | Pattern |
-|---------|---------|
-| Need interchangeable algorithms | Strategy |
-| State changes must propagate to many consumers | Observer |
-| Need undo/redo or request queuing | Command |
-| Adding behavior without modifying classes | Decorator |
-| Complex subsystem needs simple interface | Facade |
-| Creating families of related objects | Abstract Factory |
-| Building complex objects step by step | Builder |
-| Conditional object creation | Factory Method |
-| Converting incompatible interfaces | Adapter |
-| Multiple dimensions of variation | Bridge |
-| Managing distributed transactions | Saga |
-| Reliable event publishing | Outbox Pattern |
-| Complex conditional logic based on state | State |
-| Multiple clients need only part of an interface | Interface Segregation |
-| Decouple domain from persistence | Repository |
+Reject a pattern when its contract is less clear than the repeated code, when only one hypothetical variant exists, or when it hides materially different semantics behind a false common interface.
 
----
+## Quick selection map
 
-## Creational Patterns
+| Problem signal | Candidate | Avoid when |
+|---|---|---|
+| orthogonal behavior wraps one operation | Decorator/middleware | order and shared context dominate; use explicit pipeline |
+| algorithm or policy varies | Strategy/function | there is one stable behavior |
+| incompatible external model | Adapter | mapping adds no semantic isolation |
+| many callers need one stable entry point | Facade | facade becomes an ownerless god API |
+| construction depends on runtime composition | Factory/composition root | callers can construct one concrete value directly |
+| valid behavior depends on explicit lifecycle state | State machine | states are merely display labels |
+| ordered independent stages transform work | Pipeline | stages secretly share mutable internals |
+| one of several handlers may accept work | Chain of responsibility | all handlers must run or order is fixed business policy |
+| operation must be represented, queued, retried, or audited | Command | a direct call expresses the behavior fully |
+| independent consumers react to completed facts | Domain event/observer | the producer requires their synchronous result |
+| domain needs collection-like persistence boundary | Repository | it only mirrors generic CRUD or leaks storage queries |
+| rules need semantic composition | Specification | simple conditions are clearer inline |
+| long-running process crosses owners | Saga/process manager | one local transaction can preserve the invariant |
+| state update and message publication must agree | Transactional outbox | best-effort notification is sufficient |
 
-### Factory Method
-Creates objects through a method that subclasses can override.
+## Direct composition
 
-```
-Creator.createProduct() → Product
-ConcreteCreatorA.createProduct() → ProductA
-ConcreteCreatorB.createProduct() → ProductB
-```
+Direct calls, plain functions, and explicit object construction are the baseline. They minimize hidden control flow and are appropriate when behavior is stable and local.
 
-**Use when:** Creation logic varies by context or subtype; callers shouldn't know which concrete class to create.  
-**Don't use when:** There's only one type of product — it's just indirection.
+Use a composition root to assemble dependencies and policies once:
 
-### Abstract Factory
-Creates families of related objects without specifying concrete classes.
-
-**Use when:** You need to ensure product compatibility across a family (UI toolkit: macOS buttons + macOS menus; Windows buttons + Windows menus).  
-**Don't use when:** Products don't have relationships requiring consistency.
-
-### Builder
-Constructs complex objects step-by-step. Separates construction from representation.
-
-```
-new QueryBuilder()
-  .select("id", "name")
-  .from("users")
-  .where("active = true")
-  .limit(100)
-  .build()
-```
-
-**Use when:** Object has many optional parameters; telescoping constructors become unreadable; construction requires validation across multiple parameters.  
-**Don't use when:** Object has 2–3 simple required parameters.
-
-### Prototype
-Creates new objects by cloning existing ones.
-
-**Use when:** Object instantiation is expensive; new objects are slight variations of existing ones.
-
-### Singleton
-Ensures one instance exists globally.
-
-**AVOID in most cases:**
-- Introduces global state (makes testing hard)
-- Hides dependencies (callers don't know they depend on the singleton)
-- Thread-safety pitfalls
-- Violates SRP (manages its own lifecycle AND does its job)
-
-**Fix:** Use dependency injection of a single-instance object. The DI container manages the lifetime. The object itself is ignorant of being "single."
-
----
-
-## Structural Patterns
-
-### Adapter
-Converts one interface to another. Lets incompatible classes work together.
-
-**Use when:** Integrating with a legacy system or third-party library whose interface doesn't match yours.
-
-```
-Target interface (yours)  →  Adapter  →  Adaptee (theirs)
+```text
+transport handler
+  -> application operation
+       -> domain policy
+       -> storage port
+       -> external-service port
 ```
 
-### Bridge
-Decouples an abstraction from its implementation so both can vary independently.
+Avoid service locators and implicit globals. They hide dependency and lifecycle ownership from both readers and tests.
 
-**Use when:** You have multiple dimensions of variation (shapes × rendering engines; notifications × channels). Without Bridge, you get combinatorial explosion of subclasses.
+## Decorator and middleware
 
-### Composite
-Treats individual objects and compositions uniformly. Tree structures.
+A decorator preserves a contract while adding behavior around another implementation.
 
-**Use when:** Clients should treat single items and groups identically (file system, UI component trees, organization hierarchies).
-
-### Decorator
-Adds behavior to objects dynamically without modifying the class.
-
-```
-LoggingRepository(
-  CachingRepository(
-    PostgresRepository(db)
+```text
+MeasuredClient(
+  RetryingClient(
+    AuthenticatedClient(
+      TransportClient
+    )
   )
 )
 ```
 
-**Use when:** You need composable behavior additions; inheritance would create too many subclass combinations.  
-**Don't use when:** The order of decorators is unclear or decoration logic is complex — consider a pipeline/chain pattern instead.
+**Useful when:** logging, metrics, authorization, retries, caching, tracing, or other policies are independently selectable and apply to the same semantic operation.
 
-### Facade
-Provides a simplified interface to a complex subsystem.
+Define:
 
-**Use when:** External callers shouldn't need to understand internal complexity; you want to decouple clients from subsystem evolution.
+- exact ordering and whether it is user-visible;
+- which layer owns retries and idempotency;
+- how errors are translated or preserved;
+- whether wrappers may short-circuit;
+- how context and cancellation propagate;
+- how duplicate instrumentation or retry nesting is prevented.
 
-**Stripe's entire API is a Facade** — the payment processing complexity is enormous; the API surface is simple and stable.
+Use middleware when a runtime already has a pipeline contract and the behavior is request-oriented. Use an explicit decorator when the semantic interface should stay independent of the runtime framework.
 
-### Proxy
-Controls access to another object.
+Avoid decorators when combinations create ambiguous semantics. Model an explicit pipeline or coordinator instead.
 
-Types:
-- **Virtual proxy:** lazy loading (load the expensive thing only when accessed)
-- **Protection proxy:** access control
-- **Remote proxy:** local representation of a remote object
-- **Logging proxy:** intercepts calls for logging/monitoring
+## Strategy and policy
 
-**Use when:** You need a layer of control over an object's lifecycle, access, or behavior without the caller knowing.
+A strategy encapsulates one variation selected by context while preserving a stable operation.
 
----
+**Useful when:** pricing, routing, ranking, retry, validation, or allocation policy varies independently.
 
-## Behavioral Patterns
+The strategy contract should expose domain inputs and results, not the selection mechanism. Select strategies at a composition root or through explicit policy configuration.
 
-### Strategy
-Defines a family of algorithms and makes them interchangeable.
+Use a function for stateless behavior. Use an object when the strategy has identity, configuration lifecycle, resources, or related operations.
 
+Avoid a strategy registry when a small conditional at the composition boundary is clearer and changes in one place.
+
+## Adapter and anticorruption layer
+
+An adapter translates one contract or model into another. An anticorruption layer protects a domain model from a large or semantically different external model.
+
+**Useful when:** integrating a vendor, legacy subsystem, protocol, storage API, or neighboring bounded context whose concepts do not match the core.
+
+Keep translation at the boundary. Translate both success and failure semantics, identity, time, units, optionality, and lifecycle—not only field names.
+
+Avoid a one-to-one wrapper that exports the same vendor types and behavior. It adds navigation without insulation.
+
+## Facade
+
+A facade offers a focused entry point to a complex subsystem.
+
+**Useful when:** callers need a stable use-case-oriented contract while internal coordination changes.
+
+Keep the facade thin in policy ownership: it may orchestrate cohesive operations but should not accumulate every unrelated capability. Split by consumer capability when the surface grows into a god interface.
+
+## Factory and builder
+
+A factory owns conditional creation and hides concrete composition. A builder accumulates validated construction choices for a complex value.
+
+**Factory is useful when:** implementation choice, lifecycle, or dependency graph varies while consumers need one contract.
+
+**Builder is useful when:** construction has several meaningful optional choices, ordering, or cross-field validation.
+
+Keep factories near the composition root. Avoid factories for one direct constructor and builders for a handful of clear required arguments.
+
+## State machine
+
+A state machine makes valid states, events, transitions, guards, and effects explicit.
+
+**Useful when:** behavior changes by lifecycle state, invalid transitions matter, concurrent events occur, or recovery depends on transition history.
+
+Define:
+
+- finite states and their meaning;
+- accepted/rejected events per state;
+- guards and invariant checks;
+- transition effects and atomicity;
+- duplicate and out-of-order event behavior;
+- terminal and recovery states.
+
+Avoid spreading the same state transition across handlers, flags, and UI conditions. Avoid a state machine when one boolean with one owner expresses the whole lifecycle.
+
+## Pipeline and chain of responsibility
+
+A pipeline runs explicit ordered stages; each stage receives and returns a defined context/result. A chain allows a handler to process, reject, or pass work onward.
+
+**Pipeline:** parsing → validation → enrichment → execution → presentation.
+
+**Chain:** try local handler → delegated handler → fallback.
+
+Define order, mutation, short-circuit, error, cancellation, and retry semantics. Prefer immutable or owned context between stages. If stages need unrestricted access to one shared mutable bag, module boundaries are being bypassed.
+
+## Command and handler
+
+A command represents an intention to ask one owner to change state. Its handler coordinates the use case and returns acceptance or rejection.
+
+**Useful when:** work is queued, retried, authorized, audited, or dispatched independently from transport.
+
+Commands are not facts. Name them imperatively (`SubmitOrder`); name events in past tense (`OrderSubmitted`). Avoid a generic command bus when direct typed calls provide the same decoupling with clearer navigation.
+
+## Observer and domain events
+
+Observers react to published changes. Domain events describe meaningful completed facts owned by the producer.
+
+**Useful when:** independent consumers need the fact, the producer does not require their immediate result, and temporal decoupling is acceptable.
+
+Specify delivery, ordering, duplication, compatibility, replay, privacy, and observability. In-process events still create hidden control flow; use direct calls when ordered collaboration is part of one use case.
+
+## Repository and unit of work
+
+A repository presents domain-specific retrieval and persistence for aggregates or cohesive state. A unit of work coordinates changes that must commit atomically.
+
+**Useful when:** the core has meaningful persistence semantics worth insulating from storage details.
+
+Avoid generic `getAll/create/update/delete` repositories that merely duplicate an ORM. Prefer operations reflecting domain needs and preserve transactional boundaries. Do not pretend remote services participate in a local unit of work.
+
+## Specification
+
+A specification names and composes a business predicate.
+
+**Useful when:** the same rules are reused, combined, explained, or translated into multiple evaluation contexts.
+
+Avoid turning every `if` into an object. Ensure in-memory and query-backed interpretations preserve the same semantics, especially around time, nullability, and locale.
+
+## Saga and process manager
+
+A saga/process manager coordinates a long-running business process across independent transactional owners using steps, persisted progress, and compensations or reconciliation.
+
+**Useful when:** one operation cannot be atomic across boundaries and the business accepts intermediate states.
+
+Model business compensation, not technical rollback. A refund is not the inverse of a charge in every domain. Define timeouts, duplicate messages, manual intervention, and terminal stuck states.
+
+Prefer one local transaction when the invariant belongs to one owner. Distribution is not a substitute for correct aggregation.
+
+## Transactional outbox
+
+An outbox stores a message record in the same transaction as the authoritative state change, then publishes it asynchronously.
+
+**Useful when:** losing the publication would violate integration guarantees and atomic cross-system commit is unavailable.
+
+Plan for at-least-once publication, idempotent consumers, ordering scope, retention, poison messages, monitoring, and recovery. If the message is merely opportunistic telemetry, a transactional outbox may be unnecessary overhead.
+
+## Pattern combinations
+
+Patterns commonly compose around one stable center:
+
+```text
+handler
+  -> facade/use case
+       -> state machine or domain policy
+       -> repository port <- storage adapter
+       -> event record -> outbox -> independent consumers
+
+client contract
+  <- tracing decorator
+  <- retry decorator
+  <- authorization decorator
+  <- transport adapter
 ```
-Sorter { sort(data, strategy: SortStrategy) }
-QuickSortStrategy, MergeSortStrategy, TimSortStrategy
-```
 
-**Use when:** You have a switch/if-else selecting between algorithms; callers should be able to vary the algorithm independently from the logic that uses it.
+Explain the role of each pattern independently. If removing one pattern cannot be described without collapsing the whole design, the composition may be too entangled.
 
-**This is the primary replacement for switch statements on type.**
+## Pattern failure signals
 
-### Observer (Publish-Subscribe)
-One-to-many dependency: when one object changes, all dependents are notified.
+- Adding a case requires modifying every implementation and central dispatcher.
+- A generic context object accumulates unrelated optional fields.
+- Decorator/pipeline order changes correctness but is implicit.
+- Events are used to make synchronous dependencies look decoupled.
+- Factories, registries, or plugins exist for one implementation.
+- Repository abstractions leak query/storage types.
+- A facade owns unrelated rules and state.
+- A strategy interface has methods unused by most variants.
+- The pattern name is offered as the rationale instead of a concrete force.
 
-**Use when:** State changes in one object must trigger updates in others; you don't know how many or which objects need to respond.
-
-**Event-driven architectures are Observer at the system level.**
-
-**Watch out for:** Cascading events (A notifies B which notifies C which notifies A), memory leaks from unregistered observers, unclear ordering.
-
-### Command
-Encapsulates a request as an object.
-
-**Use when:** You need undo/redo; you need to queue or log requests; you need to parameterize objects with operations.
-
-### State
-Allows an object to alter its behavior when its internal state changes. Looks like the object changed its class.
-
-```
-TrafficLight: Red → Green → Yellow → Red
-    each state handles events differently
-```
-
-**Use when:** An object's behavior depends on its state; state transitions are explicit; nested conditionals checking state are getting complex.
-
-**Replaces:** `if (state == A) { ... } else if (state == B) { ... }` with polymorphic state objects.
-
-### Chain of Responsibility
-Passes a request along a chain of handlers until one processes it.
-
-**Use when:** More than one handler can process a request; the handler set should be configurable at runtime.
-
-**Examples:** HTTP middleware pipelines, exception handlers, approval workflows.
-
-### Template Method
-Defines the skeleton of an algorithm in a base class; subclasses override specific steps.
-
-**Use when:** An algorithm has invariant parts and variable parts; you want to avoid code duplication between related classes.
-
-**Prefer composition over inheritance here** — if the variable parts can be extracted as strategies, that's often cleaner.
-
-### Mediator
-Centralizes complex communication between objects. Objects don't communicate directly.
-
-**Use when:** Many objects interact in complex ways; you want to reduce dependencies between components.
-
-**Event buses / message brokers are Mediator at the system level.**
-
-**Warning:** The mediator can become a God Object if it grows too large.
-
----
-
-## Modern Patterns (Beyond GoF)
-
-### Repository
-Abstracts data access. The domain sees a collection-like interface; the implementation handles persistence.
-
-```
-OrderRepository {
-  findById(id: OrderId): Order | null
-  findByCustomer(customerId: CustomerId): Order[]
-  save(order: Order): void
-  delete(id: OrderId): void
-}
-```
-
-**Use always** when there's a domain layer. The domain should never know about SQL, ORMs, or storage formats.
-
-### Unit of Work
-Tracks changes to objects during a business transaction. Writes all changes atomically at the end.
-
-**Use when:** Multiple domain objects change in a single business operation; you want to batch DB writes for atomicity/performance.
-
-**Often combined with Repository** — the Unit of Work coordinates multiple Repositories in a transaction.
-
-### Specification
-Encapsulates a business rule as a composable, reusable object.
-
-```
-ActiveCustomer.and(PremiumTier).and(not(HasOpenDispute))
-```
-
-**Use when:** Business rules need to be composed flexibly; the same rules appear in queries, validation, and domain logic.
-
-### Saga (Distributed Transactions)
-Manages a multi-step distributed transaction through local transactions + compensating actions.
-
-**Choreography-based Saga:** Each service publishes events and reacts to events from others.  
-**Orchestration-based Saga:** A central saga orchestrator sends commands to each service.
-
-```
-PlaceOrder → ReserveInventory → ChargPayment → ShipOrder
-     ↑ if any step fails, run compensating transactions in reverse
-```
-
-**Use when:** A business transaction spans multiple services/databases. ACID transactions aren't available across services.
-
-**Complexity:** Sagas are hard to debug and test. Design compensating transactions carefully — they must undo the effect, not just reverse the call.
-
-### Outbox Pattern
-Solves the dual-write problem: writing business data AND publishing an event atomically.
-
-```
-BEGIN TRANSACTION
-  INSERT INTO orders VALUES (...)
-  INSERT INTO outbox (event_type, payload) VALUES (...)
-COMMIT
-
-[Separate process: read outbox, publish to message broker, mark as sent]
-```
-
-**Use always when:** Events must be published reliably; "at-least-once" delivery is acceptable; you can't use distributed transactions.
-
-**Without Outbox:** Either you update the DB but fail to publish the event (data inconsistency), or you publish before committing (phantom events if the commit fails).
-
----
-
-## Anti-Patterns
-
-### God Object
-One class/module that knows too much or does too much.
-
-**Signals:** 1,000+ line class; dozens of unrelated methods; imported by nearly everything; merge conflicts on every PR.
-
-**Fix:** Extract cohesive responsibilities into separate classes. Apply SRP. Start with the methods that share the fewest dependencies with the rest of the class.
-
-### Anemic Domain Model
-Domain objects are pure data bags with no behavior. All logic lives in service classes.
-
-**Signals:** Domain objects have only getters/setters; service classes are thousands of lines long; business rules are scattered across services.
-
-**Fix:** Move behavior into domain objects. `Order.submit()` not `OrderService.submitOrder(order)`. The domain object knows how to transition itself.
-
-### Distributed Monolith
-Services that are deployed as microservices but behave like a monolith — always deployed together, sharing a database, or coupled through synchronous call chains.
-
-**The worst outcome:** All the operational complexity of microservices with none of the independence.
-
-**Signals:** Service A always deploys with B; cross-service DB joins; a change to Service A breaks Service B's tests; integration tests cover the whole fleet.
-
-**Fix:** Enforce data ownership (each service owns its tables), introduce async communication, or collapse back to a monolith and re-extract correctly.
-
-### Big Ball of Mud
-No discernible architecture. Everything depends on everything.
-
-**Signals:** No module structure; circular dependencies everywhere; "just put it in the Utils class"; nobody understands the whole system.
-
-**Fix:** Identify bounded contexts by mapping which parts change together. Introduce module boundaries incrementally using the Strangler Fig pattern.
-
-### Golden Hammer
-Using a favorite technology or pattern for every problem regardless of fit.
-
-**Signals:** "We use Kafka for everything"; "Microservices always"; "GraphQL for all APIs including simple reads"; "Event sourcing is the only way to do persistence."
-
-**Fix:** Define problem-pattern matching criteria. Make technology choices after understanding the requirements, not before.
-
-### Premature Optimization
-Complex infrastructure (caching, sharding, CDN) added without measured bottlenecks.
-
-**Signals:** Distributed caching for an app with 10 users; database sharding at MVP stage; complex query optimization before profiling.
-
-**Fix:** Measure first. "First make it work, then make it right, then make it fast" — with data.
-
-### Resume-Driven Architecture
-Technology chosen for novelty or personal interest rather than problem fit.
-
-**Signals:** "We should use Kubernetes" for a single-machine app; "Let's try the new framework" for a production system; architectural decisions that benefit the engineer's resume rather than the product.
-
-**Fix:** Evaluate technology by: Does it solve our actual problem? Can our team operate it? What's the maintenance cost in 2 years?
+When these appear, revisit the invariant, variation axis, and owner before adding another layer.

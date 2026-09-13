@@ -144,7 +144,7 @@ A complete `.env.example`:
 
 **As reviewer (auditing docs):** check mode purity (no mixed tutorial/reference), freshness (dates in examples, versions), runnable examples, completeness of .env.example.
 
-**As architect (documenting decisions):** ADR per non-trivial decision. No ADR = nobody knows why in two years.
+**As architect (documenting decisions):** `architecture` owns whether to record the decision, its technical content, and rationale; this skill owns repository-wide ADR conventions, placement, linking, and lifecycle. Record consequential choices whose context or trade-offs would otherwise be lost.
 
 **As operator (producing runbooks):** every alert gets a runbook before it goes to paging. No runbook → don't page.
 

@@ -1,279 +1,154 @@
-# CTO Domain Knowledge
+# Architecture Health and Evolution
 
-Decision trees, anti-patterns, maturity model, effectiveness metrics, AI governance, and heuristics for technical leadership.
+Assess architecture by its effect on correctness, change, ownership, delivery, and operations. Repository aesthetics and pattern consistency matter only when they influence those outcomes.
 
 ## Contents
 
-- [Healthy Repository Indicators](#healthy-repository-indicators)
-- [Package Decomposition Decision Tree](#package-decomposition-decision-tree)
-- [Service Decomposition Signals](#service-decomposition-signals)
-- [Common Anti-Patterns](#common-anti-patterns)
-- [Cross-Cutting Concern Patterns](#cross-cutting-concern-patterns)
-- [Engineering Maturity Model](#engineering-maturity-model)
-- [Engineering Effectiveness Metrics](#engineering-effectiveness-metrics)
-- [Architecture Decision Records](#architecture-decision-records)
-- [AI-Assisted Development Governance](#ai-assisted-development-governance)
-- [Team Topology Alignment](#team-topology-alignment)
+- [Health dimensions](#health-dimensions)
+- [Evidence sources](#evidence-sources)
+- [Change amplification](#change-amplification)
+- [Ownership and boundaries](#ownership-and-boundaries)
+- [Architecture fitness functions](#architecture-fitness-functions)
+- [Technical debt](#technical-debt)
+- [Migration strategy](#migration-strategy)
+- [Review output](#review-output)
 
----
+## Health dimensions
 
-## Healthy Repository Indicators
+| Dimension | Healthy signal | Warning signal |
+|---|---|---|
+| Coherence | scenarios share a small model and mechanisms | each case introduces a new branch or subsystem |
+| Ownership | explicit authority/coordination per invariant and mutable state | accidental shared writes and duplicated rules |
+| Modularity | changes remain within cohesive boundaries | unrelated modules change together |
+| Dependency | visible, acyclic, stable direction | cycles, reach-through imports, hidden globals |
+| Contracts | narrow semantic surfaces with explicit failure | internal/storage models leak to consumers |
+| Delivery | reversible slices and independent verification | lockstep or big-bang changes |
+| Reliability | failure, retry, recovery, and overload are designed | unknown outcomes and manual repair are normal |
+| Evolvability | compatibility and migration are routine | every change requires coordinated replacement |
+| Operability | runtime evidence tests assumptions | incidents are the only feedback mechanism |
+| Comprehension | main flow and ownership are explainable | only tribal knowledge connects the pieces |
 
-```
-Structure follows domain, not technology
-Every package justifies its existence
-Dependency graph is a DAG (no cycles)
-Scripts are consistent across workspaces
-One way to do each thing (one DI pattern, one logging approach, one error taxonomy)
-New service creation is copy+modify, not reinvent
-All checks pass in under 60 seconds locally
-Build cache hit rate is high in CI
-Onboarding time under 15 minutes
-ADRs exist for non-obvious architectural choices
-```
+Do not demand maximum scores everywhere. A prototype may intentionally trade durability or modular ceremony for learning speed. Make the trade explicit and revisitable.
 
----
+## Evidence sources
 
-## Package Decomposition Decision Tree
+Prefer executable and runtime evidence:
 
-```
-Should this be a separate shared package?
+- entry points and composition roots;
+- dependency/import graph and public package surfaces;
+- state schemas, writers, migrations, queues, and scheduled work;
+- end-to-end call paths and failure handling;
+- tests around contracts, transitions, concurrency, and recovery;
+- deployment units and rollout configuration;
+- telemetry, incident patterns, queue lag, and repair procedures;
+- version history showing files that change together;
+- team ownership and coordination required for representative changes.
 
-  Is it used by 2+ services?
-    YES → shared package (e.g., shared logging, shared DB client)
-    NO  → Is it a distinct domain concern?
-            YES → shared package (separation of concerns)
-            NO  → Keep it as a module within the service
+Documentation and diagrams explain intent but may drift. Report contradictions rather than choosing whichever source supports the preferred conclusion.
 
-  Is it pure utility with no domain logic?
-    YES → root-level config or utility (linter config, formatter config)
-    NO  → shared package directory
+## Change amplification
 
-  Does it have its own external dependencies?
-    YES → shared package (isolates dependency surface)
-    NO  → Consider if it's just types/interfaces — could be inline
-```
+Measure architecture through representative changes:
 
----
+1. Choose a frequent or high-risk business change.
+2. Trace every module, contract, state owner, deployment, and team it touches.
+3. Identify edits caused by the business rule versus incidental plumbing.
+4. Find repeated rules and parallel state representations.
+5. Compare the observed propagation with the intended boundary.
 
-## Service Decomposition Signals
+High amplification suggests a missing abstraction, wrong ownership, leaky contract, or false separation. Low file count does not guarantee good architecture if one edit can silently violate an invariant elsewhere.
 
-```
-SPLIT a service when:
-  - It handles two unrelated event streams or request domains
-  - It needs different scaling characteristics
-  - Failure in one part should not affect the other
-  - Different teams would own different parts
-  - It has grown beyond ~2000 LOC of business logic
+Co-change history is a clue, not proof. Files may change together during migrations, formatting, or generated updates.
 
-MERGE / DO NOT SPLIT when:
-  - The "services" share a database and cannot be separated
-  - Communication between them would be synchronous and frequent
-  - The split adds operational overhead without clear benefit
-  - Total LOC is small (<500) — nanoservice overhead is not worth it
-```
+## Ownership and boundaries
 
----
+Review each important invariant and capability:
 
-## Common Anti-Patterns
+- Who decides whether a state change is valid?
+- Who persists the authoritative result?
+- Can another component bypass the owner?
+- Are derived views visibly derived?
+- Does the module's public contract reflect domain meaning?
+- Do runtime and team boundaries reinforce or fight the code boundary?
+- Can the owner evolve without coordinated changes in many consumers?
 
-| # | Anti-Pattern | Description | Fix |
-|---|-------------|-------------|-----|
-| 1 | Phantom dependencies | Service uses a package only installed transitively — works locally, breaks in isolated build | Declare all direct dependencies explicitly |
-| 2 | Cross-package relative imports | Bypasses the package API, creates invisible coupling | Use workspace aliases or package names |
-| 3 | Empty script stubs | Scripts that run but do nothing — clutters manifests, misleads CI | Remove or implement |
-| 4 | Version drift | Different compiler/runtime versions across packages — different behavior | Pin to a single version at root level |
-| 5 | Kitchen sink package | One package does logging + config + DB + types — too many concerns | Split by concern or document the deliberate choice |
-| 6 | Inconsistent DI | Different dependency injection patterns across services | Pick one pattern, enforce it |
-| 7 | Orphan scripts | Scripts exist but nothing calls them | Remove or wire into CI/hooks |
-| 8 | Undocumented decisions | Patterns exist but nobody wrote down why | Create ADRs for implicit decisions |
-| 9 | No task orchestration | Running all tests/builds serially instead of in dependency order | Use workspace-aware task runner |
-| 10 | Shared database access | Multiple services reading/writing the same tables | Assign ownership, create API boundaries |
-| 11 | AI code dumping | AI-generated code merged without architectural review or tests | Same review and test gates as human code |
-| 12 | Metric theater | Tracking vanity metrics without acting on them | Focus on actionable metrics tied to outcomes |
-| 13 | Golden path absence | Every team reinvents project scaffolding and CI setup | Create opinionated templates for common patterns |
+Common structural problems:
 
----
+- shared database tables treated as an integration contract;
+- utility packages containing business policy from many domains;
+- central orchestrators owning every decision;
+- technical-layer services with no cohesive capability;
+- events published without schema/semantic ownership;
+- services whose independence exists only in deployment manifests.
 
-## Cross-Cutting Concern Patterns
+## Architecture fitness functions
 
-### Observability
-- Structured logging: JSON logs with correlation IDs, service name, environment
-- Metrics: request latency, error rates, queue depth, custom business metrics
-- Distributed tracing: propagate trace context across service boundaries
-- Consistency check: are all services using the same logging library and format?
+A fitness function is an automated or regularly evaluated check that protects an architectural property.
 
-### Configuration Management
-- Typed config: validated at startup, fails fast on missing/invalid values
-- Environment-based: .env files for local, environment variables for production
-- Secrets separation: secrets never in config files, always from vault/env
-- Consistency check: same config loading pattern in every service?
+Examples:
 
-### Error Handling
-- Error taxonomy: shared error codes/types across services
-- Error boundaries: catch at service boundary, translate to API response
-- Error propagation: structured error context flows through the call chain
-- Consistency check: same error handling pattern in every service?
+| Property | Possible check |
+|---|---|
+| dependency direction | forbidden-import or architecture test |
+| module encapsulation | only public entry points importable across boundaries |
+| one state owner | write access restricted and audited |
+| contract compatibility | consumer/provider contract suite |
+| valid lifecycle | model/property tests over state transitions |
+| idempotency | duplicate and retry integration tests |
+| projection convergence | reconciliation test and lag alert |
+| latency/capacity budget | performance gate on a representative path |
+| migration safety | mixed-version and rollback tests |
+| operational recovery | restore/replay exercise |
 
-### API Versioning
-- URL-based: `/v1/`, `/v2/` — simple, explicit, but endpoint proliferation
-- Header-based: `Accept: application/vnd.api+json;version=2` — cleaner URLs
-- Additive changes: add fields, do not remove or rename
-- Deprecation policy: announce, sunset period, remove
+Protect only consequential decisions. Excessive structural rules freeze accidental folder shapes and turn architecture into lint noise.
 
----
+## Technical debt
 
-## Engineering Maturity Model
+Classify debt by consequence and leverage rather than ugliness.
 
-| Level | Name | Characteristics |
-|-------|------|----------------|
-| L0 | Prototype | Works on author's machine. No tests, no CI, no containers. |
-| L1 | Reproducible | Env template, containerized infra, documented scripts. Another developer can start. |
-| L2 | Verified | CI runs lint + type-check. Container builds work. Code review catches human-visible issues. |
-| L3 | Tested | Unit tests on critical paths. Integration tests for data stores and message queues. CI catches regressions. |
-| L4 | Deployable | Container images built in CI. Deploy script exists. Rollback possible. Health checks gate deploys. |
-| L5 | Observable | Structured logs, metrics, alerts. System state visible without SSH. |
-| L6 | Resilient | Graceful degradation. Circuit breakers. Reconciliation. System recovers without human intervention. |
+**High-pressure debt:** threatens correctness, security, compatibility, recovery, scaling, or delivery; repeated changes amplify its cost.
 
----
+**Enabling debt:** blocks a committed capability or safe migration even if production is currently stable.
 
-## Engineering Effectiveness Metrics
+**Local friction:** raises comprehension or test cost in a bounded area but has limited blast radius.
 
-### Delivery Metrics (DORA)
-```
-Deployment Frequency → How often code reaches production
-Lead Time for Changes → Commit to production duration
-Change Failure Rate → % of deployments causing incidents
-Mean Time to Recovery → Incident detection to resolution
+**Cosmetic inconsistency:** style difference with no demonstrated outcome.
 
-Performance tiers:
-  Elite:  multiple deploys/day, <1hr lead time, <5% failure, <1hr recovery
-  High:   daily-weekly deploys, <1 week lead time, <15% failure, <1 day recovery
-  Medium: weekly-monthly deploys, <1 month lead time, <30% failure, <1 week recovery
-  Low:    monthly+ deploys, >1 month lead time, >30% failure, >1 week recovery
-```
+Rank a debt item using:
 
-### Developer Experience Metrics (SPACE)
-```
-Satisfaction → Developer survey scores, eNPS
-Performance → Code review turnaround, build times, CI wait times
-Activity → PR throughput, deploy frequency (context matters — more is not always better)
-Communication → Cross-team PR reviews, documentation contributions
-Efficiency → Feedback loop speed, time to first productive commit for new hires
-```
+- probability and severity of failure;
+- frequency and amplification of affected changes;
+- number of users, systems, and teams exposed;
+- reversibility and migration risk;
+- effort and risk reduction of the smallest correction;
+- evidence quality and unresolved uncertainty.
 
-### Metric Anti-Patterns
-- Measuring lines of code or commit counts as productivity
-- Using metrics punitively instead of diagnostically
-- Optimizing one metric at the expense of system health
-- Tracking without acting — dashboard graveyards
+Do not propose a platform rewrite for local friction. Do not dismiss ambiguous state ownership as cleanup merely because the system currently runs.
 
----
+## Migration strategy
 
-## Architecture Decision Records
+Architecture evolves safely through seams:
 
-### When to Write an ADR
-```
-Write an ADR when:
-  - Choosing between competing approaches with real trade-offs
-  - A decision is hard to reverse later
-  - Multiple teams are affected by the choice
-  - Someone will ask "why did we do it this way?" in 6 months
+- **branch by abstraction** — place old/new implementations behind one stable contract;
+- **strangler** — route one characterized capability to a new owner and retire the old path;
+- **expand/migrate/contract** — add compatible schema/contract capability, migrate, then remove old forms;
+- **shadow/compare** — run a new read or decision path without authority and compare outputs;
+- **versioned boundary** — preserve old semantics while consumers migrate;
+- **reconciliation** — detect and repair divergence during dual operation.
 
-Skip an ADR when:
-  - The choice is obvious and uncontested
-  - It is easily reversible with no downstream impact
-  - It is a personal preference, not an architectural choice
-```
+For each slice define authority, compatibility, observability, rollback, and cleanup. Avoid indefinite dual writes; if unavoidable, designate one authority and reconcile explicitly.
 
-### ADR Structure
-```
-# ADR-NNN: Title
+## Review output
 
-## Status
-Proposed | Accepted | Deprecated | Superseded by ADR-XXX
+An architecture-health report should include:
 
-## Context
-What is the issue? What forces are at play?
+1. Scope and evidence inspected.
+2. Current model: components, owners, state, contracts, and runtime topology.
+3. Ranked findings with affected outcomes and concrete evidence.
+4. A target model showing how symptoms collapse into fewer mechanisms.
+5. Alternatives and accepted tradeoffs.
+6. Reversible migration slices.
+7. Fitness functions and runtime signals.
+8. Unknowns that require a spike or user decision.
 
-## Decision
-What is the change being proposed or decided?
-
-## Consequences
-What becomes easier? What becomes harder? What are the risks?
-```
-
-### ADR Governance
-- Store ADRs in the repository alongside the code they describe
-- Review ADRs in the same process as code reviews
-- Revisit ADRs when the context that drove them changes
-- Number sequentially, never delete — deprecate and link to successor
-
----
-
-## AI-Assisted Development Governance
-
-### Risk Zone Model
-```
-Assess AI coding tool permissions by code area risk:
-
-  Low risk (broad AI use):
-    - Boilerplate, scaffolding, test utilities
-    - Documentation, comments, config files
-    - Well-defined CRUD operations
-
-  Medium risk (AI with review):
-    - Business logic, data transformations
-    - API endpoint implementations
-    - Integration code between services
-
-  High risk (human-primary, AI-assisted):
-    - Authentication, authorization, cryptography
-    - Financial calculations, billing logic
-    - Data migration scripts, schema changes
-    - Infrastructure and deployment configuration
-```
-
-### AI Code Quality Gates
-- AI-generated code passes the same CI pipeline as human code
-- Architectural review: does the AI code follow established patterns?
-- Duplication check: AI tends to clone rather than reuse existing abstractions
-- Test coverage: AI-generated code must include tests, not just implementation
-- Dependency audit: AI may introduce unnecessary or outdated dependencies
-
-### AI Debt Indicators
-```
-Monitor these signals:
-  - AI-generated code ratio exceeding team review capacity
-  - Rising duplication rate in AI-heavy codebases
-  - Short-term churn: code merged then modified within days
-  - Pattern inconsistency: AI choosing different approaches for similar problems
-  - Dependency sprawl: new packages introduced without justification
-```
-
----
-
-## Team Topology Alignment
-
-Code structure should reflect team ownership. When they diverge, friction increases.
-
-```
-Aligned:
-  Team A owns service-a/ and packages used only by service-a
-  Team B owns service-b/ and packages used only by service-b
-  Platform team owns shared packages used by all services
-
-Misaligned:
-  Team A and Team B both modify shared-package/ frequently → ownership conflict
-  One team owns a service but its dependencies are owned by another team → coupling
-  Package boundaries do not match team boundaries → coordination overhead
-
-Fix: restructure packages to match team ownership, or restructure teams to match code.
-Conway's Law is a constraint, not a suggestion.
-```
-
-### Platform Team Responsibilities
-- Golden paths: opinionated templates for new services and packages
-- Internal developer platform: self-service infrastructure provisioning
-- Shared tooling: CI pipelines, observability stack, deployment automation
-- Documentation: architecture guides, onboarding materials, ADR templates
+Avoid generic maturity scores unless they drive a specific decision. The useful result is a prioritized set of leverage points tied to system outcomes.

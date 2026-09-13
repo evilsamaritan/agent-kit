@@ -96,4 +96,4 @@ Always chain to Flow 2 after editing. Re-run failed checks and the repository va
 
 ## Sub-flow: Description Triggers
 
-If the feedback is specifically about the skill not triggering (or over-triggering) on the right queries, chain to [optimize-description.md](optimize-description.md) — it runs a static trigger-fraction check (recall / specificity) on a `.trigger-fixture.json` and iterates the description until both metrics pass ≥80%.
+If feedback is specifically about missed or false triggers, compare the portable description against the observed requests and the descriptions of likely sibling skills. Rewrite the smallest ambiguous part, then replay the same requests when the target runtime is available. Do not add persistent routing fixtures unless an executable regression harness consumes them.

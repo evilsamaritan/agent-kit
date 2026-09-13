@@ -13,10 +13,10 @@ Database design and review expertise for relational, document, key-value, and ve
 
 ## Rules
 
-- Database is the source of truth -- not application memory, not caches, not message queues.
-- Every write must be idempotent -- replay-safe by design.
-- Audit trails are immutable -- append-only, no updates or deletes.
-- State is derived -- compute aggregates from events/entries, never store mutable running totals.
+- Give durable persisted data an explicit authoritative store. Caches, read projections, and accidental in-memory copies are not authoritative by default.
+- Make retryable writes idempotent, or define an explicit no-retry / at-most-once contract and its failure behavior.
+- Keep audit trails append-only when the domain or compliance requirement depends on immutable history.
+- Give derived values a declared source. Persist denormalized aggregates only with explicit update, rebuild, and reconciliation semantics.
 - Use exact numeric types for money (DECIMAL/NUMERIC) -- never floating point.
 - Timestamps must include timezone information.
 - Migrations must be backward-compatible -- the previous application version must still work after each migration step.
@@ -68,7 +68,7 @@ Start with a single instance. Add read replicas when read load demands it.
 ### Out of Scope
 - API design and endpoints → `api-design`
 - ORM integration and repository patterns → `backend`
-- System-level architecture (CQRS, event sourcing, sharding strategy) → `architect`
+- System-level architecture (CQRS, event sourcing, sharding strategy) → `architecture`
 - Query profiling and bottleneck analysis → `performance`
 - Row-level security, encryption, PII masking → `security`
 
@@ -178,7 +178,7 @@ Start with a single instance. Add read replicas when read load demands it.
 ## Related Knowledge
 
 - **backend** -- ORM integration, connection pooling, repository patterns, data access layers
-- **architect** -- Data modeling decisions, CQRS/event sourcing, sharding strategy, CAP trade-offs
+- **architecture** -- Data authority, CQRS/event sourcing, sharding strategy, and consistency trade-offs
 - **performance** -- Query optimization, EXPLAIN ANALYZE, index tuning, connection pool sizing
 - **security** -- Row-level security, encryption at rest, PII masking, audit trails
 - **devops** -- Backup automation, replication setup, migration CI/CD, blue-green deploys

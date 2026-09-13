@@ -1,128 +1,183 @@
 ---
 name: architecture
-description: Design and review software architecture — system decomposition, ADRs, patterns (DDD, CQRS, hexagonal, event-driven, cell-based, serverless), NFR frameworks, tech-debt assessment. Use when starting a new system, choosing between monolith/microservices/modular monolith, writing an ADR, evaluating architectural alternatives, or auditing a system against NFRs. Do NOT use for implementation code (use frontend/backend), API contracts (use api-design), schema design (use database), or CI/CD (use ci-cd).
-allowed-tools: Read, Grep, Glob, WebSearch, WebFetch, Edit, Write, Bash
+description: Design, diagram, and review software architecture: boundaries, contracts, ownership, state, behavior, evolution, and NFRs. Use when designing or redesigning a system, defining core or module boundaries, synthesizing scenarios, applying SOLID or design patterns, planning extensibility or migration, writing ADRs, or drawing diagrams. Do NOT use when an agreed design only needs a polished web explainer (use visualization), or for routine implementation, detailed API/schema design, or CI/CD.
 user-invocable: true
 ---
 
-# Software Architecture
+# Software Architecture and System Design
 
-Architectural patterns, NFR frameworks, ADR conventions, and system decomposition strategies. Vendor-neutral. This skill carries the **what** and **when** — the *how* to think as an architect lives in the `architect` role-template.
+Treat architecture as one continuous design problem from system topology down to module collaboration. Choose the level of detail from the decision being made; do not split one coherent problem into unrelated scenario-by-scenario fixes.
+
+## Critical rules
+
+1. **Synthesize before decomposing.** Scenarios are evidence. Group them into capabilities, invariants, state transitions, failure modes, and axes of variation before proposing components or tasks.
+2. **Design around change and ownership.** Things that change together belong together. Things with different owners, invariants, lifecycles, security boundaries, or scaling needs may need a boundary.
+3. **Give every invariant and mutable state an explicit authority model.** Prefer one owner and write path. If multi-writer is required, define partitioning, coordination, or merge semantics instead of allowing accidental shared writes.
+4. **Separate policy from mechanism.** Keep domain decisions independent from transport, persistence, frameworks, vendors, and operational plumbing unless those details are the actual constraint.
+5. **Define contracts before internals.** Name responsibilities, inputs, outputs, errors, state ownership, ordering, idempotency, and compatibility before choosing classes or files.
+6. **Choose patterns only for named forces.** Every abstraction or pattern must state the variation, coupling, failure, or lifecycle problem it solves and the complexity it adds.
+7. **Prefer the smallest coherent design.** Avoid both copy-pasted special cases and speculative generality. A useful extension point corresponds to demonstrated variation or a committed near-term requirement.
+8. **Make architecture visible.** Choose the minimum System, Structure, Internal, Runtime, Data & State, Deployment, or Evolution views that expose the decision, then draw concise renderable diagrams when relationships are easier to verify visually than in prose.
+9. **Prove the design against change.** Walk representative happy paths, failures, concurrency, recovery, and one plausible extension through the same model.
+10. **Preserve delivery safety.** For existing systems, map current behavior and compatibility constraints, then migrate through reversible slices with explicit verification.
+11. **Separate evidence from decisions.** Label repository facts, assumptions, unknowns, alternatives, and chosen decisions. Inspect before redesigning; do not invent the current architecture.
 
 ## Scope and boundaries
 
-**This skill covers:**
-- System decomposition: monolith vs modular monolith vs microservices vs cell-based vs serverless
-- Architectural styles: layered, hexagonal, clean, DDD, CQRS, event-driven, data-centric, AI-augmented
-- NFR frameworks: latency/availability/durability/cost/security/observability budgets
-- ADR authoring: templates, lifecycle, archival
-- Tech-debt assessment methodology (what makes debt "load-bearing" vs "decorative")
+This skill covers four connected levels:
 
-**This skill does not cover:**
-- HTTP/REST/GraphQL contract design → `api-design`
-- Database schema/index/query design → `database`
-- Implementation idioms per language → `go`, `rust`, `kotlin`, `javascript`, etc.
-- CI/CD pipelines → `ci-cd`
-- Release strategies (canary/blue-green/flags) → `release-engineering`
-- Observability instrumentation → `observability`
+| Level | Main question | Typical decisions |
+|---|---|---|
+| System | What are the major runtime parts? | deployment units, data ownership, communication, consistency, scaling, failure isolation |
+| Application | Where is the business core? | capabilities, bounded contexts, core versus adapters, dependency direction |
+| Module | What changes together behind one contract? | responsibilities, public surface, state authority, collaboration, extension points |
+| Collaboration | How should variable behavior compose? | direct call, pipeline, decorator, strategy, state machine, events, policies |
 
-## Decision tree — picking a style
+Use sibling skills for depth after the architectural boundary is chosen:
 
+- API protocol and wire contracts → `api-design`
+- Schema, indexes, migrations, and query plans → `database`
+- Service wiring, middleware, request pipelines, and runtime lifecycle → `backend`
+- Concrete resilience mechanisms and SLO practice → `reliability`
+- Threat modeling and security controls → `security`
+- Runtime-specific implementation idioms → language/framework skills
+- Deployment and delivery mechanics → `ci-cd` and `release-engineering`
+- Repository-wide ADR conventions, placement, linking, and docs-as-code mechanics → `documentation` (architecture owns whether to record the decision, its technical content, and rationale)
+
+Routine code inside an established design does not need this skill. Cross-cutting changes, new modules, shared mechanisms, state ownership changes, and architectural refactors do.
+
+## Flow selection
+
+| Intent | Route |
+|---|---|
+| Design a new system, subsystem, or module family | Read [design.md](workflows/design.md) and run the full synthesis flow |
+| Redesign or migrate an existing architecture | Read [design.md](workflows/design.md); include current-state and migration steps |
+| Review a proposal or codebase architecture | Read [review.md](workflows/review.md) and report evidence-ranked findings |
+| Choose a system/application architecture style | Read [architecture-patterns.md](references/architecture-patterns.md) |
+| Define module boundaries, a core, or extension seams | Read [module-design.md](references/module-design.md) |
+| Select or draw architecture views for systems, modules, flows, state, deployment, or migration | Read [visualization.md](references/visualization.md) |
+| Turn an agreed architecture into a polished responsive HTML explorer | Finish the architecture model and view contract, then combine with `visualization` |
+| Select SOLID/DRY/YAGNI and coupling principles | Read [design-principles.md](references/design-principles.md) |
+| Choose a composition or collaboration pattern | Read [design-patterns.md](references/design-patterns.md) |
+| Reason about state, scale, consistency, and failures | Read [system-design.md](references/system-design.md) |
+| Record a consequential decision | Read [adr-template.md](references/adr-template.md) |
+| Assess architecture health or migration pressure | Read [engineering-health.md](references/engineering-health.md) |
+
+Read only the references needed for the active forces. Do not load the entire catalog by default.
+
+## Systemic design loop
+
+For a small decision that does not justify the full workflow, preserve this sequence:
+
+```text
+Goal and constraints
+  -> scenarios and evidence
+  -> invariants, state, and variation
+  -> responsibilities and boundaries
+  -> contracts and dependency direction
+  -> pattern choices with costs
+  -> scenario and change simulation
+  -> migration and fitness checks
 ```
-Is the system one team, < 50k LOC, < 10 services worth of complexity?
-├─ yes → modular monolith (default). Skip microservices until it hurts.
-└─ no →
-   Does domain carry strong bounded contexts with independent scaling?
-   ├─ yes → microservices per context. Watch for: chatty network, distributed transactions.
-   └─ no →
-      Does workload spike to zero and traffic is bursty?
-      ├─ yes → serverless / functions. Watch for: cold starts, vendor lock-in, observability.
-      └─ no → cell-based (groups of services behind per-cell control plane). Watch for: cross-cell coordination cost.
-```
 
-Pick from constraints (team, scale, cost, regulatory), not from fashion.
+Do not use the scenario list as the component list or implementation plan. A hundred cases often reduce to a few operations, policies, states, and failure modes.
 
-## Core patterns — when each earns its keep
+## Boundary and abstraction tests
 
-| pattern | use when | cost |
-|---------|----------|------|
-| **Layered** | CRUD-heavy, stable domain | can become transaction-script soup |
-| **Hexagonal / ports-and-adapters** | multiple transports (HTTP + queue + CLI) over same core | more boilerplate |
-| **DDD** | domain is the hardest part; multiple experts with different vocabularies | heavy up-front investment |
-| **CQRS** | read/write workloads differ by ≥ 10×, or read model needs composition | consistency lag, two models to maintain |
-| **Event-driven** | cross-service invariants are async, decoupling matters more than latency | debugging is harder, need replay + idempotency |
-| **Cell-based** | per-tenant or per-region isolation required (blast radius, data residency) | each cell duplicates infra — budget accordingly |
+Before extracting a component, module, service, or abstraction, ask:
 
-**Rule:** pick the simplest pattern that solves the current constraint. Revisit when the constraint changes.
+| Test | Evidence for separation | Evidence for keeping together |
+|---|---|---|
+| Change | changes for a different reason or cadence | changes in the same feature repeatedly |
+| Invariants | owns a distinct consistency boundary | must transact atomically with the same state |
+| Language | has a stable domain concept and vocabulary | shares one model and cannot define a clean translation |
+| Lifecycle | starts, stops, deploys, or retires independently | must evolve and release in lockstep |
+| Scale/failure | needs independent scaling or blast-radius isolation | a boundary adds only network and coordination cost |
+| Security/ownership | needs a distinct trust or team boundary | the same owner and policy govern both sides |
+| Reuse | represents the same knowledge in multiple consumers | code only looks similar but encodes different rules |
 
-## NFR framework
+Extract when several forces align and the contract is clearer than the code it hides. Keep together when separation would split one invariant, create chatty coordination, or add indirection without independent change.
 
-Every significant architectural decision names at least:
+## Pattern decision discipline
 
-- **Latency budget** — p50, p95, p99 target per path that matters
-- **Availability target** — percentile (99.9%? 99.99%?), over what window, measured how
-- **Durability** — loss tolerance for data (0? 1 hour? replicated / backed up?)
-- **Cost envelope** — unit economics ($ per request, $ per tenant, $ per TB)
-- **Security posture** — threat model scope, data sensitivity classes, auth boundaries
-- **Observability surface** — what signals must be emitted for this decision to stay safe
+Use the problem as the selection key:
 
-Silence on any of these = "same as existing defaults". Only valid if you state it explicitly.
+| Pressure | Candidate response |
+|---|---|
+| Same operation, independently composable cross-cutting behavior | Decorator or middleware pipeline |
+| One behavior varies by policy or context | Strategy or higher-order function |
+| External model must not leak into the core | Adapter or anticorruption layer |
+| Complex subsystem needs one stable entry point | Facade |
+| Explicit lifecycle with constrained transitions | State machine |
+| Several handlers may process or enrich a request in order | Chain/pipeline |
+| Consumers react independently to a fact that already happened | Domain event / publish-subscribe |
+| Creation varies while use stays stable | Factory at the composition root |
+| Reads and writes have materially different models | Separate query model; full CQRS only if its cost is justified |
 
-## ADR rules
+Composition is the default way to add orthogonal behavior. Inheritance is appropriate only for a genuine substitutable hierarchy with stable variation. Plain functions and direct calls remain preferable when there is no independent variation.
 
-- One ADR per decision. Don't stack multiple decisions in one document.
-- **Status** (Proposed / Accepted / Superseded / Deprecated) is part of the file. Superseded ADRs stay in the repo — history matters.
-- **Context** section describes the problem and constraints *as of the decision date* — don't rewrite history.
-- **Alternatives** section lists at least two rejected options with why. A decision without alternatives isn't a decision, it's a preference.
-- **Consequences** section is honest about tradeoffs, including the ugly ones.
+## Required output
 
-See `references/adr-template.md` for the full template.
+An architecture result must make the design executable, not merely name patterns. Include:
 
-## Tech-debt assessment
+1. **Scope and drivers** — outcome, constraints, current facts, assumptions, and unknowns.
+2. **Model** — capabilities, invariants, state owners, variation axes, and representative flows.
+3. **Boundaries** — components/modules, responsibilities, public contracts, and dependency direction.
+4. **Architecture views** — one compact structure/dependency view plus Runtime, Data & State, Deployment, or Evolution views only when they answer a consequential question; draw them directly in a maintainable form and give each a status and takeaway.
+5. **Decisions** — chosen patterns and rejected alternatives, each tied to a concrete force and cost.
+6. **Scenario proof** — how representative success, failure, concurrency, and extension cases traverse the design.
+7. **Delivery** — migration slices, compatibility strategy, tests/fitness functions, observability, and rollback points.
 
-Debt is **load-bearing** (if we don't fix it, something breaks / stops scaling) or **decorative** (makes devs unhappy, no functional impact). Only load-bearing debt earns engineering cycles.
+Lead architecture documentation with selected views and short takeaways, then provide rationale and detail. Architecture may render compact Mermaid, text, or host-native diagrams itself; those diagrams are part of the design, not a handoff stub. Combine with `visualization` only when the same model needs a polished responsive HTML explorer, richer disclosure, or presentation-grade render QA. Code and diff views may support a decision as implementation evidence; they are not architecture levels.
 
-Red flags indicating load-bearing debt:
-- a single team owns > 5 services with no clear bounded context
-- one service holds > 50% of revenue traffic and has < 2 on-call rotations worth of experience
-- schema migrations require manual coordination across 3+ teams
-- rollback-by-redeploy takes > 10 minutes
-
-See `references/engineering-health.md` for a full audit checklist.
+For a review, rank findings by architectural impact and cite evidence. For a consequential choice, capture the decision in an ADR.
 
 ## Context adaptation
 
-**As architect (planning a new system):** lead with constraints (scale, budget, team), enumerate 2–3 style candidates with tradeoffs, pick, write ADR. Don't design for a scale 10× beyond next year's demand.
+**New product:** keep deployment topology simple while making domain and module boundaries explicit. Defer distributed mechanisms until a measured force requires them.
 
-**As reviewer (auditing an existing system):** score against NFRs, flag load-bearing debt, list 3–5 concrete leverage points ordered by ROI. A review without ROI ordering is noise.
+**Existing system:** derive the real architecture from code, runtime configuration, data ownership, and call paths. Treat documentation as a hypothesis until verified.
 
-**As implementer (executing someone else's design):** your ADRs are downstream — if the spec contradicts NFRs, escalate before writing the code.
+**Cross-cutting feature:** inspect all consumers first. Separate stable operation from independently varying policies such as retries, logging, caching, authorization, or metrics.
 
-**As operator (running the system):** you see which architectural choices cost the most in on-call. Feed that back into the next ADR review cycle.
+**Legacy redesign:** identify seams around behavior that can be characterized, place compatibility adapters at the edge, and migrate one reversible path at a time.
+
+**Library or framework:** optimize for a small stable public contract, explicit lifecycle, composability, compatibility, and misuse resistance rather than application-specific convenience.
 
 ## Anti-patterns
 
-- **Architecture astronauting** — abstractions for imaginary scale or imaginary future features.
-- **No-alternatives ADRs** — "we chose X" without naming what you rejected and why.
-- **NFR amnesia** — ADRs that never mention latency, availability, or cost.
-- **Pattern worship** — "it should be microservices / event-driven / DDD" because the pattern is trendy.
-- **Review paralysis** — endless architecture review without a forcing function for a decision.
-- **Reorg-as-architecture** — team boundaries conflated with service boundaries. They reinforce each other but aren't the same.
+- **Scenario-by-scenario design** — one branch, handler, flag, or task per case with no shared model.
+- **Noun-first decomposition** — turning every domain noun or screen into a service/module without change-boundary evidence.
+- **Pattern shopping** — selecting a named pattern before identifying the pressure it resolves.
+- **Premature platform** — building a generic plugin or configuration system for one concrete use case.
+- **False DRY** — merging coincidentally similar code that represents different business knowledge.
+- **Distributed monolith** — network boundaries without independent ownership, data, release, or failure isolation.
+- **Shared-state ambiguity** — several components can mutate the same invariant without an explicit coordination and authority model.
+- **Leaky core** — business policy depends directly on transport, storage, framework, or vendor types.
+- **Task-list architecture** — an implementation backlog substitutes for a coherent model and contracts.
+- **Big-bang purity rewrite** — architectural improvement has no compatibility path, checkpoints, or rollback.
 
 ## Related Knowledge
 
-- `api-design` — once decomposition is decided, contracts between services
-- `database` — data model is half the architecture
-- `observability` — how you'll see whether the architecture is working
-- `reliability` — SLOs are the runtime projection of architectural choices
-- `release-engineering` — deployment shape amplifies or masks architecture problems
+- `visualization` — turns an agreed architecture model and its views into a polished responsive HTML explorer
+- `api-design` — protocol and compatibility design for exposed contracts
+- `database` — persistence models and transactional boundaries
+- `reliability` — failure handling, SLOs, and recovery
+- `performance` — evidence-driven capacity and latency work
+- `security` — trust boundaries and threat-driven controls
+- `testing` — contract, integration, property, and architecture fitness tests
+- `observability` — signals that validate runtime assumptions
+- `release-engineering` — safe migration and rollout strategies
 
 ## References
 
-- [adr-template.md](references/adr-template.md) — standard ADR structure
-- [architecture-patterns.md](references/architecture-patterns.md) — pattern catalog with tradeoffs
-- [design-principles.md](references/design-principles.md) — SOLID, YAGNI, loose coupling, high cohesion — why each earns its keep
-- [design-patterns.md](references/design-patterns.md) — classical GoF + modern patterns
-- [system-design.md](references/system-design.md) — end-to-end walkthrough of a system design interview-style
-- [ai-system-patterns.md](references/ai-system-patterns.md) — RAG, agents, evals, guardrails — architectural considerations for AI-backed systems
-- [engineering-health.md](references/engineering-health.md) — org-level tech-health audit checklist (monorepo vs polyrepo, dependency graphs, DX, cross-team standards)
+- [design.md](workflows/design.md) — full architecture design and redesign workflow
+- [review.md](workflows/review.md) — evidence-based architecture review workflow
+- [architecture-patterns.md](references/architecture-patterns.md) — system and application styles with forces and costs
+- [module-design.md](references/module-design.md) — core, boundaries, ownership, dependencies, and extension seams
+- [visualization.md](references/visualization.md) — architecture view selection, direct diagramming, and the optional HTML handoff
+- [design-principles.md](references/design-principles.md) — principles as tradeoffs rather than slogans
+- [design-patterns.md](references/design-patterns.md) — pattern selection by problem signal
+- [system-design.md](references/system-design.md) — end-to-end state, flow, scale, and failure reasoning
+- [adr-template.md](references/adr-template.md) — decision record formats
+- [engineering-health.md](references/engineering-health.md) — health signals, fitness functions, and migration pressure

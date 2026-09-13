@@ -1,359 +1,210 @@
-# System Design
+# System Design Reasoning
 
-Distributed systems, databases, caching, messaging, API design, resilience, scalability.
+Use this reference after scenario synthesis to reason about runtime components, state, data flow, consistency, scale, failure, security, and operations. Product-specific choices belong to their sibling knowledge skills.
 
 ## Contents
 
-- [CAP Theorem and Consistency Models](#cap-theorem-and-consistency-models)
-- [Database Selection](#database-selection)
-- [Caching Strategies](#caching-strategies)
-- [Messaging: Queues and Event Streaming](#messaging-queues-and-event-streaming)
-- [API Design](#api-design)
-- [Resilience Patterns](#resilience-patterns)
-- [Scalability Patterns](#scalability-patterns)
-- [Observability: The Three Pillars](#observability-the-three-pillars)
+- [System model](#system-model)
+- [Drivers and budgets](#drivers-and-budgets)
+- [State and data ownership](#state-and-data-ownership)
+- [Consistency and transactions](#consistency-and-transactions)
+- [Communication and flow](#communication-and-flow)
+- [Failure and recovery](#failure-and-recovery)
+- [Capacity and scaling](#capacity-and-scaling)
+- [Caching and derived state](#caching-and-derived-state)
+- [Security and trust boundaries](#security-and-trust-boundaries)
+- [Operability](#operability)
+- [Evolution](#evolution)
+- [Design completeness check](#design-completeness-check)
 
----
+## System model
 
-## CAP Theorem and Consistency Models
+Describe the system through connected views:
 
-**CAP:** A distributed system can guarantee at most 2 of 3:
-- **C**onsistency — every read returns the latest write
-- **A**vailability — every request gets a (possibly stale) response
-- **P**artition tolerance — the system works despite network failures
+| View | Shows | Excludes |
+|---|---|---|
+| Context | users, external systems, trust boundaries | internal implementation |
+| Runtime | processes/services/functions, synchronous and async links | class-level detail |
+| Data | authoritative state, writers, replicas, caches, retention | incidental objects |
+| Module | application core, capabilities, public contracts, dependencies | deployment assumptions unless relevant |
+| Deployment | instances, regions, cells, networks, stores | business logic detail |
 
-Network partitions are inevitable. **The real choice is CP vs AP** — what to sacrifice *during* a partition.
+Use the fewest views needed to make ownership, interaction, and risk clear. A diagram without semantics is decoration; annotate protocols, direction, ownership, and critical guarantees.
 
-**CP systems** (banking, payments, inventory): prefer returning an error over returning stale data.  
-**AP systems** (social feeds, recommendations, shopping carts): prefer returning stale data over returning an error.
+## Drivers and budgets
 
-**Most systems use both** — different subsystems choose different points. User sessions: AP. Payment processing: CP. Profile data: AP. Account balance: CP.
+Architecture is selected from constraints. Capture ranges and uncertainty rather than inventing precision.
 
-### Consistency models (strongest to weakest)
+- workload: request/event rates, bursts, payloads, read/write ratio, growth;
+- latency: user-visible and internal path budgets, including tail latency;
+- availability: which operations must remain available and under which failures;
+- durability: acceptable data loss and recovery objectives;
+- consistency: which reads/writes require immediate agreement;
+- security/privacy: data classes, actors, trust boundaries, residency, retention;
+- cost: unit cost, fixed/variable limits, operational staffing;
+- evolution: compatibility window, migration rate, expected variation;
+- team: ownership, operational capacity, and coordination constraints.
 
-| Model | Guarantee | Cost |
-|-------|-----------|------|
-| **Linearizability** | Operations appear instantaneous; reads always return latest write | Highest (coordination on every op) |
-| **Serializable** | Transactions execute as if serial | High |
-| **Causal** | Cause precedes effect for all nodes | Medium |
-| **Eventual** | All replicas converge; may return stale reads | Lowest |
+Not every quality attribute needs a special mechanism. State which existing default applies when a dimension is not a decision driver.
 
-Choose per subsystem. Don't default to "eventual consistency everywhere" — it transfers consistency burden to application code, which is harder to reason about.
+## State and data ownership
 
----
+For every important datum, identify:
 
-## Database Selection
+- semantic owner and authoritative store;
+- accepted writers and write contract;
+- invariant and transaction boundary;
+- derived copies, caches, projections, and indexes;
+- retention, deletion, backup, and recovery semantics;
+- identity and versioning across boundaries.
 
-**Default to PostgreSQL.** Add specialized stores only when PostgreSQL genuinely cannot serve the need.
+Do not let shared schemas create accidental multi-owner state. When another component needs the data, choose among a query contract, published event, replicated projection, or ownership transfer based on freshness, autonomy, and failure needs.
 
-| Workload | Recommended | Notes |
-|----------|-------------|-------|
-| General CRUD, ACID transactions | PostgreSQL | Default choice |
-| Global-scale distributed SQL | CockroachDB / YugabyteDB | When geo-distribution is required |
-| Vector search < 50M vectors | pgvector on PostgreSQL | Eliminates separate vector DB |
-| Vector search > 50M vectors | Qdrant, Milvus, Pinecone | Purpose-built at scale |
-| Time-series metrics / IoT | TimescaleDB or InfluxDB | Built on PostgreSQL (TimescaleDB) |
-| Large-scale analytics | ClickHouse | 10-100x faster than Postgres for OLAP |
-| Graph relationships | Neo4j | Only when traversal is the primary access pattern |
-| Caching / session | Redis | Industry standard |
-| Event log / append-only | Append-only table or EventStoreDB | Simple Postgres table often sufficient |
+Model the write path before optimizing reads. Read convenience must not obscure who validates and commits the truth.
 
-**Multi-DB is normal for AI/ML systems.** Relational + vector + graph + cache is a common production stack.
+## Consistency and transactions
 
-### When NOT to add a database
+Choose consistency per invariant and operation, not once for the entire system.
 
-Before adding a new database type:
-1. Can PostgreSQL do this with an extension? (pgvector, TimescaleDB, Citus)
-2. Will the team be able to operate this in production?
-3. What is the backup/restore story?
-4. What happens when this service goes down?
+| Need | Typical response | Cost |
+|---|---|---|
+| one owner must atomically enforce an invariant | local transaction/serialization | owner availability and contention |
+| caller must observe its own accepted write | session/read-your-writes strategy | routing/version tracking |
+| independent read model may lag | asynchronous projection | stale UX and reconciliation |
+| several owners participate in a process | saga/reconciliation | intermediate states and compensation |
+| concurrent writes conflict | optimistic versioning, locking, partitioned ownership, or merge semantics | retries, blocking, or domain complexity |
 
-Every new DB type is operational complexity. The benefit must exceed the cost.
+During a network partition, a distributed operation cannot guarantee both immediate agreement and an accepted response from every side. Decide which operations reject, degrade, queue, or return stale data. "Eventually consistent" is incomplete without convergence, conflict, freshness, and user-experience rules.
 
----
+## Communication and flow
 
-## Caching Strategies
+Prefer synchronous calls when the caller needs an immediate decision and both sides form one availability path. Prefer asynchronous messages when work can be decoupled in time, buffered, replayed, or consumed independently.
 
-### Cache decision tree
+For each link specify:
 
-```
-Is data expensive to compute or fetch?
-  YES → Cache it
-  
-Is data mutable?
-  NO  → Long TTL, invalidate on change (write-through)
-  YES → Short TTL, or event-based invalidation
+- command, query, or event semantics;
+- schema and compatibility ownership;
+- timeout/deadline and cancellation;
+- retry and idempotency boundary;
+- ordering and duplication scope;
+- backpressure and overload behavior;
+- authentication/authorization context;
+- tracing and correlation.
 
-Do multiple app instances need cache consistency?
-  YES → Distributed cache (Redis)
-  NO  → Local in-process cache (faster, simpler)
-```
+Avoid long synchronous chains. Total reliability and latency compound across dependencies. Avoid replacing a clear local call with messaging when all participants must finish for the same request to succeed.
 
-### Strategies
+## Failure and recovery
 
-**Cache-Aside (default):** Application checks cache, on miss reads from DB, populates cache.
-```
-read(key):
-  value = cache.get(key)
-  if value == null:
-    value = db.get(key)
-    cache.set(key, value, ttl=300s)
-  return value
-```
-Lazy — only caches what's read. Risk: thundering herd on cold start.
+Assume partial failure: a request can time out after the dependency commits; a message can be delivered twice; a process can restart between state change and acknowledgement.
 
-**Write-Through:** Write to cache AND DB simultaneously.  
-Use for: data that must always be fresh when read (financial data, inventory levels).  
-Cost: every write is two writes.
+For every stateful flow ask:
 
-**Write-Behind:** Write to cache, async flush to DB.  
-Use for: high-throughput writes where some lag is acceptable (analytics, counters).  
-Risk: data loss if cache fails before flush.
+- What if each dependency is slow, unavailable, or returns invalid data?
+- Can the caller distinguish rejection, unknown outcome, and success?
+- Which operations are safe to retry, and under what key/version?
+- How are duplicates and out-of-order work handled?
+- What survives restart, and how is in-flight work reconciled?
+- What can degrade, queue, serve stale data, or fail closed?
+- How is resource exhaustion isolated and backpressure propagated?
 
-**Read-Through:** Cache handles the DB read on miss (cache is the abstraction).  
-Use for: when you want cache logic outside application code.
+Timeouts bound waiting but do not cancel remote effects. Retries improve transient availability but amplify overload and duplicates. Circuit breakers, queues, and bulkheads are conditional responses, not mandatory decoration.
 
-### Cache invalidation (the hard problem)
+## Capacity and scaling
 
-Strategies in order of complexity:
-1. **TTL expiration** — simplest; stale data guaranteed to expire
-2. **Event-based invalidation** — on write, publish invalidation event to all cache instances via Redis Pub/Sub
-3. **Write-through** — invalidate on every write
+Estimate the dominant resource before choosing a scaling pattern:
 
-**Never** hold stale data forever. Every cache entry needs a TTL — even as a safety net.
-
-**Cache stampede mitigation:** Use probabilistic early expiration or a lock-based read. When many requests miss simultaneously, only one fetches from DB while others wait.
-
-### Multi-layer cache architecture
-
-```
-Browser cache → CDN → API Gateway cache → App-level (Redis) → DB
+```text
+traffic x work per request -> compute demand
+writes x retained bytes x retention -> storage demand
+fan-out x downstream latency -> concurrency demand
+event rate x processing time -> consumer capacity and lag
 ```
 
-Each layer serves different data and timescales:
-- Browser/CDN: static assets, public content (minutes to hours)
-- API Gateway: rate-limited endpoints, auth results (seconds to minutes)
-- Redis: session data, computed aggregations, expensive DB queries (seconds to hours)
+Measure headroom and bottlenecks. Common responses, in increasing architectural cost, include:
 
----
+- remove unnecessary work and round trips;
+- batch, stream, or bound payloads;
+- tune algorithms, queries, and resource pools;
+- scale the existing owner vertically or horizontally;
+- add read replicas or derived read models;
+- partition by a stable ownership key;
+- split a capability only when it needs independent runtime behavior.
 
-## Messaging: Queues and Event Streaming
+Stateless compute is easier to replicate, but state still exists somewhere. Name session affinity, leases, coordination, and local ephemeral state rather than declaring a service stateless by convention.
 
-### When to use async messaging
+## Caching and derived state
 
-Use async messaging when:
-- The caller doesn't need the result to proceed
-- Operations can be decoupled in time
-- You need guaranteed delivery (at-least-once)
-- You need fan-out (one message → many consumers)
-- You need to buffer against traffic spikes
+A cache is a derived copy with a freshness contract.
 
-Don't use async messaging when:
-- The caller needs the result to complete its work
-- Latency is critical (each hop adds 5–50ms+)
-- Exactly-once is required and you can't handle idempotency
+Before adding one, define:
 
-### Choosing a message broker
+- source of truth;
+- cache key and tenant/security scope;
+- acceptable staleness;
+- invalidation or version strategy;
+- miss and stampede behavior;
+- capacity and eviction;
+- outage behavior;
+- observability and correctness tests.
 
-| Broker | Throughput | Best for |
-|--------|-----------|---------|
-| **Apache Kafka** | 500K–1M msg/s | Event streaming, event sourcing, audit log, data pipelines |
-| **RabbitMQ** | 50K–100K msg/s | Complex routing, work queues, enterprise messaging |
-| **NATS JetStream** | 1M+ msg/s | Cloud-native, IoT, edge, microservices, low latency |
-| **Redis Streams** | 100K–500K msg/s | When you already have Redis; simple pub/sub |
+Use a cache for measured reuse or latency/load constraints. Do not use it to hide an unclear ownership or query model. A TTL is a recovery bound, not proof of correct freshness.
 
-**Kafka** is not a queue — it's an immutable log. Consumers can replay, multiple consumer groups get all messages. Use for event sourcing, audit, or pipelines where replay matters.
+## Security and trust boundaries
 
-**RabbitMQ** is a queue — messages are consumed and removed. Use for work distribution, delayed tasks, complex routing.
+Architecture identifies where trust changes; the `security` skill designs controls in depth.
 
-### Outbox Pattern (mandatory for reliable event publishing)
+Mark:
 
-Problem: You can't atomically write to a DB AND publish to a message broker.
+- human, service, device, and third-party identities;
+- entry points and privilege transitions;
+- sensitive data movement and storage;
+- tenant and administrative boundaries;
+- untrusted inputs and executable content;
+- audit and non-repudiation needs;
+- failure modes that must fail closed.
 
-Solution:
-```
-BEGIN TRANSACTION
-  INSERT INTO orders (...)        -- business data
-  INSERT INTO outbox (event, payload, published=false)  -- event
-COMMIT
+Authenticate the actor and authorize the requested domain operation at the owning boundary. Network location alone is not authority. Minimize data and privilege crossing each boundary.
 
-[Background process: polling or CDC]
-  SELECT * FROM outbox WHERE published=false
-  broker.publish(event)
-  UPDATE outbox SET published=true WHERE id=?
-```
+## Operability
 
-Use Outbox whenever: events must be published reliably; service restarts must not lose events.
+The design should reveal whether its assumptions hold in production.
 
-### Saga Pattern (distributed transactions)
+Define signals for:
 
-When a business operation spans multiple services:
+- user-visible success, rejection, latency, and correctness;
+- dependency health and saturation;
+- queue lag, retries, duplicates, dead letters, and stuck states;
+- consistency/projection lag and reconciliation;
+- resource and cost limits;
+- rollout version and compatibility errors.
 
-```
-PlaceOrder saga:
-1. CreateOrder (local) → emit OrderCreated
-2. ReserveInventory → emit InventoryReserved (or InventoryFailed)
-3. ChargePayment → emit PaymentCharged (or PaymentFailed)
-4. ShipOrder → emit OrderShipped
+Provide health behavior, graceful shutdown, backup/restore, recovery, and manual intervention paths appropriate to the system. Logs alone are not an operational model.
 
-Compensation (on failure at step 3):
-3. emit PaymentFailed
-2. ReleaseInventory (compensating action)
-1. CancelOrder (compensating action)
-```
+## Evolution
 
-**Choreography** (event-based): each service reacts to events. Simpler but harder to observe.  
-**Orchestration** (central coordinator): a saga service sends commands. Easier to observe but single point of logic.
+Every distributed or public boundary creates compatibility work. Prefer additive changes, tolerant reading with controlled writing, versioned semantics when meaning changes, and explicit deprecation evidence.
 
----
+For data and contract migrations:
 
-## API Design
+- separate schema capability from behavior activation;
+- support old and new readers/writers for the required window;
+- backfill or reconcile with restartable, observable work;
+- switch authority once, with rollback criteria;
+- remove transitional paths after evidence shows they are unused.
 
-### REST, GraphQL, gRPC decision
+Keep the desired architecture distinct from temporary dual-write, proxy, translation, or compatibility mechanisms.
 
-| Protocol | Use for |
-|----------|---------|
-| **REST** | Public/external APIs; widest compatibility; standard HTTP tooling |
-| **gRPC** | Internal service-to-service; 10x lower latency than REST; strong typing |
-| **GraphQL** | Client-server with complex data fetching; mobile/web UI clients |
+## Design completeness check
 
-**Common hybrid:** GraphQL gateway for clients → gRPC between services → REST for external/legacy.
+A system design is incomplete if it cannot answer:
 
-### REST best practices (Stripe-standard)
-
-- **Resources are nouns:** `/orders/123`, not `/getOrder?id=123`
-- **HTTP verbs carry semantics:** GET (read), POST (create), PUT (replace), PATCH (update), DELETE (delete)
-- **Consistent response structure:** every resource has `id`, `object`, `created`, standard error shape
-- **Typed IDs:** use prefixed IDs (`ord_abc123`, `cus_xyz789`) — you always know what you have
-- **Idempotency:** POST endpoints accept an `Idempotency-Key` header — safe to retry
-- **Date versioning:** `/v1/`, `/v2/` or `?api-version=2024-01-01`
-- **Rich errors:** include `type`, `message`, `param`, `doc_url`
-- **Pagination:** cursor-based over offset for large datasets
-
-### gRPC best practices
-
-- Define services in `.proto` files — source of truth for the contract
-- Use `google.protobuf.Timestamp` for dates, `google.type.Money` for currency
-- Stream large responses rather than returning huge messages
-- Implement deadlines/timeouts on all client calls
-- Use gRPC reflection for discoverability
-
----
-
-## Resilience Patterns
-
-Apply in this order — don't skip to the end:
-
-### 1. Timeouts (mandatory on everything external)
-Every call to a database, external service, or other component must have a timeout.  
-No timeout = one slow dependency can exhaust all threads/connections.
-
-Rule of thumb: timeout < P99 acceptable latency for that call.
-
-### 2. Idempotency
-Design writes to be safely retried.  
-Technique: accept a client-provided idempotency key; deduplicate based on it.
-
-Without idempotency, retries cause duplicate operations (double charges, double orders).
-
-### 3. Retries with backoff + jitter
-```
-attempt 1: immediate
-attempt 2: 1s delay
-attempt 3: 2s delay + random(0–500ms)
-attempt 4: 4s delay + random(0–500ms)
-→ give up, return error
-```
-
-**Only retry transient errors** (network timeout, 429, 503). Never retry `400 Bad Request`.  
-**Add jitter** (random delay) to prevent thundering herd when many clients retry simultaneously.
-
-### 4. Circuit Breaker
-Prevents cascading failures by "opening" when a dependency fails repeatedly.
-
-States:
-```
-CLOSED (normal) → failures exceed threshold → OPEN (reject all calls)
-OPEN → after timeout → HALF-OPEN (try one call)
-HALF-OPEN → success → CLOSED
-HALF-OPEN → failure → OPEN
-```
-
-**Configure:** failure threshold (e.g., 50% failure rate over 10 requests), open duration (e.g., 30s), success threshold to close (e.g., 3 consecutive successes).
-
-### 5. Bulkhead
-Isolate resources to prevent one failing component from exhausting shared resources.
-
-Technique: separate thread pools or connection pools per dependency.  
-If dependency A is slow and consumes all threads, dependency B calls still succeed because they have their own pool.
-
-### Failure mode planning
-
-For every external dependency, define:
-1. What happens if it's slow? (timeout + circuit breaker)
-2. What happens if it's down? (graceful degradation — serve stale data, disable feature, or fail fast)
-3. What happens if it returns garbage? (validate responses; don't propagate corrupt data)
-
----
-
-## Scalability Patterns
-
-### Horizontal vs Vertical Scaling
-
-**Vertical** (bigger machine): simple, no code changes, but has a ceiling and is a SPOF.  
-**Horizontal** (more machines): complex, requires stateless design, but theoretically unlimited.
-
-Design for horizontal scaling from the start: no local state, no sticky sessions (or manage them with distributed cache), no server-local files.
-
-### Stateless design
-
-Stateless services scale horizontally. State lives in:
-- Database (durable state)
-- Cache (ephemeral state)
-- Client (session tokens)
-
-A request routed to any instance should produce the same result.
-
-### Database scaling (in order of complexity)
-
-1. **Read replicas** — scale reads; write to primary, read from replicas
-2. **Connection pooling** — reduce connection overhead (PgBouncer for PostgreSQL)
-3. **Caching** — reduce DB load at the application layer
-4. **Vertical scaling** — bigger machine for the DB
-5. **Sharding** — partition data across multiple DB instances (last resort; high complexity)
-
-Sharding adds: cross-shard query complexity, rebalancing operations, application-level routing. Don't shard until single-node capacity is actually exhausted.
-
-### CQRS for read scaling
-
-When read load vastly exceeds write load:
-- Write to normalized DB
-- Asynchronously maintain denormalized read models in a separate store (or DB)
-- Queries hit the read model; commands hit the write model
-
----
-
-## Observability: The Three Pillars
-
-### Metrics (what's happening)
-- **RED metrics** (for services): Rate, Errors, Duration
-- **USE metrics** (for resources): Utilization, Saturation, Errors
-- **Business metrics**: conversion rate, revenue, active users
-
-Instrument from day one. Adding observability to an unobservable system is expensive.
-
-### Traces (why it's happening)
-Distributed tracing across service/module boundaries.  
-Each request carries a trace ID. Each operation creates a span.  
-Standard: OpenTelemetry (vendor-neutral, captures logs + metrics + traces).
-
-Use traces to: identify which service is slow, understand request fan-out, debug intermittent failures.
-
-### Logs (what happened)
-- Structured logging (JSON) — machine-readable
-- Correlated with trace ID — link logs to traces
-- Log levels: ERROR (needs immediate attention), WARN (unexpected but handled), INFO (significant events), DEBUG (development only)
-
-**Health checks:** every service exposes `/health` (liveness) and `/ready` (readiness).  
-Liveness: is the process alive?  
-Readiness: can the process serve traffic? (DB connected, cache available, etc.)
+- What user outcome and constraints drive this shape?
+- Who owns each invariant and mutable state?
+- How does the main success path cross boundaries?
+- What are the contracts and dependency directions?
+- What happens on timeout, duplicate, concurrent change, and restart?
+- Which parts scale or fail independently, and why?
+- Which security and data boundaries matter?
+- How will production evidence validate the assumptions?
+- How can the design evolve and be migrated safely?
+- Which alternatives were rejected and what cost was accepted?

@@ -1,0 +1,515 @@
+<!doctype html>
+<html lang="ru" data-viz-theme="auto">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="color-scheme" content="light dark" />
+    <title>Visualization pattern gallery</title>
+    <link rel="stylesheet" href="visualization-shell.css?v=3.1.0" />
+    <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+  </head>
+  <body class="m-0 min-h-screen antialiased">
+    <div class="viz-shell min-h-screen min-[60rem]:grid min-[60rem]:grid-cols-[13rem_minmax(0,1fr)]">
+      <aside class="viz-sidebar group relative flex flex-col overflow-y-auto border-b border-[var(--viz-border)] bg-[var(--viz-surface-subtle)] px-3 py-3 min-[60rem]:sticky min-[60rem]:top-0 min-[60rem]:h-screen min-[60rem]:self-start min-[60rem]:border-r min-[60rem]:border-b-0 min-[60rem]:py-4" id="sidebar">
+        <div class="viz-brand flex items-center justify-between gap-3 min-[60rem]:mb-4">
+          <span class="viz-brand__copy grid gap-0.5">
+            <span class="viz-brand__meta">Visualization</span>
+            <span class="viz-brand__title">Pattern gallery</span>
+          </span>
+          <button class="viz-menu inline-flex h-8 items-center rounded-md border border-[var(--viz-border)] bg-[var(--viz-surface)] px-2.5 text-xs font-semibold text-[var(--viz-text)] min-[60rem]:hidden" id="menu-toggle" type="button" aria-controls="viz-navigation viz-theme-controls" aria-expanded="false">Разделы и тема</button>
+        </div>
+
+        <nav class="viz-nav mt-3 hidden flex-1 content-start gap-0.5 overflow-y-auto pe-0.5 group-data-[open=true]:grid min-[60rem]:mt-0 min-[60rem]:grid" id="viz-navigation" aria-label="Типы представлений">
+          <div class="viz-nav__group grid gap-0.5">
+            <p class="viz-nav__label">Структура</p>
+            <a class="viz-nav__link" href="#system" aria-current="location">System / boundary</a>
+            <a class="viz-nav__link" href="#hierarchy">Hierarchy</a>
+            <a class="viz-nav__link" href="#dependencies">Dependencies</a>
+            <a class="viz-nav__link" href="#data-model">Data model</a>
+            <a class="viz-nav__link" href="#deployment">Deployment</a>
+          </div>
+          <div class="viz-nav__group grid gap-0.5">
+            <p class="viz-nav__label">Поведение</p>
+            <a class="viz-nav__link" href="#process">Process / decision</a>
+            <a class="viz-nav__link" href="#sequence">Sequence</a>
+            <a class="viz-nav__link" href="#state">State</a>
+            <a class="viz-nav__link" href="#data-flow">Data flow</a>
+            <a class="viz-nav__link" href="#evolution">Evolution</a>
+          </div>
+          <div class="viz-nav__group grid gap-0.5">
+            <p class="viz-nav__label">Анализ</p>
+            <a class="viz-nav__link" href="#comparison">Comparison</a>
+            <a class="viz-nav__link" href="#charts">Charts</a>
+          </div>
+          <div class="viz-nav__group grid gap-0.5">
+            <p class="viz-nav__label">Код</p>
+            <a class="viz-nav__link" href="#code-view">Code view</a>
+            <a class="viz-nav__link" href="#diff-view">Diff code view</a>
+          </div>
+        </nav>
+
+        <div class="viz-sidebar__footer viz-theme-control mt-3 hidden gap-2 border-t border-[var(--viz-border)] pt-3 group-data-[open=true]:grid min-[60rem]:grid" id="viz-theme-controls">
+          <p class="viz-nav__label">Тема</p>
+          <div class="viz-segmented" role="group" aria-label="Тема страницы">
+            <button type="button" data-theme="auto" aria-pressed="true">Auto</button>
+            <button type="button" data-theme="light" aria-pressed="false">Light</button>
+            <button type="button" data-theme="dark" aria-pressed="false">Dark</button>
+          </div>
+        </div>
+      </aside>
+
+      <main class="viz-main min-w-0">
+        <header class="viz-header border-b border-[var(--viz-border)] bg-[var(--viz-bg)] px-4 py-4 sm:px-5 min-[60rem]:px-6 min-[60rem]:py-5">
+          <div>
+            <span class="viz-kicker">Responsive reference · not a universal renderer</span>
+            <h1 class="viz-title text-balance">Строительные блоки технической визуализации</h1>
+            <p class="viz-summary text-pretty">Один визуальный язык, разные вопросы. Каждая схема собрана под свою топологию и перестраивается на компактной ширине.</p>
+          </div>
+        </header>
+
+        <div class="viz-content grid gap-5 px-4 py-5 pb-12 sm:px-5 min-[60rem]:px-6">
+          <section class="viz-section" id="system" aria-labelledby="system-title">
+            <div class="viz-section__head">
+              <div class="viz-section__heading">
+                <span class="viz-kicker">System / structure view</span>
+                <h2 class="viz-section__title" id="system-title">Где проходит граница и как подключаются модули?</h2>
+                <p class="viz-summary">Рамки означают состав; стрелки — взаимодействие. На mobile узлы складываются, границы сохраняются.</p>
+              </div>
+              <span class="viz-section__index">01 / 14</span>
+            </div>
+            <div class="viz-panel">
+              <div class="viz-canvas">
+                <div class="viz-flow">
+                  <div class="viz-node-card viz-node-card--external"><strong>Внешний клиент</strong><small>открывает игру</small></div>
+                  <span class="viz-flow__edge">передаёт маршрут</span>
+                  <div class="viz-node-card viz-node-card--system"><strong>Сборка приложения</strong><small>выбирает известный модуль</small></div>
+                  <span class="viz-flow__edge viz-flow__edge--async">читает политику</span>
+                  <div class="viz-node-card viz-node-card--external"><strong>Доступность игр</strong><small>конфигурация</small></div>
+                </div>
+                <div class="viz-boundary viz-space-top">
+                  <span class="viz-boundary__label">Системный игровой клиент</span>
+                  <div class="viz-node-grid">
+                    <div class="viz-node-card viz-node-card--system"><strong>Core / Runtime</strong><small>сессия · RPC · realtime</small></div>
+                    <div class="viz-node-card viz-node-card--interface"><strong>App Shell</strong><small>маршруты · фокус · layout</small></div>
+                    <div class="viz-node-card viz-node-card--interface"><strong>Shared UI</strong><small>диалоги · уведомления</small></div>
+                  </div>
+                  <div class="viz-contract-rail">Порты среды и точки встраивания</div>
+                  <div class="viz-node-grid">
+                    <div class="viz-node-card viz-node-card--domain"><strong>PokerModule</strong><small>cash · tournaments</small></div>
+                    <div class="viz-node-card viz-node-card--domain"><strong>OkeyModule</strong><small>свои сценарии</small></div>
+                    <div class="viz-node-card viz-node-card--domain"><strong>TaylaModule</strong><small>своя модель игры</small></div>
+                  </div>
+                </div>
+              </div>
+              <div class="viz-boundary-note">Системная среда владеет портами; игровые модули зависят от контракта, а не друг от друга.</div>
+            </div>
+          </section>
+
+          <section class="viz-section" id="hierarchy" aria-labelledby="hierarchy-title">
+            <div class="viz-section__head">
+              <div class="viz-section__heading">
+                <span class="viz-kicker">Hierarchy / ownership</span>
+                <h2 class="viz-section__title" id="hierarchy-title">Что кому принадлежит?</h2>
+                <p class="viz-summary">Дерево показывает только containment и ownership; стрелки вызовов здесь были бы ложной семантикой.</p>
+              </div>
+              <span class="viz-section__index">02 / 14</span>
+            </div>
+            <div class="viz-panel"><div class="viz-canvas">
+              <ul class="viz-tree" aria-label="Иерархия приложения"><li>
+                <span class="viz-tree__item">System Client <small>application boundary</small></span>
+                <ul>
+                  <li><span class="viz-tree__item">Platform <small>shared ownership</small></span><ul>
+                    <li><span class="viz-tree__item">Runtime <small>session and transport</small></span></li>
+                    <li><span class="viz-tree__item">Shell <small>navigation and UI regions</small></span></li>
+                  </ul></li>
+                  <li><span class="viz-tree__item">Games <small>independent capabilities</small></span><ul>
+                    <li><span class="viz-tree__item">Poker <small>game team</small></span></li>
+                    <li><span class="viz-tree__item">Okey <small>game team</small></span></li>
+                  </ul></li>
+                </ul>
+              </li></ul>
+            </div></div>
+          </section>
+
+          <section class="viz-section" id="dependencies" aria-labelledby="dependencies-title">
+            <div class="viz-section__head">
+              <div class="viz-section__heading">
+                <span class="viz-kicker">Directed dependency graph</span>
+                <h2 class="viz-section__title" id="dependencies-title">Кто зависит от чьего контракта?</h2>
+                <p class="viz-summary">Стрелка идёт от потребителя к владельцу контракта. Compact-проекция группирует peers, не уменьшая текст.</p>
+              </div>
+              <span class="viz-section__index">03 / 14</span>
+            </div>
+            <div class="viz-panel"><div class="viz-canvas">
+              <div class="viz-responsive__wide">
+                <svg class="viz-diagram" viewBox="0 0 820 285" role="img" aria-labelledby="dep-svg-title dep-svg-desc">
+                  <title id="dep-svg-title">Граф зависимостей модулей</title>
+                  <desc id="dep-svg-desc">Shell и игровые модули зависят от контрактов среды; Runtime реализует эти контракты.</desc>
+                  <defs>
+                    <marker id="dep-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0 10 5 0 10Z" fill="var(--viz-border-strong)" /></marker>
+                    <marker id="dep-arrow-accent" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0 10 5 0 10Z" fill="var(--viz-accent)" /></marker>
+                  </defs>
+                  <rect class="svg-box svg-box--interface" x="35" y="38" width="170" height="64" rx="9" />
+                  <text class="label" x="120" y="67" text-anchor="middle">App Shell</text><text class="meta" x="120" y="86" text-anchor="middle">consumer</text>
+                  <rect class="svg-box svg-box--domain" x="35" y="180" width="170" height="64" rx="9" />
+                  <text class="label" x="120" y="209" text-anchor="middle">Game Modules</text><text class="meta" x="120" y="228" text-anchor="middle">consumers</text>
+                  <rect class="svg-box svg-box--external" x="325" y="108" width="170" height="68" rx="9" />
+                  <text class="label" x="410" y="138" text-anchor="middle">Environment Ports</text><text class="meta" x="410" y="157" text-anchor="middle">stable contract</text>
+                  <rect class="svg-box svg-box--system" x="615" y="108" width="170" height="68" rx="9" />
+                  <text class="label" x="700" y="138" text-anchor="middle">App Runtime</text><text class="meta" x="700" y="157" text-anchor="middle">implementation</text>
+                  <path class="svg-edge" d="M205 70 H265 V128 H325" marker-end="url(#dep-arrow)" /><text class="edge-label" x="264" y="116" text-anchor="middle">depends on</text>
+                  <path class="svg-edge" d="M205 212 H265 V156 H325" marker-end="url(#dep-arrow)" /><text class="edge-label" x="266" y="191" text-anchor="middle">depends on</text>
+                  <path class="svg-edge svg-edge--primary" d="M615 142 H495" marker-end="url(#dep-arrow-accent)" /><text class="edge-label" x="555" y="130" text-anchor="middle">implements</text>
+                </svg>
+              </div>
+              <div class="viz-responsive__compact">
+                <div class="viz-node-grid viz-node-grid--2">
+                  <div class="viz-node-card viz-node-card--interface"><strong>App Shell</strong><small>depends on Environment Ports</small></div>
+                  <div class="viz-node-card viz-node-card--domain"><strong>Game Modules</strong><small>depend on Environment Ports</small></div>
+                </div>
+                <div class="viz-flow__edge viz-flow__edge--centered">depend on</div>
+                <div class="viz-contract-rail">Environment Ports · stable contract</div>
+                <div class="viz-flow__edge viz-flow__edge--centered">implemented by</div>
+                <div class="viz-node-card viz-node-card--system"><strong>App Runtime</strong><small>implementation owner</small></div>
+              </div>
+            </div></div>
+          </section>
+
+          <section class="viz-section" id="data-model" aria-labelledby="data-model-title">
+            <div class="viz-section__head">
+              <div class="viz-section__heading">
+                <span class="viz-kicker">ERD / logical data model</span>
+                <h2 class="viz-section__title" id="data-model-title">Какие сущности хранятся и как связаны?</h2>
+                <p class="viz-summary">ERD показывает структуру данных, но не runtime-поток и не владельца записи.</p>
+              </div>
+              <span class="viz-section__index">04 / 14</span>
+            </div>
+            <div class="viz-panel">
+              <div class="viz-canvas"><div class="viz-node-grid">
+                <article class="viz-entity"><h3>player</h3><dl><dt>PK</dt><dd>id</dd><dt></dt><dd>nickname</dd><dt></dt><dd>status</dd></dl></article>
+                <article class="viz-entity"><h3>game_seat</h3><dl><dt>FK</dt><dd>player_id</dd><dt>FK</dt><dd>game_id</dd><dt></dt><dd>stack</dd></dl></article>
+                <article class="viz-entity"><h3>game</h3><dl><dt>PK</dt><dd>id</dd><dt></dt><dd>phase</dd><dt></dt><dd>created_at</dd></dl></article>
+              </div></div>
+              <div class="viz-boundary-note">player 1 ── * game_seat * ── 1 game · На compact сущности складываются, cardinality остаётся текстом.</div>
+            </div>
+          </section>
+
+          <section class="viz-section" id="deployment" aria-labelledby="deployment-title">
+            <div class="viz-section__head">
+              <div class="viz-section__heading">
+                <span class="viz-kicker">Deployment / operational view</span>
+                <h2 class="viz-section__title" id="deployment-title">Где выполняются части и где проходит failure boundary?</h2>
+                <p class="viz-summary">Зоны показывают placement и failure boundaries; основной путь остаётся коротким и не превращает вложенность в высокие башни.</p>
+              </div>
+              <span class="viz-section__index">05 / 14</span>
+            </div>
+            <div class="viz-panel"><div class="viz-canvas"><div class="viz-deployment">
+              <div class="viz-node-card viz-node-card--external"><strong>Browser</strong><small>player device</small></div>
+              <span class="viz-deployment__edge">HTTPS</span>
+              <div class="viz-boundary viz-boundary--neutral viz-deployment__zone"><span class="viz-boundary__label">Edge zone</span><div class="viz-node-card viz-node-card--external"><strong>CDN / Gateway</strong><small>routing · rate limits</small></div></div>
+              <span class="viz-deployment__edge">routes request</span>
+              <div class="viz-boundary viz-deployment__zone"><span class="viz-boundary__label">App zone · 3 replicas</span><div class="viz-node-card viz-node-card--system"><strong>Game API</strong><small>stateless process</small></div></div>
+              <span class="viz-deployment__edge">reads / writes</span>
+              <div class="viz-node-card viz-node-card--data"><strong>Primary DB</strong><small>state authority</small></div>
+            </div></div></div>
+          </section>
+
+          <section class="viz-section" id="process" aria-labelledby="process-title">
+            <div class="viz-section__head">
+              <div class="viz-section__heading">
+                <span class="viz-kicker">Flowchart / decision</span>
+                <h2 class="viz-section__title" id="process-title">Как ветвится пользовательский процесс?</h2>
+                <p class="viz-summary">Flowchart показывает решение и терминальные исходы, а не владельцев компонентов.</p>
+              </div>
+              <span class="viz-section__index">06 / 14</span>
+            </div>
+            <div class="viz-panel"><div class="viz-canvas">
+              <div class="viz-decision">
+                <div class="viz-node-card viz-node-card--external viz-decision__intent"><strong>Открыть игру</strong><small>user intent</small></div>
+                <span class="viz-flow__edge viz-decision__check">проверить</span>
+                <div class="viz-node-card viz-node-card--data viz-decision__gate"><strong>Модуль доступен?</strong><small>decision</small></div>
+                <div class="viz-decision__branches" role="group" aria-label="Независимые исходы проверки">
+                  <div class="viz-decision__branch" role="group" aria-label="Ветка: модуль доступен">
+                    <span class="viz-flow__edge">да</span>
+                    <div class="viz-decision__path">
+                      <div class="viz-node-card viz-node-card--domain"><strong>Смонтировать</strong><small>успешный исход</small></div>
+                      <span class="viz-flow__edge viz-flow__edge--vertical viz-flow__edge--risk">ошибка</span>
+                      <div class="viz-node-card viz-node-card--risk"><strong>Безопасно откатить</strong><small>освободить выданные ресурсы</small></div>
+                    </div>
+                  </div>
+                  <div class="viz-decision__branch" role="group" aria-label="Ветка: модуль недоступен">
+                    <span class="viz-flow__edge">нет</span>
+                    <div class="viz-node-card viz-node-card--external"><strong>Показать альтернативу</strong><small>без изменения маршрута</small></div>
+                  </div>
+                </div>
+              </div>
+            </div></div>
+          </section>
+
+          <section class="viz-section" id="sequence" aria-labelledby="sequence-title">
+            <div class="viz-section__head">
+              <div class="viz-section__heading">
+                <span class="viz-kicker">Sequence / runtime view</span>
+                <h2 class="viz-section__title" id="sequence-title">Кто с кем взаимодействует во времени?</h2>
+                <p class="viz-summary">На desktop — lanes; на mobile — тот же сценарий как упорядоченный message log, без микроскопического SVG.</p>
+              </div>
+              <span class="viz-section__index">07 / 14</span>
+            </div>
+            <div class="viz-panel"><div class="viz-canvas">
+              <div class="viz-responsive__wide">
+                <svg class="viz-diagram" viewBox="0 0 820 315" role="img" aria-labelledby="seq-svg-title seq-svg-desc">
+                  <title id="seq-svg-title">Открытие игрового модуля</title><desc id="seq-svg-desc">Client вызывает Shell, Shell получает модуль из Catalog и монтирует его через Runtime.</desc>
+                  <defs>
+                    <marker id="seq-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0 10 5 0 10Z" fill="var(--viz-border-strong)" /></marker>
+                    <marker id="seq-arrow-accent" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0 10 5 0 10Z" fill="var(--viz-accent)" /></marker>
+                  </defs>
+                  <rect class="svg-box svg-box--external" x="25" y="18" width="140" height="44" rx="8" /><rect class="svg-box svg-box--interface" x="230" y="18" width="140" height="44" rx="8" />
+                  <rect class="svg-box svg-box--external" x="435" y="18" width="140" height="44" rx="8" /><rect class="svg-box svg-box--system" x="640" y="18" width="140" height="44" rx="8" />
+                  <text class="label" x="95" y="45" text-anchor="middle">Client</text><text class="label" x="300" y="45" text-anchor="middle">App Shell</text>
+                  <text class="label" x="505" y="45" text-anchor="middle">Module Catalog</text><text class="label" x="710" y="45" text-anchor="middle">Runtime</text>
+                  <path class="svg-lifeline" d="M95 62 V292 M300 62 V292 M505 62 V292 M710 62 V292" />
+                  <path class="svg-edge" d="M95 95 H300" marker-end="url(#seq-arrow)" /><text class="edge-label" x="198" y="85" text-anchor="middle">open(gameId)</text>
+                  <path class="svg-edge" d="M300 140 H505" marker-end="url(#seq-arrow)" /><text class="edge-label" x="402" y="130" text-anchor="middle">resolve(gameId)</text>
+                  <path class="svg-edge svg-edge--async" d="M505 180 H300" marker-end="url(#seq-arrow-accent)" /><text class="edge-label" x="402" y="170" text-anchor="middle">module definition</text>
+                  <path class="svg-edge" d="M300 220 H710" marker-end="url(#seq-arrow)" /><text class="edge-label" x="505" y="210" text-anchor="middle">mount(module)</text>
+                  <path class="svg-edge svg-edge--async" d="M710 260 H95" marker-end="url(#seq-arrow-accent)" /><text class="edge-label" x="402" y="250" text-anchor="middle">route ready</text>
+                </svg>
+              </div>
+              <div class="viz-responsive__compact"><ol class="viz-message-list" aria-label="Открытие игрового модуля по шагам">
+                <li><div><strong>Client → App Shell</strong><small>open(gameId)</small></div></li>
+                <li><div><strong>App Shell → Module Catalog</strong><small>resolve(gameId)</small></div></li>
+                <li><div><strong>Module Catalog → App Shell</strong><small>module definition</small></div></li>
+                <li><div><strong>App Shell → Runtime</strong><small>mount(module)</small></div></li>
+                <li><div><strong>Runtime → Client</strong><small>route ready</small></div></li>
+              </ol></div>
+            </div></div>
+          </section>
+
+          <section class="viz-section" id="state" aria-labelledby="state-title">
+            <div class="viz-section__head">
+              <div class="viz-section__heading">
+                <span class="viz-kicker">State machine</span>
+                <h2 class="viz-section__title" id="state-title">Какие состояния и переходы допустимы?</h2>
+                <p class="viz-summary">Состояния остаются отдельной моделью от шагов процесса; на compact основная цепочка становится вертикальной.</p>
+              </div>
+              <span class="viz-section__index">08 / 14</span>
+            </div>
+            <div class="viz-panel">
+              <div class="viz-canvas"><div class="viz-flow">
+                <div class="viz-node-card viz-node-card--external"><strong>Discovered</strong><small>catalog entry exists</small></div><span class="viz-flow__edge">allow</span>
+                <div class="viz-node-card viz-node-card--system"><strong>Prepared</strong><small>ports issued</small></div><span class="viz-flow__edge">mount</span>
+                <div class="viz-node-card viz-node-card--domain"><strong>Active</strong><small>route visible</small></div><span class="viz-flow__edge">unmount</span>
+                <div class="viz-node-card viz-node-card--external"><strong>Stopped</strong><small>resources released</small></div>
+              </div></div>
+              <div class="viz-boundary-note">Failure from Prepared or Active → Stopped via cleanup. Риск-переход остаётся явным вне основной линии.</div>
+            </div>
+          </section>
+
+          <section class="viz-section" id="data-flow" aria-labelledby="data-flow-title">
+            <div class="viz-section__head">
+              <div class="viz-section__heading">
+                <span class="viz-kicker">Data flow / authority</span>
+                <h2 class="viz-section__title" id="data-flow-title">Откуда приходят данные и кто является authority?</h2>
+                <p class="viz-summary">Здесь стрелки означают movement/read/write; trust boundary остаётся видимой после reflow.</p>
+              </div>
+              <span class="viz-section__index">09 / 14</span>
+            </div>
+            <div class="viz-panel"><div class="viz-canvas"><div class="viz-flow">
+              <div class="viz-node-card viz-node-card--external"><strong>Game Server</strong><small>room events</small></div><span class="viz-flow__edge viz-flow__edge--async">publishes</span>
+              <div class="viz-boundary viz-boundary--neutral"><span class="viz-boundary__label">Trusted application boundary</span><div class="viz-node-card viz-node-card--system"><strong>Realtime Gateway</strong><small>validates envelope</small></div></div>
+              <span class="viz-flow__edge">writes</span><div class="viz-node-card viz-node-card--data"><strong>Room Store</strong><small>client authority</small></div>
+              <span class="viz-flow__edge">projects</span><div class="viz-node-card viz-node-card--interface"><strong>Lobby UI</strong><small>read model</small></div>
+            </div></div></div>
+          </section>
+
+          <section class="viz-section" id="evolution" aria-labelledby="evolution-title">
+            <div class="viz-section__head">
+              <div class="viz-section__heading">
+                <span class="viz-kicker">Evolution / current → target</span>
+                <h2 class="viz-section__title" id="evolution-title">Что меняется и как переносится authority?</h2>
+                <p class="viz-summary">Timeline показывает этапы; paired views — устойчивые состояния. На mobile пары складываются, порядок остаётся одинаковым.</p>
+              </div>
+              <span class="viz-section__index">10 / 14</span>
+            </div>
+            <div class="viz-panel">
+              <div class="viz-canvas"><div class="viz-timeline" aria-label="Этапы миграции">
+                <div class="viz-timeline__item"><strong>Current</strong><small>direct imports</small></div>
+                <div class="viz-timeline__item"><strong>Introduce ports</strong><small>compatibility adapter</small></div>
+                <div class="viz-timeline__item"><strong>Move authority</strong><small>one module at a time</small></div>
+                <div class="viz-timeline__item"><strong>Target</strong><small>remove legacy path</small></div>
+              </div></div>
+              <div class="viz-subviews">
+                <article class="viz-subview"><h3>Current · coupled</h3><p>Каждый модуль вызывает runtime напрямую.</p><div class="viz-node-grid viz-node-grid--2">
+                  <div class="viz-node-card viz-node-card--risk"><strong>Poker</strong><small>direct import</small></div><div class="viz-node-card viz-node-card--risk"><strong>Okey</strong><small>direct import</small></div>
+                </div></article>
+                <article class="viz-subview"><h3>Target · contract-first</h3><p>Все модули используют один порт среды.</p><div class="viz-contract-rail">Environment Ports</div><div class="viz-node-grid viz-node-grid--2 viz-space-top--compact">
+                  <div class="viz-node-card viz-node-card--domain"><strong>Poker</strong><small>consumer</small></div><div class="viz-node-card viz-node-card--domain"><strong>Okey</strong><small>consumer</small></div>
+                </div></article>
+              </div>
+            </div>
+          </section>
+
+          <section class="viz-section" id="comparison" aria-labelledby="comparison-title">
+            <div class="viz-section__head">
+              <div class="viz-section__heading">
+                <span class="viz-kicker">Comparison matrix</span>
+                <h2 class="viz-section__title" id="comparison-title">Как варианты выглядят по одинаковым критериям?</h2>
+                <p class="viz-summary">Таблица сохраняет точное сравнение; на mobile каждая строка становится подписанным блоком.</p>
+              </div>
+              <span class="viz-section__index">11 / 14</span>
+            </div>
+            <div class="viz-panel"><table class="viz-matrix">
+              <thead><tr><th>Вариант</th><th>Изоляция</th><th>Сложность</th><th>Миграция</th><th>Вывод</th></tr></thead>
+              <tbody>
+                <tr><th>Direct imports</th><td data-label="Изоляция"><span class="viz-score">low</span></td><td data-label="Сложность">низкая сначала</td><td data-label="Миграция">—</td><td data-label="Вывод">не масштабируется по вариантам</td></tr>
+                <tr><th>Environment ports</th><td data-label="Изоляция"><span class="viz-score viz-score--best">high</span></td><td data-label="Сложность">умеренная</td><td data-label="Миграция">по одному модулю</td><td data-label="Вывод">предпочтительно</td></tr>
+                <tr><th>Independent apps</th><td data-label="Изоляция"><span class="viz-score">max</span></td><td data-label="Сложность">высокая</td><td data-label="Миграция">дорогая</td><td data-label="Вывод">только при независимом runtime</td></tr>
+              </tbody>
+            </table></div>
+          </section>
+
+          <section class="viz-section" id="charts" aria-labelledby="charts-title">
+            <div class="viz-section__head">
+              <div class="viz-section__heading">
+                <span class="viz-kicker">Quantitative views</span>
+                <h2 class="viz-section__title" id="charts-title">Как выбрать форму под количественный вопрос?</h2>
+                <p class="viz-summary">Небольшие charts используют position и length; сетка складывается на mobile без изменения шкал. Все значения ниже условные и служат только примером грамматики.</p>
+              </div>
+              <span class="viz-section__index">12 / 14</span>
+            </div>
+            <div class="viz-panel viz-chart-grid">
+              <article class="viz-chart"><h3>Trend · line</h3><p>Как меняется p95 latency?</p>
+                <svg class="viz-diagram" viewBox="0 0 340 150" role="img" aria-labelledby="trend-title trend-desc"><title id="trend-title">Снижение p95 latency</title><desc id="trend-desc">Условные данные: p95 latency снижается с 312 миллисекунд в версии 1 до 182 миллисекунд в версии 6.</desc><path class="svg-axis" d="M35 18 V122 H320" /><path class="svg-area" d="M35 42 L90 50 145 47 200 72 255 88 310 104 V122 H35Z" /><path class="svg-line" d="M35 42 L90 50 145 47 200 72 255 88 310 104" /><circle class="svg-point" cx="310" cy="104" r="4" /><text class="meta" x="42" y="31">312 ms</text><text class="meta" x="303" y="87" text-anchor="end">182 ms</text><text class="meta" x="35" y="140">v1</text><text class="meta" x="310" y="140" text-anchor="end">v6</text></svg>
+              </article>
+              <article class="viz-chart"><h3>Rank · bars</h3><p>Как сравниваются модули?</p>
+                <svg class="viz-diagram" viewBox="0 0 340 150" role="img" aria-labelledby="rank-title rank-desc"><title id="rank-title">Запуски модулей за день</title><desc id="rank-desc">Условные данные: Poker 24 тысячи запусков, Okey 16 тысяч, Tayla 10 тысяч.</desc><text class="meta" x="10" y="31">Poker</text><rect class="svg-bar" x="70" y="17" width="230" height="20" rx="4" /><text class="meta" x="306" y="31">24k</text><text class="meta" x="10" y="72">Okey</text><rect class="svg-bar svg-bar--domain" x="70" y="58" width="154" height="20" rx="4" /><text class="meta" x="230" y="72">16k</text><text class="meta" x="10" y="113">Tayla</text><rect class="svg-bar svg-bar--data" x="70" y="99" width="92" height="20" rx="4" /><text class="meta" x="168" y="113">10k</text><text class="meta" x="70" y="140">launches / day</text></svg>
+              </article>
+              <article class="viz-chart"><h3>Distribution · histogram</h3><p>Как распределено время mount?</p>
+                <svg class="viz-diagram" viewBox="0 0 340 150" role="img" aria-labelledby="hist-title hist-desc"><title id="hist-title">Распределение времени монтирования</title><desc id="hist-desc">Условная выборка из 120 операций, сгруппированных по семи соприкасающимся интервалам от 0 до 700 миллисекунд; максимум приходится на интервал 200–300 миллисекунд.</desc><path class="svg-axis" d="M28 18 V122 H320" /><path class="svg-histogram__area" d="M45 122 V92 H80 V58 H115 V34 H150 V48 H185 V76 H220 V99 H255 V110 H290 V122 Z" /><path class="svg-histogram__separators" d="M80 58 V122 M115 34 V122 M150 34 V122 M185 48 V122 M220 76 V122 M255 99 V122" /><text class="meta" x="30" y="15">count · n=120</text><text class="meta" x="45" y="140">0</text><text class="meta" x="290" y="140" text-anchor="end">700 ms</text></svg>
+              </article>
+              <article class="viz-chart"><h3>Correlation · scatter</h3><p>Связаны ли размер и startup time?</p>
+                <svg class="viz-diagram" viewBox="0 0 340 150" role="img" aria-labelledby="scatter-title scatter-desc"><title id="scatter-title">Размер bundle и время запуска</title><desc id="scatter-desc">Шесть условных наблюдений. Больший bundle в килобайтах связан с большим временем запуска в миллисекундах; линия показывает ассоциацию, не причинность.</desc><path class="svg-axis" d="M32 18 V122 H320" /><circle class="svg-point" cx="72" cy="104" r="4" /><circle class="svg-point" cx="115" cy="91" r="4" /><circle class="svg-point" cx="151" cy="96" r="4" /><circle class="svg-point" cx="189" cy="68" r="4" /><circle class="svg-point" cx="232" cy="61" r="4" /><circle class="svg-point" cx="283" cy="37" r="4" /><path class="svg-edge svg-edge--association" d="M62 110 L294 31" /><text class="meta" x="34" y="15">startup ms ↑</text><text class="meta" x="320" y="140" text-anchor="end">bundle KB →</text></svg>
+              </article>
+              <article class="viz-chart"><h3>Composition · stacked bar</h3><p>Из чего состоит startup budget?</p>
+                <svg class="viz-diagram" viewBox="0 0 340 150" role="img" aria-labelledby="stack-title stack-desc"><title id="stack-title">Состав бюджета запуска</title><desc id="stack-desc">Условный общий бюджет 420 миллисекунд: network 168, module 136 и render 116 миллисекунд.</desc><defs><clipPath id="startup-budget-clip"><rect x="25" y="53" width="281" height="34" rx="6" /></clipPath></defs><g clip-path="url(#startup-budget-clip)"><rect class="svg-stack__segment" x="25" y="53" width="112" height="34" /><rect class="svg-stack__segment svg-stack__segment--domain" x="137" y="53" width="91" height="34" /><rect class="svg-stack__segment svg-stack__segment--data" x="228" y="53" width="78" height="34" /></g><rect class="svg-stack__outline" x="25" y="53" width="281" height="34" rx="6" /><path class="svg-stack__separator" d="M137 53 V87 M228 53 V87" /><text class="svg-stack__label" x="81" y="75" text-anchor="middle">network</text><text class="svg-stack__label" x="182" y="75" text-anchor="middle">module</text><text class="svg-stack__label" x="267" y="75" text-anchor="middle">render</text><text class="meta" x="25" y="111">168 + 136 + 116 = 420 ms</text></svg>
+              </article>
+              <article class="viz-chart"><h3>Uncertainty · interval</h3><p>Насколько стабилен результат?</p>
+                <svg class="viz-diagram" viewBox="0 0 340 150" role="img" aria-labelledby="interval-title interval-desc"><title id="interval-title">Интервалы p95 latency</title><desc id="interval-desc">Условные 95-процентные интервалы: current 210 миллисекунд от 165 до 245; target 140 миллисекунд от 110 до 175.</desc><path class="svg-axis" d="M70 20 V125 M70 125 H315" /><text class="meta" x="10" y="47">Current</text><path class="svg-edge" d="M125 43 H252 M125 37 V49 M252 37 V49" /><circle class="svg-point" cx="198" cy="43" r="5" /><text class="meta" x="260" y="47">210 [165–245]</text><text class="meta" x="10" y="88">Target</text><path class="svg-edge" d="M104 84 H176 M104 78 V90 M176 78 V90" /><circle class="svg-point" cx="136" cy="84" r="5" /><text class="meta" x="184" y="88">140 [110–175]</text><text class="meta" x="70" y="143">p95 ms · 95% CI</text></svg>
+              </article>
+            </div>
+          </section>
+
+          <section class="viz-section" id="code-view" aria-labelledby="code-view-title">
+            <div class="viz-section__head">
+              <div class="viz-section__heading">
+                <span class="viz-kicker">Implementation evidence</span>
+                <h2 class="viz-section__title" id="code-view-title">Code view: какой контракт реализован?</h2>
+                <p class="viz-summary">Фокусированный excerpt — путь, статус, небольшой контекст и одна смысловая подсветка. Это не архитектурная схема.</p>
+              </div>
+              <span class="viz-section__index">13 / 14</span>
+            </div>
+            <div class="viz-code">
+              <div class="viz-code__bar"><span>src/runtime/game-module.ts · GameModule</span><span>proposed TypeScript</span></div>
+              <div class="viz-code__scroll"><pre aria-label="Интерфейс GameModule"><code><span class="viz-code__line" data-line="1"><span><span class="viz-token--keyword">export interface</span> <span class="viz-token--type">GameModule</span> {</span></span>
+<span class="viz-code__line" data-line="2"><span>  readonly id: <span class="viz-token--type">GameId</span></span></span>
+<span class="viz-code__line" data-line="3"><span>  readonly routes: readonly <span class="viz-token--type">GameRoute</span>[]</span></span>
+<span class="viz-code__line viz-code__line--focus" data-line="4"><span>  mount(ports: <span class="viz-token--type">EnvironmentPorts</span>): <span class="viz-token--type">MountedGame</span></span></span>
+<span class="viz-code__line" data-line="5"><span>}</span></span></code></pre></div>
+            </div>
+          </section>
+
+          <section class="viz-section" id="diff-view" aria-labelledby="diff-view-title">
+            <div class="viz-section__head">
+              <div class="viz-section__heading">
+                <span class="viz-kicker">Change evidence</span>
+                <h2 class="viz-section__title" id="diff-view-title">Diff code view: что именно изменилось?</h2>
+                <p class="viz-summary">Unified diff остаётся читаемым на mobile; добавление и удаление обозначены префиксом, фоном и цветом.</p>
+              </div>
+              <span class="viz-section__index">14 / 14</span>
+            </div>
+            <div class="viz-code">
+              <div class="viz-code__bar"><span>src/poker/bootstrap.ts</span><span>current → target</span></div>
+              <div class="viz-code__scroll"><pre aria-label="Изменение подключения PokerModule"><code><span class="viz-code__line" data-line=""><span><span class="viz-token--comment">@@ -18,2 +18,3 @@ bootstrapPoker()</span></span></span>
+<span class="viz-code__line viz-code__line--remove" data-line="18"><span><span class="viz-diff-sign" aria-label="removed">-</span>const poker = new PokerModule(runtime.rpc, runtime.wallet)</span></span>
+<span class="viz-code__line viz-code__line--add" data-line="18"><span><span class="viz-diff-sign" aria-label="added">+</span>const poker = new PokerModule()</span></span>
+<span class="viz-code__line viz-code__line--add" data-line="19"><span><span class="viz-diff-sign" aria-label="added">+</span>const mounted = poker.mount(runtime.environmentPorts)</span></span>
+<span class="viz-code__line" data-line="20"><span>router.register(mounted.routes)</span></span></code></pre></div>
+            </div>
+          </section>
+        </div>
+      </main>
+    </div>
+
+    <script>
+      const root = document.documentElement;
+      const themeButtons = [...document.querySelectorAll('[data-theme]')];
+
+      function readSavedTheme() {
+        try {
+          return localStorage.getItem('visualization-theme');
+        } catch {
+          return null;
+        }
+      }
+
+      function persistTheme(theme) {
+        try {
+          if (theme === 'auto') localStorage.removeItem('visualization-theme');
+          else localStorage.setItem('visualization-theme', theme);
+        } catch {
+          // Theme switching still works when storage is unavailable.
+        }
+      }
+
+      function setTheme(theme) {
+        root.dataset.vizTheme = theme;
+        persistTheme(theme);
+        themeButtons.forEach((button) => button.setAttribute('aria-pressed', String(button.dataset.theme === theme)));
+      }
+
+      themeButtons.forEach((button) => button.addEventListener('click', () => setTheme(button.dataset.theme)));
+      const savedTheme = readSavedTheme();
+      setTheme(savedTheme === 'light' || savedTheme === 'dark' ? savedTheme : 'auto');
+
+      const sidebar = document.getElementById('sidebar');
+      const menuToggle = document.getElementById('menu-toggle');
+      menuToggle.addEventListener('click', () => {
+        const open = sidebar.dataset.open !== 'true';
+        sidebar.dataset.open = String(open);
+        menuToggle.setAttribute('aria-expanded', String(open));
+      });
+
+      const navLinks = [...document.querySelectorAll('.viz-nav__link')];
+      function setCurrentLink(hash) {
+        navLinks.forEach((link) => {
+          if (link.hash === hash) link.setAttribute('aria-current', 'location');
+          else link.removeAttribute('aria-current');
+        });
+      }
+
+      navLinks.forEach((link) => link.addEventListener('click', () => {
+        sidebar.dataset.open = 'false';
+        menuToggle.setAttribute('aria-expanded', 'false');
+        setCurrentLink(link.hash);
+      }));
+      window.addEventListener('hashchange', () => setCurrentLink(location.hash));
+
+      document.addEventListener('keydown', (event) => {
+        if (event.key !== 'Escape' || sidebar.dataset.open !== 'true') return;
+        sidebar.dataset.open = 'false';
+        menuToggle.setAttribute('aria-expanded', 'false');
+        menuToggle.focus();
+      });
+
+      const sections = navLinks.map((link) => document.querySelector(link.getAttribute('href'))).filter(Boolean);
+      const observer = new IntersectionObserver((entries) => {
+        const visible = entries.filter((entry) => entry.isIntersecting).sort((a, b) => b.intersectionRatio - a.intersectionRatio)[0];
+        if (!visible) return;
+        const atDocumentEnd = window.innerHeight + window.scrollY >= document.documentElement.scrollHeight - 2;
+        setCurrentLink(atDocumentEnd ? navLinks.at(-1).hash : `#${visible.target.id}`);
+      }, { rootMargin: '-12% 0px -72% 0px', threshold: [0, 0.25, 0.6] });
+      sections.forEach((section) => observer.observe(section));
+      setCurrentLink(location.hash || navLinks[0].hash);
+    </script>
+  </body>
+</html>

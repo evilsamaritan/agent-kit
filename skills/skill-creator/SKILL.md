@@ -102,7 +102,6 @@ After creating or editing a skill, verify:
 - [create.md](workflows/create.md) — Flow 1: Create Skill
 - [verify.md](workflows/verify.md) — Flow 2: Verify Skill
 - [improve.md](workflows/improve.md) — Flow 3: Improve Skill
-- [optimize-description.md](workflows/optimize-description.md) — Iterative refinement of skill descriptions for better trigger matching
 - [best-practices.md](references/best-practices.md) — Skill authoring patterns and guidelines
 - [verification-checklist.md](references/verification-checklist.md) — All verification checks
 - [skill-template.md](references/skill-template.md) — Unified skill template with class-specific sections

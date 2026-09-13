@@ -1,174 +1,189 @@
-# Design Principles
+# Design Principles as Decision Tools
 
-Language-agnostic. Platform-agnostic. These apply everywhere.
+Use principles to diagnose change cost and correctness, not to score code by slogans. Principles conflict; apply the one tied to the active force and state the tradeoff.
 
 ## Contents
 
-- [SOLID](#solid) — SRP, OCP, LSP, ISP, DIP
-- [DRY](#dry--dont-repeat-yourself)
-- [KISS](#kiss--keep-it-simple)
-- [YAGNI](#yagni--you-arent-gonna-need-it)
-- [Separation of Concerns](#separation-of-concerns-soc)
-- [Law of Demeter](#law-of-demeter-lod)
-- [Cohesion and Coupling](#cohesion-and-coupling)
-- [Principle of Least Surprise](#principle-of-least-surprise)
-- [Principle of Least Privilege](#principle-of-least-privilege)
+- [Primary objective](#primary-objective)
+- [Cohesion and coupling](#cohesion-and-coupling)
+- [SOLID](#solid)
+- [DRY and knowledge ownership](#dry-and-knowledge-ownership)
+- [KISS and YAGNI](#kiss-and-yagni)
+- [Encapsulation and information hiding](#encapsulation-and-information-hiding)
+- [Composition and variation](#composition-and-variation)
+- [State and invalid states](#state-and-invalid-states)
+- [Dependency stability](#dependency-stability)
+- [Principle tensions](#principle-tensions)
+- [Diagnostic questions](#diagnostic-questions)
 
----
+## Primary objective
+
+Good design keeps important behavior correct while making likely changes local, comprehensible, and safe. Flexibility is not the number of interfaces; it is the ability to absorb a demonstrated change without violating invariants or modifying unrelated code.
+
+Assess a design through:
+
+- change propagation;
+- invariant ownership;
+- conceptual clarity;
+- testability at meaningful boundaries;
+- failure and lifecycle behavior;
+- cost of removing or replacing a decision.
+
+## Cohesion and coupling
+
+**Cohesion** asks whether a module's elements contribute to one focused responsibility or capability. **Coupling** asks how much a change or failure in one element affects others.
+
+Prefer:
+
+- group what changes for the same reason;
+- separate what has independent reasons to change;
+- keep collaboration through small semantic contracts;
+- make dependencies visible at construction or function boundaries;
+- avoid shared mutable state and reach-through access.
+
+Low coupling is not zero coupling. Related components should collaborate directly when an abstraction or event would only obscure a required relationship.
 
 ## SOLID
 
-### S — Single Responsibility Principle
-A module has one reason to change.
+### Single Responsibility Principle
 
-**Violation signals:** module name contains "And"; change to requirement X causes changes to this module even though it's not about X; God class with hundreds of methods.
+A component should have one coherent reason to change, expressed in domain or policy terms.
 
-**Fix:** Split by reason to change. Group by what changes together, separate what changes independently.
+**Signals:** unrelated rules in one module, frequent unrelated edits, names such as Manager/Utils, or tests requiring many disconnected setups.
 
-**Real example:** Google enforces SRP through small, focused libraries in their monorepo — each library has a clear owner and single purpose.
+**Correction:** group behavior by capability, invariant, or policy owner. Do not mechanically make every method a class.
 
----
+### Open/Closed Principle
 
-### O — Open / Closed Principle
-Open for extension. Closed for modification.
+Stable policy should accept known forms of variation without repeated modification.
 
-**Violation signals:** Adding a new variant requires modifying a switch/if-else chain inside existing code; new business rules require editing multiple existing files.
+**Signals:** every new transport, rule, or policy edits the same switch across several files.
 
-**Fix:** Strategy pattern (inject behavior), plugin architecture (extension points), polymorphism (override, not modify).
+**Correction:** isolate the demonstrated variation behind composition, strategy, data-driven policy, or a narrow extension contract.
 
-**Real example:** Stripe's PaymentIntents API supports new payment methods without changing the core integration. The extension point is the API contract — it's open for new implementations, closed for modification.
+OCP does not justify speculative extension points. A stable direct implementation is closed enough when no independent variation exists.
 
----
+### Liskov Substitution Principle
 
-### L — Liskov Substitution Principle
-Subtypes must be substitutable for their base type without breaking correctness.
+An implementation is substitutable only if it preserves the contract's accepted inputs, guarantees, errors, side effects, and temporal behavior.
 
-**Violation signals:** Subclass throws exceptions the base doesn't declare; subclass method does nothing or asserts narrower preconditions; "is-a" relationship that breaks when you try to use it that way (Square is-a Rectangle — but setting width changes height).
+**Signals:** subtype-specific type checks, unsupported inherited methods, narrower preconditions, surprising errors, or different lifecycle semantics.
 
-**Fix:** Use composition over inheritance. Model constraints explicitly. Prefer interfaces over class inheritance hierarchies.
+**Correction:** use composition, split the contract, or model variants explicitly rather than forcing an inheritance hierarchy.
 
----
+### Interface Segregation Principle
 
-### I — Interface Segregation Principle
-No client should depend on methods it does not use.
+Consumers should depend on the smallest coherent capability they use.
 
-**Violation signals:** Interface has 10+ methods; implementing a small part of the interface requires stubbing the rest; clients import an interface they use 2 methods of.
+**Signals:** implementers stub methods, consumers receive broad god interfaces, or a change to one operation recompiles/retests unrelated clients.
 
-**Fix:** Split fat interfaces into focused ones. Clients depend only on what they use.
+**Correction:** define contracts from consumer needs while keeping operations that share one invariant together.
 
----
+### Dependency Inversion Principle
 
-### D — Dependency Inversion Principle
-High-level modules don't depend on low-level modules. Both depend on abstractions. Abstractions don't depend on details.
+Stable policy should not depend on volatile mechanism. Both meet at a semantic contract owned near the policy.
 
-**Violation signals:** Business logic imports from infrastructure packages (HTTP, DB, filesystem); `new ConcreteInfrastructureClass()` inside business logic; tests require real databases or HTTP servers.
+**Signals:** domain code imports transport/storage/vendor types, tests require real infrastructure, or replacing an edge mechanism changes business rules.
 
-**Fix:** Define interfaces (ports) in the domain. Implement them in infrastructure. Wire via dependency injection at the composition root.
+**Correction:** introduce a port when it expresses the policy's need more clearly than the concrete dependency. Wire implementations at a composition root.
 
----
+## DRY and knowledge ownership
 
-## DRY — Don't Repeat Yourself
+DRY means one authoritative representation of a fact or rule, not one implementation of every similar-looking sequence.
 
-Every piece of *knowledge* has one authoritative representation.
+Centralize when duplicated code must change together because it encodes the same knowledge. Keep separate when it represents different domain concepts that may diverge.
 
-**Important distinction:** DRY is about knowledge, not code. Two functions that look similar but represent different domain concepts should NOT be merged — that creates wrong coupling. Merge only when they represent the same fact/rule.
+```text
+Same shape + same meaning + same change owner -> candidate for one abstraction
+Same shape + different meaning/change owner   -> intentional duplication may be safer
+Different shape + same business rule          -> centralize the rule, not the syntax
+```
 
-**Violation signals:** Changing a business rule requires editing 3 places; copy-paste with slight variations; multiple validation functions that check the same constraint.
+Duplication is often cheaper than the wrong shared abstraction. Revisit after real divergence or repeated coordinated changes reveal the true seam.
 
-**Fix:** Extract the shared knowledge into a single place. Name it after what it represents.
+## KISS and YAGNI
 
----
+**KISS:** minimize the concepts, states, runtime parts, and hidden interactions required to explain the design.
 
-## KISS — Keep It Simple
+**YAGNI:** do not pay present complexity for an uncommitted hypothetical future. Preserve reversible seams instead of implementing every possible extension.
 
-The simplest solution that works is best.
+These principles do not mean "write the fastest local patch." Repeating a known cross-cutting rule in many places is already present complexity. A small coherent mechanism may be simpler than many branches.
 
-**Violation signals:** Distributed system where a monolith would suffice; CQRS for simple CRUD; microservices for a 5-person team; complex abstractions with one implementation.
+## Encapsulation and information hiding
 
-**Amazon Prime Video case:** Distributed microservices architecture hit scaling limits at 5% of expected load. Monolithic rewrite achieved **90% cost reduction** and better scalability. The simplest architecture was also the most effective.
+Encapsulate decisions likely to change, not merely data fields.
 
-**Fix:** Measure complexity by asking "what would a new engineer have to learn to change this?" Minimize that.
+A good boundary hides:
 
----
+- storage layout;
+- algorithm or policy selection;
+- lifecycle and resource management;
+- external representation and vendor semantics;
+- consistency and retry mechanisms the caller need not coordinate.
 
-## YAGNI — You Aren't Gonna Need It
+Expose domain meaning and stable guarantees. Avoid getters or exported structures that let callers reimplement the owner's rules.
 
-Don't build for hypothetical future requirements.
+## Composition and variation
 
-**Violation signals:** "We might need to support X later" as justification for a complex abstraction that X doesn't exist yet; plugin systems with one plugin; generic frameworks with one use case.
+Prefer composition when behaviors vary independently or combine in multiple ways. A decorator, pipeline, strategy, or higher-order function can preserve one stable operation while varying policies around it.
 
-**Fix:** Build for what's needed now. Refactor when the need is real. Refactoring a simple solution to handle a real requirement is easier than unwinding a wrong abstraction.
+Prefer inheritance only when:
 
----
+- the relationship is genuinely substitutable;
+- the base contract is stable;
+- variants share invariants, not just code;
+- combinations do not create a subclass explosion.
 
-## Separation of Concerns (SoC)
+Prefer a direct function or concrete object when one behavior exists and no variation pressure is demonstrated.
 
-Each module addresses one distinct concern.
+## State and invalid states
 
-**Levels:** Function (one thing), Class (one responsibility), Module (one domain), Service (one bounded context), System (one business capability).
+Make valid transitions explicit and keep invalid combinations hard to construct.
 
-**Violation signals:** Mixing HTTP handling with business logic; mixing business rules with persistence; mixing UI rendering with data fetching.
+- model mutually exclusive states as variants rather than unrelated booleans;
+- validate at the boundary that owns the invariant;
+- expose operations such as `submitOrder` rather than unrestricted mutation;
+- distinguish absence, pending, failure, and completed states when behavior differs;
+- make concurrency and idempotency part of the contract when they affect correctness.
 
----
+Types help but do not replace transactional or temporal invariants.
 
-## Law of Demeter (LoD)
+## Dependency stability
 
-A method should call only methods on: itself, its parameters, objects it creates, its direct component objects.
+Stable, widely depended-on modules should expose small contracts and change conservatively. Volatile details should depend on those contracts rather than the reverse.
 
-**Violation signals:** `order.getCustomer().getAddress().getCity()` — reaching through multiple levels.
+Watch for:
 
-**Fix:** Tell, don't ask. `order.getShippingCity()` — the object knows its own structure.
+- high fan-in to unstable implementation details;
+- shared packages that import application-specific modules;
+- cyclic dependencies;
+- business policy compiled against framework lifecycles;
+- abstractions whose every implementation changes together.
 
-**Why it matters:** LoD violations couple your code to the internal structure of collaborators. When the internal structure changes, your code breaks even though the collaboration didn't change.
+Stability is contextual. A mature external library may be more stable than a homegrown interface that mirrors it poorly.
 
----
+## Principle tensions
 
-## Cohesion and Coupling
+| Tension | Resolve by asking |
+|---|---|
+| DRY vs low coupling | Is this one piece of knowledge or only similar syntax? |
+| OCP vs YAGNI | Is variation demonstrated/committed, and is the seam cheaper than later change? |
+| SRP vs fragmentation | Does separation create a coherent responsibility or only more navigation? |
+| abstraction vs simplicity | Does the contract hide meaningful complexity for multiple consumers? |
+| events vs direct calls | Is temporal decoupling semantically valuable, or are we hiding required coordination? |
+| domain purity vs delivery cost | Which volatile dependency is causing real change/test pressure? |
+| consistency vs availability | Which operations may return stale data or reject work during failure? |
 
-**Cohesion** = how strongly related the elements within a module are.  
-**Coupling** = how much modules depend on each other.
+State which side the design favors and why. No principle wins without context.
 
-**Goal: High cohesion, low coupling.**
+## Diagnostic questions
 
-### Measuring coupling:
-- **Afferent (Ca):** incoming dependencies — how many modules depend on this one?
-- **Efferent (Ce):** outgoing dependencies — how many modules does this one depend on?
-- **Instability:** Ce / (Ca + Ce). 0 = maximally stable. 1 = maximally unstable.
-
-**Stable modules** (low instability) should not depend on unstable modules.  
-**Instability should increase as you move toward infrastructure** — core domain should be maximally stable, DB adapters can be unstable.
-
-### Improving cohesion:
-- If a class's methods share nothing except file location → split it
-- Organize by feature, not by technical layer (`order/` not `controllers/ services/ repositories/`)
-- Apply SRP
-
-### Reducing coupling:
-- Depend on interfaces, not implementations (DIP)
-- Use events for loose coupling between bounded contexts
-- Avoid shared mutable state
-- Define explicit, narrow APIs between modules
-
----
-
-## Principle of Least Surprise
-
-System behavior should match what a reasonable person would expect.
-
-**API design:** consistent naming, consistent return types, consistent error shapes.  
-**Module behavior:** a module named X should only do X.  
-**Side effects:** if calling a function changes state elsewhere, it must be obvious from the name or signature.
-
-**Stripe example:** every resource has the same structure (`id`, `object`, `created`, `livemode`, `metadata`); IDs have type prefixes (`ch_` for charges, `cus_` for customers) — you always know what you're working with.
-
----
-
-## Principle of Least Privilege
-
-Every component operates with the minimum permissions necessary.
-
-**At the code level:** modules expose only what callers need (narrow public API).  
-**At the service level:** services have only the DB tables and API endpoints they need.  
-**At the infrastructure level:** service accounts have only the IAM permissions required.
-
-Least privilege limits blast radius — a compromised component can do less damage.
+- What single change would be hardest to make safely?
+- Which rule is represented in more than one place?
+- Which module knows details it should only request through a contract?
+- Who owns each invariant and state transition?
+- Which abstractions have only one accidental consumer or many unrelated flags?
+- Can a representative extension be added by composition rather than core edits?
+- Can a component be tested without reconstructing unrelated infrastructure?
+- Does removing a module reveal hidden state or lifecycle ownership?
+- Can a new engineer explain the main flow and failure behavior without reading every file?

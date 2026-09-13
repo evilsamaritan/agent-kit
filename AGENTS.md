@@ -1,4 +1,4 @@
-# agent-kit v3.0.0
+# agent-kit v3.1.0
 
 ## Purpose
 
@@ -144,7 +144,7 @@ Context window is a shared resource. Every token competes with the user's actual
 7. **Composability** — skills load simultaneously. Each skill must work alongside others without conflicts.
 8. **Size budgets** — SKILL.md soft target 500 lines, ceiling ~550. References have no hard limit but split by topic. Runtimes budget the initial skill list, so front-load descriptions and avoid repeated routing prose.
 9. **Tool consolidation** — favor comprehensive tools over fragmented ones. If a human can't decide which tool to use, an agent won't either.
-10. **Evaluate behavior** — keep representative trigger and task fixtures, compare prompt/model changes on the same cases, and optimize measured failures rather than adding speculative instructions.
+10. **Evaluate behavior** — use observed failures and representative requests to compare prompt or model changes. Persist evaluation cases only when an executable regression harness consumes them; otherwise they become unmaintained context noise.
 
 ## Skill Anatomy
 
