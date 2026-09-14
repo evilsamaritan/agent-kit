@@ -10,6 +10,7 @@ Follow this workflow for a new web explainer, an unclear existing technical arti
 4. Confirm that the requested result is a separate polished or interactive web artifact rather than one diagram inside the source document.
 5. Extract explicit output constraints such as host-native artifact, HTML, repository file, or local preview.
 6. Ask only when a missing choice materially changes scope, publishing, cost, or compatibility. Otherwise choose the smallest useful web shell.
+7. Set a view budget. Default to one overview and one consequential detail; allow a third risk-specific view only when its takeaway is distinct.
 
 Do not begin by choosing colors, components, or a presentation layout.
 
@@ -22,12 +23,14 @@ Do not begin by choosing colors, components, or a presentation layout.
 5. Resolve contradictions before rendering polish over them.
 6. For architecture input, require an agreed model and view contract. If either is missing, route the design question to `architecture` before continuing.
 
+Source completeness is not a display requirement. A long document, exhaustive scenario matrix, or large view contract must be editorially reduced before it becomes navigation.
+
 ## 3. Build the visual model
 
 1. Normalize the source owner's minimal entities into a render model; do not silently add domain entities.
 2. Preserve supplied relationship semantics such as contains, depends on, calls, emits, transitions to, transforms, compares with, or changes into. Define them here only when the source owner has not already done so.
 3. Record groups, boundaries, order, quantities, status, and evidence metadata.
-4. Remove details that do not affect the question.
+4. Remove display details that do not affect the question while keeping the authoritative source linked and intact.
 5. Give every repeated element a stable identity across views.
 
 If the model is only a list with no relationship, use a table or concise structured text. Do not force it into a graph.
@@ -39,8 +42,10 @@ If the model is only a list with no relationship, use a table or concise structu
 3. Add another view only when it answers a different consequential question or abstraction level.
 4. Separate current, target, and transition views when combining them would create ambiguity.
 5. Define one sentence describing the job of every selected view.
+6. Merge or remove any candidate whose job or takeaway duplicates another.
+7. If more than three primary views remain, require an explicit atlas/reference use case or return the view contract to its owner for prioritization.
 
-Prefer an overview plus one selected detail over an exhaustive atlas.
+Prefer an overview plus one selected detail over an exhaustive atlas. Menu entries, tabs, collapsible sections, or filters do not make an oversized view set concise.
 
 ## 5. Choose the output medium
 
@@ -86,6 +91,8 @@ For interactive output, read [interactive-html.md](../references/interactive-htm
 6. Check that keyboard and non-color cues preserve essential meaning.
 7. Record any validation that could not be performed.
 
+Treat any overlapping label, detached or misaligned arrowhead, clipped node, ambiguous crossing, duplicated identity, unreadable compact projection, or page-level horizontal overflow as a failed render. Fix it and inspect the affected viewport again.
+
 Syntax checks are necessary but insufficient. If rendering tooling is unavailable, report that boundary explicitly.
 
 ## 9. Simplify
@@ -95,6 +102,7 @@ Syntax checks are necessary but insufficient. If rendering tooling is unavailabl
 3. Reduce crossing lines, duplicated nodes, decorative containers, and repeated labels.
 4. Confirm that each remaining view has a distinct job.
 5. Re-render after structural changes.
+6. Perform an editorial pass: can the reader identify the question, answer, owners, and critical relationship without opening every detail section? If not, reduce or restructure before delivery.
 
 ## 10. Deliver
 

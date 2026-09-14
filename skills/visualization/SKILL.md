@@ -28,7 +28,7 @@ Do not invoke it merely because a design document contains one useful Mermaid or
 | implementation or patch | code/review skill | exact source, status, and focus ranges |
 | dataset or analysis | analysis owner | verified measures, units, uncertainty, and takeaway |
 
-This skill may choose a clearer web layout or compact representation. When `architecture` supplies a view contract, its selected projection and relationship semantics are fixed: normalize them into a render model without redesigning them. If an architecture request has no agreed model or view contract, route to `architecture` first. Never rename domain concepts, move authority, add dependencies, reinterpret causality, or make an unverified proposal look current.
+This skill may choose a clearer web layout or compact representation. When `architecture` supplies a view contract, its relationship semantics are fixed: normalize them into a render model without redesigning them. The view set is still subject to an editorial quality gate. If several supplied views repeat the same question, mix abstraction levels, or cannot be read independently, return that contract to the source owner for consolidation rather than hiding the problem behind navigation. If an architecture request has no agreed model or view contract, route to `architecture` first. Never rename domain concepts, move authority, add dependencies, reinterpret causality, or make an unverified proposal look current.
 
 ## Critical rules
 
@@ -45,6 +45,8 @@ This skill may choose a clearer web layout or compact representation. When `arch
 11. **Show code as evidence.** Use focused selectable code, unified diff on compact widths, and non-color add/remove labels; do not imply compilation or correctness.
 12. **Inspect the rendered artifact.** Verify themes, representative wide/half-width/mobile viewports, navigation, overflow, labels, contrast, and textual alternatives.
 13. **Keep creation local by default.** Publishing, hosting, or external sharing requires explicit authorization.
+14. **Curate before rendering.** A source may contain many facts, sections, or candidate views; they are not automatically presentation requirements. For multi-view artifacts, default to one overview and one consequential detail, adding a third risk-specific view only when it changes understanding.
+15. **Fail on visual ambiguity.** Overlapping labels, detached arrowheads, crossing relationships that cannot be traced, clipped content, duplicated nodes with unclear identity, or unreadable compact projections are unfinished work, not cosmetic defects.
 
 ## Flow selection
 
@@ -84,7 +86,19 @@ Inside a non-architecture artifact, or when the source owner has not fixed the p
 └── quantity, distribution, or comparison -> appropriate chart / matrix
 ```
 
-One artifact may contain several views only when each answers a different question over the same stable vocabulary.
+One artifact may contain several views only when each answers a different question over the same stable vocabulary. Default to one overview plus one selected detail. More than three primary views requires an explicit atlas/reference use case or a clear explanation of why each additional view changes a decision; navigation is never that explanation.
+
+## View-set quality gate
+
+Before building the shell, write a one-line job and takeaway for every candidate view. Then:
+
+1. merge views with the same question and abstraction level;
+2. remove views whose takeaway is already visible in another view;
+3. move evidence inventories and exhaustive cases to textual details or linked source material;
+4. separate any view that mixes containment, dependencies, sequence, state, or authority without a single reading rule;
+5. return semantic contradictions or an overloaded architecture contract to the source owner instead of resolving them through layout.
+
+Progressive disclosure organizes justified detail; it must not legitimize an exhaustive visual atlas.
 
 ## Composition contract
 
@@ -120,7 +134,7 @@ For a non-trivial artifact, deliver:
 
 1. the local artifact or host-native result;
 2. a concise question/scope and one takeaway per view;
-3. stable section navigation when there are four or more views;
+3. quiet section navigation only when the justified view set genuinely requires it;
 4. an essential legend or textual equivalent;
 5. source and current/proposed/unknown status;
 6. exact validation status for themes, viewports, interactions, and render path.
@@ -135,7 +149,7 @@ Keep maintainable source with the consuming documentation. A screenshot can demo
 
 **Code or diff explainer:** preserve exact source, paths, line structure, and status. Prefer unified diff on narrow screens and local scrolling inside the code region.
 
-**Large view set:** group sections by reader question, keep overview before detail, and add search/filtering only when it helps locate known content.
+**Large view set explicitly requested:** first remove repeated or non-visual material, then group the remaining sections by reader question. Keep the executive overview before details and add search/filtering only when it helps locate known content.
 
 **Uncertain source:** label inferred, proposed, transitional, and unknown elements. Polish must never imply certainty.
 
@@ -146,6 +160,8 @@ Keep maintainable source with the consuming documentation. A screenshot can demo
 - **Scaled poster** — one fixed SVG technically fits but its labels do not.
 - **Responsive chrome only** — the menu collapses while the diagram remains desktop-only.
 - **Universal generator** — one script hard-codes topology and coordinates for unrelated tasks.
+- **Atlas by default** — every section, scenario, or relationship receives its own view even though the reader needs only the decision and its critical evidence.
+- **Navigation as compression** — tabs or a menu hide an oversized information model without reducing it.
 - **Mixed grammar** — the same color, shape, or line changes meaning between views.
 - **Unlabelled arrows** — readers must guess direction, action, or causality.
 - **Slide reflex** — next/previous pages replace semantic navigation.

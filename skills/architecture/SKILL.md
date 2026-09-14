@@ -1,6 +1,6 @@
 ---
 name: architecture
-description: Design, diagram, and review software architecture: boundaries, contracts, ownership, state, behavior, evolution, and NFRs. Use when designing or redesigning a system, defining core or module boundaries, synthesizing scenarios, applying SOLID or design patterns, planning extensibility or migration, writing ADRs, or drawing diagrams. Do NOT use when an agreed design only needs a polished web explainer (use visualization), or for routine implementation, detailed API/schema design, or CI/CD.
+description: "Design, diagram, and review software architecture: boundaries, contracts, ownership, state, behavior, evolution, and NFRs. Use when designing or redesigning a system, defining core or module boundaries, synthesizing scenarios, applying SOLID or design patterns, planning extensibility or migration, writing ADRs, or drawing diagrams. Do NOT use when an agreed design only needs a polished web explainer (use visualization), or for routine implementation, detailed API/schema design, or CI/CD."
 user-invocable: true
 ---
 
@@ -21,6 +21,8 @@ Treat architecture as one continuous design problem from system topology down to
 9. **Prove the design against change.** Walk representative happy paths, failures, concurrency, recovery, and one plausible extension through the same model.
 10. **Preserve delivery safety.** For existing systems, map current behavior and compatibility constraints, then migrate through reversible slices with explicit verification.
 11. **Separate evidence from decisions.** Label repository facts, assumptions, unknowns, alternatives, and chosen decisions. Inspect before redesigning; do not invent the current architecture.
+12. **Choose the deliverable before the depth.** Default to a decision brief. A difficult problem justifies deeper reasoning, not a longer artifact. Produce a full design dossier only when the user explicitly asks for exhaustive documentation or the deliverable itself is the specification.
+13. **Synthesize reviews; do not concatenate them.** Parallel findings and scenario inventories are working material. Rank, merge, reject, and compress them before updating the canonical design.
 
 ## Scope and boundaries
 
@@ -50,7 +52,8 @@ Routine code inside an established design does not need this skill. Cross-cuttin
 
 | Intent | Route |
 |---|---|
-| Design a new system, subsystem, or module family | Read [design.md](workflows/design.md) and run the full synthesis flow |
+| Make a focused architecture decision or sketch a module boundary | Use the systemic loop below and return a brief |
+| Design a new system, subsystem, or module family | Read [design.md](workflows/design.md) and select its brief, design, or dossier mode |
 | Redesign or migrate an existing architecture | Read [design.md](workflows/design.md); include current-state and migration steps |
 | Review a proposal or codebase architecture | Read [review.md](workflows/review.md) and report evidence-ranked findings |
 | Choose a system/application architecture style | Read [architecture-patterns.md](references/architecture-patterns.md) |
@@ -65,6 +68,10 @@ Routine code inside an established design does not need this skill. Cross-cuttin
 
 Read only the references needed for the active forces. Do not load the entire catalog by default.
 
+## Deliverable modes
+
+Default to a five-minute **brief**. Use **design** mode when several coupled decisions must guide implementation or migration. Use **dossier** mode only for an explicitly requested exhaustive RFC, audit record, or reference specification. Complexity, reviewer count, and reasoning effort do not select a longer mode. Read [design.md](workflows/design.md) for the mode-specific artifact contract.
+
 ## Systemic design loop
 
 For a small decision that does not justify the full workflow, preserve this sequence:
@@ -77,7 +84,7 @@ Goal and constraints
   -> contracts and dependency direction
   -> pattern choices with costs
   -> scenario and change simulation
-  -> migration and fitness checks
+  -> delivery and verification when relevant
 ```
 
 Do not use the scenario list as the component list or implementation plan. A hundred cases often reduce to a few operations, policies, states, and failure modes.
@@ -116,19 +123,20 @@ Use the problem as the selection key:
 
 Composition is the default way to add orthogonal behavior. Inheritance is appropriate only for a genuine substitutable hierarchy with stable variation. Plain functions and direct calls remain preferable when there is no independent variation.
 
-## Required output
+## Output contract
 
-An architecture result must make the design executable, not merely name patterns. Include:
+For design and redesign work, make the decision legible and actionable through:
 
-1. **Scope and drivers** — outcome, constraints, current facts, assumptions, and unknowns.
-2. **Model** — capabilities, invariants, state owners, variation axes, and representative flows.
-3. **Boundaries** — components/modules, responsibilities, public contracts, and dependency direction.
-4. **Architecture views** — one compact structure/dependency view plus Runtime, Data & State, Deployment, or Evolution views only when they answer a consequential question; draw them directly in a maintainable form and give each a status and takeaway.
-5. **Decisions** — chosen patterns and rejected alternatives, each tied to a concrete force and cost.
-6. **Scenario proof** — how representative success, failure, concurrency, and extension cases traverse the design.
-7. **Delivery** — migration slices, compatibility strategy, tests/fitness functions, observability, and rollback points.
+1. **Decision and scope** — what is being decided, current/target status, constraints, and consequential unknowns.
+2. **Coherent model** — the few capabilities, invariants, owners, boundaries, and contracts needed to explain the decision.
+3. **Visible structure** — one compact structural view. Add one dynamic or risk-specific view only when it exposes a different consequential fact.
+4. **Consequences** — selected approach, important rejected alternative, cost, risk, and the next verification or delivery step.
 
-Lead architecture documentation with selected views and short takeaways, then provide rationale and detail. Architecture may render compact Mermaid, text, or host-native diagrams itself; those diagrams are part of the design, not a handoff stub. Combine with `visualization` only when the same model needs a polished responsive HTML explorer, richer disclosure, or presentation-grade render QA. Code and diff views may support a decision as implementation evidence; they are not architecture levels.
+These are acceptance criteria, not mandatory headings. A bounded question may need only a short decision and rationale; a review follows [review.md](workflows/review.md). Scenario matrices, exhaustive ownership catalogs, detailed contracts, ADR collections, source inventories, rollout plans, observability plans, and fitness suites are conditional supporting artifacts. Include or link them only when the request or decision actually needs them; never paste all of them into the canonical narrative merely because they were produced during analysis.
+
+Lead with the conclusion and selected views, then provide only the rationale needed to trust them. Architecture may render compact Mermaid, text, or host-native diagrams itself; those diagrams are part of the design, not a handoff stub. Combine with `visualization` only when the same model needs a polished responsive HTML explorer, richer disclosure, or presentation-grade render QA. Code and diff views may support a decision as implementation evidence; they are not architecture levels.
+
+Before delivery, perform an editorial pass: can the intended reader recover the decision, boundaries, owners, and main tradeoff in five minutes? Remove repeated explanations, inventories without a decision, and sections whose takeaway duplicates another section. Deep research may remain deep internally while the delivered design stays compact.
 
 For a review, rank findings by architectural impact and cite evidence. For a consequential choice, capture the decision in an ADR.
 

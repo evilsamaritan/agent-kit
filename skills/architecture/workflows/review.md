@@ -67,6 +67,8 @@ For each finding, report:
 
 Prioritize correctness, state ownership, compatibility, failure/recovery, security boundaries, and changes with large blast radius. Do not inflate stylistic inconsistency into architectural debt.
 
+Group symptoms that share one owner, invariant, or corrective mechanism into one finding. When several reviewers contribute, independently discovered concerns increase confidence; they do not require duplicate sections. The synthesizer must merge overlaps, reject unsupported claims, and omit the low-value tail from the canonical result. Keep a complete raw ledger only when the user explicitly requests audit traceability.
+
 ## 6. Recommend change
 
 1. Describe the target model before listing edits.
@@ -77,3 +79,5 @@ Prioritize correctness, state ownership, compatibility, failure/recovery, securi
 6. State remaining risks, unknowns, and decisions that require user authority.
 
 The result should explain the system's shape and leverage points. A file-by-file cleanup list is not an architecture review.
+
+Default review output is a five-minute read: verdict and scope, the few highest-impact findings, one target view when it materially clarifies the correction, unresolved risks, and the next verifiable action. Link evidence or a full finding ledger separately instead of interleaving it with the decision narrative.

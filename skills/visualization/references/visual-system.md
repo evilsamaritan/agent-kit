@@ -107,14 +107,14 @@ Use radii of `7–8px` for controls and nodes and `10px` for panels and boundari
 
 ## Shell selection
 
-Match navigation to information depth:
+Match navigation to the justified information depth after the view-set quality gate. A navigation pattern must not be used to avoid reducing an oversized artifact:
 
 | Content | Default shell |
 |---|---|
 | one view | no application shell; title, takeaway, visual, legend |
 | two or three peer views | compact header plus visible view switcher or in-page headings |
-| four to twelve ordered sections | persistent side navigation on wide screens, explicit menu on narrow screens |
-| more than twelve sections | group by domain/question and add search or quick navigation; do not show an unbounded flat list |
+| four to twelve justified ordered sections in an explicit reference/atlas | persistent side navigation on wide screens, explicit menu on narrow screens |
+| more than twelve justified reference sections | group by domain/question and add search or quick navigation; do not show an unbounded flat list |
 
 A full explorer uses:
 

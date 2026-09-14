@@ -24,7 +24,7 @@ Architecture owns:
 - the abstraction levels that need separate views;
 - the guarantees and tradeoffs the visual must expose.
 
-The separate `visualization` skill is optional. Combine it only when the agreed model must become a polished responsive HTML or Playground-style explorer with shared themes, navigation, progressive disclosure, code/diff presentation, and browser-level render QA. It must not reinterpret boundaries or invent relationships.
+The separate `visualization` skill is optional. Combine it only when the agreed model must become a polished responsive HTML or Playground-style explorer with shared themes, navigation, progressive disclosure, code/diff presentation, and browser-level render QA. It must not reinterpret boundaries or invent relationships. Architecture must still prioritize the view set; the renderer is not responsible for turning an unedited design inventory into a coherent story.
 
 Architecture selects from seven questions and chooses the concrete projection:
 
@@ -38,7 +38,7 @@ Architecture selects from seven questions and chooses the concrete projection:
 | Deployment | execution placement and operational boundaries | deployment, network, or trust-boundary view |
 | Evolution | current, target, and transitional guarantees | paired views, transition map, or timeline |
 
-Do not generate every view by default. Start with System and Structure only when both materially orient the decision, then add views for non-obvious complexity.
+Do not generate every view by default. A brief normally has one structural view and, when necessary, one dynamic or risk-specific view. A third primary view must expose a separate consequential decision. Larger atlases belong to an explicitly requested reference deliverable and still need a short executive entry point.
 
 ## Direct diagram or visualization handoff
 
@@ -55,10 +55,11 @@ For an HTML handoff, provide the visualization skill with:
 - the question, audience, scope, and current/proposed/transition status;
 - authoritative nodes, boundaries, relationships, direction, and labels;
 - one takeaway and the unique job of each view;
+- priority: primary, supporting, or appendix;
 - facts versus inferences, proposals, and unknowns;
 - a compact alternative when a dense topology cannot reflow without changing meaning.
 
-The handoff is a semantic contract, not pixel coordinates. Architecture may suggest a projection, but the HTML layer may recompose it for compact widths while preserving the same facts.
+The handoff is a semantic contract, not pixel coordinates. Architecture may suggest a projection, but the HTML layer may recompose it for compact widths while preserving the same facts. Before handoff, merge views with duplicate questions or takeaways and move evidence inventories out of the primary navigation.
 
 ## Choose a view by architecture question
 
@@ -99,11 +100,11 @@ Most non-trivial decisions need only:
 
 1. **One static map** — context/container for a system decision or module/dependency map for an application decision.
 2. **One dynamic view** — the most important or risky scenario crossing those boundaries.
-3. **One risk-specific view** — state, data/trust, deployment, or migration only when that dimension drives the decision.
+3. **One risk-specific view** — state, data/trust, deployment, or migration only when that dimension drives an additional decision; in a brief, this normally replaces rather than supplements the dynamic view.
 
 For a small module refactor, a module map plus one sequence may be enough. For a distributed stateful system, context, runtime, sequence, and state/data views may all earn their place.
 
-Add a view when it answers a different consequential question. Remove it when it repeats names already clear in another view or text.
+Add a view when it answers a different consequential question. Remove it when it repeats names or a takeaway already clear in another view or text. Navigation and progressive disclosure organize justified views; they do not justify creating more.
 
 ## C4 zoom levels
 
@@ -169,9 +170,10 @@ Every architecture view should state:
 - relevant boundary or authority semantics;
 - which content is repository evidence, inference, proposal, or unknown;
 - one-sentence takeaway;
+- primary, supporting, or appendix priority;
 - link or proximity to the decision, contract, or evidence it explains.
 
-For a multi-view architecture explorer, a useful progression is overview → ownership → module structure → contracts → selected flows/lifecycles → failure rules. That is document navigation, not a forced slide sequence.
+For an explicitly requested multi-view architecture explorer, a useful progression is overview → selected structure/ownership detail → selected flow or risk → optional appendix views. Do not turn every design-document heading into navigation. That is document navigation, not a forced slide sequence.
 
 ## Further reading
 

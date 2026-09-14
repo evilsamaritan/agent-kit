@@ -70,12 +70,14 @@ Use tabs only for complementary representations of the same scope, such as `Diag
 
 Keep navigation labels semantic and short. Preserve the same nouns across navigation, titles, diagram nodes, details panels, and source data.
 
-Select navigation by depth:
+Select navigation by depth only after duplicate and non-visual views have been removed:
 
 - one view → no sidebar;
 - two or three peer views → visible switcher or in-page headings;
-- four to twelve ordered sections → persistent side navigation on wide screens;
-- more than twelve → bounded groups plus search or quick navigation, not one flat list.
+- four to twelve justified sections in an explicitly requested reference/atlas → persistent side navigation on wide screens;
+- more than twelve justified reference sections → bounded groups plus search or quick navigation, not one flat list.
+
+Navigation does not make an oversized view contract concise. If the primary result needs more than three views and no atlas/reference deliverable was requested, return to view selection before building the shell.
 
 ## Theme and shell contract
 
