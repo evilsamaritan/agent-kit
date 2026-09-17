@@ -1,6 +1,6 @@
 ---
 name: architecture
-description: "Design, diagram, and review software architecture: boundaries, contracts, ownership, state, behavior, evolution, and NFRs. Use when designing or redesigning a system, defining core or module boundaries, synthesizing scenarios, applying SOLID or design patterns, planning extensibility or migration, writing ADRs, or drawing diagrams. Do NOT use when an agreed design only needs a polished web explainer (use visualization), or for routine implementation, detailed API/schema design, or CI/CD."
+description: "Design, diagram, and review software architecture: boundaries, contracts, ownership, state, behavior, evolution, and NFRs. Use when designing or redesigning a system, finding shared root causes across recurring problems, defining core or module boundaries, synthesizing scenarios, applying SOLID or design patterns, planning extensibility or migration, writing ADRs, or drawing diagrams. Do NOT use when an agreed design only needs a polished web explainer (use visualization), or for routine implementation, detailed API/schema design, or CI/CD."
 user-invocable: true
 ---
 
@@ -10,19 +10,20 @@ Treat architecture as one continuous design problem from system topology down to
 
 ## Critical rules
 
-1. **Synthesize before decomposing.** Scenarios are evidence. Group them into capabilities, invariants, state transitions, failure modes, and axes of variation before proposing components or tasks.
-2. **Design around change and ownership.** Things that change together belong together. Things with different owners, invariants, lifecycles, security boundaries, or scaling needs may need a boundary.
-3. **Give every invariant and mutable state an explicit authority model.** Prefer one owner and write path. If multi-writer is required, define partitioning, coordination, or merge semantics instead of allowing accidental shared writes.
-4. **Separate policy from mechanism.** Keep domain decisions independent from transport, persistence, frameworks, vendors, and operational plumbing unless those details are the actual constraint.
-5. **Define contracts before internals.** Name responsibilities, inputs, outputs, errors, state ownership, ordering, idempotency, and compatibility before choosing classes or files.
-6. **Choose patterns only for named forces.** Every abstraction or pattern must state the variation, coupling, failure, or lifecycle problem it solves and the complexity it adds.
-7. **Prefer the smallest coherent design.** Avoid both copy-pasted special cases and speculative generality. A useful extension point corresponds to demonstrated variation or a committed near-term requirement.
-8. **Make architecture visible.** Choose the minimum System, Structure, Internal, Runtime, Data & State, Deployment, or Evolution views that expose the decision, then draw concise renderable diagrams when relationships are easier to verify visually than in prose.
-9. **Prove the design against change.** Walk representative happy paths, failures, concurrency, recovery, and one plausible extension through the same model.
-10. **Preserve delivery safety.** For existing systems, map current behavior and compatibility constraints, then migrate through reversible slices with explicit verification.
-11. **Separate evidence from decisions.** Label repository facts, assumptions, unknowns, alternatives, and chosen decisions. Inspect before redesigning; do not invent the current architecture.
-12. **Choose the deliverable before the depth.** Default to a decision brief. A difficult problem justifies deeper reasoning, not a longer artifact. Produce a full design dossier only when the user explicitly asks for exhaustive documentation or the deliverable itself is the specification.
-13. **Synthesize reviews; do not concatenate them.** Parallel findings and scenario inventories are working material. Rank, merge, reject, and compress them before updating the canonical design.
+1. **Synthesize before decomposing.** Scenarios and reported problems are evidence, not the design backlog. Group them into capabilities, invariants, state transitions, failure modes, and axes of variation before proposing components or tasks.
+2. **Diagnose before prescribing.** Form causal clusters from evidence: symptoms -> violated invariant, confused owner, leaky boundary, duplicated knowledge, or unstable variation point -> affected scenarios. Merge cases only when one cause explains them and survives counterexamples; record residual cases before choosing a pattern or correction.
+3. **Design around change and ownership.** Things that change together belong together. Things with different owners, invariants, lifecycles, security boundaries, or scaling needs may need a boundary.
+4. **Give every invariant and mutable state an explicit authority model.** Prefer one owner and write path. If multi-writer is required, define partitioning, coordination, or merge semantics instead of allowing accidental shared writes.
+5. **Separate policy from mechanism.** Keep domain decisions independent from transport, persistence, frameworks, vendors, and operational plumbing unless those details are the actual constraint.
+6. **Define contracts before internals.** Name responsibilities, inputs, outputs, errors, state ownership, ordering, idempotency, and compatibility before choosing classes or files.
+7. **Choose patterns only for named forces.** Every abstraction or pattern must state the variation, coupling, failure, or lifecycle problem it solves and the complexity it adds.
+8. **Prefer the smallest coherent design.** Avoid both copy-pasted special cases and speculative generality. A useful extension point corresponds to demonstrated variation or a committed near-term requirement.
+9. **Make architecture visible.** Choose the minimum System, Structure, Internal, Runtime, Data & State, Deployment, or Evolution views that expose the decision, then draw concise renderable diagrams when relationships are easier to verify visually than in prose.
+10. **Prove the design against change.** Walk representative happy paths, failures, concurrency, recovery, and one plausible extension through the same model.
+11. **Preserve delivery safety.** For existing systems, map current behavior and compatibility constraints, then migrate through reversible slices with explicit verification.
+12. **Separate evidence from decisions.** Label repository facts, assumptions, unknowns, alternatives, and chosen decisions. Inspect before redesigning; do not invent the current architecture.
+13. **Choose the deliverable before the depth.** Default to a decision brief. A difficult problem justifies deeper reasoning, not a longer artifact. Produce a full design dossier only when the user explicitly asks for exhaustive documentation or the deliverable itself is the specification.
+14. **Synthesize reviews; do not concatenate them.** Parallel findings and scenario inventories are working material. Rank, merge, reject, and compress them before updating the canonical design.
 
 ## Scope and boundaries
 
@@ -56,6 +57,7 @@ Routine code inside an established design does not need this skill. Cross-cuttin
 | Design a new system, subsystem, or module family | Read [design.md](workflows/design.md) and select its brief, design, or dossier mode |
 | Redesign or migrate an existing architecture | Read [design.md](workflows/design.md); include current-state and migration steps |
 | Review a proposal or codebase architecture | Read [review.md](workflows/review.md) and report evidence-ranked findings |
+| Turn a large issue inventory into an architectural refactor | Use [review.md](workflows/review.md) to verify, deduplicate, and form causal clusters, then continue with [design.md](workflows/design.md) for the target model and migration |
 | Choose a system/application architecture style | Read [architecture-patterns.md](references/architecture-patterns.md) |
 | Define module boundaries, a core, or extension seams | Read [module-design.md](references/module-design.md) |
 | Select or draw architecture views for systems, modules, flows, state, deployment, or migration | Read [visualization.md](references/visualization.md) |
@@ -78,7 +80,8 @@ For a small decision that does not justify the full workflow, preserve this sequ
 
 ```text
 Goal and constraints
-  -> scenarios and evidence
+  -> symptoms, scenarios, and evidence
+  -> causal clusters and residual cases
   -> invariants, state, and variation
   -> responsibilities and boundaries
   -> contracts and dependency direction
@@ -155,6 +158,7 @@ For a review, rank findings by architectural impact and cite evidence. For a con
 ## Anti-patterns
 
 - **Scenario-by-scenario design** — one branch, handler, flag, or task per case with no shared model.
+- **Solution-shaped clustering** — grouping symptoms because one favored pattern could address them, without proving a shared cause or identifying residual cases.
 - **Noun-first decomposition** — turning every domain noun or screen into a service/module without change-boundary evidence.
 - **Pattern shopping** — selecting a named pattern before identifying the pressure it resolves.
 - **Premature platform** — building a generic plugin or configuration system for one concrete use case.
@@ -169,7 +173,7 @@ For a review, rank findings by architectural impact and cite evidence. For a con
 
 - `visualization` — turns an agreed architecture model and its views into a polished responsive HTML explorer
 - `api-design` — protocol and compatibility design for exposed contracts
-- `database` — persistence models and transactional boundaries
+- `database` — physical schema, constraints, isolation, indexes, migrations, and query realization; architecture retains semantic state authority and invariant boundaries
 - `reliability` — failure handling, SLOs, and recovery
 - `performance` — evidence-driven capacity and latency work
 - `security` — trust boundaries and threat-driven controls

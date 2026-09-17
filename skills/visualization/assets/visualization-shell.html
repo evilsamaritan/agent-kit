@@ -1,0 +1,133 @@
+<!doctype html>
+<html lang="en" data-viz-theme="auto">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="color-scheme" content="light dark" />
+    <title>Technical visualization</title>
+    <script>
+      try {
+        const theme = localStorage.getItem("visualization-theme");
+        if (theme === "light" || theme === "dark") document.documentElement.dataset.vizTheme = theme;
+      } catch {}
+    </script>
+    <link rel="stylesheet" href="visualization-shell.css" />
+  </head>
+  <body>
+    <!-- CANONICAL VISUALIZATION SHELL
+         Reuse this structure with visualization-shell.css and
+         visualization-shell.js in every standalone artifact. Change page
+         metadata, copy, navigation entries, mode, and content; do not replace
+         theme, menu, bottom-sheet, focus, or deep-link hooks per artifact. -->
+    <!-- Use switcher for 1–3 peer views; omit section navigation for one. Change only the value to sidebar for
+         a justified 4–12 section reference/atlas; keep the same shell. -->
+    <div class="viz-shell" data-viz-shell data-viz-navigation="switcher">
+      <aside class="viz-sidebar" data-viz-menu>
+        <div class="viz-brand">
+          <span class="viz-brand__copy">
+            <span class="viz-brand__meta">Architecture proposal</span>
+            <span class="viz-brand__title">System model</span>
+          </span>
+          <button class="viz-menu" type="button" data-viz-menu-toggle aria-controls="viz-shell-menu" aria-expanded="false">
+            <span>Views</span>
+            <span class="viz-menu__icon" aria-hidden="true"><i></i><i></i><i></i></span>
+          </button>
+        </div>
+
+        <div class="viz-sidebar__body" id="viz-shell-menu" data-viz-menu-panel aria-labelledby="viz-shell-menu-title">
+          <div class="viz-sheet__head">
+            <div>
+              <span class="viz-kicker">Navigation</span>
+              <strong id="viz-shell-menu-title">Views and appearance</strong>
+            </div>
+            <button class="viz-sheet__close" type="button" data-viz-menu-dismiss aria-label="Close menu">
+              <span aria-hidden="true"></span>
+            </button>
+          </div>
+          <nav class="viz-nav" data-viz-nav aria-label="Views">
+            <div class="viz-nav__group">
+              <p class="viz-nav__label">Model</p>
+              <a class="viz-nav__link" href="#overview" aria-current="location">Overview</a>
+              <a class="viz-nav__link" href="#responsibilities">Responsibilities</a>
+              <a class="viz-nav__link" href="#evidence">Evidence</a>
+            </div>
+          </nav>
+
+          <div class="viz-sidebar__footer viz-theme-control">
+            <p class="viz-nav__label">Theme</p>
+            <div class="viz-segmented" role="group" aria-label="Color theme">
+              <button type="button" data-viz-theme-value="auto" aria-label="System theme" aria-pressed="true">Auto</button>
+              <button type="button" data-viz-theme-value="light" aria-label="Light theme" aria-pressed="false">Light</button>
+              <button type="button" data-viz-theme-value="dark" aria-label="Dark theme" aria-pressed="false">Dark</button>
+            </div>
+          </div>
+        </div>
+      </aside>
+      <div class="viz-sheet-backdrop" data-viz-menu-dismiss aria-hidden="true"></div>
+
+      <main class="viz-main">
+        <header class="viz-header">
+          <span class="viz-kicker">Target architecture · proposal</span>
+          <h1 class="viz-title">One precise question per view</h1>
+          <p class="viz-summary">Keep the first screen short: status, question, takeaway, and the primary relationship.</p>
+        </header>
+
+        <!-- ARTIFACT CONTENT: replace or extend sections inside this container. -->
+        <div class="viz-content">
+          <section class="viz-section" id="overview" data-viz-section tabindex="-1" aria-labelledby="overview-title">
+            <div class="viz-section__head">
+              <div class="viz-section__heading">
+                <span class="viz-kicker">Component flow</span>
+                <h2 class="viz-section__title" id="overview-title">What is the primary path?</h2>
+                <p class="viz-summary">Use neutral relationships; reserve category color for the nodes whose roles matter.</p>
+              </div>
+            </div>
+            <div class="viz-panel"><div class="viz-canvas">
+              <div class="viz-flow">
+                <div class="viz-node-card viz-node-card--external"><strong>Source</strong><small>initiates the request</small></div>
+                <span class="viz-connector"><span>requests</span><span class="viz-connector__line" aria-hidden="true"></span></span>
+                <div class="viz-node-card viz-node-card--system"><strong>Owner</strong><small>makes the decision</small></div>
+                <span class="viz-connector"><span>creates</span><span class="viz-connector__line" aria-hidden="true"></span></span>
+                <div class="viz-node-card viz-node-card--domain"><strong>Result</strong><small>owns domain behavior</small></div>
+              </div>
+            </div></div>
+          </section>
+
+          <section class="viz-section" id="responsibilities" data-viz-section tabindex="-1" aria-labelledby="responsibilities-title">
+            <div class="viz-section__head"><div class="viz-section__heading">
+              <span class="viz-kicker">Containment</span>
+              <h2 class="viz-section__title" id="responsibilities-title">Who owns each responsibility?</h2>
+              <p class="viz-summary">Use boundaries for real ownership or scope; use whitespace for visual grouping.</p>
+            </div></div>
+            <div class="viz-panel"><div class="viz-canvas">
+              <div class="viz-boundary">
+                <span class="viz-boundary__label">Application boundary</span>
+                <div class="viz-node-grid viz-node-grid--2">
+                  <div class="viz-node-card viz-node-card--system"><strong>Platform</strong><small>owns shared runtime policy</small></div>
+                  <div class="viz-node-card viz-node-card--domain"><strong>Capability</strong><small>owns domain behavior</small></div>
+                </div>
+              </div>
+            </div></div>
+          </section>
+
+          <section class="viz-section" id="evidence" data-viz-section tabindex="-1" aria-labelledby="evidence-title">
+            <div class="viz-section__head"><div class="viz-section__heading">
+              <span class="viz-kicker">Textual equivalent</span>
+              <h2 class="viz-section__title" id="evidence-title">Which relationships must remain inspectable?</h2>
+              <p class="viz-summary">A compact relationship list preserves endpoints, direction, label, and status without duplicating diagram geometry.</p>
+            </div></div>
+            <div class="viz-panel"><div class="viz-canvas">
+              <ul class="viz-relationship-list" aria-label="Example architecture relationships">
+                <li><span class="viz-relationship-list__route">Platform → Environment Ports</span><span class="viz-relationship-list__label">implements</span></li>
+                <li><span class="viz-relationship-list__route">Capability → Environment Ports</span><span class="viz-relationship-list__label">depends on</span></li>
+                <li><span class="viz-relationship-list__route">Capability → Platform</span><span class="viz-relationship-list__label">requests runtime service</span><span class="viz-relationship-list__status viz-relationship-list__status--unknown">Proposed</span></li>
+              </ul>
+            </div></div>
+          </section>
+        </div>
+      </main>
+    </div>
+
+    <script src="visualization-shell.js"></script>
+  </body>
+</html>

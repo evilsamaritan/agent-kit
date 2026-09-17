@@ -41,6 +41,12 @@ const themes = {
   dark: readBlock(':root[data-viz-theme="dark"]'),
 }
 const automaticDark = readBlock(':root[data-viz-theme="auto"]')
+const declaredTokens = new Set(
+  [...css.matchAll(/--viz-([a-z-]+)\s*:/gi)].map((entry) => entry[1]),
+)
+const usedTokens = new Set(
+  [...css.matchAll(/var\(--viz-([a-z-]+)/gi)].map((entry) => entry[1]),
+)
 
 const checks = [
   ['text', 'surface', 4.5],
@@ -62,6 +68,10 @@ const checks = [
 
 const failures = []
 
+for (const token of usedTokens) {
+  if (!declaredTokens.has(token)) failures.push(`missing token definition: --viz-${token}`)
+}
+
 for (const [themeName, tokens] of Object.entries(themes)) {
   for (const [foregroundName, backgroundName, minimum] of checks) {
     const foreground = tokens[foregroundName]
@@ -79,6 +89,14 @@ for (const [themeName, tokens] of Object.entries(themes)) {
       )
     }
   }
+}
+
+for (const token of Object.keys(themes.light)) {
+  if (!(token in themes.dark)) failures.push(`explicit dark: missing token ${token}`)
+}
+
+for (const token of Object.keys(themes.dark)) {
+  if (!(token in themes.light)) failures.push(`light: missing token ${token}`)
 }
 
 for (const [token, value] of Object.entries(themes.dark)) {

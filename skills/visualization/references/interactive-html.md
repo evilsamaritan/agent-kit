@@ -29,7 +29,7 @@ HTML is not justified by rounded boxes, animation, or the ability to drag nodes.
 
 ## Multi-view explorer pattern
 
-For a substantial technical design, use a document-like explorer rather than a slide deck. Apply [visual-system.md](visual-system.md) and the reusable [visualization-shell.css](../assets/visualization-shell.css). A clean default shell can provide:
+For a substantial technical design, use a document-like explorer rather than a slide deck. Start from [visualization-shell.html](../assets/visualization-shell.html), keep [visualization-shell.css](../assets/visualization-shell.css) and [visualization-shell.js](../assets/visualization-shell.js), and replace only the example content and navigation entries. This is the same base for every generating agent and runtime, not a visual reference to reinterpret. A clean default shell provides:
 
 ```text
 persistent section navigation
@@ -72,14 +72,33 @@ Keep navigation labels semantic and short. Preserve the same nouns across naviga
 
 Select navigation by depth only after duplicate and non-visual views have been removed:
 
-- one view → no sidebar;
+- one view → canonical switcher shell with section navigation omitted;
 - two or three peer views → visible switcher or in-page headings;
 - four to twelve justified sections in an explicitly requested reference/atlas → persistent side navigation on wide screens;
 - more than twelve justified reference sections → bounded groups plus search or quick navigation, not one flat list.
 
 Navigation does not make an oversized view contract concise. If the primary result needs more than three views and no atlas/reference deliverable was requested, return to view selection before building the shell.
 
+The two navigation modes are modifiers of one shell, not separate page designs:
+
+- `data-viz-navigation="switcher"` keeps one to three peer views in the compact shell; omit section navigation for a single view and keep it deep-linkable;
+- `data-viz-navigation="sidebar"` keeps four to twelve justified reference sections visible in a document flow with location tracking.
+
+Do not fork the palette, theme logic, header, or mobile menu between modes. The shared JavaScript owns theme persistence, menu state, deep links, back/forward behavior, and selected navigation state; artifact code owns only content-specific interaction.
+
 ## Theme and shell contract
+
+Shell-owned and content-owned concerns are deliberately separate:
+
+| Shell owns | Artifact content owns |
+|---|---|
+| navigation container and selected-location behavior | navigation labels and destinations |
+| desktop sidebar/header and mobile bottom sheet | document title, status, summary, and sections |
+| `Auto`/`Light`/`Dark`, persistence, and theme tokens | diagrams, charts, tables, prose, code, and diffs |
+| breakpoints, backdrop, scroll lock, focus trap, and dismissal | renderer-specific responsive projection inside a section |
+| deep-link and back/forward synchronization | content-specific filters, tabs, selection, or details |
+
+Do not duplicate shell-owned behavior in artifact markup or task scripts. Do not replace the menu or theme control because another runtime can generate a different one. If a new shell capability is genuinely reusable, improve the shared assets first and let all future artifacts inherit it.
 
 Support automatic light/dark adaptation in every standalone HTML artifact:
 
@@ -131,13 +150,14 @@ Render several projections from these stable identities. Avoid copying names and
 
 Keep rendering and publishing separate. A local HTML artifact is a complete default result when the user asked for visualization, not deployment. External publication requires explicit authorization.
 
-Prefer native HTML controls and CSS layout. For standalone implementation, follow [runtime-output.md](runtime-output.md): Tailwind may own the shell and responsive layout while the shared visualization asset owns semantic diagram primitives. Add a diagram or chart library only when it materially improves layout, interaction, or accessibility and is compatible with the target environment.
+Prefer native HTML controls and CSS layout. For standalone implementation, follow [runtime-output.md](runtime-output.md): the shared assets own the shell and responsive chrome; Tailwind may compose task-specific content inside it. Add a diagram or chart library only when it materially improves layout, interaction, or accessibility and is compatible with the target environment.
 
 ## Responsive behavior
 
 Preserve comprehension across viewport sizes:
 
 - collapse persistent navigation into an explicit accessible menu on narrow screens;
+- for a substantial mobile menu, use a bottom sheet with a dismissible backdrop, internal scrolling, safe-area padding, background scroll lock, Escape/click-away dismissal, focus containment, and a visible close path;
 - recompose semantic blocks or switch to a compact projection before using scroll;
 - let irreducibly wide diagrams scroll horizontally only inside their own labelled region and expose that behavior visibly;
 - keep node labels at readable size instead of scaling the entire canvas down;

@@ -31,9 +31,11 @@ Review the architecture that exists in executable evidence, not the architecture
 1. Name current capabilities, modules, state owners, contracts, and runtime units.
 2. Identify invariants and where they are actually enforced.
 3. Map dependency direction and cycles.
-4. Group scenario-specific branches into their underlying policies, states, and variation axes.
-5. Mark accidental boundaries and missing boundaries.
-6. Draw a compact current-state module/runtime map when ownership or relationships are not obvious from a short table.
+4. Deduplicate reported symptoms, then form candidate causal clusters around a shared invariant, owner, boundary, lifecycle, dependency direction, duplicated rule, or variation axis.
+5. Test each cluster against repository/runtime evidence and at least one competing explanation or counterexample. Record residual symptoms it does not explain.
+6. Group scenario-specific branches into their validated underlying policies, states, and variation axes.
+7. Mark accidental boundaries and missing boundaries.
+8. Draw a compact current-state module/runtime map when ownership or relationships are not obvious from a short table.
 
 ## 4. Test the architecture
 
@@ -67,7 +69,7 @@ For each finding, report:
 
 Prioritize correctness, state ownership, compatibility, failure/recovery, security boundaries, and changes with large blast radius. Do not inflate stylistic inconsistency into architectural debt.
 
-Group symptoms that share one owner, invariant, or corrective mechanism into one finding. When several reviewers contribute, independently discovered concerns increase confidence; they do not require duplicate sections. The synthesizer must merge overlaps, reject unsupported claims, and omit the low-value tail from the canonical result. Keep a complete raw ledger only when the user explicitly requests audit traceability.
+Group symptoms only when evidence supports one shared cause such as an owner, invariant, boundary, lifecycle, or variation failure. A shared proposed correction does not by itself prove one finding. When several reviewers contribute, independently discovered concerns increase confidence; they do not require duplicate sections. The synthesizer must merge overlaps, reject unsupported claims, retain unexplained residuals, and omit the low-value tail from the canonical result. Keep a complete raw ledger only when the user explicitly requests audit traceability.
 
 ## 6. Recommend change
 

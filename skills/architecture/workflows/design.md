@@ -51,11 +51,13 @@ For a greenfield system, record the relevant surrounding systems and constraints
 
 ## 3. Synthesize scenarios
 
-1. Collect representative scenarios, including success, rejection, failure, retry, cancellation, concurrency, recovery, and evolution.
-2. When the cases cannot yet be grouped, build a working scenario matrix using dimensions such as actor, operation, state, policy, trigger, dependency, failure, and output.
-3. Group cases that share the same business rule, lifecycle, data, or variation point.
-4. Identify cases that only look similar but express different domain knowledge.
-5. Replace the flat scenario list with a smaller vocabulary of capabilities, operations, policies, states, and events.
+1. Treat reported problems as hypotheses until repository, runtime, test, or incident evidence confirms them. Deduplicate alternate descriptions of the same observed behavior.
+2. Collect representative scenarios, including success, rejection, failure, retry, cancellation, concurrency, recovery, and evolution.
+3. When the cases cannot yet be grouped, build a working matrix using dimensions such as actor, operation, state, owner, invariant, policy, trigger, dependency, failure, and output.
+4. Form candidate causal clusters around a shared violated invariant, confused authority, leaky boundary, duplicated rule, lifecycle gap, dependency direction, or variation point. Do not group cases merely because the same pattern could be applied to them.
+5. For each cluster, state the causal hypothesis, supporting evidence, a competing explanation or counterexample, the architectural leverage point, and any residual cases the cause does not explain.
+6. Separate cases that only look similar but express different domain knowledge or require different owners.
+7. Replace the flat list with a smaller vocabulary of capabilities, operations, policies, states, events, and validated problem clusters.
 
 Example synthesis:
 
@@ -67,7 +69,7 @@ Resulting pressure: compose policies without duplicating or modifying the transp
 Candidate shape: narrow client contract plus ordered decorators/pipeline stages
 ```
 
-The scenario matrix validates the architecture; it must not become one component or task per row. Publish only the representative cases that change or disprove the model. Keep the full matrix as a separate appendix only when it is a requested acceptance artifact.
+The scenario matrix validates the architecture; it must not become one component or task per row. A proposed pattern is not evidence that a cluster has one cause. Publish only the representative cases that establish, change, or disprove the model, plus residual cases that need separate treatment. Keep the full matrix as a separate appendix only when it is a requested acceptance artifact.
 
 ## 4. Model state and invariants
 

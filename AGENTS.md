@@ -1,4 +1,4 @@
-# agent-kit v3.1.1
+# agent-kit v3.2.0
 
 ## Purpose
 

@@ -48,6 +48,13 @@ Choose the form by the comparison task:
 
 Always distinguish added, removed, and unchanged context with text prefixes or labels in addition to color. Preserve file path, hunk or symbol context, and enough unchanged lines to locate the change.
 
+When reviewers need both patch fidelity and structural comparison, expose two explicit modes over the same source:
+
+- **Split** — `Before` on the left and `After` on the right, with semantically corresponding rows aligned and independent local scrolling when necessary.
+- **Unified** — one exact patch stream with hunk context and `+` / `-` prefixes.
+
+Default to split on a sufficiently wide canvas and unified on compact widths. A user-selected mode may persist while the canvas remains wide, but responsive layout must override split before either column becomes unreadable. Do not create two independently edited versions of the change.
+
 Do not manufacture a textual diff from semantically unrelated snippets. When formatting, import organization, or generated output overwhelms the intended change, show a focused semantic excerpt and state the omitted noise.
 
 ## Selection
@@ -73,6 +80,7 @@ Code preserves whitespace and line structure. Do not soft-wrap by default when w
 - contain horizontal scrolling inside the code region, not the page;
 - keep file path and status visible above the scroll region;
 - use a unified diff on compact widths instead of side-by-side columns;
+- keep a split/unified control compact and adjacent to the diff metadata, not in the global page chrome;
 - shorten surrounding context before shrinking type;
 - keep line numbers narrow and visually quiet;
 - avoid sticky overlays that consume most of a mobile viewport.

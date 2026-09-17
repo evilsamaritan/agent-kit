@@ -4,6 +4,7 @@
 
 - [Boundary with visualization](#boundary-with-visualization)
 - [Direct diagram or visualization handoff](#direct-diagram-or-visualization-handoff)
+- [Renderer handoff](#renderer-handoff)
 - [Choose a view by architecture question](#choose-a-view-by-architecture-question)
 - [Minimal architecture set](#minimal-architecture-set)
 - [C4 zoom levels](#c4-zoom-levels)
@@ -24,7 +25,7 @@ Architecture owns:
 - the abstraction levels that need separate views;
 - the guarantees and tradeoffs the visual must expose.
 
-The separate `visualization` skill is optional. Combine it only when the agreed model must become a polished responsive HTML or Playground-style explorer with shared themes, navigation, progressive disclosure, code/diff presentation, and browser-level render QA. It must not reinterpret boundaries or invent relationships. Architecture must still prioritize the view set; the renderer is not responsible for turning an unedited design inventory into a coherent story.
+The separate `visualization` skill is optional. Combine it only when the agreed model must become a polished responsive HTML or Playground-style explorer with shared themes, navigation, progressive disclosure, code/diff presentation, and browser-level render QA. It must not reinterpret boundaries or invent relationships. Architecture must still prioritize the view set; the renderer is not responsible for turning an unedited design inventory into a coherent story. For standalone HTML, architecture supplies content and semantics while `visualization` always supplies its canonical runtime-neutral shell; architecture must not request or generate separate Claude-, Codex-, or task-specific chrome.
 
 Architecture selects from seven questions and chooses the concrete projection:
 
@@ -60,6 +61,61 @@ For an HTML handoff, provide the visualization skill with:
 - a compact alternative when a dense topology cannot reflow without changing meaning.
 
 The handoff is a semantic contract, not pixel coordinates. Architecture may suggest a projection, but the HTML layer may recompose it for compact widths while preserving the same facts. Before handoff, merge views with duplicate questions or takeaways and move evidence inventories out of the primary navigation.
+
+Use this canonical handoff shape for each selected view:
+
+```markdown
+## View: module-dependencies
+
+- Question: Which modules depend on the environment contract?
+- Audience: implementation team
+- Scope / level: client application / Internal
+- Status / priority: target / primary
+- Takeaway: game modules depend on one stable environment contract
+
+### Entities
+| ID | Name | Type | Responsibility | Boundary or authority | Evidence status |
+|---|---|---|---|---|---|
+
+### Relationships
+| Source | Kind | Target | Label | Status | Order or cardinality |
+|---|---|---|---|---|---|
+
+- Canonical source: Mermaid block, render model, or exact source link
+- Compact projection: equivalent direction/layout or relationship-list rule
+- Textual equivalent: concise statement of the essential entities and relationships
+```
+
+Omit empty optional columns, but keep stable IDs, direction, status, and evidence explicit. `visualization` consumes this contract; it does not create a second architecture specification.
+
+## Renderer handoff
+
+Keep standard architecture topology as canonical Mermaid in the design Markdown when flowchart, sequence, state, or ER grammar expresses the view accurately. This gives the design document a readable source that `visualization` can theme and render without reconstructing relationships.
+
+For Mermaid flowcharts, use stable IDs and attach the portable semantic class only when the category matters to the decision:
+
+| Class | Meaning |
+|---|---|
+| `external` | actor, neighboring system, or environmental dependency |
+| `system` | shared runtime, platform, or core mechanism |
+| `interface` | contract, shell, routing, or orchestration boundary |
+| `domain` | business capability or independently meaningful module |
+| `data` | authoritative state, store, or projection |
+| `risk` | failure, forbidden path, or unresolved risk |
+
+Example:
+
+```mermaid
+flowchart LR
+  shell[App Shell] -->|depends on| ports[Environment Ports]
+  runtime[Runtime] -->|implements| ports
+  class shell,ports interface
+  class runtime system
+```
+
+These classes are optional presentation metadata, not architecture. Keep sequence, state, and ER views neutral unless role color is itself consequential. Relationship labels and directions remain authoritative even when no class is supplied.
+
+Do not force non-topological content into Mermaid. Containment-only ownership, migration timelines, comparison matrices, quantitative charts, code, diff, navigation, and explanatory prose need their own semantic renderer. Use the exact decision tree in [visualization renderer selection](../../visualization/references/renderer-selection.md) when producing a separate HTML artifact.
 
 ## Choose a view by architecture question
 

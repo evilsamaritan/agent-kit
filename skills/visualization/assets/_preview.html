@@ -1,26 +1,46 @@
 <!doctype html>
-<html lang="ru" data-viz-theme="auto">
+<html lang="ru" data-viz-theme="auto" data-viz-mermaid-loading>
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta name="color-scheme" content="light dark" />
     <title>Visualization pattern gallery</title>
-    <link rel="stylesheet" href="visualization-shell.css?v=3.1.0" />
-    <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+    <script>
+      try {
+        const theme = localStorage.getItem("visualization-theme");
+        if (theme === "light" || theme === "dark") document.documentElement.dataset.vizTheme = theme;
+      } catch {}
+      if ("scrollRestoration" in history) history.scrollRestoration = "manual";
+    </script>
+    <link rel="stylesheet" href="visualization-shell.css?v=3.2.0" />
+    <noscript><style>[data-viz-mermaid-loading] .viz-content { visibility: visible; }</style></noscript>
   </head>
-  <body class="m-0 min-h-screen antialiased">
-    <div class="viz-shell min-h-screen min-[60rem]:grid min-[60rem]:grid-cols-[13rem_minmax(0,1fr)]">
-      <aside class="viz-sidebar group relative flex flex-col overflow-y-auto border-b border-[var(--viz-border)] bg-[var(--viz-surface-subtle)] px-3 py-3 min-[60rem]:sticky min-[60rem]:top-0 min-[60rem]:h-screen min-[60rem]:self-start min-[60rem]:border-r min-[60rem]:border-b-0 min-[60rem]:py-4" id="sidebar">
-        <div class="viz-brand flex items-center justify-between gap-3 min-[60rem]:mb-4">
-          <span class="viz-brand__copy grid gap-0.5">
+  <body>
+    <div class="viz-shell" data-viz-shell data-viz-navigation="sidebar">
+      <aside class="viz-sidebar" id="sidebar" data-viz-menu>
+        <div class="viz-brand">
+          <span class="viz-brand__copy">
             <span class="viz-brand__meta">Visualization</span>
             <span class="viz-brand__title">Pattern gallery</span>
           </span>
-          <button class="viz-menu inline-flex h-8 items-center rounded-md border border-[var(--viz-border)] bg-[var(--viz-surface)] px-2.5 text-xs font-semibold text-[var(--viz-text)] min-[60rem]:hidden" id="menu-toggle" type="button" aria-controls="viz-navigation viz-theme-controls" aria-expanded="false">Разделы и тема</button>
+          <button class="viz-menu" id="menu-toggle" type="button" data-viz-menu-toggle aria-controls="viz-shell-menu" aria-expanded="false">
+            <span>Разделы</span>
+            <span class="viz-menu__icon" aria-hidden="true"><i></i><i></i><i></i></span>
+          </button>
         </div>
 
-        <nav class="viz-nav mt-3 hidden flex-1 content-start gap-0.5 overflow-y-auto pe-0.5 group-data-[open=true]:grid min-[60rem]:mt-0 min-[60rem]:grid" id="viz-navigation" aria-label="Типы представлений">
-          <div class="viz-nav__group grid gap-0.5">
+        <div class="viz-sidebar__body" id="viz-shell-menu" data-viz-menu-panel aria-labelledby="viz-shell-menu-title">
+        <div class="viz-sheet__head">
+          <div>
+            <span class="viz-kicker">Навигация</span>
+            <strong id="viz-shell-menu-title">Разделы и оформление</strong>
+          </div>
+          <button class="viz-sheet__close" type="button" data-viz-menu-dismiss aria-label="Закрыть меню">
+            <span aria-hidden="true"></span>
+          </button>
+        </div>
+        <nav class="viz-nav" id="viz-navigation" data-viz-nav aria-label="Типы представлений">
+          <div class="viz-nav__group">
             <p class="viz-nav__label">Структура</p>
             <a class="viz-nav__link" href="#system" aria-current="location">System / boundary</a>
             <a class="viz-nav__link" href="#hierarchy">Hierarchy</a>
@@ -28,7 +48,7 @@
             <a class="viz-nav__link" href="#data-model">Data model</a>
             <a class="viz-nav__link" href="#deployment">Deployment</a>
           </div>
-          <div class="viz-nav__group grid gap-0.5">
+          <div class="viz-nav__group">
             <p class="viz-nav__label">Поведение</p>
             <a class="viz-nav__link" href="#process">Process / decision</a>
             <a class="viz-nav__link" href="#sequence">Sequence</a>
@@ -36,42 +56,47 @@
             <a class="viz-nav__link" href="#data-flow">Data flow</a>
             <a class="viz-nav__link" href="#evolution">Evolution</a>
           </div>
-          <div class="viz-nav__group grid gap-0.5">
+          <div class="viz-nav__group">
             <p class="viz-nav__label">Анализ</p>
             <a class="viz-nav__link" href="#comparison">Comparison</a>
             <a class="viz-nav__link" href="#charts">Charts</a>
           </div>
-          <div class="viz-nav__group grid gap-0.5">
+          <div class="viz-nav__group">
             <p class="viz-nav__label">Код</p>
             <a class="viz-nav__link" href="#code-view">Code view</a>
             <a class="viz-nav__link" href="#diff-view">Diff code view</a>
           </div>
         </nav>
 
-        <div class="viz-sidebar__footer viz-theme-control mt-3 hidden gap-2 border-t border-[var(--viz-border)] pt-3 group-data-[open=true]:grid min-[60rem]:grid" id="viz-theme-controls">
+        <div class="viz-sidebar__footer viz-theme-control" id="viz-theme-controls">
           <p class="viz-nav__label">Тема</p>
           <div class="viz-segmented" role="group" aria-label="Тема страницы">
-            <button type="button" data-theme="auto" aria-pressed="true">Auto</button>
-            <button type="button" data-theme="light" aria-pressed="false">Light</button>
-            <button type="button" data-theme="dark" aria-pressed="false">Dark</button>
+            <button type="button" data-viz-theme-value="auto" aria-label="Системная тема" aria-pressed="true">Auto</button>
+            <button type="button" data-viz-theme-value="light" aria-label="Светлая тема" aria-pressed="false">Light</button>
+            <button type="button" data-viz-theme-value="dark" aria-label="Тёмная тема" aria-pressed="false">Dark</button>
           </div>
         </div>
+        </div>
       </aside>
+      <div class="viz-sheet-backdrop" data-viz-menu-dismiss aria-hidden="true"></div>
 
-      <main class="viz-main min-w-0">
-        <header class="viz-header border-b border-[var(--viz-border)] bg-[var(--viz-bg)] px-4 py-4 sm:px-5 min-[60rem]:px-6 min-[60rem]:py-5">
+      <main class="viz-main">
+        <header class="viz-header">
           <div>
             <span class="viz-kicker">Responsive reference · not a universal renderer</span>
-            <h1 class="viz-title text-balance">Строительные блоки технической визуализации</h1>
-            <p class="viz-summary text-pretty">Один визуальный язык, разные вопросы. Каждая схема собрана под свою топологию и перестраивается на компактной ширине.</p>
+            <h1 class="viz-title">Строительные блоки технической визуализации</h1>
+            <p class="viz-summary">Shell не зависит от Mermaid. Архитектурную топологию рендерит Mermaid; контент, charts, code/diff и компактные альтернативы используют подходящий им блок.</p>
+            <div class="viz-renderer-map" aria-label="Карта renderer-ов">
+              <span>Mermaid · topology</span><span>HTML · content and reflow</span><span>SVG · charts</span><span>Code · evidence</span>
+            </div>
           </div>
         </header>
 
-        <div class="viz-content grid gap-5 px-4 py-5 pb-12 sm:px-5 min-[60rem]:px-6">
+        <div class="viz-content">
           <section class="viz-section" id="system" aria-labelledby="system-title">
             <div class="viz-section__head">
               <div class="viz-section__heading">
-                <span class="viz-kicker">System / structure view</span>
+                <span class="viz-kicker">Mermaid flowchart · system / structure</span>
                 <h2 class="viz-section__title" id="system-title">Где проходит граница и как подключаются модули?</h2>
                 <p class="viz-summary">Рамки означают состав; стрелки — взаимодействие. На mobile узлы складываются, границы сохраняются.</p>
               </div>
@@ -79,26 +104,48 @@
             </div>
             <div class="viz-panel">
               <div class="viz-canvas">
-                <div class="viz-flow">
-                  <div class="viz-node-card viz-node-card--external"><strong>Внешний клиент</strong><small>открывает игру</small></div>
-                  <span class="viz-flow__edge">передаёт маршрут</span>
-                  <div class="viz-node-card viz-node-card--system"><strong>Сборка приложения</strong><small>выбирает известный модуль</small></div>
-                  <span class="viz-flow__edge viz-flow__edge--async">читает политику</span>
-                  <div class="viz-node-card viz-node-card--external"><strong>Доступность игр</strong><small>конфигурация</small></div>
+                <div class="viz-responsive__wide viz-mermaid" data-viz-mermaid data-viz-compact-direction="TB" data-viz-compact-at="900">
+                  <script type="text/plain">
+flowchart LR
+  accTitle: Граница системного игрового клиента
+  accDescr: Внешний клиент передаёт маршрут сборке приложения. Сборка создаёт системную среду, а игровые модули используют её порты.
+  client["Внешний клиент"] -->|передаёт маршрут| assembly["Сборка приложения"]
+  availability["Доступность игр"] -.-|ограничивает| assembly
+  subgraph system["Системный игровой клиент"]
+    direction TB
+    platform["Core / Runtime · App Shell · Shared UI"]
+    ports["Порты среды и точки встраивания"]
+    modules["PokerModule · OkeyModule · TaylaModule"]
+    platform -->|предоставляет| ports
+    modules -->|зависят от| ports
+  end
+  assembly -->|создаёт и связывает| platform
+  class client,availability external
+  class assembly,platform system
+  class ports interface
+  class modules domain
+                  </script>
+                  <div class="viz-mermaid__output" data-viz-mermaid-output></div>
                 </div>
-                <div class="viz-boundary viz-space-top">
-                  <span class="viz-boundary__label">Системный игровой клиент</span>
-                  <div class="viz-node-grid">
-                    <div class="viz-node-card viz-node-card--system"><strong>Core / Runtime</strong><small>сессия · RPC · realtime</small></div>
-                    <div class="viz-node-card viz-node-card--interface"><strong>App Shell</strong><small>маршруты · фокус · layout</small></div>
-                    <div class="viz-node-card viz-node-card--interface"><strong>Shared UI</strong><small>диалоги · уведомления</small></div>
+                <div class="viz-responsive__compact">
+                  <div class="viz-node-grid viz-node-grid--2">
+                    <div class="viz-node-card viz-node-card--external"><strong>Внешний клиент</strong><small>источник маршрута</small></div>
+                    <div class="viz-node-card viz-node-card--external"><strong>Доступность игр</strong><small>ограничение конфигурации</small></div>
+                    <div class="viz-node-card viz-node-card--system"><strong>Сборка приложения</strong><small>создаёт и связывает</small></div>
                   </div>
-                  <div class="viz-contract-rail">Порты среды и точки встраивания</div>
-                  <div class="viz-node-grid">
-                    <div class="viz-node-card viz-node-card--domain"><strong>PokerModule</strong><small>cash · tournaments</small></div>
-                    <div class="viz-node-card viz-node-card--domain"><strong>OkeyModule</strong><small>свои сценарии</small></div>
-                    <div class="viz-node-card viz-node-card--domain"><strong>TaylaModule</strong><small>своя модель игры</small></div>
+                  <div class="viz-boundary viz-space-top">
+                    <span class="viz-boundary__label">Системный игровой клиент</span>
+                    <div class="viz-node-card viz-node-card--system"><strong>Core / Runtime · App Shell · Shared UI</strong><small>владеют средой</small></div>
+                    <div class="viz-contract-rail">Порты среды и точки встраивания</div>
+                    <div class="viz-node-card viz-node-card--domain"><strong>Игровые модули</strong><small>Poker · Okey · Tayla</small></div>
                   </div>
+                  <ul class="viz-relationship-list viz-space-top" aria-label="Связи системного игрового клиента">
+                    <li><span class="viz-relationship-list__route">Внешний клиент → Сборка приложения</span><span class="viz-relationship-list__label">передаёт маршрут</span></li>
+                    <li><span class="viz-relationship-list__route">Доступность игр — Сборка приложения</span><span class="viz-relationship-list__label">ограничивает</span></li>
+                    <li><span class="viz-relationship-list__route">Сборка приложения → Core / Runtime · App Shell · Shared UI</span><span class="viz-relationship-list__label">создаёт и связывает</span></li>
+                    <li><span class="viz-relationship-list__route">Core / Runtime · App Shell · Shared UI → Порты среды</span><span class="viz-relationship-list__label">предоставляет</span></li>
+                    <li><span class="viz-relationship-list__route">Игровые модули → Порты среды</span><span class="viz-relationship-list__label">зависят от</span></li>
+                  </ul>
                 </div>
               </div>
               <div class="viz-boundary-note">Системная среда владеет портами; игровые модули зависят от контракта, а не друг от друга.</div>
@@ -108,7 +155,7 @@
           <section class="viz-section" id="hierarchy" aria-labelledby="hierarchy-title">
             <div class="viz-section__head">
               <div class="viz-section__heading">
-                <span class="viz-kicker">Hierarchy / ownership</span>
+                <span class="viz-kicker">Semantic HTML · hierarchy / ownership</span>
                 <h2 class="viz-section__title" id="hierarchy-title">Что кому принадлежит?</h2>
                 <p class="viz-summary">Дерево показывает только containment и ownership; стрелки вызовов здесь были бы ложной семантикой.</p>
               </div>
@@ -134,43 +181,39 @@
           <section class="viz-section" id="dependencies" aria-labelledby="dependencies-title">
             <div class="viz-section__head">
               <div class="viz-section__heading">
-                <span class="viz-kicker">Directed dependency graph</span>
+                <span class="viz-kicker">Mermaid flowchart · directed dependency graph</span>
                 <h2 class="viz-section__title" id="dependencies-title">Кто зависит от чьего контракта?</h2>
                 <p class="viz-summary">Стрелка идёт от потребителя к владельцу контракта. Compact-проекция группирует peers, не уменьшая текст.</p>
               </div>
               <span class="viz-section__index">03 / 14</span>
             </div>
             <div class="viz-panel"><div class="viz-canvas">
-              <div class="viz-responsive__wide">
-                <svg class="viz-diagram" viewBox="0 0 820 285" role="img" aria-labelledby="dep-svg-title dep-svg-desc">
-                  <title id="dep-svg-title">Граф зависимостей модулей</title>
-                  <desc id="dep-svg-desc">Shell и игровые модули зависят от контрактов среды; Runtime реализует эти контракты.</desc>
-                  <defs>
-                    <marker id="dep-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0 10 5 0 10Z" fill="var(--viz-border-strong)" /></marker>
-                    <marker id="dep-arrow-accent" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0 10 5 0 10Z" fill="var(--viz-accent)" /></marker>
-                  </defs>
-                  <rect class="svg-box svg-box--interface" x="35" y="38" width="170" height="64" rx="9" />
-                  <text class="label" x="120" y="67" text-anchor="middle">App Shell</text><text class="meta" x="120" y="86" text-anchor="middle">consumer</text>
-                  <rect class="svg-box svg-box--domain" x="35" y="180" width="170" height="64" rx="9" />
-                  <text class="label" x="120" y="209" text-anchor="middle">Game Modules</text><text class="meta" x="120" y="228" text-anchor="middle">consumers</text>
-                  <rect class="svg-box svg-box--external" x="325" y="108" width="170" height="68" rx="9" />
-                  <text class="label" x="410" y="138" text-anchor="middle">Environment Ports</text><text class="meta" x="410" y="157" text-anchor="middle">stable contract</text>
-                  <rect class="svg-box svg-box--system" x="615" y="108" width="170" height="68" rx="9" />
-                  <text class="label" x="700" y="138" text-anchor="middle">App Runtime</text><text class="meta" x="700" y="157" text-anchor="middle">implementation</text>
-                  <path class="svg-edge" d="M205 70 H265 V128 H325" marker-end="url(#dep-arrow)" /><text class="edge-label" x="264" y="116" text-anchor="middle">depends on</text>
-                  <path class="svg-edge" d="M205 212 H265 V156 H325" marker-end="url(#dep-arrow)" /><text class="edge-label" x="266" y="191" text-anchor="middle">depends on</text>
-                  <path class="svg-edge svg-edge--primary" d="M615 142 H495" marker-end="url(#dep-arrow-accent)" /><text class="edge-label" x="555" y="130" text-anchor="middle">implements</text>
-                </svg>
+              <div class="viz-responsive__wide viz-mermaid" data-viz-mermaid>
+                <script type="text/plain">
+flowchart LR
+  accTitle: Зависимости от контрактов среды
+  accDescr: App Shell и игровые модули зависят от Environment Ports. App Runtime реализует этот контракт.
+  shell["App Shell"] -->|depends on| ports["Environment Ports"]
+  modules["Game Modules"] -->|depend on| ports
+  runtime["App Runtime"] -->|implements| ports
+  class shell,ports interface
+  class modules domain
+  class runtime system
+                </script>
+                <div class="viz-mermaid__output" data-viz-mermaid-output></div>
               </div>
               <div class="viz-responsive__compact">
                 <div class="viz-node-grid viz-node-grid--2">
-                  <div class="viz-node-card viz-node-card--interface"><strong>App Shell</strong><small>depends on Environment Ports</small></div>
-                  <div class="viz-node-card viz-node-card--domain"><strong>Game Modules</strong><small>depend on Environment Ports</small></div>
+                  <div class="viz-node-card viz-node-card--interface"><strong>App Shell</strong><small>consumer</small></div>
+                  <div class="viz-node-card viz-node-card--domain"><strong>Game Modules</strong><small>consumers</small></div>
+                  <div class="viz-node-card viz-node-card--system"><strong>App Runtime</strong><small>implementation owner</small></div>
                 </div>
-                <div class="viz-flow__edge viz-flow__edge--centered">depend on</div>
-                <div class="viz-contract-rail">Environment Ports · stable contract</div>
-                <div class="viz-flow__edge viz-flow__edge--centered">implemented by</div>
-                <div class="viz-node-card viz-node-card--system"><strong>App Runtime</strong><small>implementation owner</small></div>
+                <div class="viz-contract-rail viz-space-top--compact">Environment Ports · stable contract</div>
+                <ul class="viz-relationship-list viz-space-top" aria-label="Зависимости от Environment Ports">
+                  <li><span class="viz-relationship-list__route">App Shell → Environment Ports</span><span class="viz-relationship-list__label">depends on</span></li>
+                  <li><span class="viz-relationship-list__route">Game Modules → Environment Ports</span><span class="viz-relationship-list__label">depend on</span></li>
+                  <li><span class="viz-relationship-list__route">App Runtime → Environment Ports</span><span class="viz-relationship-list__label">implements</span></li>
+                </ul>
               </div>
             </div></div>
           </section>
@@ -178,26 +221,59 @@
           <section class="viz-section" id="data-model" aria-labelledby="data-model-title">
             <div class="viz-section__head">
               <div class="viz-section__heading">
-                <span class="viz-kicker">ERD / logical data model</span>
+                <span class="viz-kicker">Mermaid ER · logical data model</span>
                 <h2 class="viz-section__title" id="data-model-title">Какие сущности хранятся и как связаны?</h2>
                 <p class="viz-summary">ERD показывает структуру данных, но не runtime-поток и не владельца записи.</p>
               </div>
               <span class="viz-section__index">04 / 14</span>
             </div>
             <div class="viz-panel">
-              <div class="viz-canvas"><div class="viz-node-grid">
-                <article class="viz-entity"><h3>player</h3><dl><dt>PK</dt><dd>id</dd><dt></dt><dd>nickname</dd><dt></dt><dd>status</dd></dl></article>
-                <article class="viz-entity"><h3>game_seat</h3><dl><dt>FK</dt><dd>player_id</dd><dt>FK</dt><dd>game_id</dd><dt></dt><dd>stack</dd></dl></article>
-                <article class="viz-entity"><h3>game</h3><dl><dt>PK</dt><dd>id</dd><dt></dt><dd>phase</dd><dt></dt><dd>created_at</dd></dl></article>
-              </div></div>
-              <div class="viz-boundary-note">player 1 ── * game_seat * ── 1 game · На compact сущности складываются, cardinality остаётся текстом.</div>
+              <div class="viz-canvas">
+                <div class="viz-responsive__wide viz-mermaid" data-viz-mermaid>
+                  <script type="text/plain">
+erDiagram
+  accTitle: Логическая модель игровой сессии
+  accDescr: Игрок занимает игровые места, а игра содержит игровые места.
+  PLAYER ||--o{ GAME_SEAT : occupies
+  GAME ||--o{ GAME_SEAT : contains
+  PLAYER {
+    string id PK
+    string nickname
+    string status
+  }
+  GAME_SEAT {
+    string player_id FK
+    string game_id FK
+    int stack
+  }
+  GAME {
+    string id PK
+    string phase
+    datetime created_at
+  }
+                  </script>
+                  <div class="viz-mermaid__output" data-viz-mermaid-output></div>
+                </div>
+                <div class="viz-responsive__compact">
+                  <div class="viz-node-grid">
+                    <article class="viz-entity"><h3>player</h3><dl><dt>PK</dt><dd>id</dd><dt></dt><dd>nickname</dd><dt></dt><dd>status</dd></dl></article>
+                    <article class="viz-entity"><h3>game_seat</h3><dl><dt>FK</dt><dd>player_id</dd><dt>FK</dt><dd>game_id</dd><dt></dt><dd>stack</dd></dl></article>
+                    <article class="viz-entity"><h3>game</h3><dl><dt>PK</dt><dd>id</dd><dt></dt><dd>phase</dd><dt></dt><dd>created_at</dd></dl></article>
+                  </div>
+                  <ul class="viz-relationship-list viz-space-top" aria-label="Связи логической модели">
+                    <li><span class="viz-relationship-list__route">PLAYER 1 → 0..* GAME_SEAT</span><span class="viz-relationship-list__label">occupies</span></li>
+                    <li><span class="viz-relationship-list__route">GAME 1 → 0..* GAME_SEAT</span><span class="viz-relationship-list__label">contains</span></li>
+                  </ul>
+                </div>
+              </div>
+              <div class="viz-boundary-note">Каждое место относится ровно к одному player и одной game; у player и game может быть 0..* мест.</div>
             </div>
           </section>
 
           <section class="viz-section" id="deployment" aria-labelledby="deployment-title">
             <div class="viz-section__head">
               <div class="viz-section__heading">
-                <span class="viz-kicker">Deployment / operational view</span>
+                <span class="viz-kicker">Semantic HTML · deployment / operational view</span>
                 <h2 class="viz-section__title" id="deployment-title">Где выполняются части и где проходит failure boundary?</h2>
                 <p class="viz-summary">Зоны показывают placement и failure boundaries; основной путь остаётся коротким и не превращает вложенность в высокие башни.</p>
               </div>
@@ -205,11 +281,11 @@
             </div>
             <div class="viz-panel"><div class="viz-canvas"><div class="viz-deployment">
               <div class="viz-node-card viz-node-card--external"><strong>Browser</strong><small>player device</small></div>
-              <span class="viz-deployment__edge">HTTPS</span>
+              <span class="viz-connector"><span>HTTPS</span><span class="viz-connector__line" aria-hidden="true"></span></span>
               <div class="viz-boundary viz-boundary--neutral viz-deployment__zone"><span class="viz-boundary__label">Edge zone</span><div class="viz-node-card viz-node-card--external"><strong>CDN / Gateway</strong><small>routing · rate limits</small></div></div>
-              <span class="viz-deployment__edge">routes request</span>
+              <span class="viz-connector"><span>routes request</span><span class="viz-connector__line" aria-hidden="true"></span></span>
               <div class="viz-boundary viz-deployment__zone"><span class="viz-boundary__label">App zone · 3 replicas</span><div class="viz-node-card viz-node-card--system"><strong>Game API</strong><small>stateless process</small></div></div>
-              <span class="viz-deployment__edge">reads / writes</span>
+              <span class="viz-connector"><span>reads / writes</span><span class="viz-connector__line" aria-hidden="true"></span></span>
               <div class="viz-node-card viz-node-card--data"><strong>Primary DB</strong><small>state authority</small></div>
             </div></div></div>
           </section>
@@ -217,31 +293,25 @@
           <section class="viz-section" id="process" aria-labelledby="process-title">
             <div class="viz-section__head">
               <div class="viz-section__heading">
-                <span class="viz-kicker">Flowchart / decision</span>
+                <span class="viz-kicker">Mermaid flowchart · decision</span>
                 <h2 class="viz-section__title" id="process-title">Как ветвится пользовательский процесс?</h2>
                 <p class="viz-summary">Flowchart показывает решение и терминальные исходы, а не владельцев компонентов.</p>
               </div>
               <span class="viz-section__index">06 / 14</span>
             </div>
             <div class="viz-panel"><div class="viz-canvas">
-              <div class="viz-decision">
-                <div class="viz-node-card viz-node-card--external viz-decision__intent"><strong>Открыть игру</strong><small>user intent</small></div>
-                <span class="viz-flow__edge viz-decision__check">проверить</span>
-                <div class="viz-node-card viz-node-card--data viz-decision__gate"><strong>Модуль доступен?</strong><small>decision</small></div>
-                <div class="viz-decision__branches" role="group" aria-label="Независимые исходы проверки">
-                  <div class="viz-decision__branch" role="group" aria-label="Ветка: модуль доступен">
-                    <span class="viz-flow__edge">да</span>
-                    <div class="viz-decision__path">
-                      <div class="viz-node-card viz-node-card--domain"><strong>Смонтировать</strong><small>успешный исход</small></div>
-                      <span class="viz-flow__edge viz-flow__edge--vertical viz-flow__edge--risk">ошибка</span>
-                      <div class="viz-node-card viz-node-card--risk"><strong>Безопасно откатить</strong><small>освободить выданные ресурсы</small></div>
-                    </div>
-                  </div>
-                  <div class="viz-decision__branch" role="group" aria-label="Ветка: модуль недоступен">
-                    <span class="viz-flow__edge">нет</span>
-                    <div class="viz-node-card viz-node-card--external"><strong>Показать альтернативу</strong><small>без изменения маршрута</small></div>
-                  </div>
-                </div>
+              <div class="viz-mermaid" data-viz-mermaid data-viz-compact-direction="TB" data-viz-compact-at="900">
+                <script type="text/plain">
+flowchart LR
+  accTitle: Проверка доступности игрового модуля
+  accDescr: Запрос открыть игру проверяет доступность модуля. Доступный модуль монтируется; ошибка откатывает ресурсы. Недоступный модуль приводит к альтернативе.
+  open["Открыть игру"] -->|проверить| available{"Модуль доступен?"}
+  available -->|да| mount["Смонтировать"]
+  available -->|нет| alternative["Показать альтернативу"]
+  mount -->|ошибка| rollback["Безопасно откатить"]
+  class rollback risk
+                </script>
+                <div class="viz-mermaid__output" data-viz-mermaid-output></div>
               </div>
             </div></div>
           </section>
@@ -249,31 +319,29 @@
           <section class="viz-section" id="sequence" aria-labelledby="sequence-title">
             <div class="viz-section__head">
               <div class="viz-section__heading">
-                <span class="viz-kicker">Sequence / runtime view</span>
+                <span class="viz-kicker">Mermaid sequence · runtime view</span>
                 <h2 class="viz-section__title" id="sequence-title">Кто с кем взаимодействует во времени?</h2>
                 <p class="viz-summary">На desktop — lanes; на mobile — тот же сценарий как упорядоченный message log, без микроскопического SVG.</p>
               </div>
               <span class="viz-section__index">07 / 14</span>
             </div>
             <div class="viz-panel"><div class="viz-canvas">
-              <div class="viz-responsive__wide">
-                <svg class="viz-diagram" viewBox="0 0 820 315" role="img" aria-labelledby="seq-svg-title seq-svg-desc">
-                  <title id="seq-svg-title">Открытие игрового модуля</title><desc id="seq-svg-desc">Client вызывает Shell, Shell получает модуль из Catalog и монтирует его через Runtime.</desc>
-                  <defs>
-                    <marker id="seq-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0 10 5 0 10Z" fill="var(--viz-border-strong)" /></marker>
-                    <marker id="seq-arrow-accent" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0 10 5 0 10Z" fill="var(--viz-accent)" /></marker>
-                  </defs>
-                  <rect class="svg-box svg-box--external" x="25" y="18" width="140" height="44" rx="8" /><rect class="svg-box svg-box--interface" x="230" y="18" width="140" height="44" rx="8" />
-                  <rect class="svg-box svg-box--external" x="435" y="18" width="140" height="44" rx="8" /><rect class="svg-box svg-box--system" x="640" y="18" width="140" height="44" rx="8" />
-                  <text class="label" x="95" y="45" text-anchor="middle">Client</text><text class="label" x="300" y="45" text-anchor="middle">App Shell</text>
-                  <text class="label" x="505" y="45" text-anchor="middle">Module Catalog</text><text class="label" x="710" y="45" text-anchor="middle">Runtime</text>
-                  <path class="svg-lifeline" d="M95 62 V292 M300 62 V292 M505 62 V292 M710 62 V292" />
-                  <path class="svg-edge" d="M95 95 H300" marker-end="url(#seq-arrow)" /><text class="edge-label" x="198" y="85" text-anchor="middle">open(gameId)</text>
-                  <path class="svg-edge" d="M300 140 H505" marker-end="url(#seq-arrow)" /><text class="edge-label" x="402" y="130" text-anchor="middle">resolve(gameId)</text>
-                  <path class="svg-edge svg-edge--async" d="M505 180 H300" marker-end="url(#seq-arrow-accent)" /><text class="edge-label" x="402" y="170" text-anchor="middle">module definition</text>
-                  <path class="svg-edge" d="M300 220 H710" marker-end="url(#seq-arrow)" /><text class="edge-label" x="505" y="210" text-anchor="middle">mount(module)</text>
-                  <path class="svg-edge svg-edge--async" d="M710 260 H95" marker-end="url(#seq-arrow-accent)" /><text class="edge-label" x="402" y="250" text-anchor="middle">route ready</text>
-                </svg>
+              <div class="viz-responsive__wide viz-mermaid" data-viz-mermaid>
+                <script type="text/plain">
+sequenceDiagram
+  accTitle: Открытие игрового модуля
+  accDescr: Client вызывает App Shell. Shell получает определение модуля из каталога и монтирует его через Runtime.
+  participant Client
+  participant Shell as App Shell
+  participant Catalog as Module Catalog
+  participant Runtime
+  Client->>Shell: open(gameId)
+  Shell->>Catalog: resolve(gameId)
+  Catalog-->>Shell: module definition
+  Shell->>Runtime: mount(module)
+  Runtime-->>Client: route ready
+                </script>
+                <div class="viz-mermaid__output" data-viz-mermaid-output></div>
               </div>
               <div class="viz-responsive__compact"><ol class="viz-message-list" aria-label="Открытие игрового модуля по шагам">
                 <li><div><strong>Client → App Shell</strong><small>open(gameId)</small></div></li>
@@ -288,18 +356,28 @@
           <section class="viz-section" id="state" aria-labelledby="state-title">
             <div class="viz-section__head">
               <div class="viz-section__heading">
-                <span class="viz-kicker">State machine</span>
+                <span class="viz-kicker">Mermaid state · lifecycle</span>
                 <h2 class="viz-section__title" id="state-title">Какие состояния и переходы допустимы?</h2>
                 <p class="viz-summary">Состояния остаются отдельной моделью от шагов процесса; на compact основная цепочка становится вертикальной.</p>
               </div>
               <span class="viz-section__index">08 / 14</span>
             </div>
             <div class="viz-panel">
-              <div class="viz-canvas"><div class="viz-flow">
-                <div class="viz-node-card viz-node-card--external"><strong>Discovered</strong><small>catalog entry exists</small></div><span class="viz-flow__edge">allow</span>
-                <div class="viz-node-card viz-node-card--system"><strong>Prepared</strong><small>ports issued</small></div><span class="viz-flow__edge">mount</span>
-                <div class="viz-node-card viz-node-card--domain"><strong>Active</strong><small>route visible</small></div><span class="viz-flow__edge">unmount</span>
-                <div class="viz-node-card viz-node-card--external"><strong>Stopped</strong><small>resources released</small></div>
+              <div class="viz-canvas"><div class="viz-mermaid" data-viz-mermaid data-viz-compact-direction="TB" data-viz-compact-at="900">
+                <script type="text/plain">
+stateDiagram-v2
+  accTitle: Жизненный цикл игрового модуля
+  accDescr: Модуль проходит состояния Discovered, Prepared, Active и Stopped. Ошибка из Prepared или Active также приводит в Stopped через cleanup.
+  direction LR
+  [*] --> Discovered
+  Discovered --> Prepared: allow
+  Prepared --> Active: mount
+  Active --> Stopped: unmount
+  Prepared --> Stopped: cleanup after failure
+  Active --> Stopped: cleanup after failure
+  Stopped --> [*]
+                </script>
+                <div class="viz-mermaid__output" data-viz-mermaid-output></div>
               </div></div>
               <div class="viz-boundary-note">Failure from Prepared or Active → Stopped via cleanup. Риск-переход остаётся явным вне основной линии.</div>
             </div>
@@ -308,24 +386,35 @@
           <section class="viz-section" id="data-flow" aria-labelledby="data-flow-title">
             <div class="viz-section__head">
               <div class="viz-section__heading">
-                <span class="viz-kicker">Data flow / authority</span>
+                <span class="viz-kicker">Mermaid flowchart · data flow / authority</span>
                 <h2 class="viz-section__title" id="data-flow-title">Откуда приходят данные и кто является authority?</h2>
                 <p class="viz-summary">Здесь стрелки означают movement/read/write; trust boundary остаётся видимой после reflow.</p>
               </div>
               <span class="viz-section__index">09 / 14</span>
             </div>
-            <div class="viz-panel"><div class="viz-canvas"><div class="viz-flow">
-              <div class="viz-node-card viz-node-card--external"><strong>Game Server</strong><small>room events</small></div><span class="viz-flow__edge viz-flow__edge--async">publishes</span>
-              <div class="viz-boundary viz-boundary--neutral"><span class="viz-boundary__label">Trusted application boundary</span><div class="viz-node-card viz-node-card--system"><strong>Realtime Gateway</strong><small>validates envelope</small></div></div>
-              <span class="viz-flow__edge">writes</span><div class="viz-node-card viz-node-card--data"><strong>Room Store</strong><small>client authority</small></div>
-              <span class="viz-flow__edge">projects</span><div class="viz-node-card viz-node-card--interface"><strong>Lobby UI</strong><small>read model</small></div>
+            <div class="viz-panel"><div class="viz-canvas"><div class="viz-mermaid" data-viz-mermaid data-viz-compact-direction="TB" data-viz-compact-at="900">
+              <script type="text/plain">
+flowchart LR
+  accTitle: Поток событий комнаты и authority клиента
+  accDescr: Game Server публикует события. Realtime Gateway внутри доверенной границы проверяет их, записывает Room Store и формирует read model для Lobby UI.
+  server["Game Server"] -.->|publishes room events| gateway
+  subgraph trusted["Trusted application boundary"]
+    gateway["Realtime Gateway"] -->|writes| store["Room Store · client authority"]
+    store -->|projects| ui["Lobby UI · read model"]
+  end
+  class server external
+  class gateway system
+  class store data
+  class ui interface
+              </script>
+              <div class="viz-mermaid__output" data-viz-mermaid-output></div>
             </div></div></div>
           </section>
 
           <section class="viz-section" id="evolution" aria-labelledby="evolution-title">
             <div class="viz-section__head">
               <div class="viz-section__heading">
-                <span class="viz-kicker">Evolution / current → target</span>
+                <span class="viz-kicker">Semantic HTML · evolution / current → target</span>
                 <h2 class="viz-section__title" id="evolution-title">Что меняется и как переносится authority?</h2>
                 <p class="viz-summary">Timeline показывает этапы; paired views — устойчивые состояния. На mobile пары складываются, порядок остаётся одинаковым.</p>
               </div>
@@ -352,7 +441,7 @@
           <section class="viz-section" id="comparison" aria-labelledby="comparison-title">
             <div class="viz-section__head">
               <div class="viz-section__heading">
-                <span class="viz-kicker">Comparison matrix</span>
+                <span class="viz-kicker">HTML matrix · comparison</span>
                 <h2 class="viz-section__title" id="comparison-title">Как варианты выглядят по одинаковым критериям?</h2>
                 <p class="viz-summary">Таблица сохраняет точное сравнение; на mobile каждая строка становится подписанным блоком.</p>
               </div>
@@ -371,7 +460,7 @@
           <section class="viz-section" id="charts" aria-labelledby="charts-title">
             <div class="viz-section__head">
               <div class="viz-section__heading">
-                <span class="viz-kicker">Quantitative views</span>
+                <span class="viz-kicker">Focused SVG · quantitative views</span>
                 <h2 class="viz-section__title" id="charts-title">Как выбрать форму под количественный вопрос?</h2>
                 <p class="viz-summary">Небольшие charts используют position и length; сетка складывается на mobile без изменения шкал. Все значения ниже условные и служат только примером грамматики.</p>
               </div>
@@ -402,7 +491,7 @@
           <section class="viz-section" id="code-view" aria-labelledby="code-view-title">
             <div class="viz-section__head">
               <div class="viz-section__heading">
-                <span class="viz-kicker">Implementation evidence</span>
+                <span class="viz-kicker">Semantic code · implementation evidence</span>
                 <h2 class="viz-section__title" id="code-view-title">Code view: какой контракт реализован?</h2>
                 <p class="viz-summary">Фокусированный excerpt — путь, статус, небольшой контекст и одна смысловая подсветка. Это не архитектурная схема.</p>
               </div>
@@ -421,95 +510,49 @@
           <section class="viz-section" id="diff-view" aria-labelledby="diff-view-title">
             <div class="viz-section__head">
               <div class="viz-section__heading">
-                <span class="viz-kicker">Change evidence</span>
+                <span class="viz-kicker">Semantic diff · change evidence</span>
                 <h2 class="viz-section__title" id="diff-view-title">Diff code view: что именно изменилось?</h2>
-                <p class="viz-summary">Unified diff остаётся читаемым на mobile; добавление и удаление обозначены префиксом, фоном и цветом.</p>
+                <p class="viz-summary">Split сравнивает before/after на широком экране; unified сохраняет точный patch и автоматически остаётся единственным режимом на compact.</p>
               </div>
               <span class="viz-section__index">14 / 14</span>
             </div>
-            <div class="viz-code">
-              <div class="viz-code__bar"><span>src/poker/bootstrap.ts</span><span>current → target</span></div>
-              <div class="viz-code__scroll"><pre aria-label="Изменение подключения PokerModule"><code><span class="viz-code__line" data-line=""><span><span class="viz-token--comment">@@ -18,2 +18,3 @@ bootstrapPoker()</span></span></span>
+            <div class="viz-code viz-diff" data-viz-diff data-viz-diff-mode="split">
+              <div class="viz-code__bar">
+                <span>src/poker/bootstrap.ts · current → target</span>
+                <div class="viz-segmented viz-diff__mode" role="group" aria-label="Формат сравнения кода">
+                  <button type="button" data-viz-diff-mode-value="split" aria-pressed="true">Split</button>
+                  <button type="button" data-viz-diff-mode-value="unified" aria-pressed="false">Unified</button>
+                </div>
+              </div>
+              <div class="viz-diff__split" aria-label="Сравнение before и after">
+                <section class="viz-diff__pane" aria-labelledby="diff-before-title">
+                  <div class="viz-diff__pane-title"><strong id="diff-before-title">Before</strong><span>current</span></div>
+                  <div class="viz-code__scroll"><pre><code><span class="viz-code__line viz-code__line--remove" data-line="18"><span><span class="viz-diff-sign" aria-label="removed">−</span>const poker = new PokerModule(runtime.rpc, runtime.wallet)</span></span>
+<span class="viz-code__line viz-code__line--empty" data-line="" aria-hidden="true"><span>&nbsp;</span></span>
+<span class="viz-code__line" data-line="19"><span>router.register(poker.routes)</span></span></code></pre></div>
+                </section>
+                <section class="viz-diff__pane" aria-labelledby="diff-after-title">
+                  <div class="viz-diff__pane-title"><strong id="diff-after-title">After</strong><span>target</span></div>
+                  <div class="viz-code__scroll"><pre><code><span class="viz-code__line viz-code__line--add" data-line="18"><span><span class="viz-diff-sign" aria-label="added">+</span>const poker = new PokerModule()</span></span>
+<span class="viz-code__line viz-code__line--add" data-line="19"><span><span class="viz-diff-sign" aria-label="added">+</span>const mounted = poker.mount(runtime.environmentPorts)</span></span>
+<span class="viz-code__line" data-line="20"><span>router.register(mounted.routes)</span></span></code></pre></div>
+                </section>
+              </div>
+              <div class="viz-diff__unified">
+                <div class="viz-code__scroll"><pre aria-label="Unified diff подключения PokerModule"><code><span class="viz-code__line" data-line=""><span><span class="viz-token--comment">@@ -18,2 +18,3 @@ bootstrapPoker()</span></span></span>
 <span class="viz-code__line viz-code__line--remove" data-line="18"><span><span class="viz-diff-sign" aria-label="removed">-</span>const poker = new PokerModule(runtime.rpc, runtime.wallet)</span></span>
 <span class="viz-code__line viz-code__line--add" data-line="18"><span><span class="viz-diff-sign" aria-label="added">+</span>const poker = new PokerModule()</span></span>
 <span class="viz-code__line viz-code__line--add" data-line="19"><span><span class="viz-diff-sign" aria-label="added">+</span>const mounted = poker.mount(runtime.environmentPorts)</span></span>
 <span class="viz-code__line" data-line="20"><span>router.register(mounted.routes)</span></span></code></pre></div>
+              </div>
             </div>
           </section>
         </div>
       </main>
     </div>
 
-    <script>
-      const root = document.documentElement;
-      const themeButtons = [...document.querySelectorAll('[data-theme]')];
-
-      function readSavedTheme() {
-        try {
-          return localStorage.getItem('visualization-theme');
-        } catch {
-          return null;
-        }
-      }
-
-      function persistTheme(theme) {
-        try {
-          if (theme === 'auto') localStorage.removeItem('visualization-theme');
-          else localStorage.setItem('visualization-theme', theme);
-        } catch {
-          // Theme switching still works when storage is unavailable.
-        }
-      }
-
-      function setTheme(theme) {
-        root.dataset.vizTheme = theme;
-        persistTheme(theme);
-        themeButtons.forEach((button) => button.setAttribute('aria-pressed', String(button.dataset.theme === theme)));
-      }
-
-      themeButtons.forEach((button) => button.addEventListener('click', () => setTheme(button.dataset.theme)));
-      const savedTheme = readSavedTheme();
-      setTheme(savedTheme === 'light' || savedTheme === 'dark' ? savedTheme : 'auto');
-
-      const sidebar = document.getElementById('sidebar');
-      const menuToggle = document.getElementById('menu-toggle');
-      menuToggle.addEventListener('click', () => {
-        const open = sidebar.dataset.open !== 'true';
-        sidebar.dataset.open = String(open);
-        menuToggle.setAttribute('aria-expanded', String(open));
-      });
-
-      const navLinks = [...document.querySelectorAll('.viz-nav__link')];
-      function setCurrentLink(hash) {
-        navLinks.forEach((link) => {
-          if (link.hash === hash) link.setAttribute('aria-current', 'location');
-          else link.removeAttribute('aria-current');
-        });
-      }
-
-      navLinks.forEach((link) => link.addEventListener('click', () => {
-        sidebar.dataset.open = 'false';
-        menuToggle.setAttribute('aria-expanded', 'false');
-        setCurrentLink(link.hash);
-      }));
-      window.addEventListener('hashchange', () => setCurrentLink(location.hash));
-
-      document.addEventListener('keydown', (event) => {
-        if (event.key !== 'Escape' || sidebar.dataset.open !== 'true') return;
-        sidebar.dataset.open = 'false';
-        menuToggle.setAttribute('aria-expanded', 'false');
-        menuToggle.focus();
-      });
-
-      const sections = navLinks.map((link) => document.querySelector(link.getAttribute('href'))).filter(Boolean);
-      const observer = new IntersectionObserver((entries) => {
-        const visible = entries.filter((entry) => entry.isIntersecting).sort((a, b) => b.intersectionRatio - a.intersectionRatio)[0];
-        if (!visible) return;
-        const atDocumentEnd = window.innerHeight + window.scrollY >= document.documentElement.scrollHeight - 2;
-        setCurrentLink(atDocumentEnd ? navLinks.at(-1).hash : `#${visible.target.id}`);
-      }, { rootMargin: '-12% 0px -72% 0px', threshold: [0, 0.25, 0.6] });
-      sections.forEach((section) => observer.observe(section));
-      setCurrentLink(location.hash || navLinks[0].hash);
-    </script>
+    <script src="visualization-shell.js?v=3.2.0"></script>
+    <script src="visualization-diff.js?v=3.2.0"></script>
+    <script type="module" src="visualization-mermaid.js?v=3.2.0"></script>
   </body>
 </html>

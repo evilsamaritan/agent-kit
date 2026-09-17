@@ -16,7 +16,7 @@
 
 ## Reproducible default
 
-Use this system whenever the user asks for a clean, polished, or consistent web visualization without supplying another visual language. It should produce a recognizable family across host-native interactive artifacts and local HTML with embedded Mermaid or SVG without requiring the same implementation.
+Use this system whenever the user asks for a clean, polished, or consistent web visualization without supplying another visual language. Standalone HTML uses the same canonical shell implementation across Claude, Codex, other agents, host-native artifact paths, and local HTML; renderer choice changes the content canvas, not the surrounding navigation or theme system.
 
 The tone is a quiet Codex-like technical workspace. Treat this as a tonal reference, not brand imitation:
 
@@ -111,10 +111,14 @@ Match navigation to the justified information depth after the view-set quality g
 
 | Content | Default shell |
 |---|---|
-| one view | no application shell; title, takeaway, visual, legend |
+| one view | canonical switcher shell with section navigation omitted; title, takeaway, visual, legend, and theme utility remain |
 | two or three peer views | compact header plus visible view switcher or in-page headings |
 | four to twelve justified ordered sections in an explicit reference/atlas | persistent side navigation on wide screens, explicit menu on narrow screens |
 | more than twelve justified reference sections | group by domain/question and add search or quick navigation; do not show an unbounded flat list |
+
+Use the same canonical shell for every standalone artifact. Set `data-viz-navigation="switcher"` for one to three peer views and omit the section navigation controls when there is only one view. Use `data-viz-navigation="sidebar"` for the reference/atlas case. Theme tokens, `Auto`/`Light`/`Dark`, header rhythm, mobile menu, and selection style remain identical; only the navigation placement and section visibility change.
+
+Treat the shell as shared infrastructure. Artifact-specific work may replace titles, summaries, navigation entries, sections, diagrams, code, and data. It must not restyle or reimplement the sidebar/header, mobile bottom sheet, theme switcher, token palette, breakpoint behavior, focus handling, or deep-link state. Put additional CSS after the shared stylesheet and scope it to the content renderer. A runtime-specific generator must consume the same assets rather than approximating them from this prose.
 
 A full explorer uses:
 
@@ -185,13 +189,14 @@ Tabs or segmented controls switch alternate representations of the same scope. S
 
 Deviate from this system when:
 
-- the consuming project has an established accessible visual system;
+- the user explicitly asks to integrate the artifact into an established accessible product shell;
+- the user explicitly asks to redesign or extend the canonical visualization shell;
 - the user supplies explicit brand or delivery requirements;
 - the native renderer cannot express a token or interaction safely;
 - a recognized notation requires different shapes or layout;
 - print, projection, localization, or high-density data imposes a concrete constraint.
 
-Keep the semantic grammar, information hierarchy, theme parity, and verification requirements even when token values change. Record the reason for a meaningful deviation.
+Keep the semantic grammar, information hierarchy, theme parity, and verification requirements even when token values change. Existing project styles alone do not authorize a shell fork. Record the reason for every meaningful deviation.
 
 ## Further reading
 

@@ -53,11 +53,15 @@ Every relationship needs a semantic kind before it gets a line style:
 
 Use the default solid/dashed/dotted treatments from the visual system. If the domain needs a different distinction, state it once in the legend and apply it consistently. Never use the same dashed line to mean both asynchronous flow and proposed status within one artifact.
 
-Render connectors as geometry: CSS borders and pseudo-elements for simple reflowing relations, or SVG paths with markers for routed graphs. Never fake arrows with repeated box-drawing characters, hyphens, emoji, or a font glyph string; their length, weight, alignment, and arrowhead position change with typography.
+Render connectors as geometry: use the shared `.viz-connector` block for simple reflowing relations and SVG paths with markers for routed graphs. Never fake arrows with repeated box-drawing characters, hyphens, emoji, or a font glyph string; their length, weight, alignment, and arrowhead position change with typography.
 
-Keep the line and arrowhead on one geometric centerline, and run the connector from the source boundary to the target boundary. Do not position the shaft and head independently or leave arbitrary layout gaps that make an edge look detached from its nodes.
+Keep the line and arrowhead inside one connector component on one geometric centerline, and run it from the source boundary to the target boundary. Do not position the shaft, label, and head as unrelated absolute elements or leave arbitrary layout gaps that make an edge look detached from its nodes. A routed edge or self-loop must be one SVG path with `marker-end`; do not approximate it with several borders and a loose triangle.
+
+When a compact projection removes connector geometry, replace the complete edge with textual semantics: `source → target`, a precise verb phrase, and status when relevant. Never preserve only the old edge label. Relative labels such as `up`, `down`, `left`, or `right` are invalid without named endpoints because reflow changes their meaning.
 
 Show bidirectional arrows only when both directions express the same relationship. Otherwise draw and label two directed relationships or switch to a sequence view.
+
+For sequence views, derive exactly one lifeline from the center of each participant header. Do not use a repeating background gradient: it creates unrelated stripes, cannot stay attached to reordered participants, and makes message endpoints ambiguous. Place every message, self-loop, and arrowhead in one SVG coordinate system. Keep routine messages neutral; use semantic color only for a selected path, risk, or unresolved relationship rather than recoloring every message by participant. Omit step numbers unless prose refers to them. At compact width, switch to the shared dense message-log projection with one continuous rail and explicit `sender → receiver`; preserve message order, status, and unknowns without carrying over desktop spacing.
 
 ## Composition and layout
 
