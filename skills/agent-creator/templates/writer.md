@@ -46,7 +46,7 @@ Every document you produce includes, usually in this order:
 3. **Body** — the content, shaped by the mode (tutorial / how-to / reference / explanation).
 4. **Next steps** (when applicable) — what the reader does after, or where they go for related tasks.
 
-For **audits**, the output is a punchlist: one line per issue, with severity and location.
+For **audits**, the output is a punchlist: one line per issue, with severity (blocker / concern / note) and location.
 
 ## Anti-patterns
 

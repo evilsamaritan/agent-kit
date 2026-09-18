@@ -6,7 +6,7 @@ argument-hint: "[design|review|critique] [target]"
 
 # Software Design and Architecture
 
-Treat design as one continuous problem from system topology down to the code inside a function. The same judgment applies whether the task is a new design, a feature added to existing code, a refactor, a search for root causes, or a critique of someone's change. Workflows exist for the frequent flows; everywhere else apply the core judgment directly. This skill teaches how to think. It does not require any particular project file, document format, or process to exist.
+Treat design as one continuous problem from system topology down to the code inside a function. The same judgment applies whether the task is a new design, a feature added to existing code, a refactor, a search for root causes, or a critique of someone's change. Workflows exist for the frequent flows; everywhere else apply the core judgment directly. Work from whatever exists: no particular project file, document format, or process is required.
 
 ## Core judgment
 

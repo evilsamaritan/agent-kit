@@ -82,8 +82,6 @@ For multi-view navigation and interaction, read [interactive-html.md](../referen
 
 ## 8. Check, render, and inspect
 
-This is the one delivery checklist for the skill.
-
 **Check.** Run the contract check on the artifact and fix every failure:
 
 ```bash

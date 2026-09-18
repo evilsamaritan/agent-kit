@@ -38,7 +38,7 @@ A structural cause is something you can point at in code: an owner, an invariant
 4. **Test each cluster** with the checks in the next section. Split it when a check fails.
 5. **Record residual cases.** A symptom that no cause explains stays on the list as itself. Do not force it into the nearest cluster.
 6. **Find the leverage point:** the smallest structural change, at the cause's owner, that makes the whole cluster impossible rather than fixed.
-7. **Merge competing remedies.** When findings propose different fixes for one cause, the cause gets one correction at its owner. Seven remedies for one duplicated identity is a sign the cause was never named.
+7. **Merge competing remedies.** When findings propose different fixes for one cause, the cause gets one correction at its owner. Several competing remedies for one problem are a sign the cause was never named.
 8. **Rank causes** by consequence — correctness, blast radius, how much each future change is amplified — not by how many symptoms they collect.
 
 ## Testing a cluster
@@ -100,7 +100,7 @@ One instance with no siblings is a defect. Two or more are a cause.
 
 ## Result form
 
-Report causes in a compact table like the one above: cause, evidence, symptoms explained, symptoms not explained, leverage point. It is a way to present the result, not a required project artifact. Keep the raw symptom list out of the main narrative unless the user asked for traceability.
+Report causes in a compact table like the one above: cause, evidence, symptoms explained, symptoms not explained, leverage point. Keep the raw symptom list out of the main narrative unless the user asked for traceability.
 
 ## When a local fix is the right answer
 

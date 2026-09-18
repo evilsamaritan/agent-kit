@@ -2,7 +2,7 @@
 
 Use this reference when writing or refactoring code inside a module: tangled functions, mixed responsibilities, hidden dependencies, growing conditionals. It applies the same judgment as the rest of the skill at the scale of a function, class, or file. Principles are defined in [design-principles.md](design-principles.md) and patterns in [design-patterns.md](design-patterns.md); this file shows the move.
 
-Code sketches use TypeScript-flavored pseudo-code. The shapes are language-independent.
+Code sketches use TypeScript-flavored pseudo-code. The structures are language-independent.
 
 ## Contents
 

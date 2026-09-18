@@ -39,13 +39,28 @@ const shellHooks = [
   'data-viz-theme-value',
 ]
 const semanticClasses = new Set(['external', 'system', 'interface', 'domain', 'data', 'risk'])
-const cssClasses = new Set([...source.css.matchAll(/\.(viz-[a-z0-9_-]+)/g)].map((match) => match[1]))
-// The vocabulary is what the stylesheet defines plus hook-only classes used by the canonical documents.
-for (const html of [source.shell, source.preview]) {
-  for (const [, value] of html.matchAll(/\bclass=["']([^"']+)["']/g)) {
-    for (const cls of value.split(/\s+/)) if (cls.startsWith('viz-')) cssClasses.add(cls)
-  }
+// A larger inline script is a vendored library, which legitimately contains wheel/touch listeners.
+const MAX_AUTHORED_SCRIPT_CHARS = 20_000
+
+// Comments may mention hooks, ids, and classes; only real markup counts.
+function stripComments(html) {
+  return html.replace(/<!--[\s\S]*?-->/g, '')
 }
+
+function vizClassesIn(html) {
+  const classes = new Set()
+  for (const [, value] of stripComments(html).matchAll(/\bclass=["']([^"']+)["']/g)) {
+    for (const cls of value.split(/\s+/)) if (cls.startsWith('viz-')) classes.add(cls)
+  }
+  return classes
+}
+
+// The vocabulary is what the stylesheet defines plus hook-only classes used by the canonical documents.
+const cssClasses = new Set([
+  ...[...source.css.matchAll(/\.(viz-[a-z0-9_-]+)/g)].map((match) => match[1]),
+  ...vizClassesIn(source.shell),
+  ...vizClassesIn(source.preview),
+])
 // Classes set by the runtime or used only inside generated markup; not part of the authoring vocabulary.
 const internalBlocks = new Set(['viz-menu-open', 'viz-theme-icon'])
 
@@ -71,13 +86,11 @@ function revisionOf(text) {
 
 // Checks shared by the canonical documents and by produced artifacts.
 function checkDocument(name, rawHtml) {
-  // Comments may mention hooks and ids; only real markup counts.
-  const html = rawHtml.replace(/<!--[\s\S]*?-->/g, '')
-  const ids = idsIn(html)
-  for (const id of new Set(ids.filter((id, index) => ids.indexOf(id) !== index))) {
-    failures.push(`${name}: duplicate id ${id}`)
-  }
-  const known = new Set(ids)
+  const html = stripComments(rawHtml)
+  const known = new Set()
+  const duplicates = new Set()
+  for (const id of idsIn(html)) (known.has(id) ? duplicates : known).add(id)
+  for (const id of duplicates) failures.push(`${name}: duplicate id ${id}`)
   for (const [, target] of html.matchAll(/\bhref=["']#([^"']+)["']/g)) {
     if (!known.has(target)) failures.push(`${name}: navigation target #${target} does not exist`)
   }
@@ -99,7 +112,7 @@ function checkDocument(name, rawHtml) {
     if (!/<html[^>]*\bdata-viz-mermaid-loading\b/.test(html)) {
       failures.push(`${name}: renders Mermaid but <html> has no data-viz-mermaid-loading gate`)
     }
-    if (!/scrollRestoration/.test(html)) {
+    if (!/history\.scrollRestoration\s*=\s*["']manual["']/.test(html)) {
       failures.push(`${name}: renders Mermaid but does not set history.scrollRestoration = "manual"`)
     }
   }
@@ -116,11 +129,7 @@ function checkArtifact(file) {
   const html = fs.readFileSync(file, 'utf8')
   checkDocument(name, html)
 
-  const used = new Set()
-  for (const [, value] of html.matchAll(/\bclass=["']([^"']+)["']/g)) {
-    for (const cls of value.split(/\s+/)) if (cls.startsWith('viz-')) used.add(cls)
-  }
-  for (const cls of used) {
+  for (const cls of vizClassesIn(html)) {
     if (!cssClasses.has(cls)) {
       failures.push(`${name}: class ${cls} is not part of the shell; use a documented component (references/shell-components.md) or a task-specific prefix`)
     }
@@ -128,7 +137,7 @@ function checkArtifact(file) {
 
   // Inline scripts only: bundled library code legitimately contains such listeners.
   for (const [, script] of html.matchAll(/<script(?![^>]*\bsrc=)(?![^>]*text\/plain)[^>]*>([\s\S]*?)<\/script>/g)) {
-    if (script.length < 20000 && /addEventListener\(\s*["'](?:wheel|mousewheel|touchmove)["']/.test(script)) {
+    if (script.length < MAX_AUTHORED_SCRIPT_CHARS && /addEventListener\(\s*["'](?:wheel|mousewheel|touchmove)["']/.test(script)) {
       failures.push(`${name}: an inline script intercepts wheel/touch scrolling`)
     }
   }
@@ -141,9 +150,10 @@ function checkArtifact(file) {
 
 // --- the skill's own assets ------------------------------------------------
 
-let mermaidExamples = 0
-for (const name of ['shell', 'preview']) mermaidExamples += checkDocument(name, source[name])
-if (mermaidBlocksIn(source.preview).length === 0) failures.push('preview: no Mermaid examples found')
+const mermaidInShell = checkDocument('shell', source.shell)
+const mermaidInPreview = checkDocument('preview', source.preview)
+if (mermaidInPreview === 0) failures.push('preview: no Mermaid examples found')
+const mermaidExamples = mermaidInShell + mermaidInPreview
 
 const revisions = new Set(Object.values(source).map(revisionOf))
 if (revisions.size !== 1 || revisions.has(null)) {
@@ -164,11 +174,14 @@ if (/data-viz-code|viz-code-status/.test(source.runtime)) {
   failures.push('runtime: code highlighting must stay in visualization-code.js')
 }
 
-for (const [, body] of source.css.matchAll(/\.viz-canvas\s*\{([^}]*)\}/g)) {
-  if (/overflow(?:-[xy])?\s*:\s*(?:auto|scroll)/.test(body)) {
-    failures.push('css: generic diagram canvas must not become a scroll container')
+// Every rule for the selector counts, including the ones inside media and container queries.
+function forbidInRule(selector, forbidden, message) {
+  for (const [, body] of source.css.matchAll(new RegExp(`\\.${selector}\\s*\\{([^}]*)\\}`, 'g'))) {
+    if (forbidden.test(body)) failures.push(message)
   }
 }
+
+forbidInRule('viz-canvas', /overflow(?:-[xy])?\s*:\s*(?:auto|scroll)/, 'css: generic diagram canvas must not become a scroll container')
 
 // Content regions may contain horizontal overscroll only. The two-axis shorthand,
 // a vertical overscroll boundary, or a restrictive touch-action on a diagram or
@@ -192,11 +205,7 @@ for (const name of ['runtime', 'code', 'diff', 'mermaid']) {
   }
 }
 
-for (const [, body] of source.css.matchAll(/\.viz-panel\s*\{([^}]*)\}/g)) {
-  if (/overflow\s*:\s*hidden/.test(body)) {
-    failures.push('css: visual panel must clip without becoming a scroll container')
-  }
-}
+forbidInRule('viz-panel', /overflow\s*:\s*hidden/, 'css: visual panel must clip without becoming a scroll container')
 
 requirePattern('css', /html\s*\{[^}]*scrollbar-gutter:\s*stable/s, 'page scrollbar gutter is not stable')
 requirePattern('css', /\.viz-shell\[data-viz-navigation="sidebar"\] \.viz-sidebar\s*\{[^}]*position:\s*fixed[^}]*bottom:\s*0/s, 'desktop sidebar is not pinned independently of document height')
@@ -205,7 +214,7 @@ requirePattern('code', /highlight\.js@\d+\.\d+\.\d+/, 'code renderer dependency 
 requirePattern('diff', /data-viz-diff/, 'optional diff controller has no diff hook')
 requirePattern('mermaid', /data-viz-mermaid/, 'optional Mermaid renderer has no diagram hook')
 requirePattern('mermaid', /data-viz-mermaid-loading/, 'Mermaid renderer does not release loading state')
-requirePattern('mermaid', /updateHorizontalScroll/, 'Mermaid renderer does not detect local horizontal overflow')
+requirePattern('mermaid', /dataset\.vizHorizontalScroll\s*=/, 'Mermaid renderer does not flag local horizontal overflow')
 requirePattern('mermaid', /MAX_FIT_OVERFLOW\s*=\s*1\.(0\d|1\d)\b/, 'Mermaid renderer may shrink labels below reading size; keep the fit limit under 1.2')
 requirePattern('preview', /data-viz-code[^>]*data-viz-language=/, 'code example has no language contract')
 requirePattern('preview', /visualization-code\.js/, 'code example does not load the optional renderer')
@@ -217,6 +226,9 @@ if (fs.existsSync(componentsDoc)) {
   const documented = new Set([...doc.matchAll(/(?<![\w-])(viz-[a-z0-9_-]+)/g)].map((match) => match[1]))
   for (const cls of documented) {
     if (!cssClasses.has(cls)) failures.push(`shell-components.md: documents ${cls}, which the stylesheet does not define`)
+  }
+  if (revisionOf(doc) !== revisionOf(source.shell)) {
+    failures.push('shell-components.md: page skeleton shows a different data-viz-shell-revision than the shell')
   }
   const documentedBlocks = new Set([...documented].map((cls) => cls.split(/__|--/)[0]))
   const blocks = new Set([...cssClasses].map((cls) => cls.split(/__|--/)[0]))

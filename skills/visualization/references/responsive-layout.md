@@ -55,7 +55,7 @@ Use scripts only when data volume, automatic layout, filtering, or coordinated i
 
 ## Validation viewports
 
-This is the one viewport list for the skill. Inspect the actual artifact at these representative conditions unless the consuming project defines its own breakpoints:
+Inspect the actual artifact at these representative conditions unless the consuming project defines its own breakpoints:
 
 | Condition | What it exposes |
 |---|---|

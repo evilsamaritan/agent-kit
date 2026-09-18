@@ -52,7 +52,7 @@ Every doc includes, in this order:
 3. **Body** — shaped by mode (tutorial / how-to / reference / explanation).
 4. **Next steps** — where to go after, for related tasks.
 
-For **audits**, output is a punchlist: one line per issue with severity and location.
+For **audits**, output is a punchlist: one line per issue with severity (blocker / concern / note) and location.
 
 ## Done means
 

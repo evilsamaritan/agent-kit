@@ -20,6 +20,15 @@ fm_field() {
   ' "$file"
 }
 
+# A missing tool must fail the run, never skip a check: a command that is absent inside an
+# `if` condition evaluates as false and the check silently passes.
+for tool in node jq grep awk; do
+  if ! command -v "$tool" >/dev/null 2>&1; then
+    printf 'ERROR [runtime]: %s is required to validate the repository\n' "$tool" >&2
+    exit 1
+  fi
+done
+
 bash "$repo_root/scripts/validate-plugin-manifests.sh"
 
 if [[ -e "$repo_root/.claude/agents" || -e "$repo_root/.claude/skills" ]]; then
@@ -29,15 +38,11 @@ if [[ -e "$repo_root/.agents/plugins/marketplace.json" ]]; then
   err "packaging" "use the shared .claude-plugin/marketplace.json instead of a duplicate .agents catalog"
 fi
 
-if ! command -v node >/dev/null 2>&1; then
-  err "runtime" "node is required for profile and project-agent validation"
-else
-  node --check "$repo_root/scripts/profile-lib.mjs"
-  node --check "$repo_root/scripts/generate-profiles.mjs"
-  node --check "$repo_root/scripts/validate-codex-agent.mjs"
-  node --check "$repo_root/skills/agent-creator/scripts/materialize-agents.mjs"
-  node "$repo_root/scripts/generate-profiles.mjs" --check
-fi
+node --check "$repo_root/scripts/profile-lib.mjs"
+node --check "$repo_root/scripts/generate-profiles.mjs"
+node --check "$repo_root/scripts/validate-codex-agent.mjs"
+node --check "$repo_root/skills/agent-creator/scripts/materialize-agents.mjs"
+node "$repo_root/scripts/generate-profiles.mjs" --check
 
 profile_count=0
 for profile_file in "$repo_root"/profiles/*/PROFILE.md; do
@@ -161,9 +166,9 @@ for file in "$repo_root"/skills/*/SKILL.md; do
   fi
 done
 
-if grep -rnE 'team-creator|team-orchestrator|agent-runner|\.claude/teams|scripts/generate-agents\.mjs|agents/[^/ ]+/AGENT\.md' \
+if grep -rqE 'team-creator|team-orchestrator|agent-runner|\.claude/teams|scripts/generate-agents\.mjs|agents/[^/ ]+/AGENT\.md' \
   "$repo_root/AGENTS.md" "$repo_root/README.md" "$repo_root/skills" "$repo_root/scripts" \
-  --exclude='validate-repository.sh' >/dev/null; then
+  --exclude='validate-repository.sh'; then
   err "stale-reference" "removed team runtime or pre-profile agent path is still referenced"
 fi
 

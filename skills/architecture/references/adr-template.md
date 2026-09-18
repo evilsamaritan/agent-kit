@@ -124,7 +124,7 @@ When one design effort produces many small coupled decisions, a log table is che
 ```markdown
 | ID | Decision | Force | Rejected | Supersedes |
 |---|---|---|---|---|
-| D7 | One keepalive, owned by the host | several modules may be open at once; per-module heartbeats multiply and leave gaps | per-module keepalive; command declared in each manifest | D3 |
+| D7 | Retry policy lives in one decorator around the client | call sites retried differently and duplicated requests after timeouts | a retry loop per call site; retry inside the transport | D3 |
 ```
 
 One row, one decision, in plain words. Record the force and what was rejected, not only the outcome. Promote a row to a full ADR when it is costly to reverse or must be understood without the surrounding design.

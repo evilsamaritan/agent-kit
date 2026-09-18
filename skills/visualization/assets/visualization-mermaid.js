@@ -3,6 +3,8 @@ const root = document.documentElement;
 const diagrams = [...document.querySelectorAll("[data-viz-mermaid]")];
 const prefersDark = window.matchMedia("(prefers-color-scheme: dark)");
 const compactState = new WeakMap();
+// Natural width of each rendered SVG. Fixed until the next render, so it is parsed once.
+const naturalWidths = new WeakMap();
 // A diagram slightly wider than its container is fitted instead of scrolled, but only while its
 // 13px labels stay at or above 11px, the smallest text size the visual system uses anywhere.
 // Anything wider keeps its natural size and scrolls locally.
@@ -159,24 +161,28 @@ function naturalWidthOf(svg) {
   return viewBox?.[2] ? Math.ceil(viewBox[2]) : null;
 }
 
-// Decided from the current container width, so it stays right when the container is resized
-// or revealed without crossing the compact breakpoint (which is the only resize that re-renders).
-function applyFit(diagram) {
+// Fit or scroll is decided from the live container width, so it stays right when the container
+// is resized or revealed without crossing the compact breakpoint (the only resize that re-renders).
+// Reading and writing are separate passes: a style write between layout reads forces a reflow
+// per diagram on every resize tick.
+function readFit(diagram) {
   const output = diagram.querySelector("[data-viz-mermaid-output]");
-  const rendered = output?.querySelector("svg");
-  if (!output || !rendered) return;
-  const naturalWidth = naturalWidthOf(rendered);
-  const fits =
-    naturalWidth && output.clientWidth > 0 && naturalWidth <= output.clientWidth * MAX_FIT_OVERFLOW;
-  rendered.style.maxWidth = fits ? "100%" : "none";
+  if (!output) return null;
+  const rendered = output.querySelector("svg");
+  const naturalWidth = rendered ? naturalWidths.get(rendered) : null;
+  const available = output.clientWidth;
+  if (!naturalWidth) return { output, scrolls: output.scrollWidth > available + 1 };
+  const fits = available > 0 && naturalWidth <= available * MAX_FIT_OVERFLOW;
+  return { output, rendered, fits, scrolls: available > 0 && !fits };
 }
 
-function updateHorizontalScroll(diagram) {
-  const output = diagram.querySelector("[data-viz-mermaid-output]");
-  if (!output) return;
-  output.dataset.vizHorizontalScroll = String(
-    output.scrollWidth > output.clientWidth + 1,
-  );
+function writeFit({ output, rendered, fits, scrolls }) {
+  if (rendered) rendered.style.maxWidth = fits ? "100%" : "none";
+  output.dataset.vizHorizontalScroll = String(scrolls);
+}
+
+function updateFit(targets) {
+  targets.map(readFit).forEach((fit) => fit && writeFit(fit));
 }
 
 function renderFailure(error) {
@@ -241,6 +247,7 @@ async function renderAll() {
     rendered?.removeAttribute("height");
     if (rendered) {
       const naturalWidth = naturalWidthOf(rendered);
+      naturalWidths.set(rendered, naturalWidth);
       if (
         (!rendered.getAttribute("width") || rendered.getAttribute("width") === "100%") &&
         naturalWidth
@@ -249,12 +256,11 @@ async function renderAll() {
       }
       rendered.style.backgroundColor = "transparent";
     }
-    applyFit(diagram);
     bindFunctions?.(output);
     diagram.removeAttribute("data-viz-render-error");
-    updateHorizontalScroll(diagram);
   });
 
+  updateFit(diagrams);
   finishInitialPositioning();
 }
 
@@ -277,14 +283,11 @@ if ("ResizeObserver" in window) {
     let crossedBreakpoint = false;
     entries.forEach((entry) => {
       const previous = compactState.get(entry.target);
-      const next =
-        entry.contentRect.width > 0 &&
-        entry.contentRect.width <= compactBreakpoint(entry.target);
+      const next = isCompact(entry.target);
       compactState.set(entry.target, next);
-      applyFit(entry.target);
-      updateHorizontalScroll(entry.target);
       if (previous !== undefined && previous !== next) crossedBreakpoint = true;
     });
+    updateFit(entries.map((entry) => entry.target));
     if (crossedBreakpoint) scheduleRender();
   });
   diagrams.forEach((diagram) => observer.observe(diagram));

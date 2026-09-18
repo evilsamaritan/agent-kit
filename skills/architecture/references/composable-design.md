@@ -1,8 +1,8 @@
 # Composable Design: Extend by Adding, Not by Editing
 
-Use this reference when something must be extensible, when designing a core or library API, or when flags, switches, factories, or preset bundles keep growing. Per-pattern semantics (ordering, errors, cancellation) live in [design-patterns.md](design-patterns.md); this file is about the shape that makes a design open.
+Use this reference when something must be extensible, when designing a core or library API, or when flags, switches, factories, or preset bundles keep growing. Per-pattern semantics (ordering, errors, cancellation) live in [design-patterns.md](design-patterns.md); this file is about the structure that makes a design open.
 
-Code sketches use TypeScript-flavored pseudo-code. The shapes are language-independent.
+Code sketches use TypeScript-flavored pseudo-code. The structures are language-independent.
 
 ## Contents
 
@@ -18,7 +18,7 @@ Code sketches use TypeScript-flavored pseudo-code. The shapes are language-indep
 
 A design is **open** when a consumer can add or replace behavior without editing the core, and can discard the shipped conveniences and write their own against the same contract. It is **closed** when every new case means editing a central place, or when the only way to use it is the way it was shipped.
 
-Openness is a property of shape, not of size or abstraction count. A function that takes a function is open. A plugin registry with one plugin is ceremony. A middleware chain can be ten lines; it is an approach, not a framework.
+Openness is a property of structure, not of size or abstraction count. A function that takes a function is open. A plugin registry with one plugin is ceremony. A middleware chain can be ten lines; it is an approach, not a framework.
 
 ## Anatomy of an open design
 
@@ -36,7 +36,7 @@ The core stays small because it never learns about specific cases. New behavior 
 
 ## Contrast pairs
 
-Each pair shows a closed shape, why it stops scaling, the open shape, and what the open shape costs.
+Each pair shows a closed structure, why it stops scaling, the open structure, and what the open structure costs.
 
 ### 1. Preset API versus core, middleware, and replaceable utilities
 

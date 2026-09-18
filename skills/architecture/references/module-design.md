@@ -69,7 +69,7 @@ A module contract states:
 
 Keep the public surface smaller than the internal model. Do not export storage entities, framework contexts, or mutable collections merely because they already exist.
 
-Before freezing a contract that several modules will implement, check what it assumes there is exactly one of — one instance, one session, one active module, one transport — and whether a known upcoming requirement breaks that assumption. Exercise it with at least one real implementation first (SKILL.md, critical rule 3).
+Before freezing a contract that several modules will implement, check what it assumes there is exactly one of — one instance, one session, one active module, one transport — and whether a known upcoming requirement breaks that assumption. Exercise it with at least one real implementation first.
 
 ## State and invariant ownership
 

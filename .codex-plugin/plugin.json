@@ -1,6 +1,6 @@
 {
   "name": "agent-kit",
-  "version": "3.4.0",
+  "version": "3.4.1",
   "description": "Reusable profession profiles, engineering skills, and native-agent helpers for Claude Code and Codex.",
   "author": {
     "name": "Maksim Misiukevich",

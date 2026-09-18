@@ -1,4 +1,4 @@
-# agent-kit v3.4.0
+# agent-kit v3.4.1
 
 ## Purpose
 
@@ -125,7 +125,7 @@ Role-templates live in `skills/agent-creator/templates/*.md`. They are plain mar
 Role-templates:
 - Are **domain-agnostic** — never mention `react`, `docker`, `go`, etc.
 - Describe **behavior only** — how to think, how to structure work, how to communicate.
-- Are **short** — 100–200 lines. Longer means domain crept in.
+- Are **short** — under about 100 lines. Longer means domain crept in.
 - Are **composable** — a profile may declare 1–3 roles without conflict, one body section each.
 
 ## Context Engineering Principles
