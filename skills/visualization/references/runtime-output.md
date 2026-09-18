@@ -68,7 +68,7 @@ Do not load Tailwind's browser compiler merely to style the canonical shell or r
 
 Keep those utilities inside the content region; the canonical CSS still owns shell layout, themes, navigation, and responsive chrome. For a durable, offline, published, or production artifact, compile Tailwind through the repository's existing build path or serve generated CSS locally. Do not silently add a framework dependency to an established project, and do not require the network merely to read an archived artifact.
 
-Keep model/data separate from rendering code when the artifact has several views or will evolve. Provide a static or textual fallback for essential content. Add [visualization-diff.js](../assets/visualization-diff.js) only when a diff view needs a split/unified control; keep it separate from the content-neutral shell runtime. Default to system theme preference; add an `Auto`/`Light`/`Dark` control only when the artifact benefits from a persistent override.
+Keep model/data separate from rendering code when the artifact has several views or will evolve. Provide a static or textual fallback for essential content. Add [visualization-code.js](../assets/visualization-code.js) for highlighted code evidence and [visualization-diff.js](../assets/visualization-diff.js) only when a diff view needs a split/unified control; keep both separate from the content-neutral shell runtime. The code adapter uses a pinned Highlight.js CDN module for connected previews and leaves source text intact if loading fails. Vendor or bundle that dependency for durable/offline artifacts. Default to system theme preference; add an `Auto`/`Light`/`Dark` control only when the artifact benefits from a persistent override.
 
 ## Delivery boundary
 

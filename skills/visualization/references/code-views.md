@@ -33,6 +33,8 @@ A focused code view includes:
 
 Keep syntax color restrained. Color distinguishes token classes but does not replace readable text, emphasis, or annotations. Avoid editor chrome, minimaps, tab bars, fake window controls, and decorative terminal styling unless the environment itself is the subject.
 
+For standalone HTML, mark the region with `data-viz-code` and its known language with `data-viz-language`, then include [visualization-code.js](../assets/visualization-code.js). It uses a pinned Highlight.js module to highlight both ordinary code and line-preserving diff rows without an imported editor theme; the shared semantic token palette owns light/dark colors. Keep the original selectable text in the HTML so a network or renderer failure degrades to readable plain code rather than an empty panel. For durable/offline output, bundle or vendor the highlighter through the consuming repository instead of relying on the preview CDN.
+
 Do not paste a whole file when a contract, branch, or function is the evidence. Preserve exact identifiers and formatting from authoritative source.
 
 ## Diff code view
@@ -78,6 +80,7 @@ What must the reader verify?
 Code preserves whitespace and line structure. Do not soft-wrap by default when wrapping would change readability or make a diff ambiguous.
 
 - contain horizontal scrolling inside the code region, not the page;
+- never give the code region a vertical scroll container unless the user explicitly requests a bounded editor-like viewport; vertical wheel/touch must continue the document;
 - keep file path and status visible above the scroll region;
 - use a unified diff on compact widths instead of side-by-side columns;
 - keep a split/unified control compact and adjacent to the diff metadata, not in the global page chrome;

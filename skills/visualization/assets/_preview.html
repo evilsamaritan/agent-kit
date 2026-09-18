@@ -12,7 +12,7 @@
       } catch {}
       if ("scrollRestoration" in history) history.scrollRestoration = "manual";
     </script>
-    <link rel="stylesheet" href="visualization-shell.css?v=3.2.0" />
+    <link rel="stylesheet" href="visualization-shell.css?v=3.3.0" />
     <noscript><style>[data-viz-mermaid-loading] .viz-content { visibility: visible; }</style></noscript>
   </head>
   <body>
@@ -497,12 +497,12 @@ flowchart LR
               </div>
               <span class="viz-section__index">13 / 14</span>
             </div>
-            <div class="viz-code">
+            <div class="viz-code" data-viz-code data-viz-language="typescript">
               <div class="viz-code__bar"><span>src/runtime/game-module.ts · GameModule</span><span>proposed TypeScript</span></div>
-              <div class="viz-code__scroll"><pre aria-label="Интерфейс GameModule"><code><span class="viz-code__line" data-line="1"><span><span class="viz-token--keyword">export interface</span> <span class="viz-token--type">GameModule</span> {</span></span>
-<span class="viz-code__line" data-line="2"><span>  readonly id: <span class="viz-token--type">GameId</span></span></span>
-<span class="viz-code__line" data-line="3"><span>  readonly routes: readonly <span class="viz-token--type">GameRoute</span>[]</span></span>
-<span class="viz-code__line viz-code__line--focus" data-line="4"><span>  mount(ports: <span class="viz-token--type">EnvironmentPorts</span>): <span class="viz-token--type">MountedGame</span></span></span>
+              <div class="viz-code__scroll"><pre aria-label="Интерфейс GameModule"><code><span class="viz-code__line" data-line="1"><span>export interface GameModule {</span></span>
+<span class="viz-code__line" data-line="2"><span>  readonly id: GameId</span></span>
+<span class="viz-code__line" data-line="3"><span>  readonly routes: readonly GameRoute[]</span></span>
+<span class="viz-code__line viz-code__line--focus" data-line="4"><span>  mount(ports: EnvironmentPorts): MountedGame</span></span>
 <span class="viz-code__line" data-line="5"><span>}</span></span></code></pre></div>
             </div>
           </section>
@@ -516,7 +516,7 @@ flowchart LR
               </div>
               <span class="viz-section__index">14 / 14</span>
             </div>
-            <div class="viz-code viz-diff" data-viz-diff data-viz-diff-mode="split">
+            <div class="viz-code viz-diff" data-viz-code data-viz-language="typescript" data-viz-diff data-viz-diff-mode="split">
               <div class="viz-code__bar">
                 <span>src/poker/bootstrap.ts · current → target</span>
                 <div class="viz-segmented viz-diff__mode" role="group" aria-label="Формат сравнения кода">
@@ -551,8 +551,9 @@ flowchart LR
       </main>
     </div>
 
-    <script src="visualization-shell.js?v=3.2.0"></script>
-    <script src="visualization-diff.js?v=3.2.0"></script>
-    <script type="module" src="visualization-mermaid.js?v=3.2.0"></script>
+    <script src="visualization-shell.js?v=3.3.0"></script>
+    <script src="visualization-diff.js?v=3.3.0"></script>
+    <script type="module" src="visualization-code.js?v=3.3.0"></script>
+    <script type="module" src="visualization-mermaid.js?v=3.3.0"></script>
   </body>
 </html>

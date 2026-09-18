@@ -73,7 +73,7 @@ Read [runtime-output.md](../references/runtime-output.md) before assuming a runt
 ## 7. Build the artifact
 
 1. Create the selected source and output in the user's requested location or the repository's established documentation structure.
-2. For every standalone HTML artifact, first copy [visualization-shell.html](../assets/visualization-shell.html), [visualization-shell.css](../assets/visualization-shell.css), and [visualization-shell.js](../assets/visualization-shell.js) together. Keep their shell DOM, data hooks, tokens, theme control, mobile bottom sheet, focus behavior, and navigation logic. Replace the example content and navigation entries, then choose `switcher` for one to three views (omit section navigation for one) or `sidebar` for a justified atlas. Add optional renderer/component scripts such as `visualization-mermaid.js` or `visualization-diff.js` only when their content exists, following their loading and fallback contracts. Tailwind may compose task-specific content but must not rebuild or override the shell. Prefer compiled or static CSS; do not add the browser compiler when the shared CSS already expresses the result. Follow [runtime-output.md](../references/runtime-output.md) for the remaining delivery choices.
+2. For every standalone HTML artifact, first copy [visualization-shell.html](../assets/visualization-shell.html), [visualization-shell.css](../assets/visualization-shell.css), and [visualization-shell.js](../assets/visualization-shell.js) together. Keep their shell DOM, data hooks, tokens, theme control, mobile bottom sheet, focus behavior, and navigation logic. Replace the example content and navigation entries, then choose `switcher` for one to three views (omit section navigation for one) or `sidebar` for a justified atlas. Add optional renderer/component scripts such as `visualization-mermaid.js`, `visualization-code.js`, or `visualization-diff.js` only when their content exists, following their loading and fallback contracts. Tailwind may compose task-specific content but must not rebuild or override the shell. Prefer compiled or static CSS; do not add the browser compiler when the shared CSS already expresses the result. Follow [runtime-output.md](../references/runtime-output.md) for the remaining delivery choices.
 3. Keep data/model definitions separate from layout code for multi-view or long-lived HTML.
 4. Add accessible names, descriptions, keyboard behavior, and a textual equivalent appropriate to the medium.
 5. Compose semantic blocks that reflow at compact widths. Split the view or provide a compact projection before falling back to local horizontal scrolling.
@@ -90,9 +90,10 @@ For interactive output, read [interactive-html.md](../references/interactive-htm
 4. Verify titles, labels, arrows, boundaries, legends, status, contrast, and text size.
 5. Trace the primary relationship or scenario without using the supporting prose.
 6. Check that keyboard and non-color cues preserve essential meaning.
-7. When a compact projection differs from the wide renderer, compare canonical and compact nodes plus every relationship's source, target, kind, label, order/cardinality, status, and failure path.
-8. Record any validation that could not be performed.
-9. Confirm that the delivered artifact still uses the canonical shell rather than a runtime- or agent-specific menu, theme implementation, or responsive wrapper.
+7. Place the pointer over every diagram/code scroller and verify that a vertical wheel or touch gesture still moves the document; test local horizontal movement separately.
+8. When a compact projection differs from the wide renderer, compare canonical and compact nodes plus every relationship's source, target, kind, label, order/cardinality, status, and failure path.
+9. Record any validation that could not be performed.
+10. Confirm that the delivered artifact still uses the canonical shell rather than a runtime- or agent-specific menu, theme implementation, or responsive wrapper.
 
 Treat any overlapping label, detached or misaligned arrowhead, clipped node, ambiguous crossing, duplicated identity, unreadable compact projection, or page-level horizontal overflow as a failed render. Fix it and inspect the affected viewport again.
 

@@ -40,13 +40,14 @@ This skill may choose a clearer web layout or compact representation. When `arch
 6. **Preserve one abstraction level per view.** Split overview and detail while keeping stable names and visual identities.
 7. **Build from semantic blocks.** Compose nodes, boundaries, labelled relationships, groups, contracts, messages, evidence, and navigation per task; do not force every model through one coordinate generator.
 8. **Be responsive by meaning.** Reflow or switch to a compact projection before scrolling. Never shrink a desktop poster until labels are unreadable or allow page-level horizontal overflow.
-9. **Support automatic light and dark themes.** Keep semantics identical in both; persist only explicit overrides and never invert the page as a dark-mode shortcut.
-10. **Use interaction only for disclosure.** Navigation, filters, details, view switching, and zoom must reduce cognitive load; decorative motion and fake application chrome do not.
-11. **Show code as evidence.** Use focused selectable code. Choose unified diff for an exact patch and aligned before/after for structural comparison; when both questions matter, offer both on wide screens and force unified on compact widths. Keep non-color add/remove labels and do not imply compilation or correctness.
-12. **Inspect the rendered artifact.** Verify themes, representative wide/half-width/mobile viewports, navigation, overflow, labels, contrast, and textual alternatives.
-13. **Keep creation local by default.** Publishing, hosting, or external sharing requires explicit authorization.
-14. **Curate before rendering.** A source may contain many facts, sections, or candidate views; they are not automatically presentation requirements. For multi-view artifacts, default to one overview and one consequential detail, adding a third risk-specific view only when it changes understanding.
-15. **Fail on visual ambiguity.** Overlapping labels, detached arrowheads, crossing relationships that cannot be traced, clipped content, duplicated nodes with unclear identity, or unreadable compact projections are unfinished work, not cosmetic defects. A sequence view with decorative background stripes instead of one centered lifeline per participant also fails. So does a compact view that hides an edge but leaves its label or reduces a relationship to direction words such as `up` or `down` without named endpoints.
+9. **Never trap document scrolling.** Diagram and code regions may scroll horizontally when unavoidable, but vertical wheel and touch gestures must continue the page unless an explicit pan/zoom mode is active.
+10. **Support automatic light and dark themes.** Keep semantics identical in both; persist only explicit overrides and never invert the page as a dark-mode shortcut.
+11. **Use interaction only for disclosure.** Navigation, filters, details, view switching, and zoom must reduce cognitive load; decorative motion and fake application chrome do not.
+12. **Show code as evidence.** Use focused selectable code with deterministic syntax highlighting for known languages and a readable plain-text fallback. Choose unified diff for an exact patch and aligned before/after for structural comparison; when both questions matter, offer both on wide screens and force unified on compact widths. Keep non-color add/remove labels and do not imply compilation or correctness.
+13. **Inspect the rendered artifact.** Verify themes, representative wide/half-width/mobile viewports, navigation, overflow, labels, contrast, and textual alternatives.
+14. **Keep creation local by default.** Publishing, hosting, or external sharing requires explicit authorization.
+15. **Curate before rendering.** A source may contain many facts, sections, or candidate views; they are not automatically presentation requirements. For multi-view artifacts, default to one overview and one consequential detail, adding a third risk-specific view only when it changes understanding.
+16. **Fail on visual ambiguity.** Overlapping labels, detached arrowheads, crossing relationships that cannot be traced, clipped content, duplicated nodes with unclear identity, or unreadable compact projections are unfinished work, not cosmetic defects. A sequence view with decorative background stripes instead of one centered lifeline per participant also fails. So does a compact view that hides an edge but leaves its label or reduces a relationship to direction words such as `up` or `down` without named endpoints.
 
 ## Canonical shell contract
 
@@ -206,6 +207,7 @@ Keep maintainable source with the consuming documentation. A screenshot can demo
 - [visualization-shell.css](assets/visualization-shell.css) — shell, theme tokens, connectors, and semantic diagram blocks
 - [visualization-shell.js](assets/visualization-shell.js) — content-neutral theme, menu, deep-link, and navigation behavior
 - [visualization-diff.js](assets/visualization-diff.js) — optional split/unified control for diff evidence
+- [visualization-code.js](assets/visualization-code.js) — optional deterministic syntax-highlighting adapter with plain-text fallback
 - [visualization-mermaid.js](assets/visualization-mermaid.js) — optional Mermaid renderer for standalone network-enabled previews
 - [_preview.html](assets/_preview.html) — canonical-shell pattern gallery for structural, behavioral, change, chart, code, and diff views
 - [check-theme-contrast.mjs](scripts/check-theme-contrast.mjs) — deterministic light/dark token contrast check

@@ -12,6 +12,7 @@ const files = {
   preview: path.join(assetsDir, '_preview.html'),
   css: path.join(assetsDir, 'visualization-shell.css'),
   runtime: path.join(assetsDir, 'visualization-shell.js'),
+  code: path.join(assetsDir, 'visualization-code.js'),
   diff: path.join(assetsDir, 'visualization-diff.js'),
   mermaid: path.join(assetsDir, 'visualization-mermaid.js'),
 }
@@ -95,9 +96,52 @@ if (/data-viz-diff|viz-diff-mode/.test(source.runtime)) {
   failures.push('runtime: diff behavior must stay in visualization-diff.js')
 }
 
+if (/data-viz-code|viz-code-status/.test(source.runtime)) {
+  failures.push('runtime: code highlighting must stay in visualization-code.js')
+}
+
+const canvasRule = source.css.match(/\.viz-canvas\s*\{([^}]*)\}/)?.[1] || ''
+if (/overflow\s*:\s*auto/.test(canvasRule)) {
+  failures.push('css: generic diagram canvas must not become a scroll container')
+}
+
+// Content regions may contain horizontal overscroll only. The two-axis shorthand,
+// a vertical overscroll boundary, or a restrictive touch-action on a diagram or
+// code region stops wheel/touch gestures from reaching the document.
+const modalSurface = /viz-menu-open|\.viz-nav\b/
+const panZoomSurface = /\[data-viz-pan-zoom/
+for (const [, selector, body] of source.css.matchAll(/([^{}]+)\{([^{}]*)\}/g)) {
+  const name = selector.trim().replace(/\s+/g, ' ')
+  if (/overscroll-behavior(?:-y|-block)?\s*:/.test(body) && !modalSurface.test(name)) {
+    failures.push(`css: ${name} blocks vertical scroll chaining; use overscroll-behavior-x on content regions`)
+  }
+  const touch = body.match(/touch-action\s*:\s*([^;]+)/)?.[1].trim()
+  if (touch && !/^(auto|manipulation)$/.test(touch) && !panZoomSurface.test(name)) {
+    failures.push(`css: ${name} restricts touch gestures (${touch}) outside an explicit pan/zoom mode`)
+  }
+}
+
+for (const name of ['runtime', 'code', 'diff', 'mermaid']) {
+  if (/addEventListener\(\s*["'](?:wheel|mousewheel|touchmove)["']/.test(source[name])) {
+    failures.push(`${name}: must not intercept wheel/touch scrolling; fix the CSS scroll chain instead`)
+  }
+}
+
+const panelRule = source.css.match(/\.viz-panel\s*\{([^}]*)\}/)?.[1] || ''
+if (/overflow\s*:\s*hidden/.test(panelRule)) {
+  failures.push('css: visual panel must clip without becoming a scroll container')
+}
+
+requirePattern('css', /html\s*\{[^}]*scrollbar-gutter:\s*stable/s, 'page scrollbar gutter is not stable')
+requirePattern('css', /\.viz-shell\[data-viz-navigation="sidebar"\] \.viz-sidebar\s*\{[^}]*position:\s*fixed[^}]*bottom:\s*0/s, 'desktop sidebar is not pinned independently of document height')
+requirePattern('code', /data-viz-code/, 'optional code renderer has no code hook')
+requirePattern('code', /highlight\.js@\d+\.\d+\.\d+/, 'code renderer dependency is not pinned')
 requirePattern('diff', /data-viz-diff/, 'optional diff controller has no diff hook')
 requirePattern('mermaid', /data-viz-mermaid/, 'optional Mermaid renderer has no diagram hook')
 requirePattern('mermaid', /data-viz-mermaid-loading/, 'Mermaid renderer does not release loading state')
+requirePattern('mermaid', /updateHorizontalScroll/, 'Mermaid renderer does not detect local horizontal overflow')
+requirePattern('preview', /data-viz-code[^>]*data-viz-language=/, 'code example has no language contract')
+requirePattern('preview', /visualization-code\.js/, 'code example does not load the optional renderer')
 
 if (failures.length > 0) {
   console.error(failures.join('\n'))
@@ -105,5 +149,5 @@ if (failures.length > 0) {
 }
 
 console.log(
-  `Visualization shell contract OK: 2 documents, ${mermaidBlocks.length} Mermaid examples, navigation, IDs, hooks, and ownership boundaries checked.`,
+  `Visualization shell contract OK: 2 documents, ${mermaidBlocks.length} Mermaid examples, navigation, scrolling, code/diff, IDs, hooks, and ownership boundaries checked.`,
 )

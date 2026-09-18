@@ -75,6 +75,8 @@ Apply these repairs in order:
 When local scrolling remains necessary:
 
 - keep it inside the labelled diagram region, never at page level;
+- expose only the axis that is actually needed: usually `overflow-x: auto` with no nested vertical scroll;
+- let vertical wheel and touch gestures bubble to the document; only an explicit, labelled pan/zoom mode may capture them. Contain overscroll on the scrolling axis only (`overscroll-behavior-x`): the two-axis `overscroll-behavior` shorthand, a restrictive `touch-action`, or a wheel listener traps vertical scrolling even when the region itself cannot scroll vertically;
 - show a visible scroll hint or clipped-edge affordance;
 - keep the primary path visible at the initial position;
 - provide a compact overview that fits without scrolling;

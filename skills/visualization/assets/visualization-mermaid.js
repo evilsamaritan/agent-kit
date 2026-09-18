@@ -149,6 +149,14 @@ function showRenderFailure(diagram, error, source) {
   diagram.dataset.vizRenderError = "true";
 }
 
+function updateHorizontalScroll(diagram) {
+  const output = diagram.querySelector("[data-viz-mermaid-output]");
+  if (!output) return;
+  output.dataset.vizHorizontalScroll = String(
+    output.scrollWidth > output.clientWidth + 1,
+  );
+}
+
 function renderFailure(error) {
   diagrams.forEach((diagram) => {
     const source = diagram.querySelector('script[type="text/plain"]')?.textContent.trim();
@@ -225,6 +233,7 @@ async function renderAll() {
     }
     bindFunctions?.(output);
     diagram.removeAttribute("data-viz-render-error");
+    updateHorizontalScroll(diagram);
   });
 
   finishInitialPositioning();
@@ -253,6 +262,7 @@ if ("ResizeObserver" in window) {
         entry.contentRect.width > 0 &&
         entry.contentRect.width <= compactBreakpoint(entry.target);
       compactState.set(entry.target, next);
+      updateHorizontalScroll(entry.target);
       if (previous !== undefined && previous !== next) crossedBreakpoint = true;
     });
     if (crossedBreakpoint) scheduleRender();

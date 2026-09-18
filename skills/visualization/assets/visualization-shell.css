@@ -96,6 +96,7 @@
 }
 
 html {
+  scrollbar-gutter: stable;
   background: var(--viz-bg);
   color: var(--viz-text);
   font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
@@ -104,7 +105,7 @@ html {
 }
 
 body {
-  min-height: 100vh;
+  min-height: 100dvh;
   margin: 0;
   background: var(--viz-bg);
   color: var(--viz-text);
@@ -115,7 +116,7 @@ body {
    mode: switcher for 1–3 peer views, sidebar for a justified reference/atlas. */
 
 .viz-shell {
-  min-height: 100vh;
+  min-height: 100dvh;
 }
 
 .viz-main {
@@ -244,15 +245,21 @@ body {
 }
 
 .viz-shell[data-viz-navigation="sidebar"] .viz-sidebar {
-  position: sticky;
+  position: fixed;
   top: 0;
+  bottom: 0;
+  left: 0;
   display: flex;
   flex-direction: column;
-  align-self: start;
-  height: 100vh;
+  width: 13rem;
+  height: auto;
   padding: 16px 12px;
   border-right: 1px solid var(--viz-border);
-  overflow-y: auto;
+  overflow: hidden;
+}
+
+.viz-shell[data-viz-navigation="sidebar"] .viz-main {
+  grid-column: 2;
 }
 
 .viz-shell[data-viz-navigation="sidebar"] .viz-sidebar__body {
@@ -264,14 +271,18 @@ body {
 
 .viz-shell[data-viz-navigation="sidebar"] .viz-nav {
   display: grid;
+  flex: 1 1 auto;
   align-content: start;
   gap: 2px;
+  min-height: 0;
   margin-top: 16px;
   overflow-y: auto;
+  scrollbar-gutter: stable;
 }
 
 .viz-shell[data-viz-navigation="sidebar"] .viz-sidebar__footer {
   display: grid;
+  flex: 0 0 auto;
   gap: 8px;
   margin-top: auto;
   padding-top: 12px;
@@ -665,14 +676,18 @@ input {
 
 .viz-section {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: 10px;
+  width: 100%;
+  max-width: 100%;
   min-width: 0;
   scroll-margin-top: 76px;
   container-type: inline-size;
 }
 
 .viz-section__heading {
-  max-width: 72ch;
+  width: min(72ch, 100%);
+  min-width: 0;
 }
 
 .viz-section__title {
@@ -685,7 +700,7 @@ input {
 
 .viz-panel {
   min-width: 0;
-  overflow: hidden;
+  overflow: clip;
   border: 1px solid var(--viz-border);
   border-radius: 10px;
   background: var(--viz-surface);
@@ -694,9 +709,8 @@ input {
 .viz-canvas {
   container-type: inline-size;
   min-height: 0;
-  overflow: auto;
+  overflow: visible;
   padding: 14px;
-  overscroll-behavior: contain;
 }
 
 .viz-copy {
@@ -888,6 +902,7 @@ input {
 
 .viz-section__head {
   display: flex;
+  min-width: 0;
   align-items: end;
   justify-content: space-between;
   gap: 14px;
@@ -1234,6 +1249,10 @@ input {
 .viz-mermaid__output {
   display: block;
   min-width: 0;
+  overflow: visible;
+}
+
+.viz-mermaid__output[data-viz-horizontal-scroll="true"] {
   overflow-x: auto;
   overflow-y: hidden;
   overscroll-behavior-x: contain;
@@ -1497,7 +1516,7 @@ input {
 }
 
 .viz-entity {
-  overflow: hidden;
+  overflow: clip;
   border: 1px solid var(--viz-data-line);
   border-radius: 9px;
   background: var(--viz-surface);
@@ -1672,7 +1691,10 @@ input {
 }
 
 .viz-code {
-  overflow: hidden;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  overflow: clip;
   border: 1px solid var(--viz-border);
   border-radius: 10px;
   background: var(--viz-surface-subtle);
@@ -1700,7 +1722,11 @@ input {
 }
 
 .viz-code__scroll {
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
   overflow-x: auto;
+  overflow-y: hidden;
   overscroll-behavior-x: contain;
 }
 
@@ -1842,6 +1868,39 @@ input {
 
 .viz-token--comment {
   color: var(--viz-text-muted);
+}
+
+/* Highlight.js emits semantic token classes; the shared palette keeps them
+   restrained and theme-safe without importing an editor theme. */
+.viz-code :where(.hljs-keyword, .hljs-selector-tag, .hljs-literal, .hljs-doctag) {
+  color: var(--viz-interface-line);
+  font-weight: 650;
+}
+
+.viz-code :where(.hljs-title.class_, .hljs-type, .hljs-built_in) {
+  color: var(--viz-accent);
+  font-weight: 650;
+}
+
+.viz-code :where(.hljs-title.function_, .hljs-function .hljs-title) {
+  color: var(--viz-system-line);
+}
+
+.viz-code :where(.hljs-string, .hljs-regexp, .hljs-template-variable) {
+  color: var(--viz-domain-line);
+}
+
+.viz-code :where(.hljs-number, .hljs-symbol, .hljs-attr, .hljs-property, .hljs-meta) {
+  color: var(--viz-data-line);
+}
+
+.viz-code :where(.hljs-comment, .hljs-quote) {
+  color: var(--viz-text-muted);
+  font-style: italic;
+}
+
+.viz-code :where(.hljs-variable, .hljs-params, .hljs-punctuation) {
+  color: var(--viz-text);
 }
 
 .viz-message-list strong {
