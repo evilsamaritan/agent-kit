@@ -8,6 +8,7 @@ Use an ADR to preserve a consequential architectural choice, its forces, alterna
 - [Decision scope](#decision-scope)
 - [Full template](#full-template)
 - [Compact template](#compact-template)
+- [Decision log](#decision-log)
 - [Lifecycle](#lifecycle)
 - [Quality checks](#quality-checks)
 
@@ -115,6 +116,18 @@ accepting [cost and limitation].
 We will verify it through [evidence or fitness check]
 and revisit it when [trigger].
 ```
+
+## Decision log
+
+When one design effort produces many small coupled decisions, a log table is cheaper than one ADR each and keeps supersession visible:
+
+```markdown
+| ID | Decision | Force | Rejected | Supersedes |
+|---|---|---|---|---|
+| D7 | One keepalive, owned by the host | several modules may be open at once; per-module heartbeats multiply and leave gaps | per-module keepalive; command declared in each manifest | D3 |
+```
+
+One row, one decision, in plain words. Record the force and what was rejected, not only the outcome. Promote a row to a full ADR when it is costly to reverse or must be understood without the surrounding design.
 
 ## Lifecycle
 

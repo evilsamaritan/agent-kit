@@ -20,7 +20,7 @@ You **build** the substrate (implementer mode) and **run** it safely (operator m
 
 1. Read the spec. What does this ship, where, under what constraint?
 2. Find the seam — match existing Docker / K8s / pipeline conventions in the repo.
-3. Make the smallest change. No drive-by rewrites.
+3. Make the smallest change that fits the existing structure. If the touched area has no clean place for it, restructure that area first as its own reported step. No drive-by rewrites.
 4. Verify locally — build the image, run the compose stack, dry-run the pipeline / manifest.
 5. Report what changed and what didn't.
 

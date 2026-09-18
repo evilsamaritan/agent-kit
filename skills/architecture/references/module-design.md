@@ -1,20 +1,15 @@
 # Module and Application Design
 
-Use this reference to decide what belongs in the application core, where module boundaries should sit, how dependencies should flow, and which extension seams are justified.
+Use this reference to decide what belongs in the application core, where module boundaries sit, who owns state, and how dependencies flow. For extension points and open composition read [composable-design.md](composable-design.md); for choosing a collaboration pattern read [design-patterns.md](design-patterns.md); for structure inside a module read [code-design.md](code-design.md).
 
 ## Contents
 
 - [Model the application](#model-the-application)
 - [Core and edges](#core-and-edges)
-- [Boundary forces](#boundary-forces)
+- [Boundary evidence](#boundary-evidence)
 - [Module contract](#module-contract)
 - [State and invariant ownership](#state-and-invariant-ownership)
 - [Dependency direction](#dependency-direction)
-- [Collaboration choices](#collaboration-choices)
-- [Extension design](#extension-design)
-- [Object-oriented and functional shapes](#object-oriented-and-functional-shapes)
-- [Reuse and duplication](#reuse-and-duplication)
-- [Module fitness checks](#module-fitness-checks)
 
 ## Model the application
 
@@ -42,18 +37,11 @@ The **core** contains stable policy and domain meaning. The **edges** translate 
 | domain values and errors | serialization and transport models |
 | orchestration that expresses business order | logging, metrics, clocks, process lifecycle |
 
-Do not add a port for every concrete dependency. Introduce an abstraction when the core needs a narrower semantic contract, tests need deterministic control, or implementations genuinely vary. A direct dependency can be simpler when the dependency is stable, local, and already matches the needed semantics.
+Do not add a port for every concrete dependency. Introduce an abstraction when the core needs a narrower semantic contract, tests need deterministic control, or implementations genuinely vary. A direct dependency is simpler when it is stable, local, and already matches the needed semantics.
 
-## Boundary forces
+## Boundary evidence
 
-A strong module boundary usually combines several forces:
-
-- distinct business language or capability;
-- cohesive invariants and state ownership;
-- independent reason or cadence of change;
-- narrow collaboration with the rest of the application;
-- different lifecycle, trust, ownership, failure, or scale;
-- a public contract that is smaller and more stable than the implementation.
+Apply the boundary and abstraction tests in SKILL.md: change, invariants, language, lifecycle, scale and failure, security and ownership, reuse. A strong module boundary combines several of them and exposes a public contract smaller and more stable than the implementation behind it.
 
 Weak evidence by itself:
 
@@ -68,7 +56,7 @@ Split a module when the new boundary reduces change propagation and clarifies ow
 
 ## Module contract
 
-A module contract should state:
+A module contract states:
 
 1. Responsibility and explicit non-responsibilities.
 2. Commands, queries, and events exposed to collaborators.
@@ -81,9 +69,11 @@ A module contract should state:
 
 Keep the public surface smaller than the internal model. Do not export storage entities, framework contexts, or mutable collections merely because they already exist.
 
+Before freezing a contract that several modules will implement, check what it assumes there is exactly one of — one instance, one session, one active module, one transport — and whether a known upcoming requirement breaks that assumption. Exercise it with at least one real implementation first (SKILL.md, critical rule 3).
+
 ## State and invariant ownership
 
-Give each state an explicit authority model. Prefer one authoritative writer. Read replicas, projections, caches, and derived views may copy facts, but they do not become co-owners. If multiple writers are essential, define partition ownership, coordination, conflict detection, and deterministic merge/reconciliation semantics.
+Give each state an explicit authority model. Prefer one authoritative writer. Read replicas, projections, caches, and derived views may copy facts, but they do not become co-owners. If multiple writers are essential, define partition ownership, coordination, conflict detection, and deterministic merge or reconciliation semantics.
 
 Use these tests:
 
@@ -92,12 +82,15 @@ Use these tests:
 - Which store is authoritative after restart?
 - Which published fact tells other modules that the change completed?
 - How are stale, duplicate, reordered, or partially applied operations handled?
+- Can another component bypass the owner?
 
-If several modules can independently enforce or mutate the same invariant, either consolidate ownership or define an explicit coordination protocol. A shared table is not a coordination protocol.
+If several modules can independently enforce or mutate the same invariant, either consolidate ownership or define an explicit coordination protocol. A shared table is not a coordination protocol, and a copy of the same state in every module is not ownership.
+
+When another module needs owned state, give it a query, a published fact, or a narrow interface from the owner — not a second copy to maintain (see [composable-design.md](composable-design.md#contrast-pairs), pair 6).
 
 ## Dependency direction
 
-Dependencies should point from volatile details toward stable policy:
+Dependencies point from volatile details toward stable policy:
 
 ```text
 drivers -> application contract -> core policy -> required ports <- adapters
@@ -113,81 +106,4 @@ Avoid cycles. When A and B depend on each other:
 4. Replace a request for internal state with a higher-level operation.
 5. Use events only when temporal decoupling is semantically correct, not merely to hide the cycle.
 
-## Collaboration choices
-
-| Need | Prefer | Cost to acknowledge |
-|---|---|---|
-| immediate result under one consistency boundary | direct synchronous call | temporal and availability coupling |
-| independent reaction to a completed fact | domain event | ordering, delivery, idempotency, observability |
-| several ordered transformations | pipeline | order and short-circuit semantics |
-| orthogonal behavior around one operation | decorator/middleware | nesting/order and error propagation |
-| variable policy chosen by context | strategy/function | configuration and discoverability |
-| protect the core from an external model | adapter/anticorruption layer | translation and model duplication |
-| coordinate a multi-step use case | application service/orchestrator | risk of becoming a god coordinator |
-
-Do not use events when the caller must know whether an invariant was accepted. Do not use synchronous calls merely because they are easy if the receiver is an independent observer of a completed fact.
-
-## Extension design
-
-Design extension points around known variation axes:
-
-- policy varies while operation stays stable → strategy or injected function;
-- behavior wraps the same contract → decorator;
-- ordered stages vary → pipeline;
-- external representations vary → adapter;
-- object family creation varies → factory at the composition root;
-- lifecycle states vary behavior → explicit state machine;
-- independent consumers vary → events.
-
-An extension point should answer:
-
-1. What may vary?
-2. What must remain invariant?
-3. Who selects and orders extensions?
-4. What context can an extension access?
-5. How are errors, cancellation, and partial effects handled?
-6. How is compatibility maintained?
-7. How is the extension tested in isolation and composition?
-
-Avoid a universal plugin framework when one explicit composition root or pipeline is enough.
-
-## Object-oriented and functional shapes
-
-Choose by state and variation, not ideology.
-
-**Objects fit when:** identity, encapsulated mutable state, lifecycle, substitutable implementations, or protocol-like collaboration dominate.
-
-**Functions fit when:** transformations are stateless, composition is dataflow-like, dependencies can be explicit arguments, and algebraic data types represent states clearly.
-
-**Hybrid designs are normal:** immutable domain values and pure policy functions can live inside stateful aggregates or services; object adapters can compose functional middleware.
-
-Prefer composition over inheritance. Use inheritance only when subtypes preserve the full behavioral contract and the hierarchy is more stable than its combinations.
-
-## Reuse and duplication
-
-DRY applies to knowledge, not visual similarity.
-
-| Situation | Response |
-|---|---|
-| same business rule copied across paths | centralize under one authoritative owner |
-| same operation with orthogonal policies | expose a stable contract and compose policies |
-| similar mechanics for different domain meanings | keep separate until a shared concept is proven |
-| shared helper imports half the application | restore ownership; move behavior to the cohesive module |
-| generic abstraction contains many flags | split by variation axis or return to explicit implementations |
-
-A good abstraction makes consumers simpler and future changes more local. If callers must understand its internals, configure unrelated flags, or handle many impossible states, it is not hiding the right concept.
-
-## Module fitness checks
-
-Useful automated or review-time checks include:
-
-- dependency graph remains acyclic;
-- only public entry points are importable across module boundaries;
-- core packages do not import adapters/frameworks;
-- the authority or multi-writer coordination model is enforced for each protected state;
-- contract tests cover each adapter implementation;
-- state-transition tests cover invalid and concurrent transitions;
-- adding a representative policy requires a new component and composition change, not edits across the core;
-- removing a module leaves no hidden table, queue, or configuration ownership behind.
-
-Fitness checks protect decisions that matter. Avoid enforcing directory aesthetics with no architectural consequence.
+Checks that keep these decisions enforced — acyclic dependencies, public entry points, core free of adapters — are listed in [engineering-health.md](engineering-health.md#architecture-fitness-functions).

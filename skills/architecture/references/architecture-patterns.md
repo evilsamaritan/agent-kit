@@ -9,6 +9,7 @@ Architecture styles constrain dependencies, state, communication, and deployment
 - [Simple and modular monoliths](#simple-and-modular-monoliths)
 - [Layered architecture](#layered-architecture)
 - [Hexagonal and clean architecture](#hexagonal-and-clean-architecture)
+- [Microkernel and plug-in architecture](#microkernel-and-plug-in-architecture)
 - [Domain-driven design](#domain-driven-design)
 - [Microservices](#microservices)
 - [Event-driven architecture](#event-driven-architecture)
@@ -39,6 +40,10 @@ Need the lowest coordination and operational cost?
 
 Is business policy the primary complexity and infrastructure volatile?
   -> core plus ports/adapters; optionally use DDD to discover the model
+
+Does one application host many independently developed, loaded, or
+enabled features — games, editors, tools, tenants' extensions?
+  -> host plus modules behind one module contract (microkernel)
 
 Do independently owned capabilities need independent release, scale,
 security, or failure isolation?
@@ -115,6 +120,35 @@ driver adapters -> use-case contracts -> domain policy
 **Costs:** extra types, mapping, composition, and navigation. Avoid one interface per class or ports that merely reproduce a vendor API.
 
 The core owns port semantics. An adapter translates external behavior into that semantic contract. Keep framework and persistence types at the edge.
+
+## Microkernel and plug-in architecture
+
+A small host owns what is shared; features live in modules that the host loads, starts, and stops through one module contract. Client applications with a shell and lazily loaded feature modules, editors with extensions, and platforms with tenant plug-ins are all this style.
+
+```text
+host: lifecycle, navigation, session, transport, shared state owners
+  -> module contract: describe, load, start(context), stop
+       <- module A      <- module B      <- module C
+```
+
+**Useful when:**
+
+- features are developed, loaded, enabled, or released independently of each other;
+- a feature must not be paid for (downloaded, started, licensed) until it is used;
+- the set of features grows while the host should stay stable.
+
+**Required discipline:**
+
+- the host knows modules only through the contract and a list assembled in one composition root; it never imports a specific module's internals;
+- modules do not import each other; what they share is owned by the host or by a library both depend on;
+- shared facts — identity, session, wallet, locale, clock, connection — have one owner, and modules receive them through a narrow typed context the host passes in, not as copies inside each module's own state;
+- a cheap description of a module (identity, routes, availability) is separate from its implementation, so the host can decide without loading it;
+- lifecycle is explicit: what start receives, what stop must release, what happens to in-flight work, and how one module's failure is contained;
+- cross-cutting behavior — logging, retries, authorization, error reporting — wraps the contract once rather than being rewritten in every module.
+
+**Costs:** the module contract becomes the most expensive thing to change; host-versus-module version skew needs a policy; debugging crosses the host boundary.
+
+**Warnings:** validate the module contract with one real module before freezing it, and check what it assumes there is exactly one of — one active module, one instance per kind, one connection ([module-design.md](module-design.md#module-contract)). A host that accumulates every module's special cases has become the application again.
 
 ## Domain-driven design
 

@@ -61,7 +61,7 @@ Stable policy should accept known forms of variation without repeated modificati
 
 **Correction:** isolate the demonstrated variation behind composition, strategy, data-driven policy, or a narrow extension contract.
 
-OCP does not justify speculative extension points. A stable direct implementation is closed enough when no independent variation exists.
+OCP does not justify speculative extension points. A stable direct implementation is closed enough when no independent variation exists. For the shapes that make a design open, with contrast pairs, read [composable-design.md](composable-design.md).
 
 ### Liskov Substitution Principle
 
@@ -99,7 +99,15 @@ Same shape + different meaning/change owner   -> intentional duplication may be 
 Different shape + same business rule          -> centralize the rule, not the syntax
 ```
 
-Duplication is often cheaper than the wrong shared abstraction. Revisit after real divergence or repeated coordinated changes reveal the true seam.
+| Situation | Response |
+|---|---|
+| same business rule copied across paths | centralize under one authoritative owner |
+| same operation with orthogonal policies | expose a stable contract and compose policies |
+| similar mechanics for different domain meanings | keep separate until a shared concept is proven |
+| shared helper imports half the application | restore ownership; move behavior to the cohesive module |
+| generic abstraction contains many flags | split by variation axis or return to explicit implementations |
+
+Duplication is often cheaper than the wrong shared abstraction. Revisit after real divergence or repeated coordinated changes reveal the true seam. A good abstraction makes consumers simpler and future changes more local; if callers must understand its internals, configure unrelated flags, or handle impossible states, it is not hiding the right concept.
 
 ## KISS and YAGNI
 

@@ -10,11 +10,10 @@
 - [Density and scale](#density-and-scale)
 - [Consistency across views](#consistency-across-views)
 - [Accessibility](#accessibility)
-- [Review checklist](#review-checklist)
 
 ## Boundary with the visual system
 
-This reference defines what diagram marks mean. [visual-system.md](visual-system.md) defines the shared tone, exact light/dark tokens, typography, spacing, category palette, shell, and default line treatments.
+This reference owns what diagram marks mean: nodes, boundaries, relationship kinds and their line treatments, labels, density, and consistency. [visual-system.md](visual-system.md) owns tone, tokens, typography, and the category palette. [shell-components.md](shell-components.md) lists the classes that implement these marks.
 
 Select semantics before style. A renderer may adapt shapes or layout, but it must preserve element identity, boundaries, relationship direction, status, and evidence meaning.
 
@@ -38,20 +37,23 @@ Use enclosing regions only for real containment, ownership, trust, deployment, o
 
 ## Relationship grammar
 
-Every relationship needs a semantic kind before it gets a line style:
+Every relationship has a semantic kind, a direction convention, and one line treatment. Use one stable grammar within an artifact:
 
-| Relationship | Direction means | Label example |
-|---|---|---|
-| dependency | consumer points to provider | `depends on contract` |
-| call/message | sender points to receiver | `requests catalog` |
-| event | publisher points to subscriber or channel | `publishes room updated` |
-| data write | writer points to authority | `stores session` |
-| data read | reader points to source | `reads projection` |
-| transition | source state points to destination | `timeout elapsed` |
-| containment | boundary encloses member; usually no arrow | `System boundary` |
-| constraint/annotation | note associates with subject | `limited by configuration` |
+| Relationship | Direction means | Line | Label example |
+|---|---|---|---|
+| dependency | consumer points to provider | solid arrow | `depends on contract` |
+| call or message | sender points to receiver | solid arrow | `requests catalog` |
+| data write | writer points to authority | solid arrow | `stores session` |
+| data read | reader points to source | solid arrow | `reads projection` |
+| transition | source state points to destination | solid arrow | `timeout elapsed` |
+| event or indirect influence | publisher points to subscriber or channel | dashed arrow | `publishes room updated` |
+| constraint or annotation | note associates with subject | dotted line, no strong arrowhead | `limited by configuration` |
+| failure or forbidden path | same as the underlying kind | risk-colored line plus an explicit label | `rejects stale token` |
+| containment | boundary encloses member | no line | `System boundary` |
 
-Use the default solid/dashed/dotted treatments from the visual system. If the domain needs a different distinction, state it once in the legend and apply it consistently. Never use the same dashed line to mean both asynchronous flow and proposed status within one artifact.
+A stronger accent line marks the selected or primary path; it is not a new relationship kind. Never let one dashed line mean both asynchronous flow and proposed status. If the domain needs another distinction, state it once in the legend and apply it consistently.
+
+Lines are `1.5–2px` with simple `8–10px` arrowheads, consistent bends, and orthogonal routing when it reduces crossings. Every important arrow carries a verb phrase of roughly two to five words, placed near the middle of the edge on an opaque theme-matched background where lines could pass behind it. Point the arrow in the semantic direction and state the convention in the legend when readers might expect the opposite. Avoid animated arrows unless motion is the subject and can be paused. The Mermaid spelling of these treatments is in [mermaid-rendering.md](mermaid-rendering.md#relationship-grammar-in-mermaid).
 
 Render connectors as geometry: use the shared `.viz-connector` block for simple reflowing relations and SVG paths with markers for routed graphs. Never fake arrows with repeated box-drawing characters, hyphens, emoji, or a font glyph string; their length, weight, alignment, and arrowhead position change with typography.
 
@@ -148,22 +150,4 @@ Provide:
 
 For Mermaid, use accessible title and description syntax supported by the target renderer. For HTML/SVG, expose semantic names and state through native elements and appropriate accessibility attributes.
 
-## Review checklist
-
-Before delivery, verify:
-
-- the title states the question, scope, and current/target status;
-- the intended audience can identify the main takeaway without narration;
-- every element has a useful name and type;
-- important lines are directional and labelled;
-- containment, ownership, and trust boundaries are unambiguous;
-- the primary path is visually dominant;
-- line styles match the declared relationship grammar;
-- colors, shapes, line styles, and acronyms are explained where needed;
-- text remains readable at the final viewport and exported size;
-- wide content scrolls or splits instead of shrinking;
-- unknown, inferred, proposed, and current facts cannot be confused;
-- a textual equivalent preserves essential meaning;
-- the actual render was inspected, including relevant responsive and interactive states.
-
-Ask a reader to explain the view without the supporting prose. If they cannot name the scope, relationship direction, and primary takeaway, simplify or split it.
+The delivery checklist for a rendered view is step 8 of [create.md](../workflows/create.md).

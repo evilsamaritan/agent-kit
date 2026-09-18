@@ -5,7 +5,6 @@
 - [When HTML earns its cost](#when-html-earns-its-cost)
 - [Multi-view explorer pattern](#multi-view-explorer-pattern)
 - [Information architecture](#information-architecture)
-- [Theme and shell contract](#theme-and-shell-contract)
 - [Interaction contract](#interaction-contract)
 - [Implementation shape](#implementation-shape)
 - [Responsive behavior](#responsive-behavior)
@@ -29,7 +28,7 @@ HTML is not justified by rounded boxes, animation, or the ability to drag nodes.
 
 ## Multi-view explorer pattern
 
-For a substantial technical design, use a document-like explorer rather than a slide deck. Start from [visualization-shell.html](../assets/visualization-shell.html), keep [visualization-shell.css](../assets/visualization-shell.css) and [visualization-shell.js](../assets/visualization-shell.js), and replace only the example content and navigation entries. This is the same base for every generating agent and runtime, not a visual reference to reinterpret. A clean default shell provides:
+For a substantial technical design, use a document-like explorer rather than a slide deck, built on the canonical shell ([shell-components.md](shell-components.md)). The shell provides:
 
 ```text
 persistent section navigation
@@ -70,49 +69,7 @@ Use tabs only for complementary representations of the same scope, such as `Diag
 
 Keep navigation labels semantic and short. Preserve the same nouns across navigation, titles, diagram nodes, details panels, and source data.
 
-Select navigation by depth only after duplicate and non-visual views have been removed:
-
-- one view → canonical switcher shell with section navigation omitted;
-- two or three peer views → visible switcher or in-page headings;
-- four to twelve justified sections in an explicitly requested reference/atlas → persistent side navigation on wide screens;
-- more than twelve justified reference sections → bounded groups plus search or quick navigation, not one flat list.
-
-Navigation does not make an oversized view contract concise. If the primary result needs more than three views and no atlas/reference deliverable was requested, return to view selection before building the shell.
-
-The two navigation modes are modifiers of one shell, not separate page designs:
-
-- `data-viz-navigation="switcher"` keeps one to three peer views in the compact shell; omit section navigation for a single view and keep it deep-linkable;
-- `data-viz-navigation="sidebar"` keeps four to twelve justified reference sections visible in a document flow with location tracking.
-
-Do not fork the palette, theme logic, header, or mobile menu between modes. The shared JavaScript owns theme persistence, menu state, deep links, back/forward behavior, and selected navigation state; artifact code owns only content-specific interaction.
-
-## Theme and shell contract
-
-Shell-owned and content-owned concerns are deliberately separate:
-
-| Shell owns | Artifact content owns |
-|---|---|
-| navigation container and selected-location behavior | navigation labels and destinations |
-| desktop sidebar/header and mobile bottom sheet | document title, status, summary, and sections |
-| `Auto`/`Light`/`Dark`, persistence, and theme tokens | diagrams, charts, tables, prose, code, and diffs |
-| breakpoints, backdrop, scroll lock, focus trap, and dismissal | renderer-specific responsive projection inside a section |
-| deep-link and back/forward synchronization | content-specific filters, tabs, selection, or details |
-
-Do not duplicate shell-owned behavior in artifact markup or task scripts. Do not replace the menu or theme control because another runtime can generate a different one. If a new shell capability is genuinely reusable, improve the shared assets first and let all future artifacts inherit it.
-
-Support automatic light/dark adaptation in every standalone HTML artifact:
-
-1. declare both supported color schemes;
-2. use semantic CSS custom properties from the default visual system;
-3. follow the operating-system preference by default;
-4. if a manual control is useful, expose `Auto`, `Light`, and `Dark` and persist only the override;
-5. update embedded SVG, Mermaid, or canvas content rather than inverting it;
-6. keep category, status, selected, and failure semantics identical in both themes;
-7. validate both themes at wide and narrow viewports.
-
-Keep the page shell quiet: flat background, one bordered content surface, compact navigation, restrained accent, and minimal shadow. Use panels to group one coherent visual or detail region; do not wrap every paragraph or entity in a card.
-
-When a persistent side navigation exists, put global display controls such as theme in its utility footer. Keep the document header for status, title, and takeaway; do not make global controls compete with the content hierarchy.
+Choose the navigation mode only after duplicate and non-visual views have been removed ([shell-components.md](shell-components.md#navigation-modes)). Navigation does not make an oversized view set concise: if the primary result needs more than three views and no reference deliverable was requested, return to view selection before building.
 
 ## Interaction contract
 
@@ -126,49 +83,33 @@ Every interaction must answer a reader need:
 | search | locate a known entity | matches highlighted with context |
 | select/details | inspect one element without cluttering overview | selection visible; details have heading and close path |
 | current/target toggle | compare status over one model | state unmistakable; stable layout when practical |
-| zoom/pan | navigate a genuinely large visual | reset/fit control; keyboard alternative |
+| zoom/pan | navigate a genuinely large visual | not provided by the shell; if a task adds it, an explicit mode on a region marked `data-viz-pan-zoom`, with reset/fit and a keyboard alternative |
 | scenario playback | reveal order or state changes | manual controls; reduced-motion mode; final state readable |
 
 Avoid hover-only information, hidden navigation, auto-advancing sequences, and interactions that change facts without updating visible state. Preserve positions across filters and current/target projections when practical so readers can compare without relearning the layout.
 
 ## Implementation shape
 
-Represent long-lived content as structured data or a clearly documented model:
+Represent long-lived content as one structured model. Use the field names of the architecture handoff so nothing is translated twice:
 
 ```text
-sections
-  id, type, title, takeaway, status
-nodes
-  id, name, type, responsibility, owner, status, evidence
-relationships
-  source, target, kind, direction, label, status
 views
-  id, question, node selection, relationship selection, layout hints
+  id, question, audience, scope/level, status/priority, takeaway
+entities
+  id, name, type, responsibility, boundary or authority, evidence status
+relationships
+  source, kind, target, label, status, order or cardinality
 ```
 
 Render several projections from these stable identities. Avoid copying names and facts into navigation markup, diagram coordinates, details panels, and event handlers independently.
 
 Keep rendering and publishing separate. A local HTML artifact is a complete default result when the user asked for visualization, not deployment. External publication requires explicit authorization.
 
-Prefer native HTML controls and CSS layout. For standalone implementation, follow [runtime-output.md](runtime-output.md): the shared assets own the shell and responsive chrome; Tailwind may compose task-specific content inside it. Add a diagram or chart library only when it materially improves layout, interaction, or accessibility and is compatible with the target environment.
+Prefer native HTML controls and CSS layout. Delivery paths and optional dependencies are in [runtime-output.md](runtime-output.md). Add a diagram or chart library only when it materially improves layout, interaction, or accessibility and is compatible with the target environment.
 
 ## Responsive behavior
 
-Preserve comprehension across viewport sizes:
-
-- collapse persistent navigation into an explicit accessible menu on narrow screens;
-- for a substantial mobile menu, use a bottom sheet with a dismissible backdrop, internal scrolling, safe-area padding, background scroll lock, Escape/click-away dismissal, focus containment, and a visible close path;
-- recompose semantic blocks or switch to a compact projection before using scroll;
-- let irreducibly wide diagrams scroll horizontally only inside their own labelled region and expose that behavior visibly;
-- keep node labels at readable size instead of scaling the entire canvas down;
-- stack supporting panels without changing semantic order;
-- keep tabs and controls reachable without horizontal page scrolling;
-- retain the selected section and view through layout changes;
-- provide a fit/reset option for zoomable canvases.
-
-Mobile output may need a simplified overview plus selected detail rather than the same dense graph reflowed into a narrow column.
-
-Read [responsive-layout.md](responsive-layout.md) for topology-specific adaptations and reusable composition blocks.
+The shell owns responsive chrome: the collapsing navigation, the mobile bottom sheet with its backdrop, scroll lock, focus containment, and dismissal. Content follows [responsive-layout.md](responsive-layout.md): recompose or switch to a compact projection before scrolling, keep labels at reading size, stack supporting panels without changing semantic order, and retain the selected section and view through layout changes. A mobile reader may need a simplified overview plus selected detail rather than the same dense graph in a narrow column.
 
 ## Accessibility and durability
 
@@ -187,19 +128,7 @@ Deep links should remain stable when content is reordered. If state is useful to
 
 ## Validation
 
-Validate in the actual browser or closest available environment:
-
-1. open the default deep link and every section;
-2. exercise tabs, navigation, filters, selection, and reset paths;
-3. verify keyboard order, focus visibility, and non-hover access;
-4. inspect automatic, light, and dark theme behavior;
-5. inspect wide and narrow viewport behavior;
-6. confirm readable text, contrast, boundaries, arrows, and legends;
-7. verify current/proposed status and source labels;
-8. test direct URLs, refresh, back, and forward behavior;
-9. inspect print/static fallback if promised;
-10. check that essential content remains available without animation;
-11. report which browsers, themes, viewports, and interactions were actually inspected.
+Interaction-specific checks, in addition to step 8 of [create.md](../workflows/create.md): open the default deep link and every section; exercise tabs, filters, selection, and reset paths; verify keyboard order, focus visibility, and non-hover access; test direct URLs, refresh, back, and forward; confirm essential content stays available without animation; inspect the print or static fallback if one was promised.
 
 ## Anti-patterns
 

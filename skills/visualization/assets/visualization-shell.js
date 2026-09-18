@@ -1,3 +1,4 @@
+// visualization-shell revision 4
 (() => {
   const root = document.documentElement;
   const shell = document.querySelector("[data-viz-shell]");

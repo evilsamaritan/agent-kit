@@ -5,7 +5,6 @@ Select a pattern from the pressure it resolves. Start with a direct implementati
 ## Contents
 
 - [Selection method](#selection-method)
-- [Quick selection map](#quick-selection-map)
 - [Direct composition](#direct-composition)
 - [Decorator and middleware](#decorator-and-middleware)
 - [Strategy and policy](#strategy-and-policy)
@@ -35,24 +34,7 @@ Before naming a pattern, write:
 
 Reject a pattern when its contract is less clear than the repeated code, when only one hypothetical variant exists, or when it hides materially different semantics behind a false common interface.
 
-## Quick selection map
-
-| Problem signal | Candidate | Avoid when |
-|---|---|---|
-| orthogonal behavior wraps one operation | Decorator/middleware | order and shared context dominate; use explicit pipeline |
-| algorithm or policy varies | Strategy/function | there is one stable behavior |
-| incompatible external model | Adapter | mapping adds no semantic isolation |
-| many callers need one stable entry point | Facade | facade becomes an ownerless god API |
-| construction depends on runtime composition | Factory/composition root | callers can construct one concrete value directly |
-| valid behavior depends on explicit lifecycle state | State machine | states are merely display labels |
-| ordered independent stages transform work | Pipeline | stages secretly share mutable internals |
-| one of several handlers may accept work | Chain of responsibility | all handlers must run or order is fixed business policy |
-| operation must be represented, queued, retried, or audited | Command | a direct call expresses the behavior fully |
-| independent consumers react to completed facts | Domain event/observer | the producer requires their synchronous result |
-| domain needs collection-like persistence boundary | Repository | it only mirrors generic CRUD or leaks storage queries |
-| rules need semantic composition | Specification | simple conditions are clearer inline |
-| long-running process crosses owners | Saga/process manager | one local transaction can preserve the invariant |
-| state update and message publication must agree | Transactional outbox | best-effort notification is sufficient |
+The selection map — problem signal, candidate, and when to avoid it — is in SKILL.md under "Pattern selection". This file gives the depth for each candidate. For the shapes that keep a design open to extension, read [composable-design.md](composable-design.md).
 
 ## Direct composition
 
@@ -181,6 +163,8 @@ Observers react to published changes. Domain events describe meaningful complete
 **Useful when:** independent consumers need the fact, the producer does not require their immediate result, and temporal decoupling is acceptable.
 
 Specify delivery, ordering, duplication, compatibility, replay, privacy, and observability. In-process events still create hidden control flow; use direct calls when ordered collaboration is part of one use case.
+
+Do not use events when the caller must know whether an invariant was accepted. Do not use a synchronous call merely because it is easy when the receiver is an independent observer of a completed fact.
 
 ## Repository and unit of work
 

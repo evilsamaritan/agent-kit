@@ -1,180 +1,158 @@
 # Design or Redesign an Architecture
 
-Use this workflow for a new system, a new subsystem/module family, or a material redesign. Preserve the reasoning sequence while publishing only the detail required by the selected deliverable mode.
+Use this workflow for a new system, subsystem, or module family, or a material redesign. The order is: take the scope from the request, inspect, draft a model with labeled assumptions, ask about the assumptions that matter, prove the draft, then publish only the detail the selected output mode needs.
 
 ## Contents
 
 - [Output mode](#output-mode)
-- [1. Frame the decision](#1-frame-the-decision)
-- [2. Establish the current state](#2-establish-the-current-state)
+- [1. Scope the decision](#1-scope-the-decision)
+- [2. Inspect what exists](#2-inspect-what-exists)
 - [3. Synthesize scenarios](#3-synthesize-scenarios)
-- [4. Model state and invariants](#4-model-state-and-invariants)
-- [5. Draw boundaries](#5-draw-boundaries)
-- [6. Define contracts and collaboration](#6-define-contracts-and-collaboration)
-- [7. Select patterns](#7-select-patterns)
-- [8. Visualize the architecture](#8-visualize-the-architecture)
-- [9. Prove the design](#9-prove-the-design)
-- [10. Plan delivery](#10-plan-delivery)
-- [11. Produce the architecture result](#11-produce-the-architecture-result)
+- [4. Draft the model](#4-draft-the-model)
+- [5. Ask about the assumptions that matter](#5-ask-about-the-assumptions-that-matter)
+- [6. Prove the design](#6-prove-the-design)
+- [7. Draw the views](#7-draw-the-views)
+- [8. Plan delivery](#8-plan-delivery)
+- [9. Produce the result](#9-produce-the-result)
 
 ## Output mode
 
 Choose before research expands:
 
-- **Brief — default:** one decision-oriented document readable in about five minutes. Use one compact structural view, plus at most one dynamic or risk view when it adds a different fact.
-- **Design:** a canonical implementation guide for several coupled decisions. Keep evidence, exhaustive scenarios, detailed contracts, and rollout mechanics in linked supporting files.
-- **Dossier:** an exhaustive RFC, audit record, or reference set requested explicitly. Keep a brief as the entry point; do not make the reader traverse the dossier to learn the decision.
+- **Brief — default:** one decision-oriented document readable in about five minutes, with one compact structural view, at most one more view that adds a different fact, and a contract sketch.
+- **Design:** a canonical implementation guide for several coupled decisions. Evidence, exhaustive scenarios, detailed contracts, and rollout mechanics live in linked supporting files.
+- **Dossier:** an exhaustive RFC, audit record, or reference set, only when requested explicitly. A brief remains the entry point.
 
-Complexity and high reasoning effort do not select dossier mode. Research can be extensive while the delivered artifact remains a brief.
+Complexity and high reasoning effort do not select a longer mode. Research can be extensive while the delivered artifact stays a brief. Turning an agreed design into maintained project documentation is a separate step for the project's documentation practice or the `documentation` skill.
 
-## 1. Frame the decision
+## 1. Scope the decision
 
-1. State the user/business outcome and the architectural decision being made.
+1. State the outcome the user wants and the architectural decision being made, taken from the request as given.
 2. Set the boundary: whole system, subsystem, application, module family, or shared mechanism.
-3. Record hard constraints: compatibility, data, latency, availability, security, cost, team ownership, deadline, and mandated technology.
-4. Separate repository facts, user requirements, assumptions, and unknowns.
-5. Ask the user only when a remaining unknown materially changes scope, public behavior, cost, permissions, or reversibility. Otherwise make and label a conservative assumption.
+3. Record hard constraints that are already known: compatibility, data, latency, availability, security, cost, team ownership, deadline, mandated technology.
+4. Separate user requirements from your assumptions and unknowns. Do not ask anything yet; most unknowns are answered by the code.
 
 Do not begin with a preferred pattern or component list.
 
-## 2. Establish the current state
+## 2. Inspect what exists
 
 For an existing system:
 
 1. Inspect entry points, runtime composition, dependency direction, state stores, public contracts, background work, and external integrations.
 2. Trace representative end-to-end paths through code and runtime configuration.
-3. Identify actual state writers and the code enforcing each invariant.
+3. Identify the actual writers of each important state and the code that enforces each invariant.
 4. Map compatibility consumers, migration constraints, and operational dependencies.
-5. Note contradictions between documentation and executable evidence.
+5. Note contradictions between documentation and executable evidence; the code wins.
 
-For a greenfield system, record the relevant surrounding systems and constraints instead of inventing an empty-world design.
+For a greenfield system, record the surrounding systems, the conventions of the host repository, and the constraints they impose instead of designing for an empty world.
 
 ## 3. Synthesize scenarios
 
-1. Treat reported problems as hypotheses until repository, runtime, test, or incident evidence confirms them. Deduplicate alternate descriptions of the same observed behavior.
-2. Collect representative scenarios, including success, rejection, failure, retry, cancellation, concurrency, recovery, and evolution.
-3. When the cases cannot yet be grouped, build a working matrix using dimensions such as actor, operation, state, owner, invariant, policy, trigger, dependency, failure, and output.
-4. Form candidate causal clusters around a shared violated invariant, confused authority, leaky boundary, duplicated rule, lifecycle gap, dependency direction, or variation point. Do not group cases merely because the same pattern could be applied to them.
-5. For each cluster, state the causal hypothesis, supporting evidence, a competing explanation or counterexample, the architectural leverage point, and any residual cases the cause does not explain.
-6. Separate cases that only look similar but express different domain knowledge or require different owners.
-7. Replace the flat list with a smaller vocabulary of capabilities, operations, policies, states, events, and validated problem clusters.
+1. Collect representative scenarios: success, rejection, failure, retry, cancellation, concurrency, recovery, and evolution.
+2. When reported problems are part of the input, reduce them to causes first with [root-cause-analysis.md](../references/root-cause-analysis.md).
+3. When cases do not group easily, build a working matrix over dimensions such as actor, operation, state, owner, invariant, policy, trigger, dependency, failure, and output.
+4. Separate cases that only look similar but express different domain knowledge or need different owners.
+5. Replace the flat list with a smaller vocabulary of capabilities, operations, policies, states, and events.
 
-Example synthesis:
+Example:
 
 ```text
 Cases: authenticated call, retried call, measured call, cached call, combinations
 Stable operation: execute RPC request
 Orthogonal policies: authenticate, retry, measure, cache
 Resulting pressure: compose policies without duplicating or modifying the transport core
-Candidate shape: narrow client contract plus ordered decorators/pipeline stages
+Candidate shape: narrow client contract plus ordered decorators
 ```
 
-The scenario matrix validates the architecture; it must not become one component or task per row. A proposed pattern is not evidence that a cluster has one cause. Publish only the representative cases that establish, change, or disprove the model, plus residual cases that need separate treatment. Keep the full matrix as a separate appendix only when it is a requested acceptance artifact.
+The matrix validates the architecture; it must not become one component or task per row. Publish only the cases that establish, change, or disprove the model.
 
-## 4. Model state and invariants
+## 4. Draft the model
 
-1. Name each durable and ephemeral state.
-2. Assign an explicit authority model for every invariant. Prefer one owner/write path; document partitioning, consensus, or merge semantics when multiple writers are essential.
-3. Describe valid state transitions and rejected transitions.
-4. Decide which facts are queried synchronously and which changes are published as events.
-5. State transaction, ordering, idempotency, consistency, and recovery expectations where relevant.
-6. Separate domain policy from persistence and transport mechanisms.
+Draft quickly and mark every assumption. The draft is what the questions in step 5 will be about.
 
-If two proposed components must jointly enforce one invariant synchronously, reconsider the boundary before adding distributed coordination.
+**State and invariants**
 
-## 5. Draw boundaries
+1. Name each durable and ephemeral state and give every invariant an explicit authority model ([module-design.md](../references/module-design.md#state-and-invariant-ownership)).
+2. Describe valid and rejected transitions.
+3. State transaction, ordering, idempotency, consistency, and recovery expectations where they matter.
 
-1. Group responsibilities that change together and share invariants.
-2. Separate responsibilities with distinct language, ownership, lifecycle, trust, scale, or failure behavior.
-3. Define the core: policies and models that express the system's purpose.
-4. Put volatile mechanisms—frameworks, transports, storage, vendors, UI, clocks—behind edge adapters when independence has concrete value.
-5. Test each boundary for cohesion, coupling, fan-in/fan-out, cyclic dependencies, and chatty collaboration.
-6. Choose the deployment boundary separately from the code/module boundary. A module does not need to become a service.
+If two proposed components must jointly enforce one invariant synchronously, reconsider the boundary before adding coordination.
 
-Prefer explicit modules inside the simplest viable deployment topology.
+**Boundaries**
 
-## 6. Define contracts and collaboration
+1. Group responsibilities that change together and share invariants; separate those with distinct language, ownership, lifecycle, trust, scale, or failure behavior (boundary tests in SKILL.md).
+2. Define the core: the policies and models that express the system's purpose. Put volatile mechanisms behind edge adapters when that independence has concrete value.
+3. Choose the deployment boundary separately from the module boundary. A module does not need to become a service. Prefer explicit modules inside the simplest viable deployment topology.
 
-For each boundary:
+**Contracts and collaboration**
 
-1. State responsibility and non-responsibilities.
-2. Define the smallest public contract needed by consumers.
-3. Name inputs, outputs, errors, side effects, ownership transfer, and compatibility rules.
-4. Choose dependency direction so stable policy does not depend on volatile details.
-5. Choose synchronous calls when the caller needs an immediate result and coupled availability is acceptable.
-6. Choose events when a completed fact has independent consumers and temporal decoupling is valuable.
-7. Make lifecycle and composition order explicit for decorators, middleware, plugins, or pipelines.
+1. For each boundary state responsibility and non-responsibilities, the smallest public contract consumers need, and inputs, outputs, errors, side effects, and compatibility rules.
+2. Choose dependency direction so stable policy does not depend on volatile details.
+3. Write the contract sketch now: the few interfaces, signatures, or pseudo-code fragments with real names, who calls whom, who owns what.
+4. Check what each contract assumes there is exactly one of, and whether a known upcoming requirement breaks that.
 
-Avoid exposing internal data structures merely to save one mapping layer.
-
-## 7. Select patterns
+**Composition and patterns**
 
 1. Name the force before the pattern: variation, isolation, coordination, lifecycle, consistency, or compatibility.
-2. Consider the direct solution first.
-3. Compare at least one viable alternative and the option to keep the current design.
-4. Select the smallest pattern that resolves the demonstrated force.
-5. Record the new complexity: indirection, ordering, state, operational burden, testing surface, or migration cost.
-6. Define a deletion or simplification path for temporary architecture.
+2. Consider the direct solution first, then the smallest open shape that resolves the force ([composable-design.md](../references/composable-design.md), [design-patterns.md](../references/design-patterns.md)).
+3. Compare at least one viable alternative and, for an existing system, keeping the current design.
+4. Record the complexity each choice adds: indirection, ordering, state, operational burden, testing surface, migration cost.
 
-Read the relevant pattern reference only after the force is known.
+## 5. Ask about the assumptions that matter
 
-## 8. Visualize the architecture
+Ask only about assumptions that would change a boundary, an owner, a lifetime or cardinality, external behavior, cost, or a one-way decision. Everything else stays a labeled assumption.
 
-1. State the question and abstraction level for each view.
-2. Create one static map: system context/container for a system decision, or component/module/dependency map for an application decision.
-3. In brief mode, add at most one sequence/dynamic or risk-specific view when it exposes a fact the static map cannot.
-4. In design or dossier mode, add another state, data/trust, deployment, or migration view only when that dimension drives a separate decision.
-5. Keep current, target, and transitional architecture in separate views with stable identities and explicit status.
-6. Label responsibilities and relationship intent; distinguish repository evidence, inference, proposal, and unknowns.
-7. Draw the selected views directly with maintainable Mermaid, text, or a host-native diagram. Use the `visualization` skill only when a separate responsive HTML or Playground-style artifact is part of the request.
-8. Put a one-sentence takeaway next to each diagram. Do not replace the diagram with prose or a presentation.
+- Look facts up in the repository; never ask them.
+- Ask in the user's words, not the draft's internal names.
+- Give each question two to four options and say what each option changes in the design.
+- Attach a concrete example from the code or a scenario, so the choice is not abstract.
+- Ask in one batch, revise the draft, and ask again only if an answer opened a new consequential fork.
 
-Read [visualization.md](../references/visualization.md) for view selection, direct diagramming, and the optional semantic handoff. Architecture owns concise diagrams in its document; the `visualization` skill owns the polished web shell, responsive projections, themes, interaction, and browser inspection when that extra artifact is required.
+When the run cannot pause for answers, proceed on the most conservative assumptions and list the open questions at the top of the result, each with the decision it would change.
 
-## 9. Prove the design
+## 6. Prove the design
 
-Internally walk the smallest representative set that covers the applicable risks:
+Walk the smallest representative set that covers the applicable risks:
 
-1. Representative success path.
-2. Validation or business rejection.
-3. Dependency timeout, partial failure, or malformed response.
-4. Duplicate, retry, or concurrent operation where applicable.
-5. Restart or recovery with in-flight work where applicable.
-6. One likely extension that exercises a declared variation point.
-7. One unrelated change that should remain isolated.
+1. A representative success path.
+2. A validation or business rejection.
+3. A dependency timeout, partial failure, or malformed response.
+4. A duplicate, retry, or concurrent operation where applicable.
+5. A restart or recovery with in-flight work where applicable.
+6. One likely extension that exercises a declared extension point.
+7. One unrelated change that should stay isolated.
 
-If each case needs a new exception in the core, the model is incomplete. If the extension requires only configuration but has materially new semantics, the abstraction may be hiding important differences. Report the cases that changed the decision or remain risky; do not turn every internal walkthrough into a section of the canonical design.
+If each case needs a new exception in the core, the model is incomplete. If an extension with materially new semantics needs only configuration, the abstraction may be hiding an important difference. Report the cases that changed the decision or remain risky; do not turn every walkthrough into a section.
 
-## 10. Plan delivery
+## 7. Draw the views
 
-For an existing system or when the user asks for an implementation plan:
+Select and draw the views with [architecture-views.md](../references/architecture-views.md): one static map, plus one dynamic or risk view when it exposes a fact the map cannot. Keep current, target, and transitional architecture in separate views. Put a one-sentence takeaway next to each diagram. Use the `visualization` skill only when a separate responsive HTML explorer is part of the request.
+
+## 8. Plan delivery
+
+For an existing system, or when the user asks for an implementation plan:
 
 1. Identify a seam where old and new behavior can coexist.
-2. Split delivery into independently verifiable vertical slices.
-3. Preserve public compatibility or provide an explicit migration/versioning strategy.
+2. Split delivery into independently verifiable vertical slices; validate a shared contract with one real implementation before replicating it.
+3. Preserve public compatibility or provide an explicit migration or versioning strategy ([engineering-health.md](../references/engineering-health.md#migration-strategy)).
 4. Define characterization tests before changing poorly understood behavior.
-5. Add architecture fitness checks for critical boundaries and invariants.
-6. Define telemetry, rollout gates, rollback points, and cleanup conditions.
+5. Add fitness checks for the boundaries and invariants that matter.
+6. Define rollout gates, rollback points, and cleanup conditions where they affect the decision.
 7. Keep the final architecture and the transitional architecture distinct.
 
-For a greenfield decision with no migration, record only the first verifiable slice. Do not manufacture rollback, telemetry, or compatibility sections that do not affect the decision. Do not present a big-bang rewrite as the default migration plan.
+For a greenfield decision with no migration, record only the first verifiable slice. Do not manufacture rollback, telemetry, or compatibility sections that do not affect the decision, and do not present a big-bang rewrite as the default plan.
 
-## 11. Produce the architecture result
+## 9. Produce the result
 
-Return a decision-first canonical artifact:
+Return a decision-first artifact:
 
-1. **Decision and scope:** conclusion, status, drivers, constraints, and consequential unknowns.
-2. **Model:** one structural view and a compact ownership/contract explanation.
-3. **Behavior:** one representative flow only when order, failure, or concurrency changes the design.
-4. **Tradeoffs:** chosen approach, important alternative, cost, and unresolved risk.
-5. **Delivery:** next verifiable slice; add migration and rollback only when they are part of the problem.
+1. **Decision and scope:** conclusion, status, drivers, constraints, open questions with the decision each would change.
+2. **Model:** one structural view and a compact ownership explanation.
+3. **Contract sketch:** the interfaces or pseudo-code an implementer starts from.
+4. **Behavior:** one representative flow, only when order, failure, or concurrency changes the design.
+5. **Tradeoffs:** the chosen approach, the important alternative, cost, and unresolved risk.
+6. **Delivery:** the next verifiable slice; migration and rollback only when they are part of the problem.
 
-Then link conditional supporting artifacts instead of merging them into the main reading path:
+Link conditional supporting artifacts instead of merging them into the main reading path: evidence and current-state inventory, detailed contract or API/schema specifications, the full scenario matrix, decision records ([adr-template.md](../references/adr-template.md)), rollout and fitness plans.
 
-- evidence and current-state inventory;
-- detailed contracts or API/schema specifications;
-- full scenario/acceptance matrix;
-- ADRs;
-- rollout, observability, and fitness plans.
-
-Before delivery, remove duplicated conclusions, background that does not change a decision, and details already owned by a linked artifact. Parallel reviews must produce a ranked synthesis, not the union of every concern. Write ADRs only for consequential decisions that future maintainers will need to understand independently.
+Before delivery, remove duplicated conclusions, background that changes no decision, coined terms, and details already owned by a linked artifact. When the design is revised later, update this artifact in place rather than adding a correcting document beside it.

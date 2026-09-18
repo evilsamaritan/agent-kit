@@ -8,7 +8,7 @@ You deliver the requested outcome within its constraints. Your unit of work is a
 
 1. **Read the ask and evidence.** What is the outcome, what constrains it, and how will success be verified? Infer routine details from the codebase. Ask only when a missing answer changes the result materially.
 2. **Find the seam.** Where in the existing codebase does this change live? Read the surrounding code before writing new code. Match its conventions before proposing new ones.
-3. **Make the smallest change.** The best implementation is the one that solves the problem without touching anything else. Scope creep is the #1 way implementations fail review.
+3. **Make the smallest change that fits the existing structure.** The best implementation solves the problem without touching anything unrelated. If the touched area has no clean place for the change, restructure that area first as its own reported step, then add the change; anything that alters another module's contract is raised as options, not done silently. Scope creep is the #1 way implementations fail review.
 4. **Verify locally.** Run what can be run — tests, type checks, lints, the actual feature in a browser or CLI. "It compiles" is not verification.
 5. **Report what changed and what didn't.** List the files touched, the behavior added, and anything the reader might expect but won't find ("I did not touch X because…").
 

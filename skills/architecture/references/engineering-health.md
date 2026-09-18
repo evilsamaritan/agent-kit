@@ -11,22 +11,23 @@ Assess architecture by its effect on correctness, change, ownership, delivery, a
 - [Architecture fitness functions](#architecture-fitness-functions)
 - [Technical debt](#technical-debt)
 - [Migration strategy](#migration-strategy)
-- [Review output](#review-output)
 
 ## Health dimensions
 
-| Dimension | Healthy signal | Warning signal |
-|---|---|---|
-| Coherence | scenarios share a small model and mechanisms | each case introduces a new branch or subsystem |
-| Ownership | explicit authority/coordination per invariant and mutable state | accidental shared writes and duplicated rules |
-| Modularity | changes remain within cohesive boundaries | unrelated modules change together |
-| Dependency | visible, acyclic, stable direction | cycles, reach-through imports, hidden globals |
-| Contracts | narrow semantic surfaces with explicit failure | internal/storage models leak to consumers |
-| Delivery | reversible slices and independent verification | lockstep or big-bang changes |
-| Reliability | failure, retry, recovery, and overload are designed | unknown outcomes and manual repair are normal |
-| Evolvability | compatibility and migration are routine | every change requires coordinated replacement |
-| Operability | runtime evidence tests assumptions | incidents are the only feedback mechanism |
-| Comprehension | main flow and ownership are explainable | only tribal knowledge connects the pieces |
+| Dimension | Review question | Healthy signal | Warning signal |
+|---|---|---|---|
+| Coherence | Do scenarios pass through one shared model or many independent fixes? | scenarios share a small model and mechanisms | each case introduces a new branch or subsystem |
+| Ownership | Does each invariant and mutable state have one owner or an explicit coordination model? | explicit authority per invariant and state | accidental shared writes, duplicated rules, state copied per consumer |
+| Modularity | Do modules hold what changes together, and can a change stay local? | changes remain within cohesive boundaries | unrelated modules change together |
+| Dependency | Is dependency direction visible, acyclic, and stable? | policy does not depend on mechanism | cycles, reach-through imports, hidden globals |
+| Contracts | Can consumers bypass contracts or depend on internals? | narrow semantic surfaces with explicit failure | internal or storage models leak to consumers |
+| Openness | Do demonstrated variations compose, or does each new case edit the core? | new behavior is a new piece; defaults are replaceable | growing switches, flags, and factories |
+| Simplicity | Does each abstraction and runtime boundary pay for its complexity? | direct calls where nothing varies; known patterns | coined machinery, a framework for one case |
+| Reliability | Are timeout, partial failure, retry, duplicate, recovery, and degradation explicit? | failure and overload are designed | unknown outcomes and manual repair are normal |
+| Delivery | Can change ship in reversible, independently verified slices? | reversible slices | lockstep or big-bang changes |
+| Evolvability | Can contracts, data, and behavior migrate without lockstep replacement? | compatibility and migration are routine | every change needs coordinated replacement |
+| Operability | Can production evidence confirm the design's assumptions? | runtime evidence tests assumptions | incidents are the only feedback mechanism |
+| Comprehension | Can the main flow and ownership be explained without reading every file? | explainable from a short model | only tribal knowledge connects the pieces |
 
 Do not demand maximum scores everywhere. A prototype may intentionally trade durability or modular ceremony for learning speed. Make the trade explicit and revisitable.
 
@@ -62,20 +63,13 @@ Co-change history is a clue, not proof. Files may change together during migrati
 
 ## Ownership and boundaries
 
-Review each important invariant and capability:
-
-- Who decides whether a state change is valid?
-- Who persists the authoritative result?
-- Can another component bypass the owner?
-- Are derived views visibly derived?
-- Does the module's public contract reflect domain meaning?
-- Do runtime and team boundaries reinforce or fight the code boundary?
-- Can the owner evolve without coordinated changes in many consumers?
+Review each important invariant and capability with the ownership tests in [module-design.md](module-design.md#state-and-invariant-ownership), and check whether runtime and team boundaries reinforce or fight the code boundary.
 
 Common structural problems:
 
 - shared database tables treated as an integration contract;
 - utility packages containing business policy from many domains;
+- the same state, rule, or formatter copied into every module of a kind instead of one owner;
 - central orchestrators owning every decision;
 - technical-layer services with no cohesive capability;
 - events published without schema/semantic ownership;
@@ -89,10 +83,13 @@ Examples:
 
 | Property | Possible check |
 |---|---|
-| dependency direction | forbidden-import or architecture test |
+| dependency direction | forbidden-import or architecture test; core packages do not import adapters or frameworks |
+| acyclic structure | dependency-graph cycle check |
 | module encapsulation | only public entry points importable across boundaries |
 | one state owner | write access restricted and audited |
-| contract compatibility | consumer/provider contract suite |
+| contract compatibility | consumer/provider contract suite; one shared suite run against every implementation of a contract |
+| open extension | adding a representative variant needs a new piece and a composition change, not edits across the core |
+| clean removal | removing a module leaves no hidden table, queue, or configuration ownership behind |
 | valid lifecycle | model/property tests over state transitions |
 | idempotency | duplicate and retry integration tests |
 | projection convergence | reconciliation test and lag alert |
@@ -136,19 +133,4 @@ Architecture evolves safely through seams:
 - **versioned boundary** — preserve old semantics while consumers migrate;
 - **reconciliation** — detect and repair divergence during dual operation.
 
-For each slice define authority, compatibility, observability, rollback, and cleanup. Avoid indefinite dual writes; if unavoidable, designate one authority and reconcile explicitly.
-
-## Review output
-
-An architecture-health report should include:
-
-1. Scope and evidence inspected.
-2. Current model: components, owners, state, contracts, and runtime topology.
-3. Ranked findings with affected outcomes and concrete evidence.
-4. A target model showing how symptoms collapse into fewer mechanisms.
-5. Alternatives and accepted tradeoffs.
-6. Reversible migration slices.
-7. Fitness functions and runtime signals.
-8. Unknowns that require a spike or user decision.
-
-Avoid generic maturity scores unless they drive a specific decision. The useful result is a prioritized set of leverage points tied to system outcomes.
+For each slice define authority, compatibility, observability, rollback, and cleanup. Avoid indefinite dual writes; if unavoidable, designate one authority and reconcile explicitly. Contract and data compatibility during a migration is covered in [system-design.md](system-design.md#evolution); the report form for a health assessment is the review output in [review.md](../workflows/review.md).

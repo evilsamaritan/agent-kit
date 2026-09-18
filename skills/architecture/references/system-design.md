@@ -19,17 +19,9 @@ Use this reference after scenario synthesis to reason about runtime components, 
 
 ## System model
 
-Describe the system through connected views:
+Describe the system through a few connected views — context, runtime, data, module, deployment — each showing one kind of fact and excluding the rest. View selection and the contract each view must meet are in [architecture-views.md](architecture-views.md).
 
-| View | Shows | Excludes |
-|---|---|---|
-| Context | users, external systems, trust boundaries | internal implementation |
-| Runtime | processes/services/functions, synchronous and async links | class-level detail |
-| Data | authoritative state, writers, replicas, caches, retention | incidental objects |
-| Module | application core, capabilities, public contracts, dependencies | deployment assumptions unless relevant |
-| Deployment | instances, regions, cells, networks, stores | business logic detail |
-
-Use the fewest views needed to make ownership, interaction, and risk clear. A diagram without semantics is decoration; annotate protocols, direction, ownership, and critical guarantees.
+Use the fewest views that make ownership, interaction, and risk clear. A diagram without semantics is decoration; annotate protocols, direction, ownership, and critical guarantees.
 
 ## Drivers and budgets
 
@@ -60,7 +52,7 @@ For every important datum, identify:
 
 Do not let shared schemas create accidental multi-owner state. When another component needs the data, choose among a query contract, published event, replicated projection, or ownership transfer based on freshness, autonomy, and failure needs.
 
-Model the write path before optimizing reads. Read convenience must not obscure who validates and commits the truth.
+Model the write path before optimizing reads. Read convenience must not obscure who validates and commits the truth. The authority model and the tests for it are in [module-design.md](module-design.md#state-and-invariant-ownership).
 
 ## Consistency and transactions
 
@@ -192,7 +184,7 @@ For data and contract migrations:
 - switch authority once, with rollback criteria;
 - remove transitional paths after evidence shows they are unused.
 
-Keep the desired architecture distinct from temporary dual-write, proxy, translation, or compatibility mechanisms.
+Keep the desired architecture distinct from temporary dual-write, proxy, translation, or compatibility mechanisms. Migration strategies — branch by abstraction, strangler, shadow/compare — are in [engineering-health.md](engineering-health.md#migration-strategy).
 
 ## Design completeness check
 

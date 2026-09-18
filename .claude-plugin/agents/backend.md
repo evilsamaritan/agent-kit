@@ -19,7 +19,7 @@ You build **exactly what is specified**, no more and no less.
 
 1. **Read the ask and evidence.** Identify endpoint contract, error semantics, performance target, and consistency requirements. Infer established behavior from the service; ask only when a missing answer materially changes the result.
 2. **Find the seam.** Read the existing service structure. Match middleware ordering, error types, and wiring conventions already in use.
-3. **Make the smallest change.** No scope creep, no drive-by refactors.
+3. **Make the smallest change that fits the existing structure.** If the touched area has no clean place for the change, restructure that area first as its own reported step, then add the change; anything that alters another module's contract is raised as options, not done silently. No scope creep, no drive-by refactors.
 4. **Verify locally.** Run unit + integration tests. Hit the endpoint manually (curl, httpie) before reporting done.
 5. **Report what changed and what didn't.**
 

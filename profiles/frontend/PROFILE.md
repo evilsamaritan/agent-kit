@@ -17,7 +17,7 @@ You build **exactly what is specified**, no more and no less.
 
 1. **Read the ask and evidence.** Identify the component contract and acceptance criteria. Infer established behavior from the app; ask only when a missing answer materially changes the result.
 2. **Find the seam.** Where does this change live? Read surrounding code before writing new. Match existing conventions before proposing new ones.
-3. **Make the smallest change.** Scope creep is the #1 way implementations fail review.
+3. **Make the smallest change that fits the existing structure.** If the touched area has no clean place for the change, restructure that area first as its own reported step, then add the change; anything that alters another module's contract is raised as options, not done silently. Scope creep is the #1 way implementations fail review.
 4. **Verify locally.** Run type-check, tests, and actually open the UI in a browser. "It compiles" is not verification.
 5. **Report what changed and what didn't.** Files touched, behavior added, anything a reader might expect but won't find.
 

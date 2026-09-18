@@ -1,89 +1,79 @@
-# Runtime Output Strategy
+# Delivery and Runtime Output
 
-Treat rendering capabilities as runtime features, not assumptions embedded in the skill.
+Rendering and hosting capabilities are features of the active session, not assumptions of the skill. The artifact is the same in every case: responsive HTML on the canonical shell. Only the delivery path changes.
 
-## Capability ladder
+## Contents
 
-This skill produces a separate web artifact. Use the first available option that supports the required structure:
+- [Delivery paths](#delivery-paths)
+- [Host-native artifact paths](#host-native-artifact-paths)
+- [Local files](#local-files)
+- [Single-file delivery](#single-file-delivery)
+- [Optional dependencies](#optional-dependencies)
+- [Authority](#authority)
 
-1. **Active host-native interactive artifact capability** — use when callable in the current session and it can emit or host the canonical visualization shell unchanged.
-2. **Local HTML/CSS/JavaScript** — the portable fallback for web previews, multi-view navigation, progressive disclosure, code/diff views, and interaction.
-3. **Embedded Mermaid or SVG inside that artifact** — use per view when its topology benefits from a diagram renderer or custom geometry.
-4. **Raster preview** — use only as a review or delivery snapshot, never as the sole source of a long-lived technical artifact.
+## Delivery paths
 
-Do not assume that a named product always exposes the same tools, installed skills, renderer versions, publishing capability, or file access. Inspect the active session.
+Use the first option that supports the required structure:
 
-Every output must be theme-safe. Prefer automatic adaptation; when the medium is static, provide paired light/dark variants or a neutral print-safe version if the artifact will appear on both surface types.
+1. **A host-native interactive artifact path** — when it is callable in the current session and can host the canonical shell unchanged.
+2. **Local HTML, CSS, and JavaScript** — the portable default for previews, multi-view navigation, disclosure, code and diff views, and interaction.
+3. **A raster snapshot** — only as a review or delivery snapshot, never as the sole source of a long-lived artifact.
 
-## Host-native capability
+Do not assume a named product always exposes the same tools, renderer versions, publishing ability, or file access. Inspect the active session. Running inside a different agent, preview tool, or repository is not a reason to change the chrome.
 
-When a native visualizer is available:
+## Host-native artifact paths
 
-- use the shared shell assets for navigation, themes, responsive chrome, and interaction; do not accept runtime-generated replacement chrome;
-- pass it the selected entities, relationships, groups, states, labels, and status semantics;
-- map the default visual-system tokens and relationship grammar as closely as the capability permits;
-- request automatic light/dark adaptation or generate equivalent theme variants when supported;
-- preserve the visual question and abstraction level;
-- request or retain editable source when long-term maintenance matters;
-- inspect the actual output rather than trusting generation success;
+When the host can render or publish HTML:
+
+- give it the artifact built on the shared shell; do not accept host-generated replacement navigation, theme controls, or responsive wrappers;
+- if the host accepts only one file, use [single-file delivery](#single-file-delivery);
+- if the host controls light and dark itself, bridge its signal to the shell's control instead of adding a second theme mechanism (below);
+- inspect the actual output rather than trusting that generation succeeded;
 - keep publication distinct from creation.
 
-A native capability may render the visual, but it does not replace the canonical shell, source analysis, diagram selection, or readability review. If the capability cannot preserve the shell contract, use local HTML instead.
+If the host cannot preserve the shell contract, deliver local HTML instead.
 
-## Embedded Mermaid
+## Local files
 
-Prefer stable syntax supported by the target environment. Flowchart, sequence, and state diagrams are broadly useful; newer or specialized syntax requires renderer verification.
+Copy the three shell files together and build inside them ([shell-components.md](shell-components.md)). Keep the model or data separate from rendering code when the artifact has several views or will evolve. Provide a static or textual fallback for essential content. An existing product design system replaces the shell only when the user explicitly asks to integrate the visualization into that product's UI.
 
-Read [renderer-selection.md](renderer-selection.md) before choosing Mermaid. Mermaid owns standard diagram topology only; the shared HTML shell continues to own navigation, prose, disclosure, themes, responsive alternatives, charts, and code/diff content.
+## Single-file delivery
 
-Use:
+Some hosts and some sharing paths need one self-contained HTML file.
 
-- stable identifiers separate from display labels;
-- directional flow appropriate to the question;
-- action labels on important edges;
-- subgraphs only for real groups or boundaries;
-- accessible title and description syntax where supported;
-- minimal styling so semantics remain portable;
-- the default palette when custom theming is supported without making the source host-specific.
+1. Build and check the artifact as separate files first.
+2. Inline `visualization-shell.css` into a `<style>` element and each script into a `<script>` element, in the original order: shell, then optional diff, code, and Mermaid modules (`type="module"` where the original had it).
+3. Keep every hook, the early theme bootstrap, `data-viz-shell-revision`, and — when Mermaid is present — the loading gate and its `<noscript>` fallback.
+4. Run the contract check on the combined file; it reads inline content the same way.
 
-Render or preview changed diagrams when tooling exists. If it does not, report syntax-only validation explicitly.
+**Bridging a host theme.** When the host sets its own theme signal, translate it into the shell's control so persistence, tokens, and diagram re-rendering all follow the one path:
 
-For a simple diagram living directly in an architecture document, let the `architecture` skill own it without invoking this skill. When Mermaid is embedded in HTML, use the modifiable base theme, map separate light/dark `themeVariables`, set `darkMode` correctly, and re-render when the active theme changes.
-
-For standalone HTML that renders Mermaid after load, add `data-viz-mermaid-loading` to the root element before first paint, keep the no-script visibility fallback from `_preview.html`, and set `history.scrollRestoration = "manual"` in the early head bootstrap. The renderer commits completed SVGs together, restores the requested hash once, and then reveals the main content. Without that loading gate, asynchronous layout can make refresh and deep links visibly jump.
-
-The provided renderer imports a pinned Mermaid build from a CDN for connected local previews. Treat that as a preview dependency, not an archival guarantee. For durable, offline, published, or production artifacts, vendor or bundle Mermaid through the consuming repository's existing build while preserving the same source and rendering contract. Essential content still needs the textual fallback because network and renderer failure are valid states.
-
-## Local HTML
-
-Default to a local artifact when no suitable host-native renderer is callable. For a standalone artifact, copy the canonical [visualization-shell.html](../assets/visualization-shell.html), [visualization-shell.css](../assets/visualization-shell.css), and [visualization-shell.js](../assets/visualization-shell.js) together. Keep the shell DOM and hooks; choose only `switcher` or `sidebar`, replace its example views and navigation entries, and add content-specific code without duplicating shell behavior. Add [visualization-mermaid.js](../assets/visualization-mermaid.js) only when the artifact contains Mermaid source. Its optional `data-viz-compact-direction` hook changes layout direction at compact viewport widths without changing the canonical graph. Tailwind may extend content layout and typography, while the shared CSS owns tokens, themes, responsive chrome, diagram semantics, and connectors.
-
-An existing product design system replaces this shell only when the user explicitly asks to integrate the visualization into that product UI. Merely running inside a different agent, Playground, or repository is not an exception.
-
-Do not load Tailwind's browser compiler merely to style the canonical shell or reproduce utilities already present in the shared CSS. Runtime compilation can create a flash of unstyled or reflowing content during refresh. If a one-off content prototype genuinely benefits from Tailwind and network access is acceptable, Play CDN remains an opt-in development tool:
-
-```html
-<script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+```js
+function followHostTheme(theme /* "light" | "dark" | "auto" */) {
+  document.querySelector(`[data-viz-theme-value="${theme}"]`)?.click()
+}
 ```
 
-Keep those utilities inside the content region; the canonical CSS still owns shell layout, themes, navigation, and responsive chrome. For a durable, offline, published, or production artifact, compile Tailwind through the repository's existing build path or serve generated CSS locally. Do not silently add a framework dependency to an established project, and do not require the network merely to read an archived artifact.
+Do not write theme attributes directly and do not add a second set of tokens.
 
-Keep model/data separate from rendering code when the artifact has several views or will evolve. Provide a static or textual fallback for essential content. Add [visualization-code.js](../assets/visualization-code.js) for highlighted code evidence and [visualization-diff.js](../assets/visualization-diff.js) only when a diff view needs a split/unified control; keep both separate from the content-neutral shell runtime. The code adapter uses a pinned Highlight.js CDN module for connected previews and leaves source text intact if loading fails. Vendor or bundle that dependency for durable/offline artifacts. Default to system theme preference; add an `Auto`/`Light`/`Dark` control only when the artifact benefits from a persistent override.
+## Optional dependencies
 
-## Delivery boundary
+| Dependency | Used by | Connected preview | Durable, offline, or published output |
+|---|---|---|---|
+| Mermaid | `visualization-mermaid.js` | pinned CDN module | vendor or bundle through the consuming repository ([mermaid-rendering.md](mermaid-rendering.md#dependencies-and-durability)) |
+| syntax highlighter | `visualization-code.js` | pinned CDN module; source text stays readable if loading fails | vendor or bundle |
+| a utility CSS framework | task-specific content only | an opt-in browser build for a one-off prototype | compile through the repository's build or serve generated CSS |
+
+The shared CSS already owns tokens, themes, navigation, responsive chrome, and components. Do not load a browser-side CSS compiler merely to restyle the shell: runtime compilation causes a flash of unstyled, reflowing content. Do not silently add a framework dependency to an established project, and do not require the network merely to read an archived artifact.
+
+## Authority
 
 | Action | Default authority |
 |---|---|
 | create or edit local source in scope | allowed by an implementation request |
 | render or preview locally | allowed as validation |
-| open/show the result in the active workspace UI | allowed when useful |
-| install new dependencies | requires the normal environment/approval policy |
+| open or show the result in the active workspace | allowed when useful |
+| install new dependencies | follows the normal environment and approval policy |
 | publish, host, share, or send externally | requires explicit user authorization |
 
-Report the exact boundary: source created, syntax checked, rendered, light/dark inspected, browser-tested, or published. These are different claims.
-
-## Further reading
-
-- [Tailwind Play CDN](https://tailwindcss.com/docs/installation/play-cdn) — development-only browser setup and current script source
-- [Mermaid diagram syntax](https://mermaid.js.org/intro/getting-started.html) — supported diagram types and rendering guidance
-- [Mermaid accessibility](https://mermaid.js.org/config/accessibility.html) — accessible titles and descriptions
+Report the exact boundary reached: source created, contract check passed, rendered, light and dark inspected, browser-tested, or published. These are different claims.

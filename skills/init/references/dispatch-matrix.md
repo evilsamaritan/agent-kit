@@ -35,7 +35,7 @@
 
 | Recurring responsibility | Add profile when |
 |--------------------------|------------------|
-| architect | Cross-package contracts, major design decisions, or ADR work recur |
+| architect | Cross-package contracts, major design decisions, recurring problems with a shared cause, structural critique of changes, or decision records recur |
 | frontend | The project owns browser UI |
 | backend | The project owns services, APIs, jobs, or data access |
 | tester | Test authoring/auditing is a recurring independent responsibility |

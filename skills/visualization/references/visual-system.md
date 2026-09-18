@@ -7,18 +7,17 @@
 - [Theme behavior](#theme-behavior)
 - [Color tokens](#color-tokens)
 - [Typography and spacing](#typography-and-spacing)
-- [Shell selection](#shell-selection)
+- [Page composition](#page-composition)
 - [Diagram palette](#diagram-palette)
-- [Relationships and arrows](#relationships-and-arrows)
 - [Information disclosure](#information-disclosure)
 - [Controlled exceptions](#controlled-exceptions)
 - [Further reading](#further-reading)
 
 ## Reproducible default
 
-Use this system whenever the user asks for a clean, polished, or consistent web visualization without supplying another visual language. Standalone HTML uses the same canonical shell implementation across Claude, Codex, other agents, host-native artifact paths, and local HTML; renderer choice changes the content canvas, not the surrounding navigation or theme system.
+Use this system whenever the user asks for a clean, polished, or consistent web visualization without supplying another visual language. It is implemented by [visualization-shell.css](../assets/visualization-shell.css); an artifact built on the shell gets it without restating any value below. Read this file when changing tokens, the palette, or typography, or when mapping the system onto a renderer the stylesheet does not reach.
 
-The tone is a quiet Codex-like technical workspace. Treat this as a tonal reference, not brand imitation:
+The tone is a quiet technical workspace:
 
 - warm near-white light surfaces and neutral charcoal dark surfaces;
 - neutral navigation and selection; chroma belongs to information, not shell decoration;
@@ -41,11 +40,11 @@ Before rendering, define this compact contract internally:
 | audience | expected technical depth and vocabulary |
 | source status | current, inferred, proposed, transitional, or mixed |
 | views | one job per view, ordered overview to detail |
-| shell | inline, compact document, or explorer |
+| navigation | `switcher` or `sidebar` ([shell-components.md](shell-components.md#navigation-modes)) |
 | categories | only distinctions that need stable visual identity |
 | relationships | arrow direction and line-style meaning |
 | disclosure | what is visible first and what moves to detail |
-| themes | automatic light/dark plus any requested manual control |
+| themes | automatic light/dark; the shell's `Auto` / `Light` / `Dark` control stays |
 | medium | native interactive artifact or HTML with semantic HTML, Mermaid, SVG, or canvas views |
 
 This brief is a generation constraint, not mandatory prose in the delivered artifact.
@@ -57,12 +56,12 @@ Support both light and dark themes for every HTML or host-native artifact that c
 1. Default to the operating-system preference.
 2. Declare support for both schemes so browser-provided controls and scrollbars match.
 3. Use semantic tokens; never invert the rendered page or diagram.
-4. If a theme control is useful, offer `Auto`, `Light`, and `Dark`, default to `Auto`, persist only the explicit override, and place it in the navigation or a quiet utility area rather than beside the document title.
+4. The shell ships one `Auto` / `Light` / `Dark` control in the navigation's utility area. It defaults to `Auto` and persists only an explicit override. Do not remove it, duplicate it, or move it beside the document title.
 5. Update embedded diagrams and charts with the same token mapping when the theme changes.
 6. Test both themes independently; passing contrast in one theme proves nothing about the other.
 7. Keep node category and status meanings identical across themes.
 
-For repository Mermaid rendered by an unknown host, avoid hard-coded light-only fills. For embedded Mermaid, initialize separate light/dark `themeVariables` and re-render on preference or explicit-theme changes.
+For repository Mermaid rendered by an unknown host, avoid hard-coded light-only fills. Embedded Mermaid is themed and re-rendered by the provided renderer ([mermaid-rendering.md](mermaid-rendering.md)).
 
 A static artifact cannot switch automatically. When it must work on both light and dark surfaces, provide paired variants or use a deliberately neutral, print-safe treatment; state which strategy was used.
 
@@ -86,7 +85,7 @@ Use semantic names so implementations can map the system to native capabilities.
 
 The primary text, muted text, accent, focus, and strong-border pairs are selected to meet or exceed common WCAG AA contrast targets on their adjacent default surfaces. Recheck contrast after any token change and for every actual adjacency.
 
-After changing the shared CSS tokens, run `node scripts/check-theme-contrast.mjs` from the skill base directory. This checks both themes' primary text, muted text, accent, focus, essential boundary, code/diff text adjacencies, category line/fill pairs, and parity between explicit and automatic dark tokens.
+After changing the shared CSS tokens, run `node scripts/check-theme-contrast.mjs` from the skill directory. This checks both themes' primary text, muted text, accent, focus, essential boundary, code/diff text adjacencies, category line/fill pairs, and parity between explicit and automatic dark tokens.
 
 ## Typography and spacing
 
@@ -94,9 +93,9 @@ Use a system sans-serif stack with ordinary letterforms and stable metrics. Pref
 
 | Role | Size / line height | Weight |
 |---|---|---|
-| page title | `clamp(1.5rem, 2vw, 1.875rem) / 1.12` | 700 |
-| section title | `1.125rem / 1.25` | 700 |
-| node title | `0.8125rem / 1.25` | 650 |
+| page title | `clamp(1.5rem, 2vw, 1.875rem) / 1.12` | 650 |
+| section title | `1.125rem / 1.25` | 650 |
+| node title | `0.8125rem / 1.25` | bold |
 | body | `0.875–0.9375rem / 1.5` | 400 |
 | diagram/label | `0.8125rem / 1.35` | 500 |
 | kicker/status | `0.6875rem / 1.3`, `0.075em` tracking | 700 |
@@ -105,33 +104,19 @@ Use a 4px base spacing system: `4`, `8`, `12`, `16`, `20`, `24`, `32`, and `48px
 
 Use radii of `7–8px` for controls and nodes and `10px` for panels and boundaries. Prefer one-pixel borders and surface contrast over shadows. Reserve a subtle shadow for overlays or a single raised details panel.
 
-## Shell selection
+## Page composition
 
-Match navigation to the justified information depth after the view-set quality gate. A navigation pattern must not be used to avoid reducing an oversized artifact:
-
-| Content | Default shell |
-|---|---|
-| one view | canonical switcher shell with section navigation omitted; title, takeaway, visual, legend, and theme utility remain |
-| two or three peer views | compact header plus visible view switcher or in-page headings |
-| four to twelve justified ordered sections in an explicit reference/atlas | persistent side navigation on wide screens, explicit menu on narrow screens |
-| more than twelve justified reference sections | group by domain/question and add search or quick navigation; do not show an unbounded flat list |
-
-Use the same canonical shell for every standalone artifact. Set `data-viz-navigation="switcher"` for one to three peer views and omit the section navigation controls when there is only one view. Use `data-viz-navigation="sidebar"` for the reference/atlas case. Theme tokens, `Auto`/`Light`/`Dark`, header rhythm, mobile menu, and selection style remain identical; only the navigation placement and section visibility change.
-
-Treat the shell as shared infrastructure. Artifact-specific work may replace titles, summaries, navigation entries, sections, diagrams, code, and data. It must not restyle or reimplement the sidebar/header, mobile bottom sheet, theme switcher, token palette, breakpoint behavior, focus handling, or deep-link state. Put additional CSS after the shared stylesheet and scope it to the content renderer. A runtime-specific generator must consume the same assets rather than approximating them from this prose.
-
-A full explorer uses:
+Navigation modes, shell ownership, and components are in [shell-components.md](shell-components.md). Whatever the mode, a section reads in this order:
 
 ```text
-bounded navigation
-  + source/status/scope header
+source, status, and scope
   + section type, title, and one-sentence takeaway
   + one primary visual canvas
   + optional alternate representation of the same scope
   + compact legend, boundary note, or evidence footer
 ```
 
-Keep global chrome visually quieter than the content. The first screen should show orientation and the primary visual, not an introduction wall.
+Keep global chrome visually quieter than the content. The first screen shows orientation and the primary visual, not an introduction wall.
 
 ## Diagram palette
 
@@ -146,25 +131,9 @@ Start neutral. Add categorical fills only when category is part of the explanati
 | external/neutral | `#f5f5f3` / `#747671` | `#292927` / `#a0a09a` | actor, dependency, environment, constraint |
 | risk/failure | `#f8eeec` / `#8b4f49` | `#322826` / `#ca948c` | failure, forbidden path, unresolved risk |
 
-Use the same category mapping in every view. Status is separate from category: show `Proposed`, `Transitional`, `Retiring`, `Inferred`, or `Unknown` as text badges and border treatments, not by replacing the category color.
+These are also the six Mermaid semantic classes (`system`, `interface`, `domain`, `data`, `external`, `risk`) and the `viz-node-card--*` modifiers. Use the same category mapping in every view. Status is separate from category: show `Proposed`, `Transitional`, `Retiring`, `Inferred`, or `Unknown` as text badges and border treatments, not by replacing the category color.
 
 For non-architecture visuals, reinterpret categories by semantic role rather than copying software labels. If category does not matter, use neutral nodes and one accent for the primary path.
-
-## Relationships and arrows
-
-Use one stable line grammar within an artifact:
-
-| Treatment | Default meaning |
-|---|---|
-| solid `1.5–2px` arrow | direct call, dependency, transition, or primary flow |
-| dashed `1.5–2px` arrow | asynchronous event, indirect influence, or mediated flow |
-| dotted line without strong arrow | annotation, constraint, or non-flow association |
-| stronger accent line | selected or primary path, not a new relationship type |
-| risk-colored line plus label | failure, forbidden dependency, or violated rule |
-
-Every important arrow has a verb phrase of roughly two to five words. Point the arrow in the semantic direction and state the convention in the legend when readers might expect the opposite. Place labels near the middle of the edge with an opaque theme-matched background when lines could pass behind text.
-
-Use simple arrowheads around `8–10px`, consistent bends, and orthogonal routing when it reduces crossings. Avoid animated arrows unless motion itself is the subject and the animation can be paused.
 
 ## Information disclosure
 

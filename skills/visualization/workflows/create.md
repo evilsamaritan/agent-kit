@@ -1,122 +1,119 @@
 # Create or Revise a Visualization
 
-Follow this workflow for a new web explainer, an unclear existing technical artifact, or a multi-view visualization package. Preserve the sequence while adapting the amount of work to the request.
+Follow this workflow for a new web explainer, an unclear existing technical artifact, or a multi-view visualization. Keep the sequence; scale the work to the request.
+
+## Contents
+
+- [1. Frame the visual question](#1-frame-the-visual-question)
+- [2. Establish source truth](#2-establish-source-truth)
+- [3. Build the model](#3-build-the-model)
+- [4. Select the view set](#4-select-the-view-set)
+- [5. Choose delivery](#5-choose-delivery)
+- [6. Decide the visual language](#6-decide-the-visual-language)
+- [7. Build the artifact](#7-build-the-artifact)
+- [8. Check, render, and inspect](#8-check-render-and-inspect)
+- [9. Simplify](#9-simplify)
+- [10. Deliver](#10-deliver)
 
 ## 1. Frame the visual question
 
 1. State what the reader must understand, decide, compare, or remember.
-2. Identify the audience and the context in which they will view the result.
-3. Define scope, abstraction level, current/target status, and required fidelity.
-4. Confirm that the requested result is a separate polished or interactive web artifact rather than one diagram inside the source document.
-5. Extract explicit output constraints such as host-native artifact, HTML, repository file, or local preview.
-6. Ask only when a missing choice materially changes scope, publishing, cost, or compatibility. Otherwise choose the smallest useful web shell.
-7. Set a view budget. Default to one overview and one consequential detail; allow a third risk-specific view only when its takeaway is distinct.
+2. Identify the audience and where they will view the result.
+3. Define scope, abstraction level, current or target status, and required fidelity.
+4. Confirm that a separate web artifact is wanted rather than one diagram inside the source document.
+5. Extract explicit output constraints: a repository file, a local preview, a host-native artifact, a single file.
+6. Ask only when a missing choice materially changes scope, publishing, cost, or compatibility. Otherwise choose the smallest useful result.
+7. Set a view budget: one overview and one consequential detail; a third view only when its takeaway is distinct.
 
-Do not begin by choosing colors, components, or a presentation layout.
+Do not begin by choosing colors, components, or a layout.
 
 ## 2. Establish source truth
 
-1. Inspect the source material, code, data, or design that owns the facts. If an owning skill produced a semantic view contract, use it as the handoff.
+1. Inspect the material, code, data, or design that owns the facts. If an owning skill produced a view contract, that is the handoff.
 2. Separate verified facts, user requirements, inferences, proposals, and unknowns.
 3. Preserve exact names and terminology from authoritative sources.
-4. Treat example visuals as style or interaction evidence unless the user explicitly adopts their content as requirements.
+4. Treat example visuals as style evidence unless the user adopts their content as requirements.
 5. Resolve contradictions before rendering polish over them.
-6. For architecture input, require an agreed model and view contract. If either is missing, route the design question to `architecture` before continuing.
+6. For architecture input, require an agreed model and view contract; if either is missing, route the design question to `architecture` first.
 
-Source completeness is not a display requirement. A long document, exhaustive scenario matrix, or large view contract must be editorially reduced before it becomes navigation.
+Source completeness is not a display requirement. A long document or large view contract is reduced editorially before it becomes navigation.
 
-## 3. Build the visual model
+## 3. Build the model
 
-1. Normalize the source owner's minimal entities into a render model; do not silently add domain entities.
-2. Preserve supplied relationship semantics such as contains, depends on, calls, emits, transitions to, transforms, compares with, or changes into. Define them here only when the source owner has not already done so.
-3. Record groups, boundaries, order, quantities, status, and evidence metadata.
-4. Remove display details that do not affect the question while keeping the authoritative source linked and intact.
-5. Give every repeated element a stable identity across views.
+1. Normalize the owner's entities, relationships, and views into one model, using the field names of the architecture handoff ([interactive-html.md](../references/interactive-html.md#implementation-shape)). Do not add domain entities.
+2. Preserve supplied relationship semantics; define them only when the owner has not.
+3. Record groups, boundaries, order, quantities, status, and evidence.
+4. Give every repeated element a stable identity across views.
 
-If the model is only a list with no relationship, use a table or concise structured text. Do not force it into a graph.
+Every projection — wide diagram, compact list, textual equivalent — is derived from this one model. If the content is only a list with no relationships, use a table or structured text; do not force it into a graph.
 
 ## 4. Select the view set
 
-1. Read [diagram-selection.md](../references/diagram-selection.md).
-2. Preserve the primary projection selected by an architecture view contract. Otherwise choose one primary view that directly answers the question.
-3. Add another view only when it answers a different consequential question or abstraction level.
-4. Separate current, target, and transition views when combining them would create ambiguity.
-5. Define one sentence describing the job of every selected view.
-6. Merge or remove any candidate whose job or takeaway duplicates another.
-7. If more than three primary views remain, require an explicit atlas/reference use case or return the view contract to its owner for prioritization.
+1. Use the [view catalog](../references/diagram-selection.md) to pick the view for each question, keeping any view an architecture contract has already fixed.
+2. Apply the view-set quality gate in SKILL.md: one sentence of job and takeaway per view; merge, remove, or return to the owner.
+3. Separate current, target, and transition views when combining them would be ambiguous.
 
-Prefer an overview plus one selected detail over an exhaustive atlas. Menu entries, tabs, collapsible sections, or filters do not make an oversized view set concise.
+Prefer an overview plus one selected detail over an exhaustive atlas.
 
-## 5. Choose the output medium
+## 5. Choose delivery
 
-1. Inspect the active runtime for native visualization or artifact capabilities.
-2. Use a host-native interactive artifact only when it can emit or host the canonical visualization shell without replacing its navigation, themes, responsive menu, or behavior.
-3. Otherwise use local responsive HTML/CSS/JavaScript based on the same shell. Runtime choice changes delivery, not chrome.
-4. Read [renderer-selection.md](../references/renderer-selection.md), then embed Mermaid only for standard diagram topology; use semantic HTML, charts, or code/diff renderers for other content.
-5. Use a static image only as a requested delivery snapshot, not the maintainable source.
-6. Request authorization before publishing, hosting, or changing external state.
+Pick the delivery path with [runtime-output.md](../references/runtime-output.md): a host-native artifact path only when it can host the shell unchanged, otherwise local files; a single combined file when the host or the sharing path needs one. Request authorization before publishing, hosting, or changing external state.
 
-Read [runtime-output.md](../references/runtime-output.md) before assuming a runtime-specific feature exists.
+## 6. Decide the visual language
 
-## 6. Apply one visual language
-
-1. Read [visual-system.md](../references/visual-system.md), [visual-language.md](../references/visual-language.md), and [responsive-layout.md](../references/responsive-layout.md) for HTML, multi-view, or compact-width output.
-2. Write the compact visual brief: question, views, shell, categories, relationship grammar, disclosure, themes, and medium.
-3. Apply the default token values and category palette unless an established project system takes precedence.
-4. Assign types and responsibilities to nodes before styling them.
-5. Label important relationships with direction and intent; preserve the shared arrow grammar.
-6. Choose one reading direction and arrange the primary path first.
-7. Use grouping and whitespace for boundaries; use color as a secondary status or type cue.
-8. Keep labels readable at the final viewport and output size.
-9. Add only the legend needed to decode non-obvious semantics.
+1. Read [visual-language.md](../references/visual-language.md) for any view with nodes and relationships.
+2. Fix the navigation mode, the categories that carry meaning, the relationship grammar, the disclosure levels, and the compact projection of each view — the catalog names the default for each.
+3. Assign types and responsibilities to nodes before styling them.
+4. Choose one reading direction and arrange the primary path first.
+5. Use grouping and whitespace for boundaries; color is a secondary cue.
+6. Add only the legend needed to decode non-obvious semantics.
 
 ## 7. Build the artifact
 
-1. Create the selected source and output in the user's requested location or the repository's established documentation structure.
-2. For every standalone HTML artifact, first copy [visualization-shell.html](../assets/visualization-shell.html), [visualization-shell.css](../assets/visualization-shell.css), and [visualization-shell.js](../assets/visualization-shell.js) together. Keep their shell DOM, data hooks, tokens, theme control, mobile bottom sheet, focus behavior, and navigation logic. Replace the example content and navigation entries, then choose `switcher` for one to three views (omit section navigation for one) or `sidebar` for a justified atlas. Add optional renderer/component scripts such as `visualization-mermaid.js`, `visualization-code.js`, or `visualization-diff.js` only when their content exists, following their loading and fallback contracts. Tailwind may compose task-specific content but must not rebuild or override the shell. Prefer compiled or static CSS; do not add the browser compiler when the shared CSS already expresses the result. Follow [runtime-output.md](../references/runtime-output.md) for the remaining delivery choices.
-3. Keep data/model definitions separate from layout code for multi-view or long-lived HTML.
-4. Add accessible names, descriptions, keyboard behavior, and a textual equivalent appropriate to the medium.
-5. Compose semantic blocks that reflow at compact widths. Split the view or provide a compact projection before falling back to local horizontal scrolling.
-6. Keep the visual source reviewable and avoid duplicating facts across manually synchronized views.
-7. Use `.viz-connector` only for a simple reflowing one-to-one relation. Use Mermaid for branches, joins, loops, multi-edge graphs, state, sequence, or ER views; do not rebuild graph routing with CSS or unrelated absolutely positioned line fragments.
+1. Create the artifact where the user asked, or in the repository's established documentation structure.
+2. Copy the three shell files together and set the navigation mode. Replace the example content and navigation entries; leave the shell's structure, hooks, theme control, and behavior alone ([shell-components.md](../references/shell-components.md)).
+3. Compose each view from the documented components. Before writing a new class, check that the component does not already exist; new task-specific classes get their own prefix and sit after the shared stylesheet.
+4. Use `viz-connector` only for a simple one-to-one chain. Branches, joins, loops, multi-edge graphs, state, sequence, and ER views are Mermaid ([mermaid-rendering.md](../references/mermaid-rendering.md)).
+5. For each view, prefer the same source in a compact direction; add a separate compact projection only when the catalog calls for one.
+6. Add the optional Mermaid, code, and diff scripts only when their content exists.
+7. Add accessible names, descriptions, keyboard behavior, and a textual equivalent.
 
-For interactive output, read [interactive-html.md](../references/interactive-html.md).
+For multi-view navigation and interaction, read [interactive-html.md](../references/interactive-html.md); for code and diffs, [code-views.md](../references/code-views.md).
 
-## 8. Render and inspect
+## 8. Check, render, and inspect
 
-1. Render the artifact in the actual or closest available target medium.
-2. Inspect light and dark themes, including automatic preference and any explicit override.
-3. Inspect the default view and every meaningful state, tab, filter, or responsive layout, including half-width desktop and mobile when the artifact has a shell.
-4. Verify titles, labels, arrows, boundaries, legends, status, contrast, and text size.
-5. Trace the primary relationship or scenario without using the supporting prose.
-6. Check that keyboard and non-color cues preserve essential meaning.
-7. Place the pointer over every diagram/code scroller and verify that a vertical wheel or touch gesture still moves the document; test local horizontal movement separately.
-8. When a compact projection differs from the wide renderer, compare canonical and compact nodes plus every relationship's source, target, kind, label, order/cardinality, status, and failure path.
-9. Record any validation that could not be performed.
-10. Confirm that the delivered artifact still uses the canonical shell rather than a runtime- or agent-specific menu, theme implementation, or responsive wrapper.
+This is the one delivery checklist for the skill.
 
-Treat any overlapping label, detached or misaligned arrowhead, clipped node, ambiguous crossing, duplicated identity, unreadable compact projection, or page-level horizontal overflow as a failed render. Fix it and inspect the affected viewport again.
+**Check.** Run the contract check on the artifact and fix every failure:
 
-Syntax checks are necessary but insufficient. If rendering tooling is unavailable, report that boundary explicitly.
+```bash
+node scripts/check-shell-contract.mjs path/to/artifact.html
+```
+
+**Render** in the actual or closest available target, at the viewports in [responsive-layout.md](../references/responsive-layout.md#validation-viewports), in light and dark, including automatic preference and an explicit override.
+
+**Inspect** every view and every meaningful state:
+
+1. The title states the question, scope, and status; the takeaway is readable without narration.
+2. Every element has a name and type; important lines are directional and labelled; line styles match the relationship grammar.
+3. Containment, ownership, and trust boundaries are unambiguous; the primary path is visually dominant.
+4. Text is at reading size at every viewport — nothing was shrunk to fit.
+5. Trace the primary relationship or scenario without the supporting prose.
+6. With the pointer over every diagram and code region, a vertical wheel or touch gesture still moves the page; test local horizontal movement separately.
+7. Where a compact projection differs from the wide one, compare every relationship: source, target, kind, label, order or cardinality, status, failure path.
+8. Unknown, inferred, proposed, and current facts cannot be confused; keyboard and non-color cues preserve essential meaning.
+9. The artifact still uses the canonical shell — no replacement menu, theme switch, or responsive wrapper.
+
+Any overlapping label, detached arrowhead, clipped node, ambiguous crossing, duplicated identity, unreadable compact projection, or page-level horizontal overflow is a failed render. Fix it and inspect that viewport again. If rendering tooling is unavailable, say so; a syntax check is not an inspection.
 
 ## 9. Simplify
 
 1. Remove every element that does not help answer the stated question.
-2. Split overloaded views rather than reducing font size or adding interaction to hide complexity.
+2. Split overloaded views rather than reducing font size or hiding complexity behind interaction.
 3. Reduce crossing lines, duplicated nodes, decorative containers, and repeated labels.
-4. Confirm that each remaining view has a distinct job.
-5. Re-render after structural changes.
-6. Perform an editorial pass: can the reader identify the question, answer, owners, and critical relationship without opening every detail section? If not, reduce or restructure before delivery.
+4. Confirm each remaining view has a distinct job; re-render after structural changes.
+5. Editorial pass: can the reader identify the question, the answer, the owners, and the critical relationship without opening every detail section?
 
 ## 10. Deliver
 
-Return the artifact with:
-
-1. its question and scope;
-2. a one- or two-sentence takeaway;
-3. the editable source or path when relevant;
-4. a compact legend or textual equivalent;
-5. any intentional deviation from the default visual system;
-6. the exact render, theme, viewport, interaction, and validation status.
-
-Do not claim that an unrendered diagram is visually verified.
+Return the artifact with its question and scope, a one- or two-sentence takeaway, the editable source path, a compact legend or textual equivalent, any intentional deviation from the default visual system, and the exact status: contract check result, themes, viewports, and interactions inspected, and what was not. Do not claim an unrendered diagram is visually verified.

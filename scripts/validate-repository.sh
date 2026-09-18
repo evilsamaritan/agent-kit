@@ -161,9 +161,9 @@ for file in "$repo_root"/skills/*/SKILL.md; do
   fi
 done
 
-if rg -n 'team-creator|team-orchestrator|agent-runner|\.claude/teams|scripts/generate-agents\.mjs|agents/[^/ ]+/AGENT\.md' \
+if grep -rnE 'team-creator|team-orchestrator|agent-runner|\.claude/teams|scripts/generate-agents\.mjs|agents/[^/ ]+/AGENT\.md' \
   "$repo_root/AGENTS.md" "$repo_root/README.md" "$repo_root/skills" "$repo_root/scripts" \
-  --glob '!validate-repository.sh' >/dev/null; then
+  --exclude='validate-repository.sh' >/dev/null; then
   err "stale-reference" "removed team runtime or pre-profile agent path is still referenced"
 fi
 

@@ -1,7 +1,12 @@
+// visualization-shell revision 4
 const root = document.documentElement;
 const diagrams = [...document.querySelectorAll("[data-viz-mermaid]")];
 const prefersDark = window.matchMedia("(prefers-color-scheme: dark)");
 const compactState = new WeakMap();
+// A diagram slightly wider than its container is fitted instead of scrolled, but only while its
+// 13px labels stay at or above 11px, the smallest text size the visual system uses anywhere.
+// Anything wider keeps its natural size and scrolls locally.
+const MAX_FIT_OVERFLOW = 1.18;
 const mermaidModule = import("https://cdn.jsdelivr.net/npm/mermaid@12.0.0/dist/mermaid.esm.min.mjs");
 const renderStage = document.createElement("div");
 let renderVersion = 0;
@@ -149,6 +154,23 @@ function showRenderFailure(diagram, error, source) {
   diagram.dataset.vizRenderError = "true";
 }
 
+function naturalWidthOf(svg) {
+  const viewBox = svg.getAttribute("viewBox")?.trim().split(/\s+/).map(Number);
+  return viewBox?.[2] ? Math.ceil(viewBox[2]) : null;
+}
+
+// Decided from the current container width, so it stays right when the container is resized
+// or revealed without crossing the compact breakpoint (which is the only resize that re-renders).
+function applyFit(diagram) {
+  const output = diagram.querySelector("[data-viz-mermaid-output]");
+  const rendered = output?.querySelector("svg");
+  if (!output || !rendered) return;
+  const naturalWidth = naturalWidthOf(rendered);
+  const fits =
+    naturalWidth && output.clientWidth > 0 && naturalWidth <= output.clientWidth * MAX_FIT_OVERFLOW;
+  rendered.style.maxWidth = fits ? "100%" : "none";
+}
+
 function updateHorizontalScroll(diagram) {
   const output = diagram.querySelector("[data-viz-mermaid-output]");
   if (!output) return;
@@ -186,6 +208,9 @@ async function renderAll() {
         ?.textContent.trim();
       const output = diagram.querySelector("[data-viz-mermaid-output]");
       if (!canonicalSource || !output) return null;
+      // Record the compact state this render used, so a host that resizes between the first
+      // render and the first ResizeObserver callback still triggers a re-render.
+      compactState.set(diagram, isCompact(diagram));
       const source = sourceForContainer(diagram, canonicalSource);
 
       try {
@@ -215,22 +240,16 @@ async function renderAll() {
     rendered?.classList.add("viz-diagram");
     rendered?.removeAttribute("height");
     if (rendered) {
-      const viewBox = rendered
-        .getAttribute("viewBox")
-        ?.trim()
-        .split(/\s+/)
-        .map(Number);
-      const naturalWidth = viewBox?.[2] ? Math.ceil(viewBox[2]) : null;
+      const naturalWidth = naturalWidthOf(rendered);
       if (
         (!rendered.getAttribute("width") || rendered.getAttribute("width") === "100%") &&
         naturalWidth
       ) {
         rendered.setAttribute("width", String(naturalWidth));
       }
-      rendered.style.maxWidth =
-        naturalWidth && naturalWidth <= output.clientWidth * 1.4 ? "100%" : "none";
       rendered.style.backgroundColor = "transparent";
     }
+    applyFit(diagram);
     bindFunctions?.(output);
     diagram.removeAttribute("data-viz-render-error");
     updateHorizontalScroll(diagram);
@@ -262,6 +281,7 @@ if ("ResizeObserver" in window) {
         entry.contentRect.width > 0 &&
         entry.contentRect.width <= compactBreakpoint(entry.target);
       compactState.set(entry.target, next);
+      applyFit(entry.target);
       updateHorizontalScroll(entry.target);
       if (previous !== undefined && previous !== next) crossedBreakpoint = true;
     });
