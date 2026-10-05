@@ -1,4 +1,4 @@
-# agent-kit v3.4.1
+# agent-kit v4.0.0-alpha.1
 
 ## Purpose
 
@@ -18,7 +18,7 @@ Profession **profiles** are the stable base entity. A project agent is assembled
 ## Rules
 
 - Edit shared skills in `skills/`; the repository does not ship project-local `.claude/` or `.agents/` configuration
-- Edit reusable professions in `profiles/<name>/`, NEVER in `.claude/agents/`, `.codex/agents/`, or `.claude-plugin/agents/` — those are native generated targets
+- Edit reusable professions in `profiles/<name>/`, NEVER in `.claude/agents/`, `.codex/agents/` — those are native generated targets
 - Regenerate package targets with `scripts/generate-profiles.mjs` after touching a profile; `--check` fails the build when they drift
 - In consuming projects, edit `.agent-kit/agents.json` and run `skills/agent-creator/scripts/materialize-agents.mjs`; never copy profile or skill sources
 - One skill = one domain. Do not merge unrelated domains into a single skill.
@@ -40,7 +40,7 @@ Profession **profiles** are the stable base entity. A project agent is assembled
 | Directory | Purpose |
 |-----------|---------|
 | `profiles/<name>/` | Profession canon — `PROFILE.md` (core + body), `claude.yaml`, `codex.yaml` |
-| `.claude-plugin/agents/` | Generated Claude Code agents (listed in `plugin.json`) |
+| `skills/agent-orchestrator/references/profiles/` | Generated profession references; no bundled runtime agents |
 | `skills/agent-creator/scripts/materialize-agents.mjs` | Project composition → native Claude/Codex agents |
 | `skills/agent-orchestrator/` | Chooses and runs agents through host-native delegation |
 | `skills/` | **Flat** — knowledge skills + meta skills, no subcategories, no `category:` field |
@@ -187,7 +187,7 @@ skill-name/
 
 ## Profession Profile and Project Agent Anatomy
 
-A reusable profile is a directory under `profiles/`, split into a runtime-neutral core and one overlay per runtime. `scripts/generate-profiles.mjs` compiles bundled Claude plugin agents and orchestrator references. In consuming projects, `.agent-kit/agents.json` selects a profile plus skills and the materializer writes native `.claude/agents/*.md` and `.codex/agents/*.toml` files.
+A reusable profile is a directory under `profiles/`, split into a runtime-neutral core and one overlay per runtime. `scripts/generate-profiles.mjs` generates the profile catalog and orchestrator references; it never registers runtime agents. In consuming projects, `.agent-kit/agents.json` selects a profile plus skills and the materializer writes native `.claude/agents/*.md` and `.codex/agents/*.toml` files.
 
 ```
 profiles/<name>/
@@ -218,11 +218,11 @@ access: edits                       # Required. read-only | edits | full.
 ```yaml
 model: sonnet                       # sonnet | opus | haiku | fable | inherit.
 color: cyan                         # red, blue, green, yellow, purple, orange, pink, cyan.
-tools: [Read, Edit, Bash]           # Explicit allowlist; overrides the set derived from access.
+tools: [Read, Edit, Bash]           # Library tool default; project access replaces it unless the project explicitly overrides tools.
 maxTurns: 20                        # Max agentic turns.
 ```
 
-Bundled Claude plugin agents may also use `disallowedTools`, `memory`, `background`, and `isolation`. Add only fields rendered and accepted by strict plugin validation; project settings, hooks, MCP servers, and permission mode stay outside the profile overlay.
+Materialized Claude project agents may also use `disallowedTools`, `memory`, `background`, and `isolation`. Add only fields rendered and validated for native project agents; project settings, hooks, MCP servers, and permission mode stay outside the profile overlay.
 
 ### Codex overlay — `codex.yaml`
 

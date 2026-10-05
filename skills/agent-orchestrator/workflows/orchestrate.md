@@ -41,7 +41,7 @@ Do not ask two agents to solve the same problem unless independent judgment is t
 
 ## Step 5: Map onto the host runtime
 
-Read `../references/runtime-adapters.md`, then use the native mechanism available in the current session. Prefer a named native project agent only when the host exposes a working selector. Otherwise pass the selected profile persona, exact project skills, model/effort defaults, and concrete task to a generic native subagent without inventing a permanent wrapper format.
+Read `../references/runtime-adapters.md`, then use the native mechanism available in the current session. Prefer a named native project agent only when the host exposes a working selector. Otherwise pass the selected profile persona, exact project skills with source paths, supported model/effort overrides, and concrete task to a generic native subagent without inventing a permanent wrapper format.
 
 ## Step 6: Execute and coordinate
 

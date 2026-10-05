@@ -9,9 +9,17 @@
 
 ## Claude Code
 
-Prefer a named custom agent from `.claude/agents/` or the Agent Kit plugin registry. Pass the concrete assignment; the native agent already carries its persona, skills, model, and tool configuration.
+Prefer a named custom agent from `.claude/agents/`. Pass the concrete assignment; the native agent already carries its persona, skills, model, and tool configuration.
+
+When no configured project agent fits, pass the selected profile behavior and authoritative skill source paths to a generic native subagent if delegation is authorized. This prompt cannot enforce custom tools, effort, or preload settings absent from the spawn API. Use the main session or a configured project agent when those controls matter.
 
 Use Claude's native subagents for bounded delegation, teammates for peer coordination when available, and native workflows for a persisted execution graph. Use native worktree isolation for parallel writers. Do not translate these mechanisms into Agent Kit configuration.
+
+### Selected knowledge delivery
+
+Project targets retain native `skills` preload hints and include resolved local source paths. The source paths determine which installation was selected; read the relevant body when it was not loaded from that source. This avoids depending solely on undocumented bare-name plugin lookup. Native behavior has not been reproduced here: the Claude CLI is unavailable. Generated output and path availability are checked, not actual model loading.
+
+[Claude subagent documentation](https://code.claude.com/docs/en/sub-agents#preload-skills-into-subagents) describes preloading and skipping unavailable skills. A prompt fallback carries knowledge, not missing API controls.
 
 ## Codex
 

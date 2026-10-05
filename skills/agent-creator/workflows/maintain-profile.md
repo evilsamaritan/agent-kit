@@ -33,7 +33,7 @@ profiles/<name>/
 └── codex.yaml
 ```
 
-Never edit `.claude-plugin/agents/` or `skills/agent-orchestrator/references/profiles/` directly.
+Never edit `skills/agent-orchestrator/references/profiles/` directly. Native agents are generated only for consuming projects.
 
 ## Step 5: Generate and verify
 

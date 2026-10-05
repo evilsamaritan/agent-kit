@@ -43,6 +43,7 @@ node --check "$repo_root/scripts/generate-profiles.mjs"
 node --check "$repo_root/scripts/validate-codex-agent.mjs"
 node --check "$repo_root/skills/agent-creator/scripts/materialize-agents.mjs"
 node "$repo_root/scripts/generate-profiles.mjs" --check
+node --test "$repo_root/scripts/tests/profile-precedence.test.mjs"
 
 profile_count=0
 for profile_file in "$repo_root"/profiles/*/PROFILE.md; do
@@ -50,7 +51,6 @@ for profile_file in "$repo_root"/profiles/*/PROFILE.md; do
   profile_count=$((profile_count + 1))
   [[ -f "$repo_root/profiles/$profile/claude.yaml" ]] || err "$profile" "missing claude.yaml"
   [[ -f "$repo_root/profiles/$profile/codex.yaml" ]] || err "$profile" "missing codex.yaml"
-  [[ -f "$repo_root/.claude-plugin/agents/$profile.md" ]] || err "$profile" "missing generated Claude agent"
   [[ -f "$repo_root/skills/agent-orchestrator/references/profiles/$profile.md" ]] || err "$profile" "missing generated orchestrator reference"
 done
 printf 'Profile library OK: %d profile(s).\n' "$profile_count"

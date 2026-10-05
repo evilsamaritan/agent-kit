@@ -50,7 +50,7 @@
 - `skills` replaces the profile's default list; it does not append implicitly.
 - Every skill must resolve from project-local skills or the installed Agent Kit library.
 - Runtime overlays override profile defaults without changing the reusable profile.
-- `access` maps to Claude default tools and Codex sandbox defaults. An explicit Claude `tools` array takes precedence.
+- `access` maps to Claude default tools and Codex sandbox defaults. Explicit project `access` replaces library tools; a project `claude.tools` array takes precedence over that choice.
 - Live host policy remains authoritative over generated defaults.
 
 ## Generated targets

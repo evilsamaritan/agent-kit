@@ -222,6 +222,17 @@ export function loadProfiles(toolkitRoot) {
 }
 
 export function composeAgent(profile, spec = {}) {
+  const access = spec.access ?? profile.front.access
+  const claude = { ...profile.claude, ...(spec.claude ?? {}) }
+  const codex = { ...profile.codex, ...(spec.codex ?? {}) }
+  // Portable project intent overrides library overlays; explicit project runtime
+  // settings are the final layer. Resolve before either renderer consumes them.
+  if (spec.access !== undefined && spec.claude?.tools === undefined) {
+    claude.tools = [...TOOLS_BY_ACCESS[access]]
+  }
+  if (spec.effort !== undefined && spec.codex?.effort === undefined) {
+    codex.effort = spec.effort
+  }
   return {
     profile: profile.name,
     name: spec.name ?? profile.name,
@@ -229,10 +240,10 @@ export function composeAgent(profile, spec = {}) {
     roles: [...(profile.front.role ?? [])],
     skills: spec.skills === undefined ? [...(profile.front.skills ?? [])] : [...spec.skills],
     effort: spec.effort ?? profile.front.effort,
-    access: spec.access ?? profile.front.access,
+    access,
     body: profile.body,
-    claude: { ...profile.claude, ...(spec.claude ?? {}) },
-    codex: { ...profile.codex, ...(spec.codex ?? {}) },
+    claude,
+    codex,
   }
 }
 
@@ -249,7 +260,7 @@ export function isGeneratedAgent(content) {
     )
 }
 
-export function renderClaudeAgent(agent, source = `profile ${agent.profile}`) {
+export function renderClaudeAgent(agent, source = `profile ${agent.profile}`, skillPaths = []) {
   const tools = agent.claude.tools ?? TOOLS_BY_ACCESS[agent.access] ?? TOOLS_BY_ACCESS.edits
   const lines = [
     '---',
@@ -269,7 +280,10 @@ export function renderClaudeAgent(agent, source = `profile ${agent.profile}`) {
     lines.push(`disallowedTools: ${value}`)
   }
   lines.push('---', '', `<!-- ${GENERATED_MARKER} from ${source}. Do not edit by hand. -->`, '')
-  return `${lines.join('\n')}${agent.body.trimEnd()}\n`
+  const sources = skillPaths.length
+    ? `\n\n## Selected knowledge sources\n\nUse these source paths as the authoritative selected knowledge. If a body was not already loaded from its listed source, read it when relevant before acting; load linked references only as needed. Do not assume an unqualified skill name resolves to this installation.\n\n${skillPaths.map((path, index) => `- ${agent.skills[index]}: ${JSON.stringify(path)}`).join('\n')}`
+    : ''
+  return `${lines.join('\n')}${agent.body.trimEnd()}${sources}\n`
 }
 
 export function renderCodexAgent(agent, skillPaths = [], source = `profile ${agent.profile}`) {

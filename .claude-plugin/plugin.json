@@ -1,6 +1,6 @@
 {
   "name": "agent-kit",
-  "version": "3.4.1",
+  "version": "4.0.0-alpha.1",
   "description": "Reusable profession profiles, engineering skills, and native-agent helpers for Claude Code and Codex.",
   "author": {
     "name": "Maksim Misiukevich"
@@ -22,16 +22,5 @@
     "sre",
     "testing"
   ],
-  "agents": [
-    "./.claude-plugin/agents/architect.md",
-    "./.claude-plugin/agents/backend.md",
-    "./.claude-plugin/agents/designer.md",
-    "./.claude-plugin/agents/devops.md",
-    "./.claude-plugin/agents/frontend.md",
-    "./.claude-plugin/agents/reviewer.md",
-    "./.claude-plugin/agents/security.md",
-    "./.claude-plugin/agents/sre.md",
-    "./.claude-plugin/agents/tester.md",
-    "./.claude-plugin/agents/writer.md"
-  ]
+  "skills": "./skills/"
 }

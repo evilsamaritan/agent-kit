@@ -34,7 +34,7 @@
 - [ ] Name, description, effort, model, skills, and tools match the composition.
 - [ ] Access-derived tools are honest unless explicitly overridden.
 - [ ] Generated marker and complete profile body are present.
-- [ ] The Claude plugin manifest lists every bundled profile target.
+- [ ] The package ships no Claude agent registry; project targets are materialized only when configured.
 
 ## Codex target
 

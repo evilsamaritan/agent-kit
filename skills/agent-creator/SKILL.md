@@ -12,7 +12,7 @@ argument-hint: "[create|update|delete|sync|verify] [agent or profile]"
 
 - A **profile** is the reusable profession stored by Agent Kit. A **project agent** is a configured instance of a profile rendered into a host runtime's native format.
 - In a consuming project, edit only `.agent-kit/agents.json`, then run the materializer. Never hand-copy or hand-edit generated `.claude/agents/*.md` or `.codex/agents/*.toml` files.
-- In the Agent Kit repository, edit profile sources only under `profiles/<name>/`, then run `scripts/generate-profiles.mjs`. Never edit `.claude-plugin/agents/` or generated orchestrator profile references.
+- In the Agent Kit repository, edit profile sources only under `profiles/<name>/`, then run `scripts/generate-profiles.mjs`. Never edit generated orchestrator profile references. The package contains no registered profession agents.
 - Skills are the agent's exact project knowledge composition when `skills` is present in `.agent-kit/agents.json`. If omitted, the profile defaults apply.
 - Use native runtime targets: Claude Markdown custom agents and Codex TOML custom agents. Do not create a shared pseudo-runtime, wrapper agent, or proprietary execution protocol.
 - Preserve non-generated runtime files. The materializer refuses to overwrite them and prunes only files carrying the Agent Kit generated marker.

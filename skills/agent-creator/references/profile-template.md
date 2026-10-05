@@ -53,7 +53,7 @@ color: green
 tools: [Read, Grep, Glob, Edit, Write, Bash, Skill]
 ```
 
-Supported fields are intentionally limited to values the package generator emits for plugin agents. Add a renderer and validation before introducing another field.
+Supported fields are intentionally limited to values the materializer emits for native project agents. Add a renderer and validation before introducing another field.
 
 ## Codex overlay
 

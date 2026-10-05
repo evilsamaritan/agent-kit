@@ -171,7 +171,7 @@ function expectedFiles(projectRoot, specs, profiles) {
     })
     const source = `.agent-kit/agents.json profile ${spec.profile}`
     if (runtimes.includes('claude')) {
-      files.set(join(projectRoot, '.claude', 'agents', `${spec.name}.md`), renderClaudeAgent(agent, source))
+      files.set(join(projectRoot, '.claude', 'agents', `${spec.name}.md`), renderClaudeAgent(agent, source, skillPaths))
     }
     if (runtimes.includes('codex')) {
       files.set(join(projectRoot, '.codex', 'agents', `${spec.name}.toml`), renderCodexAgent(agent, skillPaths, source))

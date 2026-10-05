@@ -24,7 +24,7 @@ Read `../references/verification-checklist.md` in full.
 1. Read `PROFILE.md`, `claude.yaml`, and `codex.yaml` for each target profile.
 2. Run `node scripts/generate-profiles.mjs --check`.
 3. Confirm every declared role has one exact body section and every default skill exists.
-4. Confirm generated Claude agents and orchestrator references match their profiles.
+4. Confirm the generated catalog and orchestrator references match their profiles; no package agent registry exists.
 5. Run `bash scripts/validate-repository.sh`.
 
 ## Step 5: Report and fix

@@ -30,10 +30,9 @@ skills/<name>/                    # shared knowledge and meta skills
 skills/agent-creator/             # project materialization + profile maintenance
 skills/agent-orchestrator/        # native task-time composition
 
-.claude-plugin/agents/            # generated bundled Claude agents
 .claude-plugin/marketplace.json   # shared repository marketplace catalog
 .codex-plugin/plugin.json         # Codex plugin manifest
-scripts/generate-profiles.mjs     # profile canon → package artifacts
+scripts/generate-profiles.mjs     # profile canon → catalog and references
 ```
 
 The repository itself does not ship project-local `.claude/` or `.agents/` configuration. Those namespaces belong to consuming projects or local harness setup. The repository marketplace stays under `.claude-plugin/marketplace.json`, which Claude uses natively and current Codex clients accept as a legacy-compatible marketplace source.
@@ -55,6 +54,8 @@ codex plugin add agent-kit@agent-kit
 ```
 
 Start a new Codex task after installation so the plugin skills enter the session.
+
+Installing the plugin exposes skills and profile recipes. It does not register profession agents. Project agents are optional: the main session can use skills directly.
 
 ## Configure agents for a project
 
@@ -106,7 +107,7 @@ Ask `agent-orchestrator` for the outcome rather than spelling out runtime mechan
 Implement OAuth login. Choose the team, split the work, and use the native workflow for this runtime.
 ```
 
-The orchestrator discovers the project's materialized agents, chooses the minimum useful composition, assigns non-overlapping work, and delegates through Claude or Codex directly. If a Codex client cannot apply named custom-agent config yet, it passes the same profile and skill composition to a generic native subagent as a capability-gated fallback. It does not create a proprietary `team.json` or agent runtime.
+The orchestrator discovers the project's materialized agents, chooses the minimum useful composition, assigns non-overlapping work, and delegates through Claude or Codex directly. If a client cannot apply named custom-agent config, it passes the same profile and skill composition to a generic native subagent as a capability-gated fallback. It does not create a proprietary `team.json` or agent runtime.
 
 ## Create and share skills
 
@@ -117,6 +118,8 @@ Individual skills can also be installed with:
 ```bash
 npx skills add agent-kit/<skill-name>
 ```
+
+Claude targets include authoritative local skill source paths. Native `skills` preloading is host-dependent; bare plugin names in a project agent have not been behaviorally verified here. Read the selected source when it was not preloaded. Refresh generated targets after an installation moves or updates. Creating the first native agent directory may require restarting the host session.
 
 ## Maintain the profile library
 
@@ -140,3 +143,5 @@ The validator checks plugin manifests, skill metadata, profile canon, generated 
 ## License
 
 MIT
+
+Version changes are synchronized with `node scripts/bump-version.mjs <semver>` before each meaningful commit.
