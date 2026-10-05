@@ -69,6 +69,10 @@ Kimi runs a managed copy of the plugin; reinstall or reload after updating. Proj
 
 Installing the plugin exposes skills and profile recipes. It does not register profession agents. Project agents are optional: the main session can use skills directly.
 
+## Upgrading from 3.x
+
+4.0 removes the bundled Claude agents, replaces the `frontend`/`backend` profiles with `developer`, renames the `visualization` skill to `playground`, and stops pinning models in profiles. Follow [docs/upgrading-to-4.0.md](docs/upgrading-to-4.0.md); `migrate-project.mjs` converts `.agent-kit/agents.json`, and `materialize-agents.mjs --dry-run` shows what each agent gains or loses. Changes per release: [CHANGELOG.md](CHANGELOG.md).
+
 ## Configure agents for a project
 
 Ask naturally:

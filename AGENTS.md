@@ -1,4 +1,4 @@
-# agent-kit v4.0.0-alpha.9
+# agent-kit v4.0.0-rc.1
 
 ## Purpose
 
@@ -200,7 +200,7 @@ profiles/<name>/
 └── kimi.yaml       # optional Kimi Code overlay
 ```
 
-A field belongs to the core when both runtimes read it the same way, and to an overlay when the vocabularies diverge or only one runtime has the concept.
+A field belongs to the core when every runtime reads it the same way, and to an overlay when the vocabularies diverge or only one runtime has the concept.
 
 ### Core frontmatter — `PROFILE.md`
 
@@ -210,7 +210,7 @@ name: profile-name                  # Required. One word, profession-style. Matc
 description: What + when.           # Required. Portable trigger, single line.
 role: [implementer]                 # Required. Role-templates the body was written from.
 skills: [skill-a, skill-b]          # Default knowledge skills; a project composition may replace them.
-effort: high                        # Required. low | medium | high | xhigh | max — read by both runtimes.
+effort: high                        # Required. low | medium | high | xhigh | max — applied where the runtime supports it.
 access: edits                       # Required. read-only | edits | full.
 ---
 ```
@@ -279,7 +279,7 @@ Use `agent-creator`: describe what you need ("create agents for this project", "
 1. Pick a profession profile — defines durable behavior.
 2. Pick the exact project knowledge skills — defines the stack/domain composition.
 3. Write `.agent-kit/agents.json`.
-4. Materialize native Claude and Codex agents.
+4. Materialize native Claude and Codex agents (and Kimi Code agents when selected).
 5. Use `agent-orchestrator` to choose instances and task-specific workflows at execution time.
 
 ## References
