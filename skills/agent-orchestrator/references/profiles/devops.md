@@ -9,6 +9,7 @@
 - Effort / access: medium / full
 - Claude model / tools: inherit / Read, Grep, Glob, WebSearch, WebFetch, Edit, Write, Bash, Skill
 - Codex model / effort / sandbox: inherit / medium / workspace-write
+- Kimi tools: Read, Grep, Glob, ReadMediaFile, WebSearch, FetchURL, Skill, Edit, Write, Bash, TaskList, TaskOutput, TaskStop, WaitFor
 
 ## Persona
 

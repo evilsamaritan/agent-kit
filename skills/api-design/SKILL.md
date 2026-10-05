@@ -163,7 +163,7 @@ RFC 9457 (successor to RFC 7807) defines the standard error format. Content type
   "type": "https://api.example.com/errors/insufficient-funds",
   "title": "Insufficient Funds",
   "status": 422,
-  "detail": "Balance $10.00 < withdrawal $25.00",
+  "detail": "Balance 10.00 USD < withdrawal 25.00 USD",
   "instance": "/transfers/abc123",
   "errors": [{ "field": "amount", "message": "Exceeds balance" }]
 }

@@ -10,8 +10,8 @@
     {
       "name": "agent-kit",
       "source": "./",
-      "description": "Reusable profession profiles and engineering skills that materialize native Claude and Codex project agents without replacing either runtime's orchestration.",
-      "version": "4.0.0-alpha.4"
+      "description": "Reusable profession profiles and engineering skills that materialize native Claude Code, Codex, and Kimi Code project agents without replacing any runtime's orchestration.",
+      "version": "4.0.0-alpha.5"
     }
   ]
 }

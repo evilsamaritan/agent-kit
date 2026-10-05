@@ -38,12 +38,13 @@
 | `name` | yes | Native agent name, lowercase kebab-case |
 | `profile` | yes | Bundled profession profile name |
 | `skills` | no | Exact final knowledge-skill set; omitted means profile defaults |
-| `runtimes` | no | `claude`, `codex`, or both; omitted means both |
+| `runtimes` | no | Subset of `claude`, `codex`, `kimi`; omitted means `claude` and `codex` |
 | `description` | no | Project-specific routing description |
 | `effort` | no | Portable effort override: low, medium, high, xhigh, max |
 | `access` | no | Intended access override: read-only, edits, full |
 | `claude` | no | Claude runtime overrides: `model`, `effort`, `color`, `tools`, `disallowedTools`, `maxTurns`, `memory`, `background`, `isolation` |
 | `codex` | no | Codex runtime overrides: `model`, `effort`, `sandbox_mode` |
+| `kimi` | no | Kimi runtime overrides: `whenToUse`, `tools`, `disallowedTools`, `subagents` (no model or effort fields exist) |
 
 ## Composition rules
 
@@ -61,6 +62,7 @@
 |---------|--------|-------------|
 | Claude Code | `.claude/agents/<name>.md` | body → prompt, skills → `skills`, effort/model/tools → frontmatter |
 | Codex | `.codex/agents/<name>.toml` | body → `developer_instructions`, effort → `model_reasoning_effort`, access → `sandbox_mode`, skills → `skills.config` |
+| Kimi Code | `.kimi-code/agents/<name>.md` | body → full system prompt plus `${agents_md}`, `${skills}`, source paths, and a handoff; access → explicit `tools`; effort and model are not applied |
 
 Generated files carry an Agent Kit marker and `agent-kit-metadata` (kit version and an input fingerprint). The materializer may overwrite or prune only marked files.
 

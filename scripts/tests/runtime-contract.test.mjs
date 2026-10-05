@@ -9,6 +9,7 @@ const profiles = loadProfiles(fileURLToPath(new URL('../../', import.meta.url)))
 const reviewer = profiles.find((p) => p.name === 'reviewer')
 const claude = runtimeRegistry.get('claude')
 const codex = runtimeRegistry.get('codex')
+const kimi = runtimeRegistry.get('kimi')
 const source = (path) => [{ name: 'architecture', path }]
 const provenance = { kit: '4.0.0-alpha.4', inputs: 'abc' }
 
@@ -42,7 +43,7 @@ test('Codex skills.config points at SKILL.md', () => {
   assert.match(target, /\[\[skills\.config\]\]\npath = "\/kit\/skills\/architecture\/SKILL.md"\nenabled = true/)
 })
 
-for (const runtime of [claude, codex]) {
+for (const runtime of [claude, codex, kimi]) {
   test(`${runtime.id}: diff separates path refresh, provenance, and behavior changes`, () => {
     const agent = composeAgent(reviewer, { skills: ['architecture'] })
     const base = runtime.parse(renderTarget(runtime.id, agent, source('/a/3.4.1/skills/architecture/SKILL.md'), 'x', provenance))
@@ -54,8 +55,12 @@ for (const runtime of [claude, codex]) {
     const result = compareTargets(base, changed)
     assert.equal(result.kind, 'semantic')
     assert.match(result.changes.join('\n'), /profile behavior changed/)
-    const pinned = runtime.parse(renderTarget(runtime.id, composeAgent(reviewer, { skills: ['architecture'], [runtime.id]: { model: 'opus' } }), source('/a/3.4.1/skills/architecture/SKILL.md'), 'x', provenance))
-    assert.match(compareTargets(base, pinned).changes.join('\n'), /model: \(inherit\/default\) → opus/)
+    const narrowed = runtime.parse(renderTarget(runtime.id, composeAgent(reviewer, { skills: ['architecture'], access: 'full' }), source('/a/3.4.1/skills/architecture/SKILL.md'), 'x', provenance))
+    assert.equal(compareTargets(base, narrowed).kind, 'semantic')
+    if (runtime !== kimi) {
+      const pinned = runtime.parse(renderTarget(runtime.id, composeAgent(reviewer, { skills: ['architecture'], [runtime.id]: { model: 'opus' } }), source('/a/3.4.1/skills/architecture/SKILL.md'), 'x', provenance))
+      assert.match(compareTargets(base, pinned).changes.join('\n'), /model: \(inherit\/default\) → opus/)
+    }
   })
 }
 
@@ -77,4 +82,23 @@ test('input fingerprint ignores machine paths and tracks profile or recipe chang
   assert.equal(inputFingerprint(reviewer, spec, 'claude'), inputFingerprint(reviewer, { ...spec }, 'claude'))
   assert.notEqual(inputFingerprint(reviewer, spec, 'claude'), inputFingerprint(reviewer, { ...spec, effort: 'low' }, 'claude'))
   assert.notEqual(inputFingerprint(reviewer, spec, 'claude'), inputFingerprint({ ...reviewer, body: `${reviewer.body}x` }, spec, 'claude'))
+})
+
+test('Kimi target: explicit allowlist by access, context restored on purpose, no model or effort fields', () => {
+  const readOnly = renderTarget('kimi', composeAgent(reviewer), source('/kit/skills/architecture/SKILL.md'))
+  const tools = readOnly.split('\n').find((line) => line.startsWith('tools: '))
+  assert.doesNotMatch(tools, /"(?:Edit|Write|Bash|Agent|AgentSwarm)"/)
+  assert.match(tools, /"Read"/)
+  assert.doesNotMatch(readOnly, /^(model|effort):/m)
+  for (const part of ['${agents_md}', '${skills}', '## Handoff', 'architecture: "/kit/skills/architecture/SKILL.md"']) assert(readOnly.includes(part), part)
+  const full = renderTarget('kimi', composeAgent(reviewer, { access: 'full' }))
+  assert.match(full, /"Bash"/)
+  assert.doesNotMatch(full, /"Agent"/)
+})
+
+test('Kimi rejects profile text that its template engine would substitute', () => {
+  const agent = composeAgent(reviewer)
+  assert.throws(() => renderTarget('kimi', { ...agent, body: `${agent.body}\nUse \${cwd} here.` }), /template variable/)
+  assert.doesNotThrow(() => renderTarget('kimi', { ...agent, body: `${agent.body}\nconst x = \`\${value}\`` }))
+  assert.throws(() => kimi.validate({ model: 'k2' }, 'spec'), /unsupported field "model"/)
 })

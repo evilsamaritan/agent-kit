@@ -28,7 +28,7 @@ argument-hint: "[task or agent composition]"
 | Review or research with independent lenses | Parallelize, then synthesize |
 | Dependent implementation stages | Run a pipeline and pass compressed handoffs |
 | Missing project agent | Use the bundled profile as an ephemeral fallback, or invoke `agent-creator` when persistence is needed |
-| Save/reuse this workflow | Use a native Claude/Codex workflow facility if the current host exposes one |
+| Save/reuse this workflow | Use the host's native workflow facility when it exists and the user asked for it explicitly |
 
 Follow [workflows/orchestrate.md](workflows/orchestrate.md) for execution.
 
@@ -37,6 +37,7 @@ Follow [workflows/orchestrate.md](workflows/orchestrate.md) for execution.
 1. Inspect native project agents:
    - Claude Code: `.claude/agents/*.md`
    - Codex: `.codex/agents/*.toml`
+   - Kimi Code: `.kimi-code/agents/*.md`
 2. If `.agent-kit/agents.json` exists, treat it as the source of truth for materialized project agents.
 3. Read [references/profile-catalog.md](references/profile-catalog.md) only when a suitable project agent is absent or the user asks what profiles are available.
 4. Read one selected profile from `references/profiles/`, not the whole catalog directory. Keep it available as the fallback persona even when a native project file exists.
@@ -57,7 +58,7 @@ Start with 1–3 agents. Add another only when it owns a distinct scope or evide
 
 ## Runtime adaptation
 
-Use [references/runtime-adapters.md](references/runtime-adapters.md) to map the composition onto Claude Code, Codex, or another host. Runtime vocabulary belongs there; the orchestration policy above stays portable.
+Use [references/runtime-adapters.md](references/runtime-adapters.md) to map the composition onto Claude Code, Codex, Kimi Code, or another host; it routes to one runtime file. Runtime vocabulary belongs there; the orchestration policy above stays portable.
 
 ## Quick reference
 

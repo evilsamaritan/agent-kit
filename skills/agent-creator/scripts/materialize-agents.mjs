@@ -7,6 +7,7 @@ import { fileURLToPath } from 'node:url'
 import {
   ACCESS,
   CORE_EFFORT,
+  DEFAULT_RUNTIMES,
   RUNTIMES,
   composeAgent,
   inputFingerprint,
@@ -102,11 +103,16 @@ function validateSpec(spec, profiles, names) {
     }
     if (new Set(spec.skills).size !== spec.skills.length) throw new Error(`${spec.name}: skills must not contain duplicates`)
   }
-  const runtimes = spec.runtimes ?? RUNTIMES
+  const runtimes = spec.runtimes ?? DEFAULT_RUNTIMES
   if (!Array.isArray(runtimes) || runtimes.length === 0 || runtimes.some((item) => !RUNTIMES.includes(item))) {
     throw new Error(`${spec.name}: runtimes must be a non-empty subset of ${RUNTIMES.join(', ')}`)
   }
   if (new Set(runtimes).size !== runtimes.length) throw new Error(`${spec.name}: runtimes must not contain duplicates`)
+  for (const id of runtimes) {
+    if (runtimeRegistry.get(id).reservedNames?.includes(spec.name)) {
+      throw new Error(`${spec.name}: the name is reserved by a built-in ${runtimeRegistry.get(id).label} agent; choose another name`)
+    }
+  }
   if (spec.description !== undefined && (typeof spec.description !== 'string' || !spec.description.trim() || spec.description.includes('\n'))) {
     throw new Error(`${spec.name}: description must be a non-empty single-line string`)
   }
@@ -194,7 +200,9 @@ function assess(path, target) {
 function report(projectRoot, rows) {
   for (const { path, target, result } of rows) {
     console.log(`${target.agent} · ${target.runtime.id} · ${relative(projectRoot, path)}`)
-    for (const line of [...result.changes, ...target.notes.map((note) => `note: ${note}`)]) console.log(`  - ${line}`)
+    // Runtime limitations accompany a written or changed target, not every check.
+    const limits = result.kind === 'none' ? [] : target.runtime.limitations ?? []
+    for (const line of [...result.changes, ...[...target.notes, ...limits].map((note) => `note: ${note}`)]) console.log(`  - ${line}`)
   }
 }
 

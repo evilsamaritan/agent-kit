@@ -34,6 +34,11 @@ bash "$repo_root/scripts/validate-plugin-manifests.sh"
 if [[ -e "$repo_root/.claude/agents" || -e "$repo_root/.claude/skills" ]]; then
   err "packaging" "project-local .claude agents/skills must not be shipped by the plugin repository"
 fi
+# Hosts load CLAUDE.md / AGENTS.md (case-insensitively on macOS) as instructions for a
+# directory; a reference with that name would leak into maintainers' sessions.
+while IFS= read -r instruction_file; do
+  err "packaging" "${instruction_file#"$repo_root"/} is named like a host instruction file; rename it"
+done < <(find "$repo_root/skills" "$repo_root/profiles" "$repo_root/scripts" "$repo_root/docs" \( -iname 'claude.md' -o -iname 'claude.local.md' -o -iname 'agents.md' \) 2>/dev/null)
 if [[ -e "$repo_root/.agents/plugins/marketplace.json" ]]; then
   err "packaging" "use the shared .claude-plugin/marketplace.json instead of a duplicate .agents catalog"
 fi
@@ -67,8 +72,13 @@ jq -n '{
       name: "backend-developer",
       profile: "developer",
       skills: ["backend", "api-design", "database", "rust"],
-      runtimes: ["claude", "codex"],
+      runtimes: ["claude", "codex", "kimi"],
       codex: {effort: "high"}
+    },
+    {
+      name: "tester",
+      profile: "tester",
+      skills: ["testing"]
     },
     {
       name: "reviewer",
@@ -94,6 +104,11 @@ fi
 [[ -f "$project_test_dir/.codex/agents/backend-developer.toml" ]] || err "materializer" "Codex backend target missing"
 [[ -f "$project_test_dir/.codex/agents/reviewer.toml" ]] || err "materializer" "Codex reviewer target missing"
 [[ ! -f "$project_test_dir/.claude/agents/reviewer.md" ]] || err "materializer" "runtime filtering failed"
+kimi_target="$project_test_dir/.kimi-code/agents/backend-developer.md"
+[[ -f "$kimi_target" ]] || err "materializer" "Kimi target missing"
+grep -q '${agents_md}' "$kimi_target" && grep -q '${skills}' "$kimi_target" || err "materializer" "Kimi target lost project or skill context"
+grep -q '^tools: \[.*"Bash"' "$kimi_target" || err "materializer" "Kimi full access tools missing"
+[[ -f "$project_test_dir/.codex/agents/tester.toml" && ! -e "$project_test_dir/.kimi-code/agents/tester.md" ]] || err "materializer" "omitted runtimes must mean Claude and Codex only"
 [[ $(<"$project_test_dir/.claude/agents/manual.md") == "manual project agent" ]] || err "materializer" "manual agent was modified"
 
 node "$repo_root/scripts/validate-codex-agent.mjs" "$project_test_dir"/.codex/agents/*.toml
@@ -113,6 +128,7 @@ mv "$project_test_dir/.agent-kit/agents.next.json" "$project_test_dir/.agent-kit
 node "$repo_root/skills/agent-creator/scripts/materialize-agents.mjs" --project-root "$project_test_dir" --prune
 [[ ! -e "$project_test_dir/.claude/agents/backend-developer.md" ]] || err "materializer" "prune left obsolete Claude target"
 [[ ! -e "$project_test_dir/.codex/agents/backend-developer.toml" ]] || err "materializer" "prune left obsolete Codex target"
+[[ ! -e "$kimi_target" ]] || err "materializer" "prune left obsolete Kimi target"
 [[ -f "$project_test_dir/.claude/agents/manual.md" ]] || err "materializer" "prune removed manual agent"
 node "$repo_root/skills/agent-creator/scripts/materialize-agents.mjs" --project-root "$project_test_dir" --check
 
@@ -166,6 +182,11 @@ for file in "$repo_root"/skills/*/SKILL.md; do
 
   if [[ -n "$user_invocable" && "$user_invocable" != 'true' && "$user_invocable" != 'false' ]]; then
     err "$skill" "user-invocable must be true or false"
+  fi
+
+  # Claude and Kimi substitute $N / $ARGUMENTS[N] when a skill is invoked.
+  if grep -qE '\$[0-9]' "$file"; then
+    err "$skill" "SKILL.md contains a dollar-digit sequence that skill invocation would substitute; write amounts as USD 10 or 10 dollars"
   fi
 
   if (( line_count > 550 )); then

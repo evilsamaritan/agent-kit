@@ -28,7 +28,7 @@ Create or update `.agent-kit/agents.json` using [../references/project-config.md
 - **Delete:** remove the matching entry; do not delete native files by hand.
 - **Sync:** leave the config unchanged.
 
-Default `runtimes` to both `claude` and `codex`.
+Omitted `runtimes` means `claude` and `codex`. Add `kimi` when the project uses Kimi Code (a `.kimi-code/` directory or the user's request); Kimi targets are opt-in so upgrades do not add a third agent directory.
 
 ## Step 4: Materialize native agents
 

@@ -16,7 +16,7 @@ argument-hint: "[create|update|delete|sync|verify] [agent or profile]"
 - Skills are the agent's exact project knowledge composition when `skills` is present in `.agent-kit/agents.json`. If omitted, the profile defaults apply.
 - Use native runtime targets: Claude Markdown custom agents and Codex TOML custom agents. Do not create a shared pseudo-runtime, wrapper agent, or proprietary execution protocol.
 - Preserve non-generated runtime files. The materializer refuses to overwrite them and prunes only files carrying the Agent Kit generated marker.
-- Default to both Claude and Codex project targets so the project can switch runtimes. Narrow `runtimes` only when the user explicitly wants one host.
+- Default to Claude and Codex project targets so the project can switch runtimes; add Kimi Code when the project uses it. Narrow `runtimes` only when the user explicitly wants one host.
 - Ask before expanding access, selecting a materially more expensive model, or deleting a non-generated file. Routine profile/skill selection and regeneration are part of the requested operation.
 
 ## Model

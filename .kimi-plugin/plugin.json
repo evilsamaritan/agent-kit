@@ -7,10 +7,9 @@
     "url": "https://github.com/evilsamaritan"
   },
   "homepage": "https://github.com/evilsamaritan/agent-kit#readme",
-  "repository": "https://github.com/evilsamaritan/agent-kit",
   "license": "MIT",
   "keywords": [
-    "codex",
+    "kimi-code",
     "agents",
     "skills",
     "context-engineering",
@@ -20,13 +19,8 @@
   "interface": {
     "displayName": "Agent Kit",
     "shortDescription": "Profiles and skills for native engineering agents.",
-    "longDescription": "A reusable library of profession profiles, domain skills, and helpers that configure and orchestrate native Claude Code, Codex, and Kimi Code agents.",
+    "longDescription": "A reusable library of profession profiles, domain skills, and helpers that configure native Claude Code, Codex, and Kimi Code project agents.",
     "developerName": "Maksim Misiukevich",
-    "category": "Developer Tools",
-    "capabilities": [
-      "Write"
-    ],
-    "websiteURL": "https://github.com/evilsamaritan/agent-kit",
-    "defaultPrompt": "Configure or orchestrate the right Agent Kit profession profiles and skills for this project."
+    "websiteURL": "https://github.com/evilsamaritan/agent-kit"
   }
 }

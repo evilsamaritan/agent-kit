@@ -88,6 +88,14 @@ Knowledge skill scopes:
 | `compatibility` | No | Environment requirements, 1-500 chars |
 | `metadata` | No | Portable custom key-value map (for example `type: meta` for external tooling) |
 
+### Portability across hosts
+
+Claude Code, Codex, and Kimi Code all read `name` and `description`; keep `description` sufficient on its own. Kimi also reads `when_to_use`, `disable-model-invocation`, and `arguments`, and ignores Claude-only fields such as `user-invocable`, `allowed-tools`, and `context`.
+
+- Skill invocation substitutes `$ARGUMENTS`, `$N`, and `$name` in SKILL.md. Write amounts as `USD 10` or `10 dollars`, never a dollar sign followed by a digit; the validator rejects it.
+- Kimi has no dynamic shell context (`` !`cmd` ``). Put a data-gathering step in the workflow instead.
+- `disable-model-invocation: true` also stops Claude from preloading the skill into subagents. Shorten a long description before hiding a skill.
+
 ## Validation
 
 After creating or editing a skill, verify:

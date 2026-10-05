@@ -1,6 +1,6 @@
 # Agent Kit
 
-Agent Kit is a reusable library of software-engineering skills, profession profiles, and helpers for Claude Code and Codex. It packages context and configuration; it does not replace either runtime's native agents, subagents, teammates, workflows, or thread controls.
+Agent Kit is a reusable library of software-engineering skills, profession profiles, and helpers for Claude Code, Codex, and Kimi Code. It packages context and configuration; it does not replace any runtime's native agents, subagents, teammates, workflows, or thread controls.
 
 ## Mental model
 
@@ -8,7 +8,7 @@ Agent Kit is a reusable library of software-engineering skills, profession profi
 Agent Kit library                  Project source                    Native runtime
 skills/                            .agent-kit/agents.json            .claude/agents/*.md
 profiles/                 +        selected profiles + skills  →     .codex/agents/*.toml
-role templates                                                     Claude/Codex orchestration
+role templates                                                     .kimi-code/agents/*.md
 ```
 
 - A **profile** is a reusable profession such as developer, tester, or reviewer.
@@ -16,7 +16,7 @@ role templates                                                     Claude/Codex 
 - A **project agent** is a profile configured with the exact skills needed by one project.
 - `agent-orchestrator` chooses the professions, instances, effort, and task split for a concrete task, then uses the host runtime's native delegation.
 
-The same project composition can generate both Claude and Codex agents, so switching runtimes does not require copying prompts or rebuilding the team by hand.
+The same project composition generates Claude and Codex agents, and Kimi Code agents when selected, so switching runtimes does not require copying prompts or rebuilding the team by hand.
 
 ## Repository layout
 
@@ -24,7 +24,8 @@ The same project composition can generate both Claude and Codex agents, so switc
 profiles/<name>/
 ├── PROFILE.md                    # portable profession behavior
 ├── claude.yaml                   # Claude defaults
-└── codex.yaml                    # Codex defaults
+├── codex.yaml                    # Codex defaults
+└── kimi.yaml                     # optional Kimi defaults
 
 skills/<name>/                    # shared knowledge and meta skills
 skills/agent-creator/             # project materialization + profile maintenance
@@ -32,6 +33,8 @@ skills/agent-orchestrator/        # native task-time composition
 
 .claude-plugin/marketplace.json   # shared repository marketplace catalog
 .codex-plugin/plugin.json         # Codex plugin manifest
+.kimi-plugin/plugin.json          # Kimi Code plugin manifest
+scripts/profile-runtimes/         # one format module per runtime
 scripts/generate-profiles.mjs     # profile canon → catalog and references
 ```
 
@@ -54,6 +57,15 @@ codex plugin add agent-kit@agent-kit
 ```
 
 Start a new Codex task after installation so the plugin skills enter the session.
+
+### Kimi Code
+
+```text
+/plugins install https://github.com/evilsamaritan/agent-kit
+/reload
+```
+
+Kimi runs a managed copy of the plugin; reinstall or reload after updating. Project agents for Kimi are opt-in: add `"kimi"` to an agent's `runtimes`. Kimi custom agents have no model or effort field, so those intents are not applied there.
 
 Installing the plugin exposes skills and profile recipes. It does not register profession agents. Project agents are optional: the main session can use skills directly.
 

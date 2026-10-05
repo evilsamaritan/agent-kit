@@ -35,7 +35,7 @@ Mark preserved existing entries and generated files that will be updated or prun
 
 1. Invoke `skill-creator` first only for genuinely missing reusable knowledge.
 2. Invoke `agent-creator` once with the complete create/update/delete set.
-3. Have it update `.agent-kit/agents.json`, materialize both runtimes, and run `--check`.
+3. Have it update `.agent-kit/agents.json`, materialize the selected runtimes, and run `--check`.
 
 Do not create a saved team or proprietary workflow. `agent-orchestrator` will assemble task-specific teams later from the available agents.
 
@@ -46,6 +46,8 @@ Report:
 - portable source: `.agent-kit/agents.json`;
 - created/updated native Claude files;
 - created/updated native Codex files;
+- created/updated native Kimi files, when selected;
+- whether a session restart is needed before Claude can select new agents;
 - selected profiles and exact skills;
 - validation commands and outcomes;
 - preserved user-owned agents.

@@ -23,6 +23,7 @@ Heuristics for inferring a project's tech stack from filesystem signals. The res
 | `.github/workflows/` / `.gitlab-ci.yml` | CI configured |
 | `terraform/` / `*.tf` | Infrastructure-as-code |
 | `kubernetes/` / `k8s/` / `helm/` | Kubernetes |
+| `.claude/` / `.codex/` / `.kimi-code/` | Agent hosts in use; add the matching runtime targets |
 
 ---
 

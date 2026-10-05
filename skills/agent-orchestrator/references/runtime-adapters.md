@@ -1,58 +1,37 @@
 # Native Runtime Adapters
 
-## Contents
+The orchestration policy is portable; delegation mechanics are not. Identify the host from the tools actually available in this session, not from the model brand (a Kimi model inside Claude Code uses Claude Code mechanisms). Then read only the matching file:
 
-- [Claude Code](#claude-code)
-- [Codex](#codex)
-- [Other runtimes](#other-runtimes)
-- [Portability boundary](#portability-boundary)
+| Host | Reference |
+|------|-----------|
+| Claude Code (CLI, desktop, IDE, web) | [runtimes/claude-code.md](runtimes/claude-code.md) |
+| Codex | [runtimes/codex.md](runtimes/codex.md) |
+| Kimi Code CLI | [runtimes/kimi-code.md](runtimes/kimi-code.md) |
+| Anything else | [Other runtimes](#other-runtimes) |
 
-## Claude Code
+## Map the shape onto the host
 
-Prefer a named custom agent from `.claude/agents/`. Pass the concrete assignment; the native agent already carries its persona, skills, tool configuration, and any model the project pinned (otherwise it inherits the session model). A `.claude/agents/` directory created during the session becomes selectable only after a restart.
+| Shape | Claude Code | Codex | Kimi Code |
+|-------|-------------|-------|-----------|
+| Bounded assignment | named project agent, else generic subagent with a brief | named custom agent when the selector applies it, else generic child | `Agent` with the project agent type, else `coder` with a brief |
+| Pipeline | main session runs dependent stages | same | same |
+| Independent reviews | several subagents, then synthesis | several children, then synthesis | several `Agent` calls, or `AgentSwarm` for one procedure over many items |
+| Peer discussion | agent teams, when enabled | messaging between agents, when the client offers it | not equivalent to swarm; use the main session |
+| Continue an agent | message the same agent | follow up the same child | `resume` with the agent ID |
+| No delegation | run the stages in the main session | same | same |
 
-When no configured project agent fits, pass the selected profile behavior and authoritative skill source paths to a generic native subagent if delegation is authorized. This prompt cannot enforce custom tools, effort, or preload settings absent from the spawn API. Use the main session or a configured project agent when those controls matter.
+Effort is reasoning depth where the host applies it. Never simulate an unsupported effort with more agents, and never report a recommended setting as applied.
 
-Use Claude's native subagents for bounded delegation, teammates for peer coordination when available, and native workflows for a persisted execution graph. Use native worktree isolation for parallel writers. Do not translate these mechanisms into Agent Kit configuration.
+## Brief for a generic subagent
 
-### Selected knowledge delivery
-
-Project targets retain native `skills` preload hints and include resolved local source paths. The source paths determine which installation was selected; read the relevant body when it was not loaded from that source. This avoids depending solely on undocumented bare-name plugin lookup. Native behavior has not been reproduced here: the Claude CLI is unavailable. Generated output and path availability are checked, not actual model loading.
-
-[Claude subagent documentation](https://code.claude.com/docs/en/sub-agents#preload-skills-into-subagents) describes preloading and skipping unavailable skills. A prompt fallback carries knowledge, not missing API controls.
-
-## Codex
-
-Prefer a named custom agent from `.codex/agents/*.toml` when the current Codex client exposes a selector that applies that agent's configuration. The file carries `developer_instructions`, reasoning effort, sandbox defaults, skill configuration, and a model only when the project pinned one. Use Codex subagent/thread controls to spawn, steer, wait, interrupt, and collect results.
-
-Live parent-session sandbox and approval overrides can supersede custom-agent defaults. Treat the project TOML as a default contract, then honor the active session policy.
-
-Capability-gate named selection. Some clients can discover or mention a custom-agent name while their generic spawn tool still creates an unconfigured child. If the tool schema or a smoke result does not prove that named config is applied, read `.agent-kit/agents.json` plus the selected profile reference and spawn a generic child with:
-
-- the complete profile persona and concrete task;
-- the project's exact skill names, which the child must read before acting;
-- explicit model and reasoning effort when the host permits overrides.
-
-The fallback inherits the parent sandbox and tools. Do not claim it enforces the profile's native `sandbox_mode` or skill configuration.
+When a named agent is missing, unselectable, or stale, generate the brief with the installed agent-creator materializer: `materialize-agents.mjs --project-root <project> --brief NAME`. It carries the profile behavior and the selected skill sources. A brief conveys knowledge, not tool, sandbox, model, effort, or preload controls the spawn API lacks; say so when those controls matter.
 
 ## Other runtimes
 
-If the host has a named-agent registry, map the profession profile into that registry through a future runtime adapter. If it only accepts prompts, pass the profile persona plus the concrete assignment. If it has no delegation, execute the orchestration stages sequentially in the main thread.
+If the host has a named-agent registry, a new runtime module in `scripts/profile-runtimes/` can target it. If it only accepts prompts, pass the brief plus the concrete assignment. If it has no delegation, execute the stages in the main thread.
 
 ## Portability boundary
 
-Portable across runtimes:
+Portable: profession behavior, selected knowledge, intended effort and access, the assignment and evidence contract, and the dependency shape.
 
-- profession persona and role behavior;
-- selected knowledge skills;
-- intended effort and access level;
-- assignment and evidence contract;
-- pipeline or parallel dependency shape.
-
-Runtime-owned:
-
-- exact model identifier;
-- tool and permission syntax;
-- sandbox and approval precedence;
-- thread, teammate, workflow, and worktree controls;
-- persistence format for native agents or workflows.
+Runtime-owned: model identifiers, tool and permission syntax, sandbox and approval precedence, thread/teammate/workflow/worktree controls, and native persistence formats.

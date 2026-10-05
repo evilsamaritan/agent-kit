@@ -147,13 +147,13 @@ How do you handle card data?
 |--------|-------------------|----------------|
 | **ACH** (US) | Provider API | Low fees (~0.8%); 1-3 day settlement; good for B2B/recurring |
 | **SEPA** (EU) | Provider API / redirect | Low fees; SEPA Instant for real-time; PSD3 will strengthen Open Banking |
-| **FedNow** (US instant) | Bank integration / fintech API | Real-time settlement; $10M limit; 1500+ participating banks |
+| **FedNow** (US instant) | Bank integration / fintech API | Real-time settlement; USD 10M limit; 1500+ participating banks |
 | **UPI** (India) | Provider API | Real-time; near-zero fees; dominant in Indian market |
 | **iDEAL / Bancontact** | Provider redirect | Regional bank transfer methods (NL, BE) |
 
 ### Stablecoin Payments
 
-Stablecoins (USDC, USDT) have matured beyond niche: $33T annual volume, 76% of crypto payments are stablecoins. Consider when:
+Stablecoins (USDC, USDT) have matured beyond niche: USD 33T annual volume, 76% of crypto payments are stablecoins. Consider when:
 - Cross-border B2B with high remittance costs
 - Markets with limited banking infrastructure
 - Instant settlement with no chargebacks needed

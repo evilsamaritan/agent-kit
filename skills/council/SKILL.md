@@ -37,7 +37,7 @@ One advisor is one perspective. Five advisors with deliberate tensions are a str
 The council is for decisions where being wrong is expensive and where multiple framings genuinely add value.
 
 **Good council questions:**
-- "Should I launch a $97 workshop or a $497 course?"
+- "Should I launch a 97-dollar workshop or a 497-dollar course?"
 - "Which of these 3 positioning angles is strongest?"
 - "I'm thinking of pivoting from X to Y. Am I crazy?"
 - "Here's my landing page copy. What's weak?"

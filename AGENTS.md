@@ -1,4 +1,4 @@
-# agent-kit v4.0.0-alpha.4
+# agent-kit v4.0.0-alpha.5
 
 ## Purpose
 
@@ -18,7 +18,7 @@ Profession **profiles** are the stable base entity. A project agent is assembled
 ## Rules
 
 - Edit shared skills in `skills/`; the repository does not ship project-local `.claude/` or `.agents/` configuration
-- Edit reusable professions in `profiles/<name>/`, NEVER in `.claude/agents/`, `.codex/agents/` — those are native generated targets
+- Edit reusable professions in `profiles/<name>/`, NEVER in `.claude/agents/`, `.codex/agents/`, `.kimi-code/agents/` — those are native generated targets
 - Regenerate package targets with `scripts/generate-profiles.mjs` after touching a profile; `--check` fails the build when they drift
 - In consuming projects, edit `.agent-kit/agents.json` and run `skills/agent-creator/scripts/materialize-agents.mjs`; never copy profile or skill sources
 - One skill = one domain. Do not merge unrelated domains into a single skill.
@@ -31,9 +31,10 @@ Profession **profiles** are the stable base entity. A project agent is assembled
 - **Teach patterns, not products** — SKILL.md teaches the pattern (what and when). Reference files may use specific tools as *examples*, but SKILL.md must not assume a particular tool or vendor.
 - **Framework refs = extensions** — Framework-specific content (Next.js, Nuxt, Node.js) belongs in a separate reference file with an explicit name. SKILL.md covers the core technology only.
 - **Decision trees before vendor tables** — Every skill that compares tools/vendors must lead with a decision tree, not a feature comparison table.
-- **Version on every meaningful commit** — bump version in the canonical `AGENTS.md` header (exposed to Claude Code through the `CLAUDE.md` symlink), `.claude-plugin/plugin.json`, `.claude-plugin/marketplace.json`, and `.codex-plugin/plugin.json`. Use semver: patch for fixes, minor for new features/skills/agents, major for breaking changes.
-- **One shared skill source** — Claude Code and Codex manifests both expose the canonical `skills/` directory. Never copy runtime-specific variants of a skill.
-- **Keep packaging runtime-specific** — Claude metadata and the shared repository marketplace live in `.claude-plugin/`; Codex plugin metadata lives in `.codex-plugin/`. Project-local `.claude/` and `.agents/` directories are not package sources.
+- **Version on every meaningful commit** — `node scripts/bump-version.mjs <semver>` updates the canonical `AGENTS.md` header (exposed to Claude Code through the `CLAUDE.md` symlink), `.claude-plugin/plugin.json`, `.claude-plugin/marketplace.json`, `.codex-plugin/plugin.json`, and `.kimi-plugin/plugin.json`. Use semver: patch for fixes, minor for new features/skills/agents, major for breaking changes.
+- **One shared skill source** — Claude Code, Codex, and Kimi Code manifests all expose the canonical `skills/` directory. Never copy runtime-specific variants of a skill.
+- **Keep packaging runtime-specific** — Claude metadata and the shared repository marketplace live in `.claude-plugin/`; Codex plugin metadata lives in `.codex-plugin/`; Kimi plugin metadata lives in `.kimi-plugin/`. Project-local `.claude/` and `.agents/` directories are not package sources.
+- **No instruction-file names inside the package** — never name a skill, reference, or profile file `CLAUDE.md` or `AGENTS.md` (any case); hosts load those as directory instructions.
 
 ## Repository Structure
 
@@ -47,6 +48,8 @@ Profession **profiles** are the stable base entity. A project agent is assembled
 | `skills/agent-creator/templates/` | Role-templates (architect, implementer, reviewer, operator, writer) |
 | `.claude-plugin/` | Claude manifest plus the repository marketplace catalog used by Claude and as Codex's legacy-compatible source |
 | `.codex-plugin/` | Codex plugin manifest |
+| `.kimi-plugin/` | Kimi Code plugin manifest (skills only) |
+| `scripts/profile-runtimes/` | One format module per runtime: fields, resolution, target path, render, parse |
 | `scripts/` | Repository-wide compatibility and maintenance utilities |
 
 ## Skills are flat
@@ -187,13 +190,14 @@ skill-name/
 
 ## Profession Profile and Project Agent Anatomy
 
-A reusable profile is a directory under `profiles/`, split into a runtime-neutral core and one overlay per runtime. `scripts/generate-profiles.mjs` generates the profile catalog and orchestrator references; it never registers runtime agents. In consuming projects, `.agent-kit/agents.json` selects a profile plus skills and the materializer writes native `.claude/agents/*.md` and `.codex/agents/*.toml` files.
+A reusable profile is a directory under `profiles/`, split into a runtime-neutral core and one overlay per runtime. `scripts/generate-profiles.mjs` generates the profile catalog and orchestrator references; it never registers runtime agents. In consuming projects, `.agent-kit/agents.json` selects a profile plus skills and the materializer writes native `.claude/agents/*.md`, `.codex/agents/*.toml`, and (opt-in) `.kimi-code/agents/*.md` files.
 
 ```
 profiles/<name>/
 ├── PROFILE.md      # core frontmatter + body (role-template adaptation + persona)
 ├── claude.yaml     # Claude Code overlay
-└── codex.yaml      # Codex overlay
+├── codex.yaml      # Codex overlay
+└── kimi.yaml       # optional Kimi Code overlay
 ```
 
 A field belongs to the core when both runtimes read it the same way, and to an overlay when the vocabularies diverge or only one runtime has the concept.
@@ -238,6 +242,14 @@ effort: ultra                       # Optional. Codex-only levels; `ultra` is re
 ```
 
 Also accepted: `model` and `sandbox_mode`. The project materializer maps the profile body to `developer_instructions`, `effort` to `model_reasoning_effort`, `access` to `sandbox_mode`, and resolved skills to `skills.config` entries pointing at each `SKILL.md`. Live session policy remains authoritative over child defaults. `agent-orchestrator` capability-checks named custom-agent selection and falls back to a generic native subagent carrying the same persona and skill composition when a client cannot apply the named config.
+
+### Kimi overlay — `kimi.yaml` (optional)
+
+```yaml
+whenToUse: Code reviews and PR checks   # Kimi routing hint.
+```
+
+Also accepted: `tools`, `disallowedTools`, `subagents`. Kimi custom agents have no model or effort fields; access maps to an explicit Kimi tool allowlist (`Read`, `Grep`, `Glob`, `ReadMediaFile`, `WebSearch`, `FetchURL`, `Skill`, plus `Edit`/`Write` and `Bash`/task tools). The body replaces the delegated agent's whole system prompt, so the renderer appends `${agents_md}`, `${skills}`, the selected sources, and a handoff, and rejects profile text containing Kimi template variables. Kimi targets are opt-in per agent (`runtimes`).
 
 ### Generated targets and freshness
 

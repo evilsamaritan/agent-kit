@@ -9,6 +9,7 @@
 - Effort / access: high / read-only
 - Claude model / tools: inherit / Read, Grep, Glob, WebSearch, WebFetch, Skill
 - Codex model / effort / sandbox: inherit / high / read-only
+- Kimi tools: Read, Grep, Glob, ReadMediaFile, WebSearch, FetchURL, Skill
 
 ## Persona
 

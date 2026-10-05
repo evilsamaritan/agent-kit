@@ -10,8 +10,8 @@ argument-hint: "[recipe-name]"
 ## Critical rules
 
 - Keep Agent Kit as the reusable library. Store only project composition in `.agent-kit/agents.json`.
-- Generate native `.claude/agents/` and `.codex/agents/` targets through `agent-creator`; do not copy profile or skill sources into the project.
-- Default to both runtimes so the project can switch between Claude and Codex.
+- Generate native `.claude/agents/`, `.codex/agents/`, and (when used) `.kimi-code/agents/` targets through `agent-creator`; do not copy profile or skill sources into the project.
+- Default to Claude and Codex so the project can switch between them; add Kimi Code when the project uses it.
 - Detect stack and existing conventions before proposing agents.
 - Show one compact composition plan. Ask only when a remaining choice materially changes project scope, permissions, or model cost.
 - Dispatch writes to `agent-creator` and missing domain knowledge to `skill-creator`. Init is a router, not another generator.
@@ -23,10 +23,10 @@ argument-hint: "[recipe-name]"
 2. Read existing `.agent-kit/agents.json`, if present.
 3. Infer the primary development and review tasks from the request and repository.
 4. Choose the smallest useful set of profession profiles and exact skill combinations using [references/dispatch-matrix.md](references/dispatch-matrix.md).
-5. Present the resulting project agents, both runtime targets, access, and any non-default model choice.
+5. Present the resulting project agents, runtime targets, access, and any pinned model.
 6. Invoke `agent-creator` once with the complete composition.
 7. Run its materializer and drift check.
-8. Report the portable source and generated native targets.
+8. Report the portable source and generated native targets. If `.claude/agents/` was created in this run, say that Claude selects the new agents after a session restart.
 
 Follow [workflows/bootstrap.md](workflows/bootstrap.md) for the full procedure.
 

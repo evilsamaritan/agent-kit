@@ -189,7 +189,7 @@ Never use color as the sole indicator. Add icons, patterns, text labels, or unde
 
 ```html
 <!-- Informative — describe content -->
-<img src="chart.png" alt="Q3 revenue increased 23% to $4.2M" />
+<img src="chart.png" alt="Q3 revenue increased 23% to 4.2 million dollars" />
 
 <!-- Decorative — empty alt -->
 <img src="divider.png" alt="" />

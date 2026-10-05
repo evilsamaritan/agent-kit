@@ -6,6 +6,7 @@
 - [Project composition](#project-composition)
 - [Claude target](#claude-target)
 - [Codex target](#codex-target)
+- [Kimi target](#kimi-target)
 - [Safety and drift](#safety-and-drift)
 
 ## Profile source
@@ -25,7 +26,7 @@
 - [ ] Agent names are unique and profile names exist.
 - [ ] `skills`, when present, are the intentional exact final set.
 - [ ] Every selected skill resolves from the project or installed Agent Kit.
-- [ ] Runtime list contains Claude, Codex, or both.
+- [ ] Runtime list is a non-empty subset of `claude`, `codex`, `kimi`; omitted means Claude and Codex.
 - [ ] Effort, access, and runtime overrides use supported values.
 
 ## Claude target
@@ -45,6 +46,12 @@
 - [ ] Every selected skill has an enabled `skills.config` entry.
 - [ ] Generated marker and complete profile behavior are present.
 
+## Kimi target
+
+- [ ] Frontmatter has `name`, `description`, and an explicit `tools` allowlist derived from access.
+- [ ] Body keeps `${agents_md}`, `${skills}`, the selected sources, and the handoff section; profile text contains no Kimi template variable.
+- [ ] The agent name is not `coder`, `explore`, or `plan`.
+
 ## Safety and drift
 
 - [ ] Package generator `--check` passes.
@@ -52,4 +59,4 @@
 - [ ] Generated targets carry `agent-kit-metadata` with the current kit version.
 - [ ] Non-generated native agent files are never overwritten or pruned.
 - [ ] Removing a composition entry plus `--prune` removes only marked derived targets.
-- [ ] Repository validation exercises a real temporary project for both runtimes.
+- [ ] Repository validation exercises a temporary project for all three runtimes.
