@@ -1,4 +1,4 @@
-# Claude Code overlay. Merged on top of PROFILE.md at generation time.
-model: opus
+# Claude Code overlay. Model is omitted so the agent inherits the session choice;
+# projects pin aliases or IDs in .agent-kit/agents.json when they need to.
 color: purple
 tools: [Read, Edit, Write, Bash, Glob, Grep, Skill]

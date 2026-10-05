@@ -1,6 +1,6 @@
 ---
 name: agent-creator
-description: Create, update, delete, sync, or verify project agents assembled from reusable Agent Kit profession profiles and knowledge skills. Use when setting up backend/frontend/tester or other agents for a project, changing their skill combinations, generating native Claude and Codex agent files, or maintaining the bundled profile library. Do NOT use to run agents or assemble a task workflow (use agent-orchestrator) or to create knowledge skills (use skill-creator).
+description: "Create, update, sync, or verify project agents and profession profiles. Use for exact skill composition and native agent files; run agents with agent-orchestrator."
 compatibility: Full Agent Kit plugin installation is required for bundled profiles and materializer dependencies.
 user-invocable: true
 argument-hint: "[create|update|delete|sync|verify] [agent or profile]"
@@ -12,19 +12,19 @@ argument-hint: "[create|update|delete|sync|verify] [agent or profile]"
 
 - A **profile** is the reusable profession stored by Agent Kit. A **project agent** is a configured instance of a profile rendered into a host runtime's native format.
 - In a consuming project, edit only `.agent-kit/agents.json`, then run the materializer. Never hand-copy or hand-edit generated `.claude/agents/*.md` or `.codex/agents/*.toml` files.
-- In the Agent Kit repository, edit profile sources only under `profiles/<name>/`, then run `scripts/generate-profiles.mjs`. Never edit `.claude-plugin/agents/` or generated orchestrator profile references.
+- In the Agent Kit repository, edit profile sources only under `profiles/<name>/`, then run `scripts/generate-profiles.mjs`. Never edit generated orchestrator profile references. The package contains no registered profession agents.
 - Skills are the agent's exact project knowledge composition when `skills` is present in `.agent-kit/agents.json`. If omitted, the profile defaults apply.
 - Use native runtime targets: Claude Markdown custom agents and Codex TOML custom agents. Do not create a shared pseudo-runtime, wrapper agent, or proprietary execution protocol.
 - Preserve non-generated runtime files. The materializer refuses to overwrite them and prunes only files carrying the Agent Kit generated marker.
-- Default to both Claude and Codex project targets so the project can switch runtimes. Narrow `runtimes` only when the user explicitly wants one host.
+- Default to Claude and Codex project targets so the project can switch runtimes; add Kimi Code when the project uses it. Narrow `runtimes` only when the user explicitly wants one host.
 - Ask before expanding access, selecting a materially more expensive model, or deleting a non-generated file. Routine profile/skill selection and regeneration are part of the requested operation.
 
 ## Model
 
 ```text
 Agent Kit library                  Project source                    Native targets
-profiles/backend/                 .agent-kit/agents.json            .claude/agents/backend-rust.md
-skills/backend/          +        backend + rust + database   →     .codex/agents/backend-rust.toml
+profiles/developer/                 .agent-kit/agents.json            .claude/agents/backend-developer.md
+skills/backend/          +        developer + backend + rust + database   →     .codex/agents/backend-developer.toml
 role templates                                                     host-native subagent/workflow
 ```
 
@@ -50,7 +50,7 @@ A profile supplies:
 - persona and domain-adapted role behavior;
 - default knowledge skills;
 - default effort and access intent;
-- Claude and Codex model defaults.
+- no model: project agents inherit the host model unless the project pins one.
 
 Read [references/profile-catalog.md](../agent-orchestrator/references/profile-catalog.md) to discover bundled profiles, then load only the selected `profiles/<name>.md` reference when project configuration needs its detail.
 
@@ -58,15 +58,13 @@ Read [references/profile-catalog.md](../agent-orchestrator/references/profile-ca
 
 Choose the smallest exact set the project agent routinely needs. Start from profile defaults, then replace them when the stack calls for a different composition.
 
-```text
-backend-rust → profile backend + [backend, api-design, database, rust]
-backend-node → profile backend + [backend, api-design, database, javascript, web]
-frontend-react → profile frontend + [frontend, react, web, html, css, accessibility]
-```
+Use [project-agent-recipes.md](references/project-agent-recipes.md) for starting knowledge and responsibility descriptions. Names express ownership, not a stack concatenation. One developer can serve several domains; separate instances only for actual boundaries. Explicit skills replace defaults.
 
 Do not preload every possibly related skill. Other installed skills remain discoverable on demand.
 
-### Access
+#For a non-persistent assignment, `materialize-agents.mjs --brief <name>` produces the same profile behavior and selected source paths without writing runtime files. The host must support authorized delegation; the brief cannot enforce missing API controls.
+
+## Access
 
 | access | Claude default tools | Codex sandbox default |
 |--------|----------------------|-----------------------|
@@ -81,12 +79,17 @@ The current runtime session can impose stricter policy or override a child defau
 The deterministic script lives at [scripts/materialize-agents.mjs](scripts/materialize-agents.mjs). Resolve it from this skill's directory and run it with the project root:
 
 ```bash
+node skills/agent-creator/scripts/materialize-agents.mjs --project-root /path/to/project --dry-run
 node skills/agent-creator/scripts/materialize-agents.mjs --project-root /path/to/project
 node skills/agent-creator/scripts/materialize-agents.mjs --project-root /path/to/project --check
 node skills/agent-creator/scripts/materialize-agents.mjs --project-root /path/to/project --prune
 ```
 
+`--dry-run` previews the semantic diff; `--check --portable` ignores path-only refreshes; `--agent NAME` limits a check or refresh to one agent. Library skill paths are absolute, so refresh targets after upgrading or moving Agent Kit.
+
 When Agent Kit is installed as a plugin, use the script's installed absolute path rather than assuming the consuming project contains `skills/agent-creator/`.
+
+For an old frontend/backend profile or a renamed skill (`visualization` → `playground`), preview `scripts/migrate-project.mjs --project-root /path/to/project`; add `--write` to apply. Migration retains names, old default skills/models, and explicit choices. Then materialize/check. Several instances need distinct descriptions of responsibility.
 
 ## Validation
 

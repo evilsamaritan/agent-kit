@@ -1,0 +1,12 @@
+shape: sequence_diagram
+style.fill: transparent
+
+Client
+Shell: App Shell
+Catalog: Module Catalog
+Runtime
+Client -> Shell: open(gameId)
+Shell -> Catalog: resolve(gameId)
+Catalog -> Shell: module definition {style.stroke-dash: 3}
+Shell -> Runtime: mount(module)
+Runtime -> Client: route ready {style.stroke-dash: 3}

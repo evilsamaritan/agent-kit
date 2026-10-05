@@ -1,6 +1,6 @@
 ---
 name: council
-description: "Run a question, idea, or decision through a council of 5 AI advisors who independently analyze it, peer-review each other anonymously, and synthesize a final verdict. Adapted from Karpathy's LLM Council methodology. MANDATORY TRIGGERS: 'council this', 'run the council', 'war room this', 'pressure-test this', 'stress-test this', 'debate this'. STRONG TRIGGERS (when paired with a real tradeoff): 'should I X or Y', 'which option', 'what would you do', 'is this the right move', 'validate this', 'get multiple perspectives', 'I can't decide', 'I'm torn between'. Do NOT trigger on simple yes/no questions, factual lookups, creation tasks ('write me a tweet'), or casual 'should I' without stakes. DO trigger when the user presents a genuine decision with stakes, multiple options, and context that suggests they want it pressure-tested from multiple angles."
+description: "Analyze a decision with five independent advisors, peer review, and synthesis. Use for council this, ask the council, get council opinion, council review, or совет."
 allowed-tools: Read, Write, Glob, Bash, Agent, AskUserQuestion
 user-invocable: true
 argument-hint: "<question or decision>"
@@ -37,7 +37,7 @@ One advisor is one perspective. Five advisors with deliberate tensions are a str
 The council is for decisions where being wrong is expensive and where multiple framings genuinely add value.
 
 **Good council questions:**
-- "Should I launch a $97 workshop or a $497 course?"
+- "Should I launch a 97-dollar workshop or a 497-dollar course?"
 - "Which of these 3 positioning angles is strongest?"
 - "I'm thinking of pivoting from X to Y. Am I crazy?"
 - "Here's my landing page copy. What's weak?"

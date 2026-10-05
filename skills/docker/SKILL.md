@@ -1,7 +1,6 @@
 ---
 name: docker
-description: Build and secure container images. Use when writing Dockerfiles, multi-stage builds, Compose v2, buildx/bake, distroless/Chainguard, SBOM, image signing, health checks, or docker init. Do NOT use for orchestration (use kubernetes) or CI/CD pipelines (use ci-cd).
-allowed-tools: Read, Grep, Glob, WebSearch, WebFetch
+description: "Build and secure container images. Use for Dockerfiles, multi-stage builds, Compose, buildx, image signing, SBOM, health checks, or container debugging."
 user-invocable: true
 ---
 

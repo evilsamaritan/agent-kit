@@ -1,7 +1,6 @@
 ---
 name: design
-description: Design UX and interaction patterns — user journeys, information architecture, cognitive load, design system governance, dashboard and data UX, onboarding flows. Use when designing or reviewing user flows, auditing IA, improving onboarding, governing a design system, or evaluating dashboards. Do NOT use for HTML/CSS implementation (use html/css), accessibility compliance (use accessibility), or frontend tooling (use frontend).
-allowed-tools: Read, Glob, Grep
+description: "Design or review UX and interaction. Use for user journeys, information architecture, cognitive load, onboarding, dashboards, and design-system decisions."
 user-invocable: true
 ---
 

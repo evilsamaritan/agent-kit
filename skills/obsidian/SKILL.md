@@ -1,7 +1,6 @@
 ---
 name: obsidian
-description: Configure and maintain Obsidian vault mechanics, including portable settings, excluded paths, properties, Graph view filters and groups, Bases, Canvas, templates, and repository-safe validation. Use when changing Obsidian behavior or visualization. Do NOT use to decide what knowledge means, which claims are true, or how a domain ontology should work.
-allowed-tools: Read, Write, Edit, Bash, Glob, Grep
+description: "Configure Obsidian vault mechanics. Use for properties, excluded paths, Graph view, Bases, Canvas, templates, and portable vault settings."
 user-invocable: true
 ---
 

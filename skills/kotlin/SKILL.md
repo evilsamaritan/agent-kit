@@ -1,7 +1,6 @@
 ---
 name: kotlin
-description: Write idiomatic Kotlin — coroutines, Flow, sealed classes, KMP, DSL builders, Gradle KTS, context parameters. Use when working with Kotlin coroutines, Flow, sealed hierarchies, data/value classes, multiplatform, DSL builders, or Gradle Kotlin DSL. Do NOT use for Android UI (use platform-specific guidance) or general JVM patterns.
-allowed-tools: Read, Grep, Glob, WebSearch, WebFetch
+description: "Write or review Kotlin. Use for coroutines, Flow, sealed types, KMP, DSLs, data/value classes, and Gradle Kotlin DSL."
 user-invocable: true
 ---
 

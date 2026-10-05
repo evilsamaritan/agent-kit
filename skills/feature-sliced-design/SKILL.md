@@ -1,7 +1,6 @@
 ---
 name: feature-sliced-design
-description: Apply Feature-Sliced Design (FSD) architecture. Use when organizing frontend structure, deciding where code belongs, auditing FSD imports, reviewing layer compliance, or migrating to FSD. Do NOT use for framework-specific patterns (use react or vue skill).
-allowed-tools: Read, Grep, Glob
+description: "Organize frontend code with Feature-Sliced Design. Use for FSD layers, slices, imports, structure reviews, and migration."
 user-invocable: true
 ---
 

@@ -1,7 +1,6 @@
 ---
 name: release-engineering
-description: Design release strategies — versioning, changesets, feature flags, progressive delivery, monorepo releases, rollback. Use when choosing semver vs calver, implementing changesets, designing feature flag lifecycle, or planning canary/blue-green rollouts. Do NOT use for CI/CD pipelines (use ci-cd) or container deployment (use docker/kubernetes).
-allowed-tools: Read, Grep, Glob, WebSearch, WebFetch
+description: "Design release and migration strategy. Use for versioning, changesets, feature flags, progressive rollout, rollback, and release coordination."
 user-invocable: true
 ---
 

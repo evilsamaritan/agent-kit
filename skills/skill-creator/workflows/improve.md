@@ -18,7 +18,7 @@ Otherwise:
   ls skills/
   ```
 
-Read the full skill: SKILL.md + all files in workflows/, references/, scripts/.
+Read SKILL.md, then the workflow/reference/script implicated by the symptom. Expand to dependent files for a cross-file change; read the entire tree only for an explicitly scoped full audit.
 
 ## Step 2: Gather Feedback
 
@@ -90,7 +90,7 @@ test -f skills/<skill-name>/SKILL.md
 
 ## Step 6: Verify
 
-Always chain to Flow 2 after editing. Re-run failed checks and the repository validator before reporting completion.
+Apply relevant checks from Flow 2 and run repository validation. A focused change does not require an exhaustive report for every unmodified supporting file.
 
 ---
 

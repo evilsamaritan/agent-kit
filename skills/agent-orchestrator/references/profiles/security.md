@@ -7,8 +7,9 @@
 - Roles: reviewer
 - Skills: security, auth, compliance
 - Effort / access: high / full
-- Claude model: opus
-- Codex model / effort: gpt-5.6-sol / high
+- Claude model / tools: inherit / Read, Grep, Glob, WebSearch, WebFetch, Edit, Write, Bash, Skill
+- Codex model / effort / sandbox: inherit / high / workspace-write
+- Kimi tools: Read, Grep, Glob, ReadMediaFile, WebSearch, FetchURL, Skill, Edit, Write, Bash, TaskList, TaskOutput, TaskStop, WaitFor
 
 ## Persona
 

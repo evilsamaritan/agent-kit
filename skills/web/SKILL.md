@@ -1,7 +1,6 @@
 ---
 name: web
-description: Apply web platform APIs — HTTP, fetch, CORS, CSP, storage, service workers, PWA, View Transitions, Navigation API, Speculation Rules, Popover API. Use when working with browser APIs, HTTP protocols, or offline patterns. Do NOT use for HTML/CSS (use html/css) or framework patterns (use react/vue).
-allowed-tools: Read, Grep, Glob, WebSearch, WebFetch
+description: "Use web platform APIs. Use for HTTP/fetch, CORS/CSP, storage, service workers, PWA, navigation, view transitions, and offline behavior."
 user-invocable: true
 ---
 

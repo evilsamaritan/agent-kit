@@ -11,7 +11,7 @@
 ## Directory
 
 ```text
-profiles/backend/
+profiles/developer/
 ├── PROFILE.md
 ├── claude.yaml
 └── codex.yaml
@@ -21,14 +21,14 @@ profiles/backend/
 
 ```markdown
 ---
-name: backend
-description: Senior backend developer. Use when implementing backend services and endpoints. Do NOT use for frontend UI.
+name: developer
+description: Implement software with coherent local design. Select domain knowledge for the project responsibility.
 role: [implementer]
-skills: [backend, api-design, database]
+skills: [architecture]
 effort: medium
 access: full
 ---
-You are a senior backend engineer...
+You own local design and implementation within agreed boundaries...
 
 ## Role — implementer
 
@@ -48,21 +48,19 @@ Core fields are portable profile intent. `skills` is the default set for an uncu
 ## Claude overlay
 
 ```yaml
-model: sonnet
 color: green
 tools: [Read, Grep, Glob, Edit, Write, Bash, Skill]
 ```
 
-Supported fields are intentionally limited to values the package generator emits for plugin agents. Add a renderer and validation before introducing another field.
+Omit `model` so project agents inherit the host choice; projects pin a model when they need one. Omit `tools` when it equals the set derived from `access`, and keep it only to narrow that set. Supported fields live in `scripts/profile-runtimes/claude.mjs`; add a renderer and validation there before introducing another field.
 
 ## Codex overlay
 
 ```yaml
-model: gpt-5.6-terra
 effort: high
 ```
 
-The generator maps `effort` to `model_reasoning_effort` and core `access` to `sandbox_mode`. Codex custom-agent TOML carries the profile body as `developer_instructions`.
+Usually empty. The materializer maps `effort` to `model_reasoning_effort` and core `access` to `sandbox_mode`. Codex custom-agent TOML carries the profile body as `developer_instructions`. Fields live in `scripts/profile-runtimes/codex.mjs`.
 
 ## Body contract
 

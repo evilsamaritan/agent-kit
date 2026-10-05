@@ -1,7 +1,6 @@
 ---
 name: background-jobs
-description: Design background job systems — queue selection, orchestration, scheduling, retry, scaling, observability. Use when implementing job queues, task scheduling, retry strategies, dead letter handling, or workflow orchestration. Do NOT use for message brokers (use message-queues) or real-time (use realtime).
-allowed-tools: Read, Grep, Glob, WebSearch, WebFetch
+description: "Design and operate background work. Use for queues, scheduled tasks, retries, dead letters, workers, orchestration, and job scaling."
 user-invocable: true
 ---
 

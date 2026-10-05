@@ -9,6 +9,7 @@ Code sketches use TypeScript-flavored pseudo-code. The structures are language-i
 - [The property](#the-property)
 - [Anatomy of an open design](#anatomy-of-an-open-design)
 - [Contrast pairs](#contrast-pairs)
+- [Concrete knowledge belongs to its owner](#concrete-knowledge-belongs-to-its-owner)
 - [Designing an extension point](#designing-an-extension-point)
 - [Defaults built on the public contract](#defaults-built-on-the-public-contract)
 - [When open is the wrong answer](#when-open-is-the-wrong-answer)
@@ -140,6 +141,49 @@ function startPoker(ctx: ModuleContext) { /* reads through the interface; owns n
 Cost: the context contract needs care — keep it a typed, narrow surface the host owns. It is still closed if modules must change whenever the host's internal structure changes.
 
 For inheritance trees built to express combinations of behavior, see [design-principles.md](design-principles.md#composition-and-variation): compose independent behaviors instead.
+
+## Concrete knowledge belongs to its owner
+
+An interface, DI container, registry, or folder split does not remove coupling by itself. Follow the decisions: if saving, drawing, and updating each inspect the same concrete types to decide what those types mean, the family has several competing descriptions. Adding a member requires synchronized edits across consumers.
+
+```ts
+// A generic saver owns the details of every document type.
+function snapshot(document: Document) {
+  switch (document.kind) {
+    case "text": return { kind: "text", content: document.content }
+    case "drawing": return { kind: "drawing", strokes: document.strokes }
+  }
+}
+```
+
+The stable operation is collecting serializable state. The variable knowledge is which state represents each document. Put that knowledge beside its owner and let collection and storage depend on the operation:
+
+```ts
+interface SnapshotSource {
+  capture(): SavedRecord
+}
+
+function collect(sources: readonly SnapshotSource[]) {
+  return sources.map(source => source.capture())
+}
+```
+
+This is a collaboration sketch, not a requirement that every domain object implement persistence. `capture` can be an object method, a composed capability, a closure, or an adapter. In a data-oriented or ECS design, codecs beside component stores can own schema knowledge while an orchestrator iterates registered codecs. Domain state stays independent of the storage provider; codecs own versioned mapping, validation, and restoration, including invalid or unsupported records. Shared identity and cross-record invariants have their own explicit owner.
+
+Concrete implementations are known where they are assembled. On restore, a serialized tag may select a registered decoder at a boundary. That boundary knows the lookup protocol; the selected decoder owns the payload rules. Adding a document type changes its implementation and assembly, without teaching collection or storage its fields. Renaming a runtime type does not automatically change a persisted schema identifier.
+
+Use this decision test:
+
+| Situation | Appropriate structure |
+|---|---|
+| Finite protocol messages or lifecycle states, changed together under one owner | Discriminated union and exhaustive dispatch can be the clearest contract. |
+| Independently added behaviors or providers | Select the implementation through a narrow contract at assembly or a boundary. |
+| Variants differ only in configuration | Use data with one algorithm; do not manufacture classes. |
+| Consumer enumerates optional capabilities and infers a concrete type | It is reconstructing the family model; give it the required operation or query instead. |
+
+The criterion is propagation of knowledge, not the presence of `kind`, `switch`, or a registry. A table that centralizes every variant's business rules has the same problem as a switch. Conversely, a local exhaustive decoder for a deliberately closed wire format is valid. Do not turn every conditional into a plugin mechanism.
+
+Prove the boundary with a change sketch: add one committed or representative variant, list the expected changed files, and trace its creation, operation, failure, and cleanup. Explain any consumer that must change. Check one unrelated variant or consumer stays isolated. A sketch can suffice; build a spike or contract test when code inspection cannot resolve the risk. Report which evidence was executed and which was reasoned.
 
 ## Designing an extension point
 

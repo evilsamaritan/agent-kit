@@ -1,7 +1,6 @@
 ---
 name: accessibility
-description: Provide accessibility expertise — WCAG 2.2 compliance, ARIA patterns, keyboard navigation, focus management, screen reader support. Use when implementing WCAG compliance, ARIA roles, keyboard navigation, accessibility auditing, or inclusive design. Do NOT use for UX decisions (design).
-allowed-tools: Read, Grep, Glob, WebSearch, WebFetch
+description: "Implement or audit accessible interfaces. Use for WCAG, ARIA, keyboard/focus behavior, screen readers, forms, and inclusive design."
 user-invocable: true
 ---
 
@@ -190,7 +189,7 @@ Never use color as the sole indicator. Add icons, patterns, text labels, or unde
 
 ```html
 <!-- Informative — describe content -->
-<img src="chart.png" alt="Q3 revenue increased 23% to $4.2M" />
+<img src="chart.png" alt="Q3 revenue increased 23% to 4.2 million dollars" />
 
 <!-- Decorative — empty alt -->
 <img src="divider.png" alt="" />

@@ -1,7 +1,6 @@
 ---
 name: backend
-description: Patterns for backend services — dependency injection, middleware, error handling, service lifecycle, resilience, request pipelines. Language-agnostic. Use when building or reviewing services, structuring middleware, designing error contracts, or implementing graceful startup/shutdown. Do NOT use for API protocol choice (use api-design), auth flows (use auth), schemas (use database), or language idioms (use go/rust/kotlin/javascript).
-allowed-tools: Read, Grep, Glob, WebSearch, WebFetch, Edit, Write, Bash
+description: "Structure service code and lifecycle. Use for DI, middleware, errors, request pipelines, startup/shutdown, resilience, and backend implementation or review."
 user-invocable: true
 ---
 

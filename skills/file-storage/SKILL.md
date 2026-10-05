@@ -1,7 +1,6 @@
 ---
 name: file-storage
-description: File storage expertise — upload flows, signed URLs, multipart upload, CDN integration, image processing. Use when implementing file uploads, object storage, presigned URLs, multipart uploads, CDN asset delivery, or virus scanning. Do NOT use for database storage (use database) or caching (use caching).
-allowed-tools: Read, Grep, Glob, WebSearch, WebFetch
+description: "Design file upload and delivery flows. Use for object storage, signed URLs, multipart upload, CDN assets, image processing, and file validation."
 user-invocable: true
 ---
 

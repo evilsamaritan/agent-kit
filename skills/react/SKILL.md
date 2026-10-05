@@ -1,7 +1,6 @@
 ---
 name: react
-description: React expertise — hooks, Server Components, Suspense, RSC data flow, state management. Use when working with React hooks, Server Components, Suspense, server actions, or state management (Zustand, Jotai, TanStack Query). Do NOT use for HTML/CSS (use html/css) or web platform APIs (use web).
-allowed-tools: Read, Grep, Glob, WebSearch, WebFetch
+description: "Build or review React. Use for hooks, state, Suspense, Server Components, server actions, effects, and React data flow."
 user-invocable: true
 ---
 

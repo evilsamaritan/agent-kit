@@ -1,7 +1,6 @@
 ---
 name: vue
-description: Build Vue.js apps with Composition API, reactivity, Pinia, Vue Router, SFC patterns, Vapor mode. Use when working with Vue composables, reactivity, Pinia stores, Vue Router, SFC script setup, or Vapor mode. Do NOT use for HTML/CSS (use html/css) or web platform APIs (use web).
-allowed-tools: Read, Grep, Glob, WebSearch, WebFetch
+description: "Build or review Vue. Use for Composition API, reactivity, composables, Pinia, Vue Router, SFCs, and Vapor mode."
 user-invocable: true
 ---
 

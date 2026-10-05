@@ -1,7 +1,6 @@
 ---
 name: html
-description: Write semantic HTML5 markup with landmark elements, accessible forms, media, and native interactive elements. Use when picking between article/section/aside, structuring page outlines, writing forms with labels and autocomplete, adding alt text, or choosing between button/a/details/dialog. Do NOT use for CSS layout or visual styling (use css), ARIA patterns beyond landmarks (use accessibility), or component logic (use frontend).
-allowed-tools: Read, Grep, Glob, WebSearch, WebFetch
+description: "Write semantic HTML. Use for document structure, landmarks, forms, labels, native controls, media, metadata, and accessible markup."
 user-invocable: true
 ---
 

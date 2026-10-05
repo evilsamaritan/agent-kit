@@ -1,7 +1,6 @@
 ---
 name: auth
-description: Implement authentication and authorization patterns. Use when building OAuth2/OIDC flows, JWT validation, passkeys/WebAuthn, session management, MFA, RBAC/ABAC, SAML SSO, or API key auth. Do NOT use for network security or encryption primitives.
-allowed-tools: Read, Grep, Glob, WebSearch, WebFetch
+description: "Implement authentication and authorization. Use for OAuth/OIDC, JWT, sessions, passkeys, MFA, roles/policies, SSO, or API credentials."
 user-invocable: true
 ---
 

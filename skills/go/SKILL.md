@@ -1,7 +1,6 @@
 ---
 name: go
-description: Write idiomatic Go — goroutines, channels, interfaces, error handling, generics, modules, testing. Use when working with .go files, go.mod, or any Go question. Triggers on goroutine, channel, context.Context, go build, golangci-lint. Do NOT use for general backend patterns (use backend) or infrastructure (use ci-cd).
-allowed-tools: Read, Grep, Glob, WebSearch, WebFetch
+description: "Write or review Go. Use for .go/go.mod, goroutines, channels, interfaces, errors, generics, context, modules, and Go tests."
 user-invocable: true
 ---
 

@@ -1,0 +1,17 @@
+direction: right
+style.fill: transparent
+
+client: Внешний клиент {class: external}
+assembly: Сборка приложения {class: system}
+availability: Доступность игр {class: external}
+system: Системный игровой клиент {
+  direction: down
+  platform: Core / Runtime · App Shell · Shared UI {class: system}
+  ports: Порты среды и точки встраивания {class: interface}
+  modules: PokerModule · OkeyModule · TaylaModule {class: domain}
+  platform -> ports: предоставляет
+  modules -> ports: зависят от
+}
+client -> assembly: передаёт маршрут
+availability -- assembly: ограничивает {style.stroke-dash: 3}
+assembly -> system.platform: создаёт и связывает

@@ -1,7 +1,6 @@
 ---
 name: kubernetes
-description: Kubernetes expertise — manifests, Helm charts, Gateway API, operators, RBAC, HPA/VPA/KEDA, Karpenter, native sidecars, debugging. Use when working with K8s manifests, Helm, Gateway API, RBAC, autoscaling, network policies, or cluster debugging. Do NOT use for container building (use docker) or CI/CD (use ci-cd).
-allowed-tools: Read, Grep, Glob, WebSearch, WebFetch
+description: "Build or troubleshoot Kubernetes workloads. Use for manifests, Helm, Gateway API, operators, RBAC, autoscaling, networking, and cluster operations."
 user-invocable: true
 ---
 

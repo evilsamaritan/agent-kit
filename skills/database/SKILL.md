@@ -1,8 +1,7 @@
 ---
 name: database
-description: Review and design database schemas, migrations, indexes, queries, and data access patterns. Use when auditing schemas, writing migrations, optimizing queries, or designing data models. Covers relational, document, key-value, and vector stores. Do NOT use for API design (use api-design skill).
+description: "Design or review data storage and access. Use for schemas, migrations, indexes, queries, transactions, and relational/document/key-value/vector models."
 user-invocable: true
-allowed-tools: Read, Grep, Glob, WebSearch, WebFetch
 ---
 
 # Database Knowledge

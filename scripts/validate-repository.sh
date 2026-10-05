@@ -34,15 +34,20 @@ bash "$repo_root/scripts/validate-plugin-manifests.sh"
 if [[ -e "$repo_root/.claude/agents" || -e "$repo_root/.claude/skills" ]]; then
   err "packaging" "project-local .claude agents/skills must not be shipped by the plugin repository"
 fi
+# Hosts load CLAUDE.md / AGENTS.md (case-insensitively on macOS) as instructions for a
+# directory; a reference with that name would leak into maintainers' sessions.
+while IFS= read -r instruction_file; do
+  err "packaging" "${instruction_file#"$repo_root"/} is named like a host instruction file; rename it"
+done < <(find "$repo_root/skills" "$repo_root/profiles" "$repo_root/scripts" "$repo_root/docs" \( -iname 'claude.md' -o -iname 'claude.local.md' -o -iname 'agents.md' \) 2>/dev/null)
 if [[ -e "$repo_root/.agents/plugins/marketplace.json" ]]; then
   err "packaging" "use the shared .claude-plugin/marketplace.json instead of a duplicate .agents catalog"
 fi
 
-node --check "$repo_root/scripts/profile-lib.mjs"
-node --check "$repo_root/scripts/generate-profiles.mjs"
-node --check "$repo_root/scripts/validate-codex-agent.mjs"
-node --check "$repo_root/skills/agent-creator/scripts/materialize-agents.mjs"
+for script in "$repo_root"/scripts/*.mjs "$repo_root"/scripts/profile-runtimes/*.mjs "$repo_root"/skills/agent-creator/scripts/*.mjs; do
+  node --check "$script"
+done
 node "$repo_root/scripts/generate-profiles.mjs" --check
+node --test "$repo_root"/scripts/tests/*.test.mjs
 
 profile_count=0
 for profile_file in "$repo_root"/profiles/*/PROFILE.md; do
@@ -50,7 +55,6 @@ for profile_file in "$repo_root"/profiles/*/PROFILE.md; do
   profile_count=$((profile_count + 1))
   [[ -f "$repo_root/profiles/$profile/claude.yaml" ]] || err "$profile" "missing claude.yaml"
   [[ -f "$repo_root/profiles/$profile/codex.yaml" ]] || err "$profile" "missing codex.yaml"
-  [[ -f "$repo_root/.claude-plugin/agents/$profile.md" ]] || err "$profile" "missing generated Claude agent"
   [[ -f "$repo_root/skills/agent-orchestrator/references/profiles/$profile.md" ]] || err "$profile" "missing generated orchestrator reference"
 done
 printf 'Profile library OK: %d profile(s).\n' "$profile_count"
@@ -65,11 +69,16 @@ jq -n '{
   schema_version: 1,
   agents: [
     {
-      name: "backend-rust",
-      profile: "backend",
+      name: "backend-developer",
+      profile: "developer",
       skills: ["backend", "api-design", "database", "rust"],
-      runtimes: ["claude", "codex"],
+      runtimes: ["claude", "codex", "kimi"],
       codex: {effort: "high"}
+    },
+    {
+      name: "tester",
+      profile: "tester",
+      skills: ["testing"]
     },
     {
       name: "reviewer",
@@ -91,19 +100,24 @@ if node "$repo_root/skills/agent-creator/scripts/materialize-agents.mjs" \
   err "materializer" "accepted an unsupported top-level config field"
 fi
 
-[[ -f "$project_test_dir/.claude/agents/backend-rust.md" ]] || err "materializer" "Claude target missing"
-[[ -f "$project_test_dir/.codex/agents/backend-rust.toml" ]] || err "materializer" "Codex backend target missing"
+[[ -f "$project_test_dir/.claude/agents/backend-developer.md" ]] || err "materializer" "Claude target missing"
+[[ -f "$project_test_dir/.codex/agents/backend-developer.toml" ]] || err "materializer" "Codex backend target missing"
 [[ -f "$project_test_dir/.codex/agents/reviewer.toml" ]] || err "materializer" "Codex reviewer target missing"
 [[ ! -f "$project_test_dir/.claude/agents/reviewer.md" ]] || err "materializer" "runtime filtering failed"
+kimi_target="$project_test_dir/.kimi-code/agents/backend-developer.md"
+[[ -f "$kimi_target" ]] || err "materializer" "Kimi target missing"
+grep -q '${agents_md}' "$kimi_target" && grep -q '${skills}' "$kimi_target" || err "materializer" "Kimi target lost project or skill context"
+grep -q '^tools: \[.*"Bash"' "$kimi_target" || err "materializer" "Kimi full access tools missing"
+[[ -f "$project_test_dir/.codex/agents/tester.toml" && ! -e "$project_test_dir/.kimi-code/agents/tester.md" ]] || err "materializer" "omitted runtimes must mean Claude and Codex only"
 [[ $(<"$project_test_dir/.claude/agents/manual.md") == "manual project agent" ]] || err "materializer" "manual agent was modified"
 
 node "$repo_root/scripts/validate-codex-agent.mjs" "$project_test_dir"/.codex/agents/*.toml
 
 grep -q 'sandbox_mode = "read-only"' "$project_test_dir/.codex/agents/reviewer.toml" || err "materializer" "read-only access did not reach Codex sandbox"
-grep -q '\[\[skills.config\]\]' "$project_test_dir/.codex/agents/backend-rust.toml" || err "materializer" "Codex skill configuration missing"
+grep -q '\[\[skills.config\]\]' "$project_test_dir/.codex/agents/backend-developer.toml" || err "materializer" "Codex skill configuration missing"
 
 mkdir -p "$collision_test_dir/.agent-kit" "$collision_test_dir/.claude/agents"
-jq -n '{schema_version: 1, agents: [{name: "backend", profile: "backend", runtimes: ["claude"]}]}' > "$collision_test_dir/.agent-kit/agents.json"
+jq -n '{schema_version: 1, agents: [{name: "backend", profile: "developer", runtimes: ["claude"]}]}' > "$collision_test_dir/.agent-kit/agents.json"
 printf 'owned by user; mentions Generated by agent-kit only as prose\n' > "$collision_test_dir/.claude/agents/backend.md"
 if node "$repo_root/skills/agent-creator/scripts/materialize-agents.mjs" --project-root "$collision_test_dir" >/dev/null 2>&1; then
   err "materializer" "overwrote or accepted a colliding non-generated agent"
@@ -112,11 +126,29 @@ fi
 jq '.agents = [.agents[] | select(.name == "reviewer")]' "$project_test_dir/.agent-kit/agents.json" > "$project_test_dir/.agent-kit/agents.next.json"
 mv "$project_test_dir/.agent-kit/agents.next.json" "$project_test_dir/.agent-kit/agents.json"
 node "$repo_root/skills/agent-creator/scripts/materialize-agents.mjs" --project-root "$project_test_dir" --prune
-[[ ! -e "$project_test_dir/.claude/agents/backend-rust.md" ]] || err "materializer" "prune left obsolete Claude target"
-[[ ! -e "$project_test_dir/.codex/agents/backend-rust.toml" ]] || err "materializer" "prune left obsolete Codex target"
+[[ ! -e "$project_test_dir/.claude/agents/backend-developer.md" ]] || err "materializer" "prune left obsolete Claude target"
+[[ ! -e "$project_test_dir/.codex/agents/backend-developer.toml" ]] || err "materializer" "prune left obsolete Codex target"
+[[ ! -e "$kimi_target" ]] || err "materializer" "prune left obsolete Kimi target"
 [[ -f "$project_test_dir/.claude/agents/manual.md" ]] || err "materializer" "prune removed manual agent"
 node "$repo_root/skills/agent-creator/scripts/materialize-agents.mjs" --project-root "$project_test_dir" --check
-printf 'Project materialization OK: Claude, Codex, collision, drift, and prune cases.\n'
+
+# Freshness: a moved installation is a local refresh, not a semantic change;
+# a changed setting is stale everywhere. --dry-run never writes.
+materialize=("node" "$repo_root/skills/agent-creator/scripts/materialize-agents.mjs" "--project-root" "$project_test_dir")
+reviewer_target="$project_test_dir/.codex/agents/reviewer.toml"
+sed "s#$repo_root/skills#/moved/agent-kit/skills#g" "$reviewer_target" > "$reviewer_target.next" && mv "$reviewer_target.next" "$reviewer_target"
+if "${materialize[@]}" --check >/dev/null 2>&1; then err "freshness" "moved source paths passed the local check"; fi
+freshness_report=$("${materialize[@]}" --check --agent reviewer 2>/dev/null || true)
+grep -q 'local source path changed' <<<"$freshness_report" || err "freshness" "path refresh was not reported"
+"${materialize[@]}" --check --portable >/dev/null || err "freshness" "portable check rejected a path-only refresh"
+sed 's/model_reasoning_effort = "high"/model_reasoning_effort = "low"/' "$reviewer_target" > "$reviewer_target.next" && mv "$reviewer_target.next" "$reviewer_target"
+"${materialize[@]}" --dry-run | grep -q 'effort: low → high' || err "freshness" "setting drift was not reported"
+grep -q 'model_reasoning_effort = "low"' "$reviewer_target" || err "freshness" "--dry-run wrote a target"
+if "${materialize[@]}" --check --portable >/dev/null 2>&1; then err "freshness" "portable check accepted a setting change"; fi
+"${materialize[@]}" >/dev/null
+"${materialize[@]}" --check >/dev/null || err "freshness" "refresh did not restore an up-to-date target"
+grep -q '^# agent-kit-metadata: {"kit":' "$reviewer_target" || err "freshness" "provenance marker missing"
+printf 'Project materialization OK: Claude, Codex, collision, drift, prune, and freshness cases.\n'
 
 for file in "$repo_root"/skills/*/SKILL.md; do
   skill=$(basename "$(dirname "$file")")
@@ -152,6 +184,11 @@ for file in "$repo_root"/skills/*/SKILL.md; do
     err "$skill" "user-invocable must be true or false"
   fi
 
+  # Claude and Kimi substitute $N / $ARGUMENTS[N] when a skill is invoked.
+  if grep -qE '\$[0-9]' "$file"; then
+    err "$skill" "SKILL.md contains a dollar-digit sequence that skill invocation would substitute; write amounts as USD 10 or 10 dollars"
+  fi
+
   if (( line_count > 550 )); then
     err "$skill" "SKILL.md has $line_count lines; ceiling is about 550"
   fi
@@ -170,6 +207,56 @@ if grep -rqE 'team-creator|team-orchestrator|agent-runner|\.claude/teams|scripts
   "$repo_root/AGENTS.md" "$repo_root/README.md" "$repo_root/skills" "$repo_root/scripts" \
   --exclude='validate-repository.sh'; then
   err "stale-reference" "removed team runtime or pre-profile agent path is still referenced"
+fi
+
+# Relative Markdown links in shipped text must resolve.
+broken_links=$(node -e '
+  const fs = require("fs"); const path = require("path"); const out = []
+  const check = (file) => {
+    const text = fs.readFileSync(file, "utf8").replace(/^(`{3,}|~{3,})[^\n]*\n[\s\S]*?^\1[ \t]*$/gm, "")
+    for (const m of text.matchAll(/\]\(([^)#\s]+\.md)(?:#[^)]*)?\)/g)) {
+      if (/^[a-z]+:/i.test(m[1])) continue
+      if (!fs.existsSync(path.resolve(path.dirname(file), m[1]))) out.push(`${path.relative(process.argv[1], file)} -> ${m[1]}`)
+    }
+  }
+  const walk = (dir) => fs.readdirSync(dir, { withFileTypes: true }).forEach((e) => {
+    const p = path.join(dir, e.name)
+    if (e.isDirectory()) walk(p); else if (p.endsWith(".md")) check(p)
+  })
+  walk(path.join(process.argv[1], "skills"))
+  for (const f of ["README.md", "AGENTS.md"]) check(path.join(process.argv[1], f))
+  console.log(out.join("\n"))' "$repo_root")
+if [[ -n "$broken_links" ]]; then
+  while IFS= read -r link; do err "links" "broken relative link: $link"; done <<<"$broken_links"
+fi
+
+node "$repo_root/skills/playground/scripts/check-shell-contract.mjs" || err "playground" "shared assets fail the playground contract"
+node "$repo_root/skills/playground/scripts/check-theme-contrast.mjs" >/dev/null || err "playground" "theme tokens fail the contrast check"
+
+# Every D2 example in skill text must compile with the installed d2.
+if command -v d2 >/dev/null 2>&1; then
+  d2_dir=$(mktemp -d)
+  node -e '
+    const fs = require("fs"); const path = require("path"); let n = 0
+    const walk = (dir) => fs.readdirSync(dir, { withFileTypes: true }).forEach((e) => {
+      const p = path.join(dir, e.name)
+      if (e.isDirectory()) walk(p)
+      else if (p.endsWith(".md")) for (const m of fs.readFileSync(p, "utf8").matchAll(/```d2\n([\s\S]*?)```/g)) fs.writeFileSync(path.join(process.argv[2], `${n++}.d2`), `# ${p}\n${m[1]}`)
+    })
+    walk(process.argv[1])' "$repo_root/skills" "$d2_dir"
+  for example in "$d2_dir"/*.d2; do
+    [[ -e "$example" ]] || continue
+    d2 validate "$example" >/dev/null 2>&1 || err "d2" "invalid D2 example from $(head -1 "$example" | sed "s#^\# $repo_root/##")"
+  done
+  rm -rf "$d2_dir"
+  # The gallery's 32 SVGs must regenerate byte-for-byte with the pinned D2.
+  if [[ $(d2 --version 2>/dev/null) == "v0.9.0" || $(d2 --version 2>/dev/null) == "0.9.0" ]]; then
+    node "$repo_root/skills/playground/scripts/render-d2-preview.mjs" --check >/dev/null || err "playground" "gallery SVGs drifted from their D2 sources"
+  else
+    printf 'WARN: D2 0.9.0 (pinned for the gallery) not installed; skipped gallery drift check.\n' >&2
+  fi
+else
+  printf 'WARN: d2 not found; skipped D2 example validation.\n' >&2
 fi
 
 if command -v claude >/dev/null 2>&1; then

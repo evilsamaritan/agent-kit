@@ -1,7 +1,6 @@
 ---
 name: api-design
-description: Design APIs — protocol selection, REST, OpenAPI 3.1, RPC patterns, pagination, versioning, error contracts. Use when choosing REST/GraphQL/gRPC, designing endpoints, writing OpenAPI specs, or implementing pagination/error responses. Do NOT use for GraphQL depth (graphql) or real-time (realtime).
-allowed-tools: Read, Grep, Glob, WebSearch, WebFetch
+description: "Design API protocols and contracts. Use for REST, OpenAPI, RPC, pagination, errors, compatibility, and endpoint design; GraphQL depth is in graphql."
 user-invocable: true
 ---
 
@@ -164,7 +163,7 @@ RFC 9457 (successor to RFC 7807) defines the standard error format. Content type
   "type": "https://api.example.com/errors/insufficient-funds",
   "title": "Insufficient Funds",
   "status": 422,
-  "detail": "Balance $10.00 < withdrawal $25.00",
+  "detail": "Balance 10.00 USD < withdrawal 25.00 USD",
   "instance": "/transfers/abc123",
   "errors": [{ "field": "amount", "message": "Exceeds balance" }]
 }

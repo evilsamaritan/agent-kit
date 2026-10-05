@@ -28,9 +28,9 @@ Collect all data needed for checks:
 5. **List references/** — glob for files in `skills/<name>/references/`
 6. **Check packaging** — verify the canonical file exists and the plugin manifests expose `skills/`
 
-## Step 4: Run All Checks
+## Step 4: Select Checks for the Scope
 
-Execute all 48 checks from Categories A-E:
+For a new skill or an explicitly requested full audit, use all checklist categories below. For a focused improvement, check metadata, links, changed behavior, and directly affected dependencies; do not load unrelated references solely to fill a report.
 
 **Category A: Frontmatter (12 checks)**
 - Parse frontmatter YAML
@@ -67,7 +67,7 @@ Execute all 48 checks from Categories A-E:
 
 ## Step 5: Generate Report
 
-**Format is mandatory — follow exactly. Results MUST be a single table, NEVER a list.**
+Use a compact findings report for focused changes. The complete table below is available for an explicitly scoped full audit.
 
 ```markdown
 ## Skill Verification Report: <skill-name>
@@ -122,7 +122,4 @@ After applying fixes:
 3. If all CRITICAL checks pass: "Skill is healthy."
 4. If CRITICAL failures remain: list them for manual resolution
 
-After reporting, offer:
-> "Want me to improve this skill based on the findings?"
-
-If yes → chain to Flow 3 (Improve) with the verification report as context.
+When fixes were already authorized, complete them and report the result. For a review-only request, state actionable findings without treating approval as implied.

@@ -1,6 +1,6 @@
 ---
 name: update-config
-description: Configure the Claude Code harness by writing to settings.json — permissions allowlists, environment variables, hooks, slash-command registration. Use when the request is "allow this command", "move permission to user settings", "set DEBUG=true", "add a hook that runs on Stop", or "whenever the model does X run Y". Owns writes to Claude settings files. Do NOT use for hook design or validation (use hook-creator first), project-agent composition (use agent-creator), or creating knowledge skills (use skill-creator).
+description: "Configure Claude Code settings. Use for permissions, allowlists, environment, hooks, and slash-command registration."
 allowed-tools: Read, Write, Edit, Bash, Glob, Grep, AskUserQuestion
 user-invocable: true
 argument-hint: "[allow|env|hook|slash] <value>"

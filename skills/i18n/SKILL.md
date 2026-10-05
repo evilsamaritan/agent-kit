@@ -1,7 +1,6 @@
 ---
 name: i18n
-description: Implement internationalization — ICU MessageFormat, pluralization, RTL, Intl APIs, Temporal, translation workflows. Use when implementing i18n, localization, pluralization, RTL layout, Intl APIs, or translation pipelines. Do NOT use for accessibility (use accessibility) or CSS layout (use html/css).
-allowed-tools: Read, Grep, Glob, WebSearch, WebFetch
+description: "Implement internationalization and localization. Use for ICU messages, plurals, RTL, Intl APIs, dates, language routing, and translation workflows."
 user-invocable: true
 ---
 
@@ -35,7 +34,7 @@ Expert-level i18n/l10n knowledge. ICU MessageFormat (1.0 + 2.0), CLDR pluralizat
 | Ordinal | `{rank, selectordinal, one {#st} two {#nd} few {#rd} other {#th}}` | `3rd place` |
 | Nested | `{gender, select, male {{count, plural, ...}} ...}` | Combine select + plural |
 | Date | `{date, date, medium}` | `Jan 15, 2026` |
-| Number | `{amount, number, currency}` | `$1,234.56` |
+| Number | `{amount, number, currency}` | `€1,234.56` |
 
 `#` inside plural/selectordinal resolves to the matched number. Always use `#` instead of re-referencing the variable.
 
@@ -87,9 +86,9 @@ new Intl.NumberFormat('ja-JP', { style: 'currency', currency: 'JPY' }).format(12
 
 // Intl.NumberFormat v3 (Baseline 2023): roundingMode, roundingIncrement,
 // roundingPriority, trailingZeroDisplay, signDisplay: "negative"
-new Intl.NumberFormat('en-US', {
-  style: 'currency', currency: 'USD',
-  trailingZeroDisplay: 'stripIfInteger',  // "$20" instead of "$20.00"
+new Intl.NumberFormat('en-IE', {
+  style: 'currency', currency: 'EUR',
+  trailingZeroDisplay: 'stripIfInteger',  // "€20" instead of "€20.00"
   roundingMode: 'halfExpand',
   signDisplay: 'negative',
 }).format(19.99);

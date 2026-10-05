@@ -1,7 +1,6 @@
 ---
 name: security
-description: Apply application security patterns — OWASP Top 10, input validation, output encoding, secrets management, secure coding, supply chain, AI/LLM security. Use when auditing code for security issues, reviewing auth flows at the code level, hardening against OWASP risks, assessing supply-chain risk, or evaluating AI/LLM-specific threats. Do NOT use for compliance frameworks (use compliance), infrastructure security (use networking/kubernetes), or authentication protocols (use auth).
-allowed-tools: Read, Grep, Glob, WebSearch, WebFetch, Edit, Write, Bash
+description: "Assess and harden application security. Use for OWASP risks, input/output trust, secrets, secure coding, supply chain, and AI/LLM tool threats."
 user-invocable: true
 ---
 

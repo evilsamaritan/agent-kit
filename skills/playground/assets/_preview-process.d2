@@ -1,0 +1,12 @@
+direction: right
+style.fill: transparent
+
+open: Открыть игру
+available: Модуль доступен? {shape: diamond}
+mount: Смонтировать
+alternative: Показать альтернативу
+rollback: Безопасно откатить {class: risk}
+open -> available: проверить
+available -> mount: да
+available -> alternative: нет
+mount -> rollback: ошибка

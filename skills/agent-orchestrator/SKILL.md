@@ -1,6 +1,6 @@
 ---
 name: agent-orchestrator
-description: Orchestrate profession agents with the host runtime's native subagent and workflow mechanisms. Use when the user asks to assemble a team, choose agents for a task, run several specialists, create an ad-hoc workflow, parallelize review or implementation, or delegate work without spelling out roles, models, effort, and task division. Do NOT use to create or change project agent definitions (use agent-creator) or for a task that should stay in the current thread.
+description: "Choose and coordinate agents through the host runtime. Use when asked for a team, delegation, parallel review, or a task workflow; configure agents with agent-creator."
 user-invocable: true
 argument-hint: "[task or agent composition]"
 ---
@@ -28,7 +28,7 @@ argument-hint: "[task or agent composition]"
 | Review or research with independent lenses | Parallelize, then synthesize |
 | Dependent implementation stages | Run a pipeline and pass compressed handoffs |
 | Missing project agent | Use the bundled profile as an ephemeral fallback, or invoke `agent-creator` when persistence is needed |
-| Save/reuse this workflow | Use a native Claude/Codex workflow facility if the current host exposes one |
+| Save/reuse this workflow | Use the host's native workflow facility when it exists and the user asked for it explicitly |
 
 Follow [workflows/orchestrate.md](workflows/orchestrate.md) for execution.
 
@@ -37,6 +37,7 @@ Follow [workflows/orchestrate.md](workflows/orchestrate.md) for execution.
 1. Inspect native project agents:
    - Claude Code: `.claude/agents/*.md`
    - Codex: `.codex/agents/*.toml`
+   - Kimi Code: `.kimi-code/agents/*.md`
 2. If `.agent-kit/agents.json` exists, treat it as the source of truth for materialized project agents.
 3. Read [references/profile-catalog.md](references/profile-catalog.md) only when a suitable project agent is absent or the user asks what profiles are available.
 4. Read one selected profile from `references/profiles/`, not the whole catalog directory. Keep it available as the fallback persona even when a native project file exists.
@@ -47,7 +48,7 @@ Follow [workflows/orchestrate.md](workflows/orchestrate.md) for execution.
 |--------|-------------|
 | Small, single-domain change | One profession |
 | Interfaces or architecture unclear | Architect, then implementer(s) |
-| Frontend and backend scopes are independent | Frontend + backend in parallel |
+| Frontend and backend scopes are independent | Two developer instances with UI/service knowledge and disjoint assignments |
 | Implementation needs independent validation | Implementer, then reviewer or tester |
 | Security-sensitive change | Implementer + security review |
 | Operational rollout | DevOps or SRE after implementation |
@@ -57,7 +58,7 @@ Start with 1–3 agents. Add another only when it owns a distinct scope or evide
 
 ## Runtime adaptation
 
-Use [references/runtime-adapters.md](references/runtime-adapters.md) to map the composition onto Claude Code, Codex, or another host. Runtime vocabulary belongs there; the orchestration policy above stays portable.
+Use [references/runtime-adapters.md](references/runtime-adapters.md) to map the composition onto Claude Code, Codex, Kimi Code, or another host; it routes to one runtime file. Runtime vocabulary belongs there; the orchestration policy above stays portable.
 
 ## Quick reference
 
