@@ -45,7 +45,7 @@ Before rendering, define this compact contract internally:
 | relationships | arrow direction and line-style meaning |
 | disclosure | what is visible first and what moves to detail |
 | themes | automatic light/dark; the shared `Auto` / `Light` / `Dark` control stays |
-| medium | native interactive artifact or HTML with semantic HTML, Mermaid, SVG, or canvas views |
+| medium | native interactive artifact or HTML with semantic HTML, project-selected diagram sources, SVG, or canvas views |
 
 This brief is a generation constraint, not mandatory prose in the delivered artifact.
 
@@ -61,7 +61,7 @@ Support both light and dark themes for every HTML or host-native artifact that c
 6. Test both themes independently; passing contrast in one theme proves nothing about the other.
 7. Keep node category and status meanings identical across themes.
 
-For repository Mermaid rendered by an unknown host, avoid hard-coded light-only fills. Embedded Mermaid is themed and re-rendered by the provided renderer ([mermaid-rendering.md](mermaid-rendering.md)).
+For diagram source rendered by an unknown host, avoid hard-coded light-only fills. Browser diagrams follow the shared theme through their adapter; compiled diagrams use equivalent light/dark output ([compiled-diagrams.md](compiled-diagrams.md)); source and compile commands are in the `diagrams` skill.
 
 A static artifact cannot switch automatically. When it must work on both light and dark surfaces, provide paired variants or use a deliberately neutral, print-safe treatment; state which strategy was used.
 
@@ -104,6 +104,8 @@ Use a 4px base spacing system: `4`, `8`, `12`, `16`, `20`, `24`, `32`, and `48px
 
 Use radii of `7–8px` for controls and nodes and `10px` for panels and boundaries. Prefer one-pixel borders and surface contrast over shadows. Reserve a subtle shadow for overlays or a single raised details panel.
 
+For source-language graph diagrams, start with 1px node borders and connections, plus 13px upright labels. Apply these values through every renderer's adapter or compilation styles; a renderer's default must not create a different visual weight. Use thicker or dashed lines only for a relationship distinction defined in the legend. Specialized notation and quantitative chart marks may retain their required geometry.
+
 ## Page composition
 
 Navigation modes, shell ownership, and components are in [shell-components.md](shell-components.md). Whatever the mode, a section reads in this order:
@@ -131,7 +133,7 @@ Start neutral. Add categorical fills only when category is part of the explanati
 | external/neutral | `#f5f5f3` / `#747671` | `#292927` / `#a0a09a` | actor, dependency, environment, constraint |
 | risk/failure | `#f8eeec` / `#8b4f49` | `#322826` / `#ca948c` | failure, forbidden path, unresolved risk |
 
-These are also the six Mermaid semantic classes (`system`, `interface`, `domain`, `data`, `external`, `risk`) and the `viz-node-card--*` modifiers. Use the same category mapping in every view. Status is separate from category: show `Proposed`, `Transitional`, `Retiring`, `Inferred`, or `Unknown` as text badges and border treatments, not by replacing the category color.
+Use these six names for diagram semantic classes (`system`, `interface`, `domain`, `data`, `external`, `risk`) and the `viz-node-card--*` modifiers. Use the same category mapping in every view. Status is separate from category: show `Proposed`, `Transitional`, `Retiring`, `Inferred`, or `Unknown` as text badges and border treatments, not by replacing the category color.
 
 For non-architecture visuals, reinterpret categories by semantic role rather than copying software labels. If category does not matter, use neutral nodes and one accent for the primary path.
 

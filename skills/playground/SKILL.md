@@ -54,7 +54,7 @@ Load the matching template from `templates/`; when the request fits none cleanly
 3. **One shared visual system.** Build on the shared stylesheet and theme runtime (`assets/visualization-shell.css`, `assets/visualization-shell.js`): tokens, typography, components, and controls. Task-specific classes get their own prefix and load after the shared stylesheet; do not fork tokens or the theme control ([shell-components.md](references/shell-components.md)).
 4. **One state object for dynamic tools.** Controls write to it; every view renders from it. Defaults look right on first load, presets are named, and reset is explicit.
 5. **Interaction must earn its place.** It helps the reader understand, explore, or decide. A static diagram does not need controls; decoration and fake app chrome are noise.
-6. **Diagrams keep their source and language.** One source per view; a compact projection comes from the same source. Mermaid renders through the provided adapter; other languages embed their compiled SVG with per-theme variants ([mermaid-rendering.md](references/mermaid-rendering.md)). Never redraw a supplied diagram in another language.
+6. **Diagrams keep their source and language.** One source per view; a compact projection comes from the same source. Mermaid renders through the provided adapter; other languages embed their compiled SVG with per-theme variants ([mermaid-rendering.md](references/mermaid-rendering.md), [compiled-diagrams.md](references/compiled-diagrams.md)). Never redraw a supplied diagram in another language.
 7. **Light and dark, same meaning.** Follow the host's theme when it provides one, otherwise the reader's preference with a manual override. Never invert colors with a filter.
 8. **Responsive by meaning.** Reflow or switch to a compact projection before shrinking text. No page-level horizontal overflow; diagram and code regions may scroll horizontally, and vertical gestures always reach the page.
 9. **Accessible by default.** Keyboard access, visible focus, labelled controls, sufficient contrast, reduced-motion support, and a textual equivalent for essential visuals.
@@ -69,6 +69,7 @@ Load the matching template from `templates/`; when the request fits none cleanly
 | Compose a page from the shared components; use the explorer shell | [shell-components.md](references/shell-components.md) |
 | Pick a view and its compact projection inside an artifact | [diagram-selection.md](references/diagram-selection.md) |
 | Render Mermaid sources in the page | [mermaid-rendering.md](references/mermaid-rendering.md) |
+| Embed compiled D2, PlantUML, Graphviz, or Mermaid SVG with theme and compact variants | [compiled-diagrams.md](references/compiled-diagrams.md) |
 | Relationship, node, boundary, and label semantics | [visual-language.md](references/visual-language.md) |
 | Fit half-width desktop, tablet, and phone | [responsive-layout.md](references/responsive-layout.md) |
 | Show code or an exact change | [code-views.md](references/code-views.md) |
@@ -121,8 +122,9 @@ Load only what the artifact needs: the workflow, the template, and the reference
 - [shell-components.md](references/shell-components.md) — shared components, theme control, optional explorer shell, hooks, revisions
 - [diagram-selection.md](references/diagram-selection.md) — views inside an artifact, compact projections, quantitative rules
 - [mermaid-rendering.md](references/mermaid-rendering.md) — Mermaid browser adapter
+- [compiled-diagrams.md](references/compiled-diagrams.md) — compiled SVG figures: markup, theme and compact variants, fit
 - [visual-language.md](references/visual-language.md), [visual-system.md](references/visual-system.md) — semantics, tokens, palette, typography
 - [responsive-layout.md](references/responsive-layout.md), [interactive-html.md](references/interactive-html.md), [code-views.md](references/code-views.md)
 - [runtime-output.md](references/runtime-output.md) — delivery, host contracts, single file, dependencies
-- Assets: `assets/visualization-shell.css`, `assets/visualization-shell.js`, explorer shell `assets/visualization-shell.html`; optional `visualization-mermaid.js`, `visualization-code.js`, `visualization-diff.js`; gallery `assets/_preview.html`
-- Scripts: `scripts/check-shell-contract.mjs` (components, themes, explorer contract when used), `scripts/check-theme-contrast.mjs` (token contrast)
+- Assets: `assets/visualization-shell.css`, `assets/visualization-shell.js`, explorer shell `assets/visualization-shell.html`; optional `visualization-mermaid.js`, `visualization-diagram.js`, `visualization-code.js`, `visualization-diff.js`; gallery `assets/_preview.html` with per-diagram Mermaid/D2 selectors
+- Scripts: `scripts/check-shell-contract.mjs` (components, themes, compiled figures, explorer contract when used), `scripts/check-theme-contrast.mjs` (token contrast), `scripts/render-d2-preview.mjs` (rebuilds or `--check`s the gallery's 32 D2 SVGs with the pinned D2 0.9.0)

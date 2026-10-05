@@ -1,4 +1,4 @@
-// visualization-shell revision 4
+// visualization-shell revision 5
 (() => {
   const root = document.documentElement;
   const storageKey = "visualization-theme";

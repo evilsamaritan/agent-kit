@@ -41,7 +41,7 @@ Start from the composition that fits the form ([shell-components.md](shell-compo
 ## Single-file delivery
 
 1. Build and check the artifact as separate files first.
-2. Inline `visualization-shell.css` into `<style>` and each script into `<script>` in the original order: theme/shell runtime, then optional diff, code, and Mermaid modules (`type="module"` where the original had it).
+2. Inline `visualization-shell.css` into `<style>` and each script into `<script>` in the original order: theme/shell runtime, then optional diff, code, Mermaid, and compiled-SVG (`visualization-diagram.js`) scripts (`type="module"` where the original had it).
 3. Keep every hook, the early theme bootstrap, `data-viz-shell-revision`, and — when Mermaid is present — the loading gate and its `<noscript>` fallback.
 4. Embed compiled diagram SVG inline or as `data:` URLs per theme; keep the editable diagram source available separately and linked.
 5. Run the contract check on the combined file; it reads inline content the same way.
@@ -58,7 +58,7 @@ Compiled SVG does not follow CSS variables when loaded through `<img>`: ship a l
 |---|---|---|---|
 | Mermaid | `visualization-mermaid.js` | pinned module from `cdn.jsdelivr.net/npm` | vendor or bundle through the consuming repository ([mermaid-rendering.md](mermaid-rendering.md#dependencies-and-durability)) |
 | syntax highlighter | `visualization-code.js` | pinned module from `cdn.jsdelivr.net/npm`; source text stays readable if loading fails | vendor or bundle |
-| D2, PlantUML, Graphviz | compiled SVG only | compile locally (`diagrams`) | the same SVG |
+| D2, PlantUML, Graphviz, or pre-rendered Mermaid | compiled SVG shown by `visualization-diagram.js` | compile locally (`diagrams`) with theme and compact variants ([compiled-diagrams.md](compiled-diagrams.md)) | the same SVG, inline or adjacent |
 | a utility CSS framework | task-specific content only | an opt-in browser build for a one-off prototype | compile through the repository's build |
 
 A host with a content security policy allows only listed origins: check that every external module comes from one of them, or inline it. Runtime diagram compilers (WASM builds) are optional; pre-compiled SVG is always enough for D2, PlantUML, and Graphviz. Do not require the network merely to read an archived artifact, and do not load a browser-side CSS compiler to restyle the shared assets.

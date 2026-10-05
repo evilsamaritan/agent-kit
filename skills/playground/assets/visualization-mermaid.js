@@ -1,4 +1,4 @@
-// visualization-shell revision 4
+// visualization-shell revision 5
 const root = document.documentElement;
 const diagrams = [...document.querySelectorAll("[data-viz-mermaid]")];
 const prefersDark = window.matchMedia("(prefers-color-scheme: dark)");
@@ -21,6 +21,7 @@ renderStage.setAttribute("aria-hidden", "true");
 if (diagrams.length) document.body.append(renderStage);
 
 const roleThemeCss = `
+  marker circle { fill: var(--viz-surface-subtle) !important; }
   .node.external rect, .node.external polygon, .node.external path {
     fill: var(--viz-external-bg) !important;
     stroke: var(--viz-external-line) !important;
@@ -90,6 +91,7 @@ function themeVariables() {
     noteBorderColor: token("data-line"),
     noteTextColor: token("text"),
     fontFamily: getComputedStyle(document.body).fontFamily,
+    fontSize: "13px",
   };
 }
 

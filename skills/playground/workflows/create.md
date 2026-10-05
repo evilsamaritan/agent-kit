@@ -51,7 +51,7 @@ Follow the host's page contract when its instructions provide an artifact or pre
 1. Copy the shared stylesheet and theme runtime, and the composition the template names: `visualization-page.html` or `visualization-shell.html` ([shell-components.md](../references/shell-components.md)).
 2. Replace the example content. Keep the theme control, hooks, and early theme bootstrap.
 3. Compose from documented components first; new classes get a task prefix and load after the shared stylesheet.
-4. Add `visualization-mermaid.js`, `visualization-code.js`, or `visualization-diff.js` only when their content exists. Embed compiled SVG (light and dark) for non-Mermaid sources.
+4. Add `visualization-mermaid.js`, `visualization-diagram.js`, `visualization-code.js`, or `visualization-diff.js` only when their content exists. Non-Mermaid sources (and pre-rendered Mermaid) are compiled locally to light and dark SVG, with compact variants when needed, and embedded as a compiled figure with its source link ([compiled-diagrams.md](../references/compiled-diagrams.md)).
 5. Wire controls through the single state object; every view renders from it.
 6. Add accessible names, keyboard paths, focus handling, and textual equivalents.
 
@@ -62,6 +62,8 @@ Follow the host's page contract when its instructions provide an artifact or pre
 ```bash
 node scripts/check-shell-contract.mjs path/to/artifact.html
 ```
+
+**Compile** diagram sources first when the page embeds compiled SVG: check the compiler's exit status and output; a missing compiler leaves the render unverified and the source unchanged.
 
 **Render** in the target or the closest available browser at wide, half-width, and phone sizes, in light and dark, with automatic preference and a manual override (and the host's theme signal when there is one).
 

@@ -53,7 +53,7 @@ Every relationship has a semantic kind, a direction convention, and one line tre
 
 A stronger accent line marks the selected or primary path; it is not a new relationship kind. Never let one dashed line mean both asynchronous flow and proposed status. If the domain needs another distinction, state it once in the legend and apply it consistently.
 
-Lines are `1.5–2px` with simple `8–10px` arrowheads, consistent bends, and orthogonal routing when it reduces crossings. Every important arrow carries a verb phrase of roughly two to five words, placed near the middle of the edge on an opaque theme-matched background where lines could pass behind it. Point the arrow in the semantic direction and state the convention in the legend when readers might expect the opposite. Avoid animated arrows unless motion is the subject and can be paused. The Mermaid spelling of these treatments is in [mermaid-rendering.md](mermaid-rendering.md#relationship-grammar-in-mermaid).
+Ordinary lines are 1 CSS px at the reference scale, with simple `8–10px` arrowheads, consistent bends, and orthogonal routing when it reduces crossings. A heavier line marks only an emphasis the legend defines; UML/ER semantic markers and double borders keep their notation. Every important arrow carries a verb phrase of roughly two to five words, placed near the middle of the edge on an opaque theme-matched background where lines could pass behind it. Point the arrow in the semantic direction and state the convention in the legend when readers might expect the opposite. Avoid animated arrows unless motion is the subject and can be paused. Apply these meanings in the project's selected diagram language (each language's spelling is in the `diagrams` skill references); compiled diagrams get the same weights through their compile styles ([compiled-diagrams.md](compiled-diagrams.md)).
 
 Render connectors as geometry: use the shared `.viz-connector` block for simple reflowing relations and SVG paths with markers for routed graphs. Never fake arrows with repeated box-drawing characters, hyphens, emoji, or a font glyph string; their length, weight, alignment, and arrowhead position change with typography.
 
@@ -148,6 +148,6 @@ Provide:
 - reduced-motion behavior for animation;
 - labels that do not depend on hover.
 
-For Mermaid, use accessible title and description syntax supported by the target renderer. For HTML/SVG, expose semantic names and state through native elements and appropriate accessibility attributes.
+Use accessible title and description syntax when the selected compiler supports it. For compiled diagrams, keep names and textual equivalents in the surrounding HTML ([compiled-diagrams.md](compiled-diagrams.md)). For HTML/SVG, expose semantic names and state through native elements and appropriate accessibility attributes.
 
 The delivery checklist for a rendered view is step 8 of [create.md](../workflows/create.md).

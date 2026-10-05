@@ -21,6 +21,7 @@ const files = {
   code: path.join(assetsDir, 'visualization-code.js'),
   diff: path.join(assetsDir, 'visualization-diff.js'),
   mermaid: path.join(assetsDir, 'visualization-mermaid.js'),
+  diagram: path.join(assetsDir, 'visualization-diagram.js'),
 }
 
 const source = Object.fromEntries(
@@ -82,6 +83,84 @@ function mermaidBlocksIn(html) {
   )].map((match) => match[1])
 }
 
+function attribute(tag, name) {
+  return tag.match(new RegExp(`\\b${name}=["']([^"']*)["']`))?.[1]
+}
+
+function compiledBlocksIn(html) {
+  return [...html.matchAll(/<figure\b([^>]*\bdata-viz-diagram(?=[=\s>/])[^>]*)>([\s\S]*?)<\/figure>/g)]
+}
+
+function checkLocalFile(name, url, file, svg = false) {
+  if (svg && /^data:image\/svg\+xml[;,]/.test(url)) return
+  if (/^(?:https?:|\/\/)/.test(url) && !svg) return // An authoritative source may be linked remotely.
+  if (/^(?:[a-z][a-z\d+.-]*:|\/\/)/i.test(url)) {
+    failures.push(`${name}: compiled SVG must be local or embedded: ${url}`)
+    return
+  }
+  let local
+  try {
+    local = path.resolve(path.dirname(file), decodeURIComponent(url.split(/[?#]/)[0]))
+  } catch {
+    failures.push(`${name}: invalid local asset path ${url}`)
+    return
+  }
+  if (!fs.existsSync(local) || !fs.statSync(local).isFile()) {
+    failures.push(`${name}: diagram asset not found: ${url}`)
+  } else if (svg && (!/\.svg$/i.test(local) || !/<svg\b[^>]*\bviewBox=/.test(fs.readFileSync(local, 'utf8')))) {
+    failures.push(`${name}: diagram asset is not an SVG with a viewBox: ${url}`)
+  }
+}
+
+function checkCompiled(name, html, known, file) {
+  const blocks = compiledBlocksIn(html)
+  const hooks = [...html.matchAll(/<[a-zA-Z][^>]*\sdata-viz-diagram(?=[=\s>/])/g)].length
+  if (hooks !== blocks.length) failures.push(`${name}: data-viz-diagram must be on a complete figure`)
+  for (const [index, [, tag, body]] of blocks.entries()) {
+    const label = `${name}: compiled diagram ${index + 1}`
+    const format = attribute(tag, 'data-viz-diagram')
+    if (!['mermaid', 'd2', 'plantuml', 'graphviz'].includes(format)) failures.push(`${label} has unsupported source format ${format}`)
+    for (const attr of ['aria-labelledby', 'aria-describedby']) {
+      const ids = attribute(tag, attr)?.trim().split(/\s+/)
+      if (!ids?.length || ids.some((id) => !known.has(id))) failures.push(`${label} has missing or unresolved ${attr}`)
+    }
+    const breakpoint = attribute(tag, 'data-viz-compact-at')
+    if (breakpoint !== undefined && !(Number(breakpoint) > 0)) failures.push(`${label} has invalid compact breakpoint`)
+    if (!/\bdata-viz-diagram-output(?=[=\s>/])/.test(body)) failures.push(`${label} has no output hook`)
+    const sourceTag = body.match(/<a\b[^>]*\bdata-viz-diagram-source(?=[=\s>/])[^>]*>/)?.[0]
+    const sourceUrl = sourceTag && attribute(sourceTag, 'href')
+    if (!sourceUrl) failures.push(`${label} has no editable source link`)
+    else {
+      const extensions = { mermaid: /\.(?:mmd|mermaid)$/, d2: /\.d2$/, plantuml: /\.(?:puml|pu)$/, graphviz: /\.(?:dot|gv)$/ }
+      if (!/^(?:https?:|\/\/)/.test(sourceUrl) && extensions[format] && !extensions[format].test(sourceUrl.split(/[?#]/)[0])) {
+        failures.push(`${label} source extension does not match ${format}`)
+      }
+      if (file) checkLocalFile(label, sourceUrl, file)
+    }
+    const pairs = new Set()
+    for (const [image] of body.matchAll(/<img\b[^>]*>/g)) {
+      const theme = attribute(image, 'data-viz-diagram-theme')
+      const view = attribute(image, 'data-viz-diagram-view') || 'wide'
+      if (!['light', 'dark'].includes(theme) || !['wide', 'compact'].includes(view)) failures.push(`${label} has an invalid image theme/view`)
+      const pair = `${theme}/${view}`
+      if (pairs.has(pair)) failures.push(`${label} duplicates ${pair}`)
+      pairs.add(pair)
+      if (!attribute(image, 'alt')?.trim()) failures.push(`${label} has no image alt text`)
+      if (!(Number(attribute(image, 'width')) > 0 && Number(attribute(image, 'height')) > 0)) failures.push(`${label} needs natural image dimensions`)
+      const url = attribute(image, 'src')
+      if (!url) failures.push(`${label} has no SVG image source`)
+      else if (file) checkLocalFile(label, url, file, true)
+    }
+    for (const view of ['wide', ...(pairs.has('light/compact') || pairs.has('dark/compact') ? ['compact'] : [])]) {
+      for (const theme of ['light', 'dark']) if (!pairs.has(`${theme}/${view}`)) failures.push(`${label} is missing ${theme}/${view}`)
+    }
+  }
+  if (blocks.length && !/visualization-diagram\.js|querySelectorAll\(["']\[data-viz-diagram\]["']\)/.test(html)) {
+    failures.push(`${name}: compiled diagrams do not load visualization-diagram.js or its inline runtime`)
+  }
+  return blocks.length
+}
+
 function revisionOf(text) {
   return text.match(/data-viz-shell-revision=["'](\d+)["']/)?.[1]
     ?? text.match(/visualization-shell revision (\d+)/)?.[1]
@@ -89,7 +168,7 @@ function revisionOf(text) {
 }
 
 // Checks shared by the canonical documents and by produced artifacts.
-function checkDocument(name, rawHtml) {
+function checkDocument(name, rawHtml, file) {
   const html = stripComments(rawHtml)
   const known = new Set()
   const duplicates = new Set()
@@ -107,6 +186,8 @@ function checkDocument(name, rawHtml) {
   if (!/visualization-shell\.css|prefers-color-scheme|data-viz-theme|color-scheme/.test(rawHtml)) {
     failures.push(`${name}: no light/dark theme support found`)
   }
+
+  checkCompiled(name, html, known, file)
 
   const blocks = mermaidBlocksIn(html)
   blocks.forEach((block, index) => {
@@ -137,7 +218,7 @@ function checkDocument(name, rawHtml) {
 function checkArtifact(file) {
   const name = path.basename(file)
   const html = fs.readFileSync(file, 'utf8')
-  checkDocument(name, html)
+  checkDocument(name, html, file)
 
   for (const cls of vizClassesIn(html)) {
     if (!cssClasses.has(cls)) {
@@ -161,10 +242,11 @@ function checkArtifact(file) {
 
 // --- the skill's own assets ------------------------------------------------
 
-const mermaidInShell = checkDocument('shell', source.shell)
-checkDocument('page', source.page)
-const mermaidInPreview = checkDocument('preview', source.preview)
+const mermaidInShell = checkDocument('shell', source.shell, files.shell)
+checkDocument('page', source.page, files.page)
+const mermaidInPreview = checkDocument('preview', source.preview, files.preview)
 if (mermaidInPreview === 0) failures.push('preview: no Mermaid examples found')
+if (!compiledBlocksIn(source.preview).some(([, tag]) => attribute(tag, 'data-viz-diagram') === 'd2')) failures.push('preview: no compiled D2 example found')
 const mermaidExamples = mermaidInShell + mermaidInPreview
 
 const revisions = new Set(Object.values(source).map(revisionOf))
@@ -211,7 +293,7 @@ for (const [, selector, body] of source.css.matchAll(/([^{}]+)\{([^{}]*)\}/g)) {
   }
 }
 
-for (const name of ['runtime', 'code', 'diff', 'mermaid']) {
+for (const name of ['runtime', 'code', 'diff', 'mermaid', 'diagram']) {
   if (/addEventListener\(\s*["'](?:wheel|mousewheel|touchmove)["']/.test(source[name])) {
     failures.push(`${name}: must not intercept wheel/touch scrolling; fix the CSS scroll chain instead`)
   }
@@ -228,6 +310,10 @@ requirePattern('mermaid', /data-viz-mermaid/, 'optional Mermaid renderer has no 
 requirePattern('mermaid', /data-viz-mermaid-loading/, 'Mermaid renderer does not release loading state')
 requirePattern('mermaid', /dataset\.vizHorizontalScroll\s*=/, 'Mermaid renderer does not flag local horizontal overflow')
 requirePattern('mermaid', /MAX_FIT_OVERFLOW\s*=\s*1\.(0\d|1\d)\b/, 'Mermaid renderer may shrink labels below reading size; keep the fit limit under 1.2')
+requirePattern('diagram', /data-viz-diagram/, 'compiled SVG adapter has no diagram hook')
+requirePattern('diagram', /dataset\.vizHorizontalScroll\s*=/, 'compiled SVG adapter does not flag local horizontal overflow')
+requirePattern('diagram', /MAX_FIT_OVERFLOW\s*=\s*1\.(0\d|1\d)\b/, 'compiled SVG adapter may shrink labels below reading size; keep the fit limit under 1.2')
+requirePattern('diagram', /dataset\.vizTheme/, 'compiled SVG adapter does not follow the shell theme')
 requirePattern('preview', /data-viz-code[^>]*data-viz-language=/, 'code example has no language contract')
 requirePattern('preview', /visualization-code\.js/, 'code example does not load the optional renderer')
 
@@ -269,5 +355,5 @@ if (failures.length > 0) {
 }
 
 console.log(
-  `Playground contract OK: 3 canonical documents, ${mermaidExamples} Mermaid examples, ${artifacts.length} artifact(s); navigation, scrolling, code/diff, IDs, hooks, revisions, and component vocabulary checked.`,
+  `Playground contract OK: 3 canonical documents, ${mermaidExamples} Mermaid examples, ${compiledBlocksIn(source.preview).length} compiled example(s), ${artifacts.length} artifact(s); navigation, scrolling, code/diff, source assets, theme/view pairs, IDs, hooks, revisions, and component vocabulary checked.`,
 )

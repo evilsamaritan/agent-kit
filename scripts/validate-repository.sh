@@ -209,6 +209,27 @@ if grep -rqE 'team-creator|team-orchestrator|agent-runner|\.claude/teams|scripts
   err "stale-reference" "removed team runtime or pre-profile agent path is still referenced"
 fi
 
+# Relative Markdown links in shipped text must resolve.
+broken_links=$(node -e '
+  const fs = require("fs"); const path = require("path"); const out = []
+  const check = (file) => {
+    const text = fs.readFileSync(file, "utf8").replace(/^(`{3,}|~{3,})[^\n]*\n[\s\S]*?^\1[ \t]*$/gm, "")
+    for (const m of text.matchAll(/\]\(([^)#\s]+\.md)(?:#[^)]*)?\)/g)) {
+      if (/^[a-z]+:/i.test(m[1])) continue
+      if (!fs.existsSync(path.resolve(path.dirname(file), m[1]))) out.push(`${path.relative(process.argv[1], file)} -> ${m[1]}`)
+    }
+  }
+  const walk = (dir) => fs.readdirSync(dir, { withFileTypes: true }).forEach((e) => {
+    const p = path.join(dir, e.name)
+    if (e.isDirectory()) walk(p); else if (p.endsWith(".md")) check(p)
+  })
+  walk(path.join(process.argv[1], "skills"))
+  for (const f of ["README.md", "AGENTS.md"]) check(path.join(process.argv[1], f))
+  console.log(out.join("\n"))' "$repo_root")
+if [[ -n "$broken_links" ]]; then
+  while IFS= read -r link; do err "links" "broken relative link: $link"; done <<<"$broken_links"
+fi
+
 node "$repo_root/skills/playground/scripts/check-shell-contract.mjs" || err "playground" "shared assets fail the playground contract"
 node "$repo_root/skills/playground/scripts/check-theme-contrast.mjs" >/dev/null || err "playground" "theme tokens fail the contrast check"
 
@@ -228,6 +249,12 @@ if command -v d2 >/dev/null 2>&1; then
     d2 validate "$example" >/dev/null 2>&1 || err "d2" "invalid D2 example from $(head -1 "$example" | sed "s#^\# $repo_root/##")"
   done
   rm -rf "$d2_dir"
+  # The gallery's 32 SVGs must regenerate byte-for-byte with the pinned D2.
+  if [[ $(d2 --version 2>/dev/null) == "v0.9.0" || $(d2 --version 2>/dev/null) == "0.9.0" ]]; then
+    node "$repo_root/skills/playground/scripts/render-d2-preview.mjs" --check >/dev/null || err "playground" "gallery SVGs drifted from their D2 sources"
+  else
+    printf 'WARN: D2 0.9.0 (pinned for the gallery) not installed; skipped gallery drift check.\n' >&2
+  fi
 else
   printf 'WARN: d2 not found; skipped D2 example validation.\n' >&2
 fi

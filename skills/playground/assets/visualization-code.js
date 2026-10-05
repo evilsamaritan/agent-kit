@@ -1,4 +1,4 @@
-// visualization-shell revision 4
+// visualization-shell revision 5
 const regions = [...document.querySelectorAll("[data-viz-code]")];
 
 if (regions.length) {

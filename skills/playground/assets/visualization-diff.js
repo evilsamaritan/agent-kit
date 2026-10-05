@@ -1,4 +1,4 @@
-// visualization-shell revision 4
+// visualization-shell revision 5
 document.querySelectorAll("[data-viz-diff]").forEach((diff) => {
   const buttons = [...diff.querySelectorAll("[data-viz-diff-mode-value]")];
 

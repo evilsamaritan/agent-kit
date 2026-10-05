@@ -39,7 +39,7 @@ Optional scripts are added only when their content exists: `visualization-mermai
 ### Standalone page
 
 ```html
-<main class="viz-main" data-viz-page data-viz-shell-revision="4">
+<main class="viz-main" data-viz-page data-viz-shell-revision="5">
   <header class="viz-header">
     <div class="viz-page-head">
       <div> … viz-kicker, viz-title, viz-summary … </div>
@@ -82,6 +82,8 @@ Navigation never justifies more views. Reduce the view set first ([explorer temp
 | `data-viz-theme-value="auto|light|dark"` | theme buttons | theme control; the root carries `data-viz-theme` |
 | `data-viz-section` | each section | focus target after navigation |
 | `data-viz-mermaid`, `data-viz-compact-direction`, `data-viz-compact-at` | Mermaid container | render a `script[type="text/plain"]` source; optional direction swap at a container width (default 720) |
+| `data-viz-diagram="mermaid|d2|plantuml|graphviz"`, `data-viz-compact-at` | compiled figure | identifies source format; selects theme and optional compact SVG variants |
+| `data-viz-diagram-output`, `data-viz-diagram-theme="light|dark"`, `data-viz-diagram-view="wide|compact"`, `data-viz-diagram-source` | output, SVG images, source link | precompiled diagram contract ([compiled-diagrams.md](compiled-diagrams.md)) |
 | `data-viz-mermaid-loading` | `<html>` | hides content until diagrams are laid out; required whenever Mermaid is present |
 | `data-viz-code`, `data-viz-language` | code region | syntax highlighting with plain-text fallback |
 | `data-viz-diff`, `data-viz-diff-mode`, `data-viz-diff-mode-value` | diff region and its buttons | split / unified control |
@@ -91,7 +93,7 @@ Set by the runtime, read-only for authors: `data-viz-theme-current`, `data-viz-h
 ## Explorer shell skeleton
 
 ```html
-<div class="viz-shell" data-viz-shell data-viz-shell-revision="4" data-viz-navigation="switcher">
+<div class="viz-shell" data-viz-shell data-viz-shell-revision="5" data-viz-navigation="switcher">
   <aside class="viz-sidebar" data-viz-menu> … viz-brand, viz-menu, viz-sidebar__body › viz-sheet__head, viz-nav, viz-sidebar__footer viz-theme-control › viz-segmented … </aside>
   <div class="viz-sheet-backdrop" data-viz-menu-dismiss></div>
   <main class="viz-main">
@@ -138,12 +140,13 @@ The six category modifiers mean the same thing everywhere; their palette and mea
 | Component | Use | Markup |
 |---|---|---|
 | `viz-flow` + `viz-connector`, `viz-connector__line`, `--async` `--risk` `--vertical` | a simple one-to-one chain that reflows | `<span class="viz-connector"><span>requests</span><span class="viz-connector__line" aria-hidden="true"></span></span>` between node cards |
-| `viz-mermaid` (`__output` is generated) | branches, joins, loops, multi-edge graphs, sequence, state, ER | see [mermaid-rendering.md](mermaid-rendering.md) |
+| `viz-mermaid` (`__output` is generated) | supported diagrams in a project that selects Mermaid browser rendering | see [mermaid-rendering.md](mermaid-rendering.md) |
+| `viz-compiled`, `__caption`, `__output`, `__description`, `__error` | precompiled Mermaid, D2, PlantUML, or Graphviz SVG with theme and compact variants | see [compiled-diagrams.md](compiled-diagrams.md) |
 | `viz-relationship-list`, `__route`, `__label`, `__status` + `--risk` `--unknown` | compact or textual projection of edges | `<li><span class="viz-relationship-list__route">A → B</span><span class="viz-relationship-list__label">depends on</span></li>` |
 | `viz-message-list` | compact projection of a sequence | `<ol class="viz-message-list"><li><div><strong>Client → Shell</strong><small>open(gameId)</small></div></li></ol>` |
 | `viz-diagram`, `viz-node` + category modifiers, `viz-edge` + `--primary` `--indirect` `--annotation` `--risk` | hand-written inline SVG whose geometry carries meaning, and charts | `<svg class="viz-diagram" viewBox="…" role="img">` with `rect.viz-node`, `path.viz-edge` |
 
-`viz-connector` is only for a simple chain. Anything that branches, joins, or loops is Mermaid or one SVG coordinate system; never rebuild routing from borders and absolutely positioned fragments.
+`viz-connector` is only for a simple chain. Anything that branches, joins, or loops uses the selected diagram renderer or one SVG coordinate system; never rebuild routing from borders and absolutely positioned fragments.
 
 ## Wide and compact projections
 
@@ -154,7 +157,7 @@ The six category modifiers mean the same thing everywhere; their palette and mea
 </div>
 ```
 
-`viz-responsive__wide` shows above 720px of available container width and `viz-responsive__compact` below. Both projections must state the same entities, relationships, order, and status ([responsive-layout.md](responsive-layout.md)). Prefer `data-viz-compact-direction` alone when re-running the same Mermaid source top-to-bottom is enough; then no second projection exists to keep in sync.
+`viz-responsive__wide` shows above 720px of available container width and `viz-responsive__compact` below. Both projections must state the same entities, relationships, order, and status ([responsive-layout.md](responsive-layout.md)). Prefer `data-viz-compact-direction` alone when re-running the same Mermaid source top-to-bottom is enough; then no second projection exists to keep in sync. Compiled diagrams can select a compact SVG pair generated from the same source with presentation parameters ([compiled-diagrams.md](compiled-diagrams.md)).
 
 ## Comparison, time, and charts
 
@@ -200,4 +203,4 @@ Artifacts carry a copy of the shell, so copies drift. The shell root records the
 node scripts/check-shell-contract.mjs path/to/artifact.html
 ```
 
-The check reports missing hooks, duplicate IDs, broken navigation targets, Mermaid blocks without accessible titles, a missing loading gate, code regions without a language, `viz-` classes the shell does not define, and an outdated revision.
+The check reports missing hooks, duplicate IDs, broken navigation targets, browser diagram blocks without accessible titles, a missing live-render loading gate, compiled diagrams without source links or complete theme/view pairs, code regions without a language, `viz-` classes the shell does not define, and an outdated revision.
