@@ -9,7 +9,7 @@
 
 ## Claude Code
 
-Prefer a named custom agent from `.claude/agents/`. Pass the concrete assignment; the native agent already carries its persona, skills, model, and tool configuration.
+Prefer a named custom agent from `.claude/agents/`. Pass the concrete assignment; the native agent already carries its persona, skills, tool configuration, and any model the project pinned (otherwise it inherits the session model). A `.claude/agents/` directory created during the session becomes selectable only after a restart.
 
 When no configured project agent fits, pass the selected profile behavior and authoritative skill source paths to a generic native subagent if delegation is authorized. This prompt cannot enforce custom tools, effort, or preload settings absent from the spawn API. Use the main session or a configured project agent when those controls matter.
 
@@ -23,7 +23,7 @@ Project targets retain native `skills` preload hints and include resolved local 
 
 ## Codex
 
-Prefer a named custom agent from `.codex/agents/*.toml` when the current Codex client exposes a selector that applies that agent's configuration. The file carries `developer_instructions`, model, reasoning effort, sandbox defaults, and skill configuration. Use Codex subagent/thread controls to spawn, steer, wait, interrupt, and collect results.
+Prefer a named custom agent from `.codex/agents/*.toml` when the current Codex client exposes a selector that applies that agent's configuration. The file carries `developer_instructions`, reasoning effort, sandbox defaults, skill configuration, and a model only when the project pinned one. Use Codex subagent/thread controls to spawn, steer, wait, interrupt, and collect results.
 
 Live parent-session sandbox and approval overrides can supersede custom-agent defaults. Treat the project TOML as a default contract, then honor the active session policy.
 

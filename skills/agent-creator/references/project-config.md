@@ -42,8 +42,8 @@
 | `description` | no | Project-specific routing description |
 | `effort` | no | Portable effort override: low, medium, high, xhigh, max |
 | `access` | no | Intended access override: read-only, edits, full |
-| `claude` | no | Claude overlay object; currently `model`, `tools`, and supported profile overlay fields |
-| `codex` | no | Codex overlay object; currently `model` and `effort` |
+| `claude` | no | Claude runtime overrides: `model`, `effort`, `color`, `tools`, `disallowedTools`, `maxTurns`, `memory`, `background`, `isolation` |
+| `codex` | no | Codex runtime overrides: `model`, `effort`, `sandbox_mode` |
 
 ## Composition rules
 
@@ -51,6 +51,8 @@
 - Every skill must resolve from project-local skills or the installed Agent Kit library.
 - Runtime overlays override profile defaults without changing the reusable profile.
 - `access` maps to Claude default tools and Codex sandbox defaults. Explicit project `access` replaces library tools; a project `claude.tools` array takes precedence over that choice.
+- Resolution order: profile core → profile runtime overlay → portable `effort`/`access` → explicit runtime overrides.
+- Models are inherited unless the project sets `claude.model` or `codex.model`. Any alias or ID the host accepts is allowed; Agent Kit checks syntax, not availability.
 - Live host policy remains authoritative over generated defaults.
 
 ## Generated targets
@@ -60,7 +62,22 @@
 | Claude Code | `.claude/agents/<name>.md` | body → prompt, skills → `skills`, effort/model/tools → frontmatter |
 | Codex | `.codex/agents/<name>.toml` | body → `developer_instructions`, effort → `model_reasoning_effort`, access → `sandbox_mode`, skills → `skills.config` |
 
-Generated files carry an Agent Kit marker. The materializer may overwrite or prune only marked files.
+Generated files carry an Agent Kit marker and `agent-kit-metadata` (kit version and an input fingerprint). The materializer may overwrite or prune only marked files.
+
+Library skill paths are absolute, so native targets are local materializations. Commit them only if every collaborator refreshes after installing; otherwise keep `.agent-kit/agents.json` as the shared source and regenerate per machine.
+
+## Sync and freshness
+
+| Command | Use |
+|---------|-----|
+| `--dry-run` | Preview the semantic diff: profile behavior, settings, skills, local source paths, kit version |
+| (no flag) | Write changed targets and print the same diff |
+| `--check` | Fail on missing, changed, or orphaned targets |
+| `--check --portable` | Same, but accept path-only refreshes (another machine or install root) |
+| `--check --agent NAME` | Freshness of one selected agent before delegating to it |
+| `--prune` | Delete generated targets no longer configured |
+
+A target generated before 4.0 has no metadata; its baseline is reported as unknown and compared by its parsed settings and body.
 
 ## Examples
 

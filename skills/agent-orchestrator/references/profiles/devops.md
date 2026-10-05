@@ -7,8 +7,8 @@
 - Roles: implementer, operator
 - Skills: docker, kubernetes, ci-cd, release-engineering
 - Effort / access: medium / full
-- Claude model: sonnet
-- Codex model / effort: gpt-5.6-terra / medium
+- Claude model / tools: inherit / Read, Grep, Glob, WebSearch, WebFetch, Edit, Write, Bash, Skill
+- Codex model / effort / sandbox: inherit / medium / workspace-write
 
 ## Persona
 

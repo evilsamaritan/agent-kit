@@ -1,4 +1,4 @@
-# agent-kit v4.0.0-alpha.3
+# agent-kit v4.0.0-alpha.4
 
 ## Purpose
 
@@ -213,25 +213,35 @@ access: edits                       # Required. read-only | edits | full.
 
 `access` picks the default Claude tool set (`read-only` withholds Edit/Write/Bash, `edits` adds Edit/Write, `full` adds Bash) and Codex `sandbox_mode`. `role` is validated, never expanded — profile bodies are profession adaptations of the templates.
 
+Settings resolve once, in this order: profile core → profile runtime overlay → portable project overrides (`effort`, `access`) → explicit project runtime overrides. A project `access: read-only` therefore replaces a library tool list; a project `claude.tools` stays final. The parent session's policy still bounds the result.
+
+Overlay files use flat `key: value` lines and inline arrays; YAML overlays and JSON project overrides normalize to the same types. Each runtime's fields, resolution, target path, and rendering live in one module under `scripts/profile-runtimes/`; adding a harness means adding a module to its registry.
+
+### Model selection
+
+Profiles pin no model. An omitted model inherits the host choice (Claude: parent session or `CLAUDE_CODE_SUBAGENT_MODEL`; Codex: parent thread). A project sets `claude.model` or `codex.model` when it needs a specific alias or ID. Model names are checked for syntax only — availability belongs to the host, so no closed list of IDs lives in the library.
+
 ### Claude overlay — `claude.yaml`
 
 ```yaml
-model: sonnet                       # sonnet | opus | haiku | fable | inherit.
 color: cyan                         # red, blue, green, yellow, purple, orange, pink, cyan.
-tools: [Read, Edit, Bash]           # Library tool default; project access replaces it unless the project explicitly overrides tools.
+tools: [Read, Edit, Bash]           # Library narrowing of the access-derived set; omit when it equals that set.
 maxTurns: 20                        # Max agentic turns.
 ```
 
-Materialized Claude project agents may also use `disallowedTools`, `memory`, `background`, and `isolation`. Add only fields rendered and validated for native project agents; project settings, hooks, MCP servers, and permission mode stay outside the profile overlay.
+Also accepted: `model` (alias, full ID, or `inherit`), `effort`, `disallowedTools`, `memory`, `background`, `isolation`. Add only fields rendered and validated for native project agents; project settings, hooks, MCP servers, and permission mode stay outside the profile overlay.
 
 ### Codex overlay — `codex.yaml`
 
 ```yaml
-model: gpt-5.6-terra                # gpt-5.6 | gpt-5.6-sol | gpt-5.6-terra | gpt-5.6-luna | gpt-5.5 | gpt-5.4 | gpt-5.4-mini.
 effort: ultra                       # Optional. Codex-only levels; `ultra` is rejected in the core.
 ```
 
-The project materializer maps the profile body to `developer_instructions`, `effort` to `model_reasoning_effort`, `access` to `sandbox_mode`, and resolved skills to `skills.config`. Live session policy remains authoritative over child defaults. `agent-orchestrator` capability-checks named custom-agent selection and falls back to a generic native subagent carrying the same persona and skill composition when a client cannot apply the named config.
+Also accepted: `model` and `sandbox_mode`. The project materializer maps the profile body to `developer_instructions`, `effort` to `model_reasoning_effort`, `access` to `sandbox_mode`, and resolved skills to `skills.config` entries pointing at each `SKILL.md`. Live session policy remains authoritative over child defaults. `agent-orchestrator` capability-checks named custom-agent selection and falls back to a generic native subagent carrying the same persona and skill composition when a client cannot apply the named config.
+
+### Generated targets and freshness
+
+Generated targets carry a marker plus `agent-kit-metadata` with the kit version and a fingerprint of the profile and project inputs (machine paths excluded). Library skill paths are absolute, so a target is a local materialization: refresh it after an upgrade or relocation. `materialize-agents.mjs --dry-run` prints a semantic diff (behavior, settings, skills, local paths); `--check` fails on any drift, `--check --portable` ignores path-only refreshes, and `--agent NAME` limits either to one agent.
 
 ### Body structure
 

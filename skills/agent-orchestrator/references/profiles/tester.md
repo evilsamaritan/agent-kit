@@ -7,8 +7,8 @@
 - Roles: implementer, reviewer
 - Skills: testing
 - Effort / access: medium / full
-- Claude model: sonnet
-- Codex model / effort: gpt-5.6-terra / medium
+- Claude model / tools: inherit / Read, Grep, Glob, Edit, Write, Bash, Skill
+- Codex model / effort / sandbox: inherit / medium / workspace-write
 
 ## Persona
 

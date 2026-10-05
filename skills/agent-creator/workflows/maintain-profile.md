@@ -17,7 +17,7 @@ Choose create, improve, rename, or delete from the user's request. Before rename
 
 1. Choose a small default skill set that represents the profession broadly.
 2. Set portable `effort` and `access` in `PROFILE.md`.
-3. Set runtime model defaults in `claude.yaml` and `codex.yaml`.
+3. Keep models out of `claude.yaml` and `codex.yaml`; profiles inherit the host model. Use overlays for color and for narrowing tools below the access-derived set.
 4. Keep runtime-specific settings out of the core.
 
 Use [../references/profile-template.md](../references/profile-template.md) for the source format.

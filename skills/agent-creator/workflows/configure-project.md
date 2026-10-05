@@ -14,7 +14,7 @@ For each requested project agent:
 1. Pick one bundled profession profile from `../../agent-orchestrator/references/profile-catalog.md`.
 2. Start from its default skills.
 3. Replace the list with the smallest exact set matching the project stack and the agent's routine responsibilities.
-4. Keep profile default effort, access, and runtime models unless the request or project constraints justify an override.
+4. Keep profile default effort and access. Leave models inherited unless the request or project constraints need a specific alias or ID; preserve a model the project already pinned.
 5. Use a profession name or meaningful responsibility such as `frontend-developer`. Add a subsystem prefix only for an actual split; do not derive names from the list of skills. Preserve existing names. Read `../references/project-agent-recipes.md` for starting recipes.
 
 If a required knowledge skill does not exist, invoke `skill-creator` first. If no profession profile fits, use [maintain-profile.md](maintain-profile.md) only when working in the Agent Kit source repository; otherwise explain that the library needs a new profile rather than inventing a project-only profession body.
@@ -32,7 +32,7 @@ Default `runtimes` to both `claude` and `codex`.
 
 ## Step 4: Materialize native agents
 
-Run the installed `scripts/materialize-agents.mjs` with `--project-root` pointing at the consuming project. Use `--prune` after deletion or a runtime list change so obsolete generated targets are removed safely.
+Run the installed `scripts/materialize-agents.mjs` with `--project-root` pointing at the consuming project. For a sync after an Agent Kit upgrade, run `--dry-run` first and report its semantic diff: changed profile behavior, settings, skills, and path-only refreshes. Routine authorized refreshes proceed; a diff that widens tools/sandbox or pins a costlier model is a material change to confirm. Use `--prune` after deletion or a runtime list change so obsolete generated targets are removed safely.
 
 The expected outputs are:
 
@@ -50,5 +50,6 @@ Do not manually patch an output to fix generation. Change `.agent-kit/agents.jso
 3. Confirm Claude frontmatter contains the intended name, description, skills, model, effort, and tools.
 4. Confirm Codex TOML contains `name`, `description`, `developer_instructions`, `model_reasoning_effort`, `sandbox_mode`, and the selected skill paths.
 5. Confirm user-owned native agent files remain unchanged.
+6. If `.claude/agents/` did not exist before this run, tell the user the new Claude agents become selectable after the session restarts; a running session does not watch a newly created agents directory.
 
-Report the project composition, generated targets, overrides, and validation evidence.
+Report the project composition, generated targets, overrides, the sync diff, and validation evidence.

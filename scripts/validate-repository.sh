@@ -38,10 +38,9 @@ if [[ -e "$repo_root/.agents/plugins/marketplace.json" ]]; then
   err "packaging" "use the shared .claude-plugin/marketplace.json instead of a duplicate .agents catalog"
 fi
 
-node --check "$repo_root/scripts/profile-lib.mjs"
-node --check "$repo_root/scripts/generate-profiles.mjs"
-node --check "$repo_root/scripts/validate-codex-agent.mjs"
-node --check "$repo_root/skills/agent-creator/scripts/materialize-agents.mjs"
+for script in "$repo_root"/scripts/*.mjs "$repo_root"/scripts/profile-runtimes/*.mjs "$repo_root"/skills/agent-creator/scripts/*.mjs; do
+  node --check "$script"
+done
 node "$repo_root/scripts/generate-profiles.mjs" --check
 node --test "$repo_root"/scripts/tests/*.test.mjs
 
@@ -116,7 +115,24 @@ node "$repo_root/skills/agent-creator/scripts/materialize-agents.mjs" --project-
 [[ ! -e "$project_test_dir/.codex/agents/backend-developer.toml" ]] || err "materializer" "prune left obsolete Codex target"
 [[ -f "$project_test_dir/.claude/agents/manual.md" ]] || err "materializer" "prune removed manual agent"
 node "$repo_root/skills/agent-creator/scripts/materialize-agents.mjs" --project-root "$project_test_dir" --check
-printf 'Project materialization OK: Claude, Codex, collision, drift, and prune cases.\n'
+
+# Freshness: a moved installation is a local refresh, not a semantic change;
+# a changed setting is stale everywhere. --dry-run never writes.
+materialize=("node" "$repo_root/skills/agent-creator/scripts/materialize-agents.mjs" "--project-root" "$project_test_dir")
+reviewer_target="$project_test_dir/.codex/agents/reviewer.toml"
+sed "s#$repo_root/skills#/moved/agent-kit/skills#g" "$reviewer_target" > "$reviewer_target.next" && mv "$reviewer_target.next" "$reviewer_target"
+if "${materialize[@]}" --check >/dev/null 2>&1; then err "freshness" "moved source paths passed the local check"; fi
+freshness_report=$("${materialize[@]}" --check --agent reviewer 2>/dev/null || true)
+grep -q 'local source path changed' <<<"$freshness_report" || err "freshness" "path refresh was not reported"
+"${materialize[@]}" --check --portable >/dev/null || err "freshness" "portable check rejected a path-only refresh"
+sed 's/model_reasoning_effort = "high"/model_reasoning_effort = "low"/' "$reviewer_target" > "$reviewer_target.next" && mv "$reviewer_target.next" "$reviewer_target"
+"${materialize[@]}" --dry-run | grep -q 'effort: low → high' || err "freshness" "setting drift was not reported"
+grep -q 'model_reasoning_effort = "low"' "$reviewer_target" || err "freshness" "--dry-run wrote a target"
+if "${materialize[@]}" --check --portable >/dev/null 2>&1; then err "freshness" "portable check accepted a setting change"; fi
+"${materialize[@]}" >/dev/null
+"${materialize[@]}" --check >/dev/null || err "freshness" "refresh did not restore an up-to-date target"
+grep -q '^# agent-kit-metadata: {"kit":' "$reviewer_target" || err "freshness" "provenance marker missing"
+printf 'Project materialization OK: Claude, Codex, collision, drift, prune, and freshness cases.\n'
 
 for file in "$repo_root"/skills/*/SKILL.md; do
   skill=$(basename "$(dirname "$file")")

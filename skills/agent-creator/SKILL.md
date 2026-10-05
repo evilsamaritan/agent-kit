@@ -50,7 +50,7 @@ A profile supplies:
 - persona and domain-adapted role behavior;
 - default knowledge skills;
 - default effort and access intent;
-- Claude and Codex model defaults.
+- no model: project agents inherit the host model unless the project pins one.
 
 Read [references/profile-catalog.md](../agent-orchestrator/references/profile-catalog.md) to discover bundled profiles, then load only the selected `profiles/<name>.md` reference when project configuration needs its detail.
 
@@ -79,10 +79,13 @@ The current runtime session can impose stricter policy or override a child defau
 The deterministic script lives at [scripts/materialize-agents.mjs](scripts/materialize-agents.mjs). Resolve it from this skill's directory and run it with the project root:
 
 ```bash
+node skills/agent-creator/scripts/materialize-agents.mjs --project-root /path/to/project --dry-run
 node skills/agent-creator/scripts/materialize-agents.mjs --project-root /path/to/project
 node skills/agent-creator/scripts/materialize-agents.mjs --project-root /path/to/project --check
 node skills/agent-creator/scripts/materialize-agents.mjs --project-root /path/to/project --prune
 ```
+
+`--dry-run` previews the semantic diff; `--check --portable` ignores path-only refreshes; `--agent NAME` limits a check or refresh to one agent. Library skill paths are absolute, so refresh targets after upgrading or moving Agent Kit.
 
 When Agent Kit is installed as a plugin, use the script's installed absolute path rather than assuming the consuming project contains `skills/agent-creator/`.
 

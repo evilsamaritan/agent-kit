@@ -7,8 +7,8 @@
 - Roles: implementer
 - Skills: architecture
 - Effort / access: medium / full
-- Claude model: inherit
-- Codex model / effort: inherit / medium
+- Claude model / tools: inherit / Read, Grep, Glob, WebSearch, WebFetch, Edit, Write, Bash, Skill
+- Codex model / effort / sandbox: inherit / medium / workspace-write
 
 ## Persona
 

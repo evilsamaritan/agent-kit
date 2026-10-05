@@ -7,8 +7,8 @@
 - Roles: architect
 - Skills: architecture
 - Effort / access: high / full
-- Claude model: opus
-- Codex model / effort: gpt-5.6-sol / high
+- Claude model / tools: inherit / Read, Edit, Write, Bash, Glob, Grep, Skill
+- Codex model / effort / sandbox: inherit / high / workspace-write
 
 ## Persona
 

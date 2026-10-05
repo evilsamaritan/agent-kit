@@ -1,4 +1,3 @@
-# Claude Code overlay. Merged on top of PROFILE.md at generation time.
-model: sonnet
+# Claude Code overlay. Model is omitted so the agent inherits the session choice;
+# projects pin aliases or IDs in .agent-kit/agents.json when they need to.
 color: red
-tools: [Read, Grep, Glob, WebSearch, WebFetch, Edit, Write, Bash, Skill]

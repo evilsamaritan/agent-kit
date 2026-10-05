@@ -7,8 +7,8 @@
 - Roles: reviewer
 - Skills: architecture
 - Effort / access: high / read-only
-- Claude model: opus
-- Codex model / effort: gpt-5.6-sol / high
+- Claude model / tools: inherit / Read, Grep, Glob, WebSearch, WebFetch, Skill
+- Codex model / effort / sandbox: inherit / high / read-only
 
 ## Persona
 

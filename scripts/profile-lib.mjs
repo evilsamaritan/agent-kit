@@ -1,124 +1,63 @@
+import { createHash } from 'node:crypto'
 import { existsSync, readFileSync, readdirSync } from 'node:fs'
-import { basename, join } from 'node:path'
+import { join } from 'node:path'
+import { parseFlatYaml, splitFrontmatter } from './profile-format.mjs'
+import { RUNTIMES, runtimeRegistry } from './profile-runtimes/index.mjs'
+import { ACCESS, CORE_EFFORT, isGeneratedAgent } from './profile-runtimes/shared.mjs'
 
-export const CORE_EFFORT = ['low', 'medium', 'high', 'xhigh', 'max']
-export const CODEX_EFFORT = [...CORE_EFFORT, 'ultra']
-export const CLAUDE_MODELS = ['opus', 'sonnet', 'haiku', 'fable', 'inherit']
-export const CLAUDE_COLORS = ['red', 'blue', 'green', 'yellow', 'purple', 'orange', 'pink', 'cyan']
-export const CODEX_MODELS = [
-  'gpt-5.6',
-  'gpt-5.6-sol',
-  'gpt-5.6-terra',
-  'gpt-5.6-luna',
-  'gpt-5.5',
-  'gpt-5.4',
-  'gpt-5.4-mini',
-]
-export const ACCESS = ['read-only', 'edits', 'full']
-export const RUNTIMES = ['claude', 'codex']
+export { ACCESS, CORE_EFFORT, RUNTIMES, isGeneratedAgent, runtimeRegistry }
 
 const CORE_FIELDS = new Set(['name', 'description', 'role', 'skills', 'effort', 'access'])
-const CLAUDE_FIELDS = new Set([
-  'model',
-  'color',
-  'tools',
-  'disallowedTools',
-  'maxTurns',
-  'memory',
-  'background',
-  'isolation',
-])
-const CODEX_FIELDS = new Set(['model', 'effort'])
-
-export const TOOLS_BY_ACCESS = {
-  'read-only': ['Read', 'Grep', 'Glob', 'WebSearch', 'WebFetch', 'Skill'],
-  edits: ['Read', 'Grep', 'Glob', 'WebSearch', 'WebFetch', 'Edit', 'Write', 'Skill'],
-  full: ['Read', 'Grep', 'Glob', 'WebSearch', 'WebFetch', 'Edit', 'Write', 'Bash', 'Skill'],
-}
-
-export const SANDBOX_BY_ACCESS = {
-  'read-only': 'read-only',
-  edits: 'workspace-write',
-  full: 'workspace-write',
-}
-
 const NAME_PATTERN = /^[a-z0-9]+(?:-[a-z0-9]+)*$/
 const escapeRegex = (value) => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
 
-function parseFlatYaml(text, origin, issues) {
-  const out = {}
-  text.split('\n').forEach((rawLine, index) => {
-    const line = rawLine.replace(/\s+$/, '')
-    if (!line || line.trimStart().startsWith('#')) return
-    const match = /^([A-Za-z][A-Za-z0-9_-]*):\s*(.*)$/.exec(line)
-    if (!match) {
-      issues.push(`${origin}:${index + 1}: not a flat "key: value" line`)
-      return
-    }
-    const [, key, raw] = match
-    if (raw === '' || raw === '|' || raw === '>') {
-      issues.push(`${origin}:${index + 1}: "${key}" must be a single-line scalar or inline array`)
-      return
-    }
-    if (raw.startsWith('[')) {
-      if (!raw.endsWith(']')) {
-        issues.push(`${origin}:${index + 1}: unterminated inline array for "${key}"`)
-        return
-      }
-      out[key] = raw
-        .slice(1, -1)
-        .split(',')
-        .map((item) => item.trim().replace(/^["']|["']$/g, ''))
-        .filter(Boolean)
-      return
-    }
-    out[key] = raw.replace(/^["']|["']$/g, '')
-  })
-  return out
+export function kitVersion(toolkitRoot) {
+  const header = readFileSync(join(toolkitRoot, 'AGENTS.md'), 'utf8').split('\n', 1)[0]
+  const match = /^# agent-kit v(\S+)$/.exec(header)
+  if (!match) throw new Error('AGENTS.md version header missing')
+  return match[1]
 }
 
-function splitFrontmatter(text, origin, issues) {
-  if (!text.startsWith('---\n')) {
-    issues.push(`${origin}: missing opening frontmatter delimiter`)
-    return { front: {}, body: '' }
+function validateCore(name, front, body, knownRoles, knownSkills, issues) {
+  for (const key of Object.keys(front)) {
+    if (!CORE_FIELDS.has(key)) issues.push(`${name}: core field "${key}" is not supported`)
   }
-  const end = text.indexOf('\n---', 3)
-  if (end === -1) {
-    issues.push(`${origin}: missing closing frontmatter delimiter`)
-    return { front: {}, body: '' }
+  if (front.name !== name) issues.push(`${name}: core name "${front.name}" does not match directory`)
+  if (!NAME_PATTERN.test(name)) issues.push(`${name}: profile name must be lowercase kebab-case`)
+  if (typeof front.description !== 'string' || !front.description) issues.push(`${name}: core description is required`)
+  if (!body.trim()) issues.push(`${name}: PROFILE.md has an empty body`)
+  if (!CORE_EFFORT.includes(front.effort)) issues.push(`${name}: core effort must be one of ${CORE_EFFORT.join(', ')}`)
+  if (!ACCESS.includes(front.access)) issues.push(`${name}: core access must be one of ${ACCESS.join(', ')}`)
+
+  if (!Array.isArray(front.skills)) issues.push(`${name}: core skills must be an inline array`)
+  for (const skill of Array.isArray(front.skills) ? front.skills : []) {
+    if (!knownSkills.has(skill)) issues.push(`${name}: default skill "${skill}" does not exist in skills/`)
   }
-  const front = parseFlatYaml(text.slice(4, end + 1), origin, issues)
-  const body = text.slice(text.indexOf('\n', end + 1) + 1).replace(/^\n+/, '')
-  return { front, body }
-}
 
-function readOverlay(dir, file, issues) {
-  const path = join(dir, file)
-  if (!existsSync(path)) return {}
-  return parseFlatYaml(readFileSync(path, 'utf8'), `profiles/${basename(dir)}/${file}`, issues)
-}
-
-function rejectUnknownFields(profile, values, allowed, layer, issues) {
-  for (const key of Object.keys(values)) {
-    if (!allowed.has(key)) issues.push(`${profile}: ${layer} field "${key}" is not supported`)
+  const roles = Array.isArray(front.role) ? front.role : []
+  if (!roles.length) issues.push(`${name}: role must be a non-empty inline array`)
+  for (const role of roles) {
+    if (!knownRoles.has(role)) issues.push(`${name}: role "${role}" has no template in skills/agent-creator/templates/`)
+    else if (!new RegExp(`^## Role — ${escapeRegex(role)}\\s*$`, 'm').test(body)) {
+      issues.push(`${name}: body has no exact "## Role — ${role}" section`)
+    }
+  }
+  for (const match of body.matchAll(/^## Role — ([a-z-]+)\s*$/gm)) {
+    if (!roles.includes(match[1])) issues.push(`${name}: body declares undeclared role section "${match[1]}"`)
   }
 }
 
 export function loadProfiles(toolkitRoot) {
   const issues = []
   const profilesDir = join(toolkitRoot, 'profiles')
-  const templatesDir = join(toolkitRoot, 'skills', 'agent-creator', 'templates')
-  const skillsDir = join(toolkitRoot, 'skills')
-
   if (!existsSync(profilesDir)) throw new Error(`Profile library not found: ${profilesDir}`)
-
   const knownRoles = new Set(
-    readdirSync(templatesDir)
+    readdirSync(join(toolkitRoot, 'skills', 'agent-creator', 'templates'))
       .filter((entry) => entry.endsWith('.md'))
       .map((entry) => entry.slice(0, -3)),
   )
   const knownSkills = new Set(
-    readdirSync(skillsDir, { withFileTypes: true })
+    readdirSync(join(toolkitRoot, 'skills'), { withFileTypes: true })
       .filter((entry) => entry.isDirectory())
       .map((entry) => entry.name),
   )
@@ -134,86 +73,20 @@ export function loadProfiles(toolkitRoot) {
         issues.push(`${name}: directory has no PROFILE.md`)
         return null
       }
-
-      const { front, body } = splitFrontmatter(
-        readFileSync(profilePath, 'utf8'),
-        `profiles/${name}/PROFILE.md`,
-        issues,
-      )
-      const claude = readOverlay(dir, 'claude.yaml', issues)
-      const codex = readOverlay(dir, 'codex.yaml', issues)
-
-      rejectUnknownFields(name, front, CORE_FIELDS, 'core', issues)
-      rejectUnknownFields(name, claude, CLAUDE_FIELDS, 'claude.yaml', issues)
-      rejectUnknownFields(name, codex, CODEX_FIELDS, 'codex.yaml', issues)
-
-      if (front.name !== name) issues.push(`${name}: core name "${front.name}" does not match directory`)
-      if (!NAME_PATTERN.test(name)) issues.push(`${name}: profile name must be lowercase kebab-case`)
-      if (!front.description) issues.push(`${name}: core description is required`)
-      if (!body.trim()) issues.push(`${name}: PROFILE.md has an empty body`)
-
-      if (!front.effort) issues.push(`${name}: core effort is required`)
-      else if (!CORE_EFFORT.includes(front.effort)) {
-        issues.push(`${name}: core effort "${front.effort}" is not one of ${CORE_EFFORT.join(', ')}`)
-      }
-
-      if (!front.access) issues.push(`${name}: core access is required`)
-      else if (!ACCESS.includes(front.access)) {
-        issues.push(`${name}: access "${front.access}" is not one of ${ACCESS.join(', ')}`)
-      }
-
-      if (!Array.isArray(front.skills)) issues.push(`${name}: core skills must be an inline array`)
-      for (const skill of Array.isArray(front.skills) ? front.skills : []) {
-        if (!knownSkills.has(skill)) issues.push(`${name}: default skill "${skill}" does not exist in skills/`)
-      }
-
-      if (!Array.isArray(front.role) || !front.role.length) issues.push(`${name}: role must be a non-empty inline array`)
-      for (const role of Array.isArray(front.role) ? front.role : []) {
-        if (!knownRoles.has(role)) {
-          issues.push(`${name}: role "${role}" has no template in skills/agent-creator/templates/`)
-        } else if (!new RegExp(`^## Role — ${escapeRegex(role)}\\s*$`, 'm').test(body)) {
-          issues.push(`${name}: body has no exact "## Role — ${role}" section`)
+      const { front, body } = splitFrontmatter(readFileSync(profilePath, 'utf8'), `profiles/${name}/PROFILE.md`, issues)
+      validateCore(name, front, body, knownRoles, knownSkills, issues)
+      const profile = { name, front, body, dir }
+      for (const runtime of runtimeRegistry.values()) {
+        const file = join(dir, `${runtime.id}.yaml`)
+        const origin = `profiles/${name}/${runtime.id}.yaml`
+        profile[runtime.id] = existsSync(file) ? parseFlatYaml(readFileSync(file, 'utf8'), origin, issues) : {}
+        try {
+          runtime.validate(profile[runtime.id], origin)
+        } catch (error) {
+          issues.push(error.message)
         }
       }
-      const bodyRoles = [...body.matchAll(/^## Role — ([a-z-]+)\s*$/gm)].map((match) => match[1])
-      for (const role of bodyRoles) {
-        if (!(Array.isArray(front.role) ? front.role : []).includes(role)) {
-          issues.push(`${name}: body declares undeclared role section "${role}"`)
-        }
-      }
-
-      if (claude.model && !CLAUDE_MODELS.includes(claude.model)) {
-        issues.push(`${name}: claude.yaml model "${claude.model}" is not one of ${CLAUDE_MODELS.join(', ')}`)
-      }
-      if (claude.color && !CLAUDE_COLORS.includes(claude.color)) {
-        issues.push(`${name}: claude.yaml color "${claude.color}" is not supported`)
-      }
-      if (claude.tools !== undefined && !Array.isArray(claude.tools)) {
-        issues.push(`${name}: claude.yaml tools must be an inline array`)
-      }
-      if (claude.disallowedTools !== undefined && !Array.isArray(claude.disallowedTools)) {
-        issues.push(`${name}: claude.yaml disallowedTools must be an inline array`)
-      }
-      if (claude.maxTurns !== undefined && !/^[1-9]\d*$/.test(claude.maxTurns)) {
-        issues.push(`${name}: claude.yaml maxTurns must be a positive integer`)
-      }
-      if (claude.memory !== undefined && !['user', 'project', 'local'].includes(claude.memory)) {
-        issues.push(`${name}: claude.yaml memory must be user, project, or local`)
-      }
-      if (claude.background !== undefined && !['true', 'false'].includes(claude.background)) {
-        issues.push(`${name}: claude.yaml background must be true or false`)
-      }
-      if (claude.isolation !== undefined && claude.isolation !== 'worktree') {
-        issues.push(`${name}: claude.yaml isolation must be worktree`)
-      }
-      if (codex.model && !CODEX_MODELS.includes(codex.model)) {
-        issues.push(`${name}: codex.yaml model "${codex.model}" is not one of ${CODEX_MODELS.join(', ')}`)
-      }
-      if (codex.effort && !CODEX_EFFORT.includes(codex.effort)) {
-        issues.push(`${name}: codex.yaml effort "${codex.effort}" is not a Codex reasoning level`)
-      }
-
-      return { name, front, body, claude, codex, dir }
+      return profile
     })
     .filter(Boolean)
 
@@ -221,107 +94,60 @@ export function loadProfiles(toolkitRoot) {
   return profiles
 }
 
+// Layers: profile core → profile runtime overlay → portable project overrides →
+// explicit project runtime overrides. Resolve once; renderers only format.
 export function composeAgent(profile, spec = {}) {
-  const access = spec.access ?? profile.front.access
-  const claude = { ...profile.claude, ...(spec.claude ?? {}) }
-  const codex = { ...profile.codex, ...(spec.codex ?? {}) }
-  // Portable project intent overrides library overlays; explicit project runtime
-  // settings are the final layer. Resolve before either renderer consumes them.
-  if (spec.access !== undefined && spec.claude?.tools === undefined) {
-    claude.tools = [...TOOLS_BY_ACCESS[access]]
+  const portable = {
+    access: spec.access ?? profile.front.access,
+    accessOverride: spec.access !== undefined,
+    effort: spec.effort ?? profile.front.effort,
+    effortOverride: spec.effort !== undefined,
   }
-  if (spec.effort !== undefined && spec.codex?.effort === undefined) {
-    codex.effort = spec.effort
-  }
-  return {
+  const agent = {
     profile: profile.name,
     name: spec.name ?? profile.name,
     description: spec.description ?? profile.front.description,
     roles: [...(profile.front.role ?? [])],
     skills: spec.skills === undefined ? [...(profile.front.skills ?? [])] : [...spec.skills],
-    effort: spec.effort ?? profile.front.effort,
-    access,
+    effort: portable.effort,
+    access: portable.access,
     body: profile.body,
-    claude,
-    codex,
   }
+  for (const runtime of runtimeRegistry.values()) {
+    agent[runtime.id] = runtime.resolve(profile[runtime.id] ?? {}, spec[runtime.id] ?? {}, portable)
+  }
+  return agent
 }
 
-const yamlList = (items) => `[${items.map((item) => JSON.stringify(item)).join(', ')}]`
-const GENERATED_MARKER = 'Generated by agent-kit'
-
-export function isGeneratedAgent(content) {
-  return content
-    .split('\n')
-    .slice(0, 20)
-    .some((line) =>
-      /^# Generated by agent-kit from .+\. Do not edit by hand\.$/.test(line)
-      || /^<!-- Generated by agent-kit from .+\. Do not edit by hand\. -->$/.test(line),
-    )
+function stable(value) {
+  if (Array.isArray(value)) return `[${value.map(stable).join(',')}]`
+  if (value && typeof value === 'object') {
+    return `{${Object.keys(value).sort().map((key) => `${JSON.stringify(key)}:${stable(value[key])}`).join(',')}}`
+  }
+  return JSON.stringify(value ?? null)
 }
 
-export function renderClaudeAgent(agent, source = `profile ${agent.profile}`, skillPaths = []) {
-  const tools = agent.claude.tools ?? TOOLS_BY_ACCESS[agent.access] ?? TOOLS_BY_ACCESS.edits
-  const lines = [
-    '---',
-    `name: ${agent.name}`,
-    `description: ${JSON.stringify(agent.description)}`,
-    `effort: ${agent.effort}`,
-  ]
-  for (const field of ['model', 'color', 'maxTurns', 'memory', 'background', 'isolation']) {
-    if (agent.claude[field] !== undefined) lines.push(`${field}: ${agent.claude[field]}`)
-  }
-  if (agent.skills.length) lines.push(`skills: ${yamlList(agent.skills)}`)
-  lines.push(`tools: ${yamlList(tools)}`)
-  if (agent.claude.disallowedTools) {
-    const value = Array.isArray(agent.claude.disallowedTools)
-      ? yamlList(agent.claude.disallowedTools)
-      : agent.claude.disallowedTools
-    lines.push(`disallowedTools: ${value}`)
-  }
-  lines.push('---', '', `<!-- ${GENERATED_MARKER} from ${source}. Do not edit by hand. -->`, '')
-  const sources = skillPaths.length
-    ? `\n\n## Selected knowledge sources\n\nUse these source paths as the authoritative selected knowledge. If a body was not already loaded from its listed source, read it when relevant before acting; load linked references only as needed. Do not assume an unqualified skill name resolves to this installation.\n\n${skillPaths.map((path, index) => `- ${agent.skills[index]}: ${JSON.stringify(path)}`).join('\n')}`
-    : ''
-  return `${lines.join('\n')}${agent.body.trimEnd()}${sources}\n`
+// Fingerprint of the inputs a target was built from, independent of machine paths.
+export function inputFingerprint(profile, spec, runtimeId) {
+  const inputs = { front: profile.front, body: profile.body, overlay: profile[runtimeId] ?? {}, spec, runtime: runtimeId }
+  return createHash('sha256').update(stable(inputs)).digest('hex').slice(0, 16)
 }
 
-export function renderCodexAgent(agent, skillPaths = [], source = `profile ${agent.profile}`) {
-  const model = agent.codex.model
-  const effort = agent.codex.effort ?? agent.effort
-  const sandbox = SANDBOX_BY_ACCESS[agent.access]
-  const skillInstruction = agent.skills.length
-    ? `\n\nBefore acting, read and follow these installed knowledge skills when relevant: ${agent.skills.join(', ')}.`
-    : ''
-  const identity = `You are the project custom agent "${agent.name}", materialized from the Agent Kit profession profile "${agent.profile}".\n\n`
-  const instructions = `${identity}${agent.body.trimEnd()}${skillInstruction}\n`
-  const lines = [
-    `# ${GENERATED_MARKER} from ${source}. Do not edit by hand.`,
-    `name = ${JSON.stringify(agent.name)}`,
-    `description = ${JSON.stringify(agent.description)}`,
-  ]
-  if (model) lines.push(`model = ${JSON.stringify(model)}`)
-  lines.push(
-    `model_reasoning_effort = ${JSON.stringify(effort)}`,
-    `sandbox_mode = ${JSON.stringify(sandbox)}`,
-    `developer_instructions = ${JSON.stringify(instructions)}`,
-  )
-  for (const path of skillPaths) {
-    lines.push('', '[[skills.config]]', `path = ${JSON.stringify(path)}`, 'enabled = true')
-  }
-  return `${lines.join('\n')}\n`
+export function renderTarget(runtimeId, agent, sources = [], source = `profile ${agent.profile}`, provenance) {
+  const runtime = runtimeRegistry.get(runtimeId)
+  if (!runtime) throw new Error(`Unknown runtime "${runtimeId}"`)
+  return runtime.render(agent, sources, source, provenance)
 }
 
-export function renderAgentBrief(agent, skillPaths = []) {
-  const sources = agent.skills.map((skill, index) =>
-    `- ${skill}${skillPaths[index] ? `: ${JSON.stringify(skillPaths[index])}` : ''}`,
-  ).join('\n')
-  return `# ${agent.name}\n\nResponsibility: ${agent.description}\nProfile: ${agent.profile}\n\n${agent.body.trimEnd()}\n\n## Selected knowledge\n\nLoad relevant bodies from these selected sources and deeper references only as needed:\n\n${sources || 'No default knowledge selected.'}\n\nThe caller supplies the bounded task, file ownership, inputs, deliverable, and required evidence. This brief conveys behavior and knowledge; it does not enforce native tool, sandbox, model, effort, or preload settings absent from the host API.\n`
+export function renderAgentBrief(agent, sources = []) {
+  const byName = new Map(sources.map((entry) => [entry.name, entry.path]))
+  const list = agent.skills.map((skill) => `- ${skill}${byName.has(skill) ? `: ${JSON.stringify(byName.get(skill))}` : ''}`).join('\n')
+  return `# ${agent.name}\n\nResponsibility: ${agent.description}\nProfile: ${agent.profile}\n\n${agent.body.trimEnd()}\n\n## Selected knowledge\n\nLoad relevant bodies from these selected sources and deeper references only as needed:\n\n${list || 'No default knowledge selected.'}\n\nThe caller supplies the bounded task, file ownership, inputs, deliverable, and required evidence. This brief conveys behavior and knowledge; it does not enforce native tool, sandbox, model, effort, or preload settings absent from the host API.\n`
 }
 
 export function renderProfileReference(profile) {
   const agent = composeAgent(profile)
-  return `# ${profile.name}\n\n<!-- ${GENERATED_MARKER} from profiles/${profile.name}/. Do not edit by hand. -->\n\n## Defaults\n\n- Roles: ${agent.roles.join(', ')}\n- Skills: ${agent.skills.length ? agent.skills.join(', ') : 'none'}\n- Effort / access: ${agent.effort} / ${agent.access}\n- Claude model: ${agent.claude.model ?? 'inherit'}\n- Codex model / effort: ${agent.codex.model ?? 'inherit'} / ${agent.codex.effort ?? agent.effort}\n\n## Persona\n\n${agent.body.trimEnd()}\n`
+  return `# ${profile.name}\n\n<!-- Generated by agent-kit from profiles/${profile.name}/. Do not edit by hand. -->\n\n## Defaults\n\n- Roles: ${agent.roles.join(', ')}\n- Skills: ${agent.skills.length ? agent.skills.join(', ') : 'none'}\n- Effort / access: ${agent.effort} / ${agent.access}\n- Claude model / tools: ${agent.claude.model ?? 'inherit'} / ${agent.claude.tools.join(', ')}\n- Codex model / effort / sandbox: ${agent.codex.model ?? 'inherit'} / ${agent.codex.effort} / ${agent.codex.sandbox_mode}\n\n## Persona\n\n${agent.body.trimEnd()}\n`
 }
 
 export function renderProfileCatalog(profiles) {
@@ -331,5 +157,5 @@ export function renderProfileCatalog(profiles) {
       return `| \`${profile.name}\` | ${profile.front.role.join(' + ')} | ${skills} | ${profile.front.description} |`
     })
     .join('\n')
-  return `# Profession Profile Catalog\n\n<!-- ${GENERATED_MARKER} from profiles/. Do not edit by hand. -->\n\nProfiles are reusable profession defaults. Project agents may keep the defaults or replace the skill set through \`.agent-kit/agents.json\`.\n\n| Profile | Roles | Default skills | Use when |\n|---------|-------|----------------|----------|\n${rows}\n`
+  return `# Profession Profile Catalog\n\n<!-- Generated by agent-kit from profiles/. Do not edit by hand. -->\n\nProfiles are reusable profession defaults. Project agents may keep the defaults or replace the skill set through \`.agent-kit/agents.json\`.\n\n| Profile | Roles | Default skills | Use when |\n|---------|-------|----------------|----------|\n${rows}\n`
 }

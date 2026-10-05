@@ -97,7 +97,16 @@ It then materializes:
 .codex/agents/tester.toml
 ```
 
-Generated targets can be rebuilt after an Agent Kit update. Profiles and skills remain in the installed library rather than being copied into every project.
+Profiles and skills remain in the installed library rather than being copied into every project. Agents inherit the host model unless the project pins `claude.model` or `codex.model`.
+
+After an Agent Kit update, preview and apply the sync:
+
+```bash
+node <agent-kit>/skills/agent-creator/scripts/materialize-agents.mjs --project-root . --dry-run
+node <agent-kit>/skills/agent-creator/scripts/materialize-agents.mjs --project-root .
+```
+
+The diff separates changed profile behavior, settings, and skills from path-only refreshes. Each target records the kit version and an input fingerprint, so `--check` (or `--check --agent NAME`) reports a stale agent with its cause.
 
 ## Run a task team
 
@@ -138,7 +147,7 @@ Role templates under `skills/agent-creator/templates/` describe reusable behavio
 bash scripts/validate-repository.sh
 ```
 
-The validator checks plugin manifests, skill metadata, profile canon, generated package drift, and a temporary project materialization for native Claude and Codex targets.
+The validator checks plugin manifests, skill metadata, profile canon, generated package drift, unit tests for settings resolution and runtime formats, and a temporary project materialization for native Claude and Codex targets, including freshness cases.
 
 ## License
 

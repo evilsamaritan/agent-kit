@@ -48,21 +48,19 @@ Core fields are portable profile intent. `skills` is the default set for an uncu
 ## Claude overlay
 
 ```yaml
-model: sonnet
 color: green
 tools: [Read, Grep, Glob, Edit, Write, Bash, Skill]
 ```
 
-Supported fields are intentionally limited to values the materializer emits for native project agents. Add a renderer and validation before introducing another field.
+Omit `model` so project agents inherit the host choice; projects pin a model when they need one. Omit `tools` when it equals the set derived from `access`, and keep it only to narrow that set. Supported fields live in `scripts/profile-runtimes/claude.mjs`; add a renderer and validation there before introducing another field.
 
 ## Codex overlay
 
 ```yaml
-model: gpt-5.6-terra
 effort: high
 ```
 
-The generator maps `effort` to `model_reasoning_effort` and core `access` to `sandbox_mode`. Codex custom-agent TOML carries the profile body as `developer_instructions`.
+Usually empty. The materializer maps `effort` to `model_reasoning_effort` and core `access` to `sandbox_mode`. Codex custom-agent TOML carries the profile body as `developer_instructions`. Fields live in `scripts/profile-runtimes/codex.mjs`.
 
 ## Body contract
 
