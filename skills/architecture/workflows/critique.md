@@ -48,7 +48,7 @@ Check the change against the core judgment. Each check names what to look for in
 - **Cause or symptom.** Search for siblings of the fixed bug and earlier patches in the same area ([root-cause-analysis.md](../references/root-cause-analysis.md#finding-siblings)). A second occurrence means the cause is still there.
 - **Workaround signs.** A special case in a shared path, a single-use flag, a guard or delay where the problem is ordering or ownership, a comment explaining why this case differs ([change-integration.md](../references/change-integration.md#signs-of-a-workaround)).
 - **Ownership.** A new copy of a rule, type, formatter, or piece of state; a second writer to state that already has an owner.
-- **Openness.** A new arm in a switch, case in a factory, or flag in an options bag where a composed piece would do; a consumer forced to edit the core ([composable-design.md](../references/composable-design.md)).
+- **Openness.** Apply the structural-change check in `SKILL.md`: distinguish closed protocol dispatch from extensible behavior; trace concrete knowledge through consumers and name the files a representative extension would change ([composable-design.md](../references/composable-design.md#concrete-knowledge-belongs-to-its-owner)). A new switch arm is evidence to inspect, not automatically a defect.
 - **Parallel mechanism.** A new helper, manager, or subscription scheme beside an existing one that does the same job.
 - **Contract drift.** A public surface, persisted shape, or lifecycle changed without being treated as a decision.
 - **Unit structure.** State, policy, and mechanism newly mixed in one function; dependencies reached for instead of passed in ([code-design.md](../references/code-design.md)).

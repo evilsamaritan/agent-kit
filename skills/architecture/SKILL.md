@@ -46,10 +46,22 @@ Adding or fixing something in existing code is a design decision. Direct embeddi
 |---|---|
 | The change fits an existing seam and owner | Make it. No ceremony. |
 | It needs local restructuring inside the touched module, behavior preserved | Restructure first as a separate step, then add the change. Report both. |
-| It alters another module's contract, a boundary, state ownership, or is hard to reverse | Stop. Present two or three options — direct, local restructuring, wider redesign — with cost now, cost later, and reversibility. Recommend one. |
+| It alters another module's contract, a boundary, state ownership, or is hard to reverse | Check the agreed scope and constraints. If the consequential choice remains unresolved, present viable options with cost now, cost later, and reversibility; recommend one. Proceed with design work already authorized by the task. |
 | It is the second fix of the same kind | Stop patching. Find the shared cause first. |
 
 Never restructure for taste: restructuring must remove a named cost. Judgment and examples: [change-integration.md](references/change-integration.md).
+
+### 5. Check the design of each structural change
+
+Before implementing or approving new behavior, shared mechanisms, contracts, or state ownership, answer from the affected code:
+
+1. What operation is being added, and who owns its rules, state, and lifecycle?
+2. What actually varies, and which invariants stay the same? Distinguish an extensible family from a deliberately closed protocol or state machine.
+3. What does each consumer need to know, and can implementations honor the same behavioral contract, including errors and lifecycle? A contract is ineffective if consumers still inspect concrete types, fields, or capabilities to reconstruct the owner's decisions.
+4. For one relevant extension, which files would change, and why? Name one unrelated consumer that should remain unchanged. Repeated edits to generic consumers expose misplaced knowledge.
+5. Does the chosen seam cost less than the coupling it removes? Verify success, failure, and cleanup where relevant.
+
+For a bounded change, a short reasoning note and code locations are enough; no new document or framework is required. Recheck against the finished code, not just the proposal, and include the changed-file argument in verification. Use [design-principles.md](references/design-principles.md) to weigh principles such as SOLID, [code-design.md](references/code-design.md) for cohesive units and explicit dependencies, and [composable-design.md](references/composable-design.md#concrete-knowledge-belongs-to-its-owner) for variation and examples. These guide decisions, not pattern quotas.
 
 ## Critical rules
 
@@ -186,7 +198,7 @@ Lead with the conclusion, then only the rationale needed to trust it. No filler:
 
 ## Delegating design-sensitive work
 
-An agent that has not seen the model will bolt its change on. When delegating implementation or review that touches boundaries, owners, or shared mechanisms, pass the relevant owners, contracts, and the proportion table in the task, or tell the agent to load this skill. For an independent architecture critic on a change, run [critique.md](workflows/critique.md) in a separate agent and treat its alternatives as options to weigh, not orders.
+An agent that has not seen the model will bolt its change on. When delegating implementation or review that touches boundaries, owners, or shared mechanisms, pass the relevant owners, contracts, and the proportion table in the task, or tell the agent to load this skill. Implementation retains responsibility for local design; a settled brief does not excuse coupling introduced inside a module. Require evidence from the finished code using the structural-change check above. For an independent architecture critic on a change, run [critique.md](workflows/critique.md) in a separate agent and treat its alternatives as options to weigh, not orders.
 
 ## Context adaptation
 

@@ -22,7 +22,7 @@
     {
       "name": "backend-rust",
       "profile": "backend",
-      "skills": ["backend", "api-design", "database", "rust"],
+      "skills": ["backend", "api-design", "database", "rust", "architecture"],
       "runtimes": ["claude", "codex"]
     }
   ]
@@ -73,12 +73,12 @@ Generated files carry an Agent Kit marker. The materializer may overwrite or pru
     {
       "name": "backend-node",
       "profile": "backend",
-      "skills": ["backend", "api-design", "database", "javascript", "web"]
+      "skills": ["backend", "api-design", "database", "javascript", "web", "architecture"]
     },
     {
       "name": "backend-rust",
       "profile": "backend",
-      "skills": ["backend", "api-design", "database", "rust"],
+      "skills": ["backend", "api-design", "database", "rust", "architecture"],
       "codex": { "effort": "high" }
     }
   ]

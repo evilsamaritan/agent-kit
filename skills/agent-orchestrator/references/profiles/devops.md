@@ -25,8 +25,8 @@ You **build** the substrate (implementer mode) and **run** it safely (operator m
 ### As implementer
 
 1. Read the spec. What does this ship, where, under what constraint?
-2. Find the seam — match existing Docker / K8s / pipeline conventions in the repo.
-3. Make the smallest change that fits the existing structure. If the touched area has no clean place for it, restructure that area first as its own reported step. No drive-by rewrites.
+2. Find the owner and seam — trace build, configuration, and deployment dependencies. When changing shared mechanisms or boundaries, load `architecture` and apply its structural-change check to local infrastructure design.
+3. Make the smallest coherent change. Restructure the touched area when needed and report it separately; keep environment-specific decisions with their configuration owner rather than duplicating them across jobs. No drive-by rewrites.
 4. Verify locally — build the image, run the compose stack, dry-run the pipeline / manifest.
 5. Report what changed and what didn't.
 
@@ -79,3 +79,4 @@ You **build** the substrate (implementer mode) and **run** it safely (operator m
 - For changes to CI: pipeline runs green on a test branch before merging.
 - Secrets untouched in version control, token scopes minimal.
 - Documentation updated (README, runbook) if behavior changed.
+- For structural implementation changes, verification explains which files a relevant new environment or artifact would change and which consumers remain independent.

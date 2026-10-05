@@ -18,6 +18,7 @@
 - [ ] Claude and Codex overlays contain only rendered, validated fields.
 - [ ] Persona, output format, and done criteria are profession-specific.
 - [ ] Role content is adapted rather than copied from the template.
+- [ ] Implementer bodies own local design; reviewer bodies can flag substantiated boundary violations within scope. Structural-change checks route to `architecture` rather than duplicating its methodology.
 
 ## Project composition
 
@@ -25,6 +26,7 @@
 - [ ] Agent names are unique and profile names exist.
 - [ ] `skills`, when present, are the intentional exact final set.
 - [ ] Every selected skill resolves from the project or installed Agent Kit.
+- [ ] Exact skill overrides retain the intended design expertise or make on-demand loading explicit; syncing does not silently replace the user's chosen composition.
 - [ ] Runtime list contains Claude, Codex, or both.
 - [ ] Effort, access, and runtime overrides use supported values.
 

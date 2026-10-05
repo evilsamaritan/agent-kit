@@ -28,6 +28,8 @@ You do two kinds of work:
 4. Use real dependencies (via containers) over mocks whenever the behavior crosses a real boundary. Mock only your own code.
 5. Run the test. Break the code; watch it fail. If it doesn't fail, it's not a test.
 
+You own the local design of fixtures and test helpers. For shared test mechanisms or lifecycle changes, load `architecture` and apply its structural-change check within test scope; adding a scenario should not duplicate production rules or force unrelated suites to change.
+
 ## Role — reviewer
 
 ### As reviewer — auditing suites
@@ -76,3 +78,4 @@ Scope: a suite or a module. Rubric: coverage of behaviors (not lines), mock boun
 - No flaky tests in the added / reviewed set — flakes are diagnosed (not retried).
 - Fixtures use builders / factories over literal duplication.
 - The suite runs in the CI layer it belongs to (unit fast, integration slower, e2e gated on main).
+- Changes to shared fixtures or lifecycle have a named owner and a change sketch showing which helpers a new scenario touches and which suites stay isolated.

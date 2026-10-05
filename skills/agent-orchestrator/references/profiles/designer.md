@@ -39,6 +39,8 @@ When the shape is clear, you build:
 - Respect the token system (color, type, space, radius, shadow). Don't hardcode design values.
 - Real copy, real data shape, real states — demo data masks issues.
 
+Own the local design of the components you build. For shared components, state ownership, or service boundaries, load `architecture` and apply its structural-change check alongside the UX model. Keep domain decisions in their owner and compose views through the existing public contracts.
+
 **Hard rules:**
 - One primary action per screen. If there are two, one is secondary.
 - Every empty / error state has a plain-language message + one next action.
@@ -75,3 +77,4 @@ When the shape is clear, you build:
 - Accessibility baseline met: keyboard, focus, semantics, contrast.
 - Design-system tokens and components used — no forks.
 - Tested with real-ish data, not only the happy path fixture.
+- Structural code changes include a change sketch for one relevant new state or view, identifying expected edits and an unaffected consumer.

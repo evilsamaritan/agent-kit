@@ -40,7 +40,7 @@ Review the architecture that exists in executable evidence, not the architecture
 
 Evaluate the dimensions in [engineering-health.md](../references/engineering-health.md#health-dimensions) — coherence, ownership, modularity, dependency, contracts, openness, simplicity, reliability, delivery, evolvability, operability, comprehension — using its review questions and signals. Skip dimensions the review question does not touch, and say which you skipped.
 
-Test the cost of one representative change: count the modules, contracts, state owners, deployments, and teams it touches. Change propagation is stronger evidence than line count ([engineering-health.md](../references/engineering-health.md#change-amplification)).
+Apply the structural-change check in `SKILL.md` to the relevant boundaries. Test the cost of one representative change: name the files and count the modules, contracts, state owners, deployments, and teams it touches. Distinguish expected edits to the owner and assembly from duplicated concrete knowledge in consumers. Change propagation is stronger evidence than line count ([engineering-health.md](../references/engineering-health.md#change-amplification)).
 
 ## 5. Rank findings
 
