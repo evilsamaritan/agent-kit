@@ -24,7 +24,7 @@ profiles/backend/
 name: backend
 description: Senior backend developer. Use when implementing backend services and endpoints. Do NOT use for frontend UI.
 role: [implementer]
-skills: [backend, api-design, database]
+skills: [backend, api-design, database, architecture]
 effort: medium
 access: full
 ---

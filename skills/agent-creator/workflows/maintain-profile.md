@@ -12,6 +12,7 @@ Choose create, improve, rename, or delete from the user's request. Before rename
 2. Pick one to three behavioral roles.
 3. Adapt each role into the profession's language under an exact `## Role — <role>` heading.
 4. Keep templates domain-neutral and the profile domain-specific. Do not paste template prose wholesale.
+5. When changing shared role behavior, inspect and adapt affected existing profile bodies too. Templates are authoring guidance; generation does not propagate their edits. Keep implementation responsible for local design and review responsible for evidence within its rubric, using `architecture` for the structural-change check.
 
 ## Step 3: Select defaults
 

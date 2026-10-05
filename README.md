@@ -74,7 +74,7 @@ Use a Rust backend profile with database and API skills, plus a tester.
     {
       "name": "backend-rust",
       "profile": "backend",
-      "skills": ["backend", "api-design", "database", "rust"],
+      "skills": ["backend", "api-design", "database", "rust", "architecture"],
       "runtimes": ["claude", "codex"]
     },
     {
@@ -97,6 +97,8 @@ It then materializes:
 ```
 
 Generated targets can be rebuilt after an Agent Kit update. Profiles and skills remain in the installed library rather than being copied into every project.
+
+Application implementers and general reviewers use `architecture` for local design as well as system boundaries. They check responsibility, behavioral contracts, dependencies, and the cost of a relevant next change; narrow specialists load it when their scope needs it. Updating a role template does not update existing profiles, and updating the plugin does not rewrite materialized project agents. Sync through `agent-creator` and review exact project skill overrides, which replace profile defaults.
 
 ## Run a task team
 

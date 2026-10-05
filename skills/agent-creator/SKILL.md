@@ -59,12 +59,14 @@ Read [references/profile-catalog.md](../agent-orchestrator/references/profile-ca
 Choose the smallest exact set the project agent routinely needs. Start from profile defaults, then replace them when the stack calls for a different composition.
 
 ```text
-backend-rust → profile backend + [backend, api-design, database, rust]
-backend-node → profile backend + [backend, api-design, database, javascript, web]
-frontend-react → profile frontend + [frontend, react, web, html, css, accessibility]
+backend-rust → profile backend + [backend, api-design, database, rust, architecture]
+backend-node → profile backend + [backend, api-design, database, javascript, web, architecture]
+frontend-react → profile frontend + [frontend, react, web, html, css, accessibility, architecture]
 ```
 
 Do not preload every possibly related skill. Other installed skills remain discoverable on demand.
+
+Keep `architecture` in the routine composition for agents owning application code design or general code review. Narrow specialists can load it on demand for relevant boundary or shared-mechanism changes. An exact project `skills` list replaces defaults, so inspect it when syncing; do not silently expand a user's explicit composition.
 
 ### Access
 
