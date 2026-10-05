@@ -1,6 +1,6 @@
-# View Catalog: Question, View, Renderer, Compact Projection
+# View Catalog: Question, View, Artifact Rendering, Compact Projection
 
-One lookup per view: which view answers the reader's question, which renderer draws it, and what it becomes at compact width. Choose by the question, not by the tool's catalog or the source file format.
+One lookup per view inside a web artifact: which view answers the reader's question, how the artifact renders it, and what it becomes at compact width. Notation choice and diagram source belong to `diagrams` (its `references/selection.md`); a supplied source keeps its language. Where this table says "diagram source", Mermaid renders through the provided browser adapter and other languages embed their compiled SVG.
 
 When a source owner has already fixed the view — an architecture view contract owns its System, Structure, Internal, Runtime, Data & State, Deployment, or Evolution projection — skip the first column and use the rest.
 
@@ -15,25 +15,25 @@ When a source owner has already fixed the view — an architecture view contract
 
 ## Catalog
 
-| Reader question | View | Renderer | Compact projection | Avoid |
+| Reader question | View | Artifact rendering | Compact projection | Avoid |
 |---|---|---|---|---|
 | What contains what, with no consequential edges? | tree or nested boundaries | semantic HTML (`viz-tree`, `viz-boundary`) | indented tree; stacked boundaries | arrows that imply flow where only containment exists |
-| Who owns what, and what crosses the boundaries? | boundary map with directed edges | Mermaid flowchart with real subgraphs | named boundaries plus one relationship list | hiding edge geometry but keeping its labels |
-| What depends on what? | directed dependency graph | Mermaid flowchart | same source top-to-bottom; filtered graph; relationship list | unfiltered generated hairballs |
-| What happens next? | process flow | Mermaid flowchart | same source top-to-bottom, branch outcomes below the decision | numbered cards as steps |
-| Who interacts in what order? | sequence | Mermaid sequence | ordered message list (`viz-message-list`) | internal calls that do not affect the decision |
-| Which states are valid? | state | Mermaid state | vertical state view or transition list | mixing independent state dimensions |
-| How are entities related? | logical data model | Mermaid ER | stacked entities plus textual cardinality | an ERD as a substitute for runtime flow |
-| Where does information move, and who is authoritative? | data flow and authority | Mermaid flowchart with trust or authority subgraphs | vertical pipeline; boundaries stay named | unlabelled reads and writes |
-| Where does it run and fail independently? | deployment | Mermaid flowchart when connections dominate; `viz-deployment` zones when placement dominates | vertical path; zones stay named | a cloud-resource inventory |
-| What changes from current to target? | paired views and timeline | HTML `viz-subviews` and `viz-timeline`; Mermaid only inside a stage that needs topology | stacked views with identical vocabulary; vertical timeline | one overloaded red/green graph |
+| Who owns what, and what crosses the boundaries? | boundary map with directed edges | diagram source with real containment | named boundaries plus one relationship list | hiding edge geometry but keeping its labels |
+| What depends on what? | directed dependency graph | diagram source | same source top-to-bottom; filtered graph; relationship list | unfiltered generated hairballs |
+| What happens next? | process flow | diagram source | same source top-to-bottom, branch outcomes below the decision | numbered cards as steps |
+| Who interacts in what order? | sequence | diagram source | ordered message list (`viz-message-list`) | internal calls that do not affect the decision |
+| Which states are valid? | state | diagram source | vertical state view or transition list | mixing independent state dimensions |
+| How are entities related? | logical data model | diagram source with explicit cardinality | stacked entities plus textual cardinality | an ERD as a substitute for runtime flow |
+| Where does information move, and who is authoritative? | data flow and authority | diagram source with trust or authority scopes | vertical pipeline; boundaries stay named | unlabelled reads and writes |
+| Where does it run and fail independently? | deployment | diagram source when connections dominate; `viz-deployment` zones when placement dominates | vertical path; zones stay named | a cloud-resource inventory |
+| What changes from current to target? | paired views and timeline | HTML `viz-subviews` and `viz-timeline`; a diagram only inside a stage that needs topology | stacked views with identical vocabulary; vertical timeline | one overloaded red/green graph |
 | How do options compare? | matrix | HTML table (`viz-matrix`) | one labelled block per option; local scroll only for dense exact data | decorative cards with uneven content |
 | How large, how distributed, how related? | chart | inline SVG (`viz-chart`) or an established chart library | simplified labels; stacked small multiples; never a silent scale change | 3D, arbitrary area encoding, pies for continuous data |
 | What exact implementation matters? | focused code view | `viz-code` | local horizontal scroll | whole-file dumps, editor chrome |
 | What exact text changed? | diff | `viz-code viz-diff` | unified only | color-only or side-by-side on mobile |
 | Navigation, prose, disclosure | — | the shared shell | bottom-sheet menu, stacked content | forcing prose into diagram nodes |
 
-Use Mermaid because the relationship grammar fits, not because the source is architectural. A map layout is justified only when spatial location carries meaning.
+Use a graph diagram because the relationship grammar fits, not because the source is architectural. A map layout is justified only when spatial location carries meaning.
 
 ## Notes on specific views
 
@@ -47,18 +47,7 @@ Use Mermaid because the relationship grammar fits, not because the source is arc
 
 ## Combine views deliberately
 
-Several views belong together only when they form a navigable explanation:
-
-```text
-overview
-  -> one selected structure or dependency
-       -> one selected interaction or lifecycle
-            -> evidence and details
-```
-
-Good combinations: hierarchy plus dependency graph (ownership differs from usage); dependency graph plus sequence (static coupling differs from runtime order); process flow plus state (steps differ from lifecycle validity); current plus target plus transition (steady states differ from migration mechanics).
-
-Weak combinations repeat the same boxes with slightly different styling. State the unique question beside every view; delete views without a distinct answer.
+Combine views only when each answers a different question; the pairing rules live in `diagrams` (`references/selection.md`, "Combining views"). In an artifact, state each view's unique question beside it and delete views without a distinct answer.
 
 ## Quantitative questions
 
@@ -76,14 +65,12 @@ Histogram bins encode adjacent numeric intervals and must touch; separated bars 
 
 ## When no diagram is needed
 
-Use concise text or a table when the content is a short unordered list, has no meaningful relationship, order, hierarchy, or quantity, depends on exact wording, or would merely place existing sentences inside boxes. If the user explicitly requested visualization, explain why a table is the right visual structure and render it cleanly rather than returning prose alone.
+See `diagrams` (`references/selection.md`, "When not to draw"). If the user explicitly requested a visualization, render the better structure (often a table) cleanly and say why.
 
 ## Failure modes
 
-- **Tool-first selection** — choosing a diagram because the renderer supports it.
-- **Data-shape determinism** — assuming timestamps always need a timeline or categories always need a pie.
-- **Mixed relationship types** — containment, runtime calls, data flow, and deployment appear as identical arrows.
-- **False sequence** — layout suggests time although the items are unordered.
-- **False hierarchy** — vertical alignment suggests ownership that does not exist.
+- **Tool-first selection** — choosing a view because the artifact can render it.
 - **Unfair comparison** — different scales, criteria, or denominators make options look comparable.
-- **Complete-map bias** — including every available field instead of the evidence the question needs.
+- **Language swap for convenience** — a supplied D2 or PlantUML source redrawn in Mermaid so the adapter can render it; embed the compiled SVG instead.
+
+General diagram failure modes (mixed relationship types, false order or hierarchy, complete-map bias) are listed in `diagrams`.

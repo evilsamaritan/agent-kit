@@ -198,7 +198,7 @@ A design result is legible and actionable through:
 
 These are acceptance criteria, not mandatory headings. A bounded question may need only a short decision and rationale. Scenario matrices, ownership catalogs, decision records, rollout plans, and fitness suites are conditional supporting artifacts — include or link them only when the decision needs them.
 
-Lead with the conclusion, then only the rationale needed to trust it. No filler: structure, diagrams, and code fragments carry the content. Architecture draws compact diagrams itself — diagram-as-code, text, or host-native. Before delivery, check: can the reader recover the decision, boundaries, owners, and main tradeoff in five minutes?
+Lead with the conclusion, then only the rationale needed to trust it. No filler: structure, diagrams, and code fragments carry the content. Architecture draws compact diagrams itself — diagram-as-code following `diagrams` conventions, text, or host-native. Before delivery, check: can the reader recover the decision, boundaries, owners, and main tradeoff in five minutes?
 
 ## Delegating design-sensitive work
 
@@ -252,6 +252,7 @@ Communication:
 
 ## Related Knowledge
 
+- `diagrams` — notation, source, and compilation for the views this skill selects
 - `visualization` — turns an agreed architecture model and its views into a polished responsive HTML explorer
 - `api-design` — protocol and compatibility design for exposed contracts
 - `database` — physical schema, constraints, isolation, indexes, migrations, and query realization; architecture retains semantic state authority and invariant boundaries

@@ -20,7 +20,7 @@ Do not derive names by concatenating skills: `secure-kotlin-sre-developer`, `web
 | Security review / security-reviewer | reviewer | architecture, security; auth or other knowledge when in scope |
 | UI journeys / ui-designer | designer | design, accessibility; html/css or platform knowledge for implementation |
 | Test ownership / tester | tester | testing; actual language/framework/domain |
-| Documentation / writer | writer | documentation; the topic's knowledge |
+| Documentation / writer | writer | documentation, diagrams; the topic's knowledge |
 | Delivery infrastructure / devops | devops | actual container, CI, orchestration, and release knowledge |
 | Reliability / sre | sre | reliability; observability/performance when in scope |
 

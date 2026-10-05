@@ -160,6 +160,8 @@ A complete `.env.example`:
 
 ## Related Knowledge
 
+- `diagrams` — notation choice, diagram source, and compilation for diagrams inside documents; this skill decides where the diagram goes and what the surrounding text says
+- `visualization` — a separate explorable or themed web page built from the document and its diagram sources
 - `api-design` — API reference docs describe contracts defined here
 - `release-engineering` — changelog timing and versioning ties to release cadence
 - `seo` — public docs need findability

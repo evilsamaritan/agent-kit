@@ -1,16 +1,15 @@
-# Mermaid Rendering
+# Mermaid Browser Adapter
 
-Mermaid is the default renderer for diagrams with standard graph semantics: flowchart, sequence, state, ER. It lays out topology; it is not the page shell, the content model, a chart system, a code viewer, or a responsive layer. Which views use it is decided in the [view catalog](diagram-selection.md).
+The provided adapter renders Mermaid sources inside an artifact. It lays out topology; it is not the page shell, the content model, a chart system, a code viewer, or a responsive layer. Mermaid syntax, semantics, and when another language fits are in `diagrams` (`references/mermaid.md`, `references/selection.md`). Use the adapter when the source is Mermaid; never rewrite a supplied source in another language into Mermaid to use it.
 
 ## Contents
 
 - [Source contract](#source-contract)
 - [Architecture input](#architecture-input)
 - [Markup and loading](#markup-and-loading)
-- [Relationship grammar in Mermaid](#relationship-grammar-in-mermaid)
+- [Relationship grammar](#relationship-grammar)
 - [Responsive behavior](#responsive-behavior)
 - [Dependencies and durability](#dependencies-and-durability)
-- [Escalation beyond Mermaid](#escalation-beyond-mermaid)
 - [Failure modes](#failure-modes)
 
 ## Source contract
@@ -62,18 +61,9 @@ flowchart LR
 
 The loading gate on `<html>` is required whenever Mermaid is present: the renderer lays out all diagrams, restores the requested hash once, then reveals the content. Without it, refresh and deep links visibly jump. The renderer re-renders on theme change and when a container crosses its compact breakpoint, and replaces a failed diagram with its `accDescr` text.
 
-## Relationship grammar in Mermaid
+## Relationship grammar
 
-The meanings come from [visual-language.md](visual-language.md#relationship-grammar); this is their Mermaid spelling.
-
-| Meaning | Mermaid treatment |
-|---|---|
-| direct call, dependency, transition, or primary flow | solid directed link: `-->|verb|` |
-| asynchronous event, reply, or indirect influence | dashed directed link: `-.->|verb|`, or the native dashed sequence reply |
-| constraint, annotation, or non-flow association | dotted link without a strong arrow: `-.-|verb|` |
-| failure or forbidden path | explicit failure verb or status plus a `risk` target or native failure branch; color is secondary |
-
-Do not reuse a dashed arrow for both an event and a constraint in one artifact.
+Meanings come from [visual-language.md](visual-language.md#relationship-grammar); the Mermaid spelling of each (solid, dashed, dotted, failure) is in `diagrams` (`references/mermaid.md`). Do not reuse one line style for two meanings in an artifact.
 
 ## Responsive behavior
 
@@ -92,10 +82,6 @@ A hand-written compact projection is unfinished until it has been compared with 
 
 The provided renderer imports a pinned Mermaid build from a CDN, which suits connected local previews. For durable, offline, published, or production artifacts, vendor or bundle Mermaid through the consuming repository's build while keeping the same source and rendering contract. Essential content always has a textual equivalent, because network and renderer failure are valid states. When rendering tooling is unavailable, report syntax-only validation explicitly.
 
-## Escalation beyond Mermaid
-
-Add a specialized graph renderer only after a reproduced Mermaid limitation affects a required view: ports on specific node sides, incremental layout, coordinated selection across a large graph, manual layout constraints. Keep the same model and shell when escalating; do not introduce a second source of truth to gain a different renderer.
-
 ## Failure modes
 
 - **Mermaid page model** — shell, prose, tables, and evidence are forced into diagram nodes.
@@ -104,4 +90,3 @@ Add a specialized graph renderer only after a reproduced Mermaid limitation affe
 - **CSS graph engine** — branching, routing, loops, or ports are rebuilt with borders and absolute positions.
 - **Scaled mobile poster** — a correct desktop diagram becomes unreadable at compact width.
 - **Duplicate truth** — desktop Mermaid and compact HTML describe independently maintained models.
-- **Premature specialized engine** — a larger dependency is added before a concrete Mermaid limitation is reproduced.

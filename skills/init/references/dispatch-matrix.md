@@ -29,7 +29,7 @@
 | Production reliability | sre | reliability, observability, performance |
 | General test ownership | tester | testing plus the primary language/framework skill when routinely needed |
 | Security-sensitive service | security | security, auth, compliance only when regulatory concerns are routine |
-| Documentation-heavy library | writer | documentation plus the primary language skill when routinely needed |
+| Documentation-heavy library | writer | documentation and diagrams, plus the primary language skill when routinely needed |
 
 ## Responsibility mapping
 

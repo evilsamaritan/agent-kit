@@ -31,7 +31,7 @@ When the owner supplies a view contract, its relationship semantics are fixed; t
 4. **One question and one abstraction level per view.** Give every view a precise title, scope and status, a one-sentence takeaway, and a distinct job.
 5. **Show relationships, not card walls.** A styled list is not a hierarchy, dependency, flow, sequence, state, or comparison.
 6. **Curate before rendering.** A source may contain many facts and candidate views; they are not presentation requirements. Default to one overview and one consequential detail; add a third view only when it changes understanding.
-7. **One source per view.** A wide diagram and its compact projection come from one model and must state the same entities, relationships, order, and status. Prefer re-running the same source in a compact direction over hand-writing a second projection.
+7. **One source per view, in its own language.** Keep the supplied diagram language and source (`diagrams` owns notation and source rules). A wide diagram and its compact projection come from one model and state the same entities, relationships, order, and status. Prefer re-running the same source in a compact direction over hand-writing a second projection.
 8. **Be responsive by meaning.** Reflow or switch to a compact projection before scrolling. Never shrink a diagram until labels fall below reading size, and never allow page-level horizontal overflow.
 9. **Never trap document scrolling.** Diagram and code regions may scroll horizontally; vertical wheel and touch gestures always continue the page.
 10. **Support light and dark themes** with identical semantics; never invert the page as a shortcut.
@@ -48,7 +48,8 @@ When the owner supplies a view contract, its relationship semantics are fixed; t
 | Create or revise a web visualization | [create.md](workflows/create.md) |
 | Write artifact markup: shell, navigation mode, hooks, component classes | [shell-components.md](references/shell-components.md) |
 | Choose a view, its renderer, and its compact projection | [diagram-selection.md](references/diagram-selection.md) |
-| Draw flow, sequence, state, or ER diagrams with the provided graph renderer; decide when it is not enough | [mermaid-rendering.md](references/mermaid-rendering.md) |
+| Render a Mermaid source with the provided browser adapter | [mermaid-rendering.md](references/mermaid-rendering.md) |
+| Choose notation or write diagram source | `diagrams` skill |
 | Define node, boundary, relationship, arrow, and label semantics | [visual-language.md](references/visual-language.md) |
 | Fit half-width desktop, tablet, and mobile | [responsive-layout.md](references/responsive-layout.md) |
 | Show implementation or an exact change | [code-views.md](references/code-views.md) |
@@ -62,7 +63,7 @@ Load only the references the artifact needs. A typical architecture explorer nee
 
 ```text
 Is the requested result a separate polished or interactive web artifact?
-├── No  -> leave the diagram with the source skill or document
+├── No  -> leave the diagram in the document; `diagrams` writes and compiles it
 └── Yes -> build responsive HTML on the canonical shell
           ├── a host-native artifact path can host the shell unchanged -> deliver through it
           └── otherwise -> deliver local HTML/CSS/JavaScript
@@ -134,6 +135,7 @@ A screenshot can demonstrate the result but is never the only source of a long-l
 ## Related Knowledge
 
 - `architecture` — owns architecture reasoning, view selection, and concise architecture diagrams
+- `diagrams` — owns notation choice, diagram source, and local compilation; this skill renders those sources in artifacts
 - `documentation` — owns durable prose, explanation, and reference structure
 - `design` — owns user-facing information and interaction design
 - `accessibility` — deep accessibility review beyond the built-in contract
@@ -144,7 +146,7 @@ A screenshot can demonstrate the result but is never the only source of a long-l
 - [create.md](workflows/create.md) — source-to-artifact workflow, including the render-and-inspect checklist
 - [shell-components.md](references/shell-components.md) — shell contract, navigation modes, hooks, component vocabulary, revisions
 - [diagram-selection.md](references/diagram-selection.md) — view catalog: question, view, renderer, compact projection
-- [mermaid-rendering.md](references/mermaid-rendering.md) — Mermaid source contract, theming, loading, responsive behavior, escalation
+- [mermaid-rendering.md](references/mermaid-rendering.md) — Mermaid browser adapter: markup, loading gate, theming, responsive behavior
 - [visual-language.md](references/visual-language.md) — meaning of nodes, boundaries, relationships, labels; density and consistency
 - [responsive-layout.md](references/responsive-layout.md) — compact-width strategy, local scrolling rules, validation viewports
 - [code-views.md](references/code-views.md) — focused code and responsive diff presentation

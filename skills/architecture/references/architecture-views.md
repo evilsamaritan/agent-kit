@@ -87,14 +87,13 @@ Keep identities, terminology, scope, and relative placement stable across them. 
 
 ## Drawing views directly
 
-Draw the selected views in the design document with maintainable Mermaid, text, or a host-native diagram.
+Draw the selected views in the design document as diagram-as-code, text, or a host-native diagram. The `diagrams` skill owns notation choice, source conventions, and compilation; follow the project's diagram language (Mermaid, D2, or another) and use a specialized notation only for a capability the view needs.
 
-- Keep standard topology as Mermaid when flowchart, sequence, state, or ER grammar expresses the view accurately: the design document then has a readable, diffable source.
-- Use stable node IDs and label every relationship with its intent and direction.
+- Use stable IDs and label every relationship with its intent and direction.
 - Arrange the diagram so arrows follow one dominant direction; a view whose arrows must cross repeatedly is usually two views.
-- Do not force non-topological content into Mermaid. Containment-only ownership, timelines, comparison matrices, and quantitative charts need a table, a text tree, or their own renderer.
+- Do not force non-topological content into a graph language. Containment-only ownership, timelines, comparison matrices, and quantitative charts need a table, a text tree, or their own renderer.
 - Put a one-sentence takeaway next to each diagram. Do not replace the diagram with prose.
-- When a view will be handed to `visualization`, that skill documents an optional semantic class vocabulary for Mermaid flowcharts. Categories are presentation metadata, not architecture; relationship labels and directions stay authoritative.
+- When a view will be handed to `visualization`, that skill documents optional semantic categories for presentation. Categories are presentation metadata, not architecture; relationship labels and directions stay authoritative.
 
 ## View contract
 
@@ -141,7 +140,7 @@ The handoff is a semantic contract, not pixel coordinates; the HTML layer may re
 | Source | Kind | Target | Label | Status | Order or cardinality |
 |---|---|---|---|---|---|
 
-- Canonical source: Mermaid block, render model, or exact source link
+- Canonical source: the diagram block or file in the project's language, a render model, or an exact source link
 - Compact projection: equivalent direction/layout or relationship-list rule
 - Textual equivalent: concise statement of the essential entities and relationships
 ```

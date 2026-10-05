@@ -209,6 +209,26 @@ if grep -rqE 'team-creator|team-orchestrator|agent-runner|\.claude/teams|scripts
   err "stale-reference" "removed team runtime or pre-profile agent path is still referenced"
 fi
 
+# Every D2 example in skill text must compile with the installed d2.
+if command -v d2 >/dev/null 2>&1; then
+  d2_dir=$(mktemp -d)
+  node -e '
+    const fs = require("fs"); const path = require("path"); let n = 0
+    const walk = (dir) => fs.readdirSync(dir, { withFileTypes: true }).forEach((e) => {
+      const p = path.join(dir, e.name)
+      if (e.isDirectory()) walk(p)
+      else if (p.endsWith(".md")) for (const m of fs.readFileSync(p, "utf8").matchAll(/```d2\n([\s\S]*?)```/g)) fs.writeFileSync(path.join(process.argv[2], `${n++}.d2`), `# ${p}\n${m[1]}`)
+    })
+    walk(process.argv[1])' "$repo_root/skills" "$d2_dir"
+  for example in "$d2_dir"/*.d2; do
+    [[ -e "$example" ]] || continue
+    d2 validate "$example" >/dev/null 2>&1 || err "d2" "invalid D2 example from $(head -1 "$example" | sed "s#^\# $repo_root/##")"
+  done
+  rm -rf "$d2_dir"
+else
+  printf 'WARN: d2 not found; skipped D2 example validation.\n' >&2
+fi
+
 if command -v claude >/dev/null 2>&1; then
   claude plugin validate "$repo_root" --strict
 else
