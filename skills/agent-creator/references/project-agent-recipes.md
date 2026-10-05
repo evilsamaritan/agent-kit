@@ -15,6 +15,9 @@ Do not derive names by concatenating skills: `secure-kotlin-sre-developer`, `web
 | Browser UI / frontend-developer | developer | architecture, frontend, web, html, css, accessibility; language and actual framework |
 | Service operations / backend-developer | developer | architecture, backend, api-design; language, persistence/auth only as used |
 | Shared library / developer | developer | architecture; language, testing/API knowledge as needed |
+| Game rules and runtime / game-developer | developer | architecture, gamedev; the language and engine actually used; performance when frame budgets are routine |
+| Mobile app and its lifecycle / mobile-developer | developer | architecture, mobile; kotlin for Android or KMP, javascript for React Native (iOS specifics live in the mobile skill's iOS reference); accessibility |
+| Game scenarios and state transitions / game-tester | tester | testing, gamedev; the project language |
 | Cross-module decisions / architect | architect | architecture; relevant domain knowledge |
 | Independent code review / reviewer | reviewer | architecture; relevant implementation knowledge |
 | Security review / security-reviewer | reviewer | architecture, security; auth or other knowledge when in scope |
@@ -26,4 +29,9 @@ Do not derive names by concatenating skills: `secure-kotlin-sre-developer`, `web
 
 One developer may own UI and other runtime code when the project is small. Several instances are justified by boundaries and recurring work, not by how many frameworks are installed. New domains can use any suitable profile; do not create a profile for every technology.
 
-Game/mobile recipes will be added with their substantive knowledge skills. Until then, do not reference nonexistent skills or claim frontend knowledge covers gameplay.
+A browser game is not a frontend project because it runs in a browser: gameplay rules, simulation, and the engine adapter belong to a `game-developer` with `gamedev`; menus and HUD built with a web UI framework may belong to a `frontend-developer`. A small game usually needs one developer owning both, with both skill sets.
+
+Realistic splits when the project is large enough:
+
+- **JavaScript game:** `game-developer` (simulation, presentation, scene lifecycle: architecture, gamedev, javascript) and, only if the UI is a substantial web app, `frontend-developer` (frontend, react or vue, html, css, accessibility). A dedicated renderer owner (`webgl-game-developer`) is justified when GPU work is a separate stream: gamedev, performance, javascript.
+- **Mobile app with offline sync:** `mobile-developer` (architecture, mobile, platform language, accessibility) plus `backend-developer` for the sync API; the conflict policy is agreed between them, recorded by `architect` when it is consequential.

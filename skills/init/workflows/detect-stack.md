@@ -23,6 +23,9 @@ Heuristics for inferring a project's tech stack from filesystem signals. The res
 | `.github/workflows/` / `.gitlab-ci.yml` | CI configured |
 | `terraform/` / `*.tf` | Infrastructure-as-code |
 | `kubernetes/` / `k8s/` / `helm/` | Kubernetes |
+| `project.godot` / `*.uproject` / `ProjectSettings/ProjectVersion.txt` (Unity) | Game engine project → gamedev |
+| `phaser`, `three`, `pixi.js`, `@babylonjs/core` in `package.json` dependencies | Web game or real-time 3D → gamedev when there is a game loop |
+| `AndroidManifest.xml`, `*.xcodeproj` / `*.xcworkspace`, `pubspec.yaml` (Flutter), `react-native` dependency, KMP `iosMain`/`androidMain` source sets | Mobile app → mobile |
 | `.claude/` / `.codex/` / `.kimi-code/` | Agent hosts in use; add the matching runtime targets |
 
 ---

@@ -41,6 +41,8 @@ Recipes are profile/skill starting points, not saved teams or execution graphs.
 | `monorepo-fullstack` | architect + UI/service developer instances + tester |
 | `library` | architect + tester + writer |
 | `data-pipeline` | data-processing developer + database-focused tester + sre |
+| `web-game` | game-developer (+ frontend-developer only for a substantial web UI) + game-tester |
+| `mobile-app` | mobile-developer + backend-developer when it owns the sync API + tester |
 
 Read [references/recipes.md](references/recipes.md) when a recipe is named.
 

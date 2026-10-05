@@ -24,6 +24,8 @@
 | Node backend | developer | architecture, backend, api-design, database, javascript, web |
 | Rust backend | developer | architecture, backend, api-design, database, rust |
 | Go backend | developer | architecture, backend, api-design, database, go |
+| Game (engine project, or a canvas/WebGL game loop) | developer | architecture, gamedev, and the language; add frontend skills only for a substantial web UI |
+| Mobile app (Android, iOS, React Native, Flutter, KMP) | developer | architecture, mobile, and the platform language, accessibility |
 | Containers / CI | devops | docker, ci-cd, release-engineering |
 | Kubernetes platform | devops | docker, kubernetes, ci-cd, release-engineering |
 | Production reliability | sre | reliability, observability, performance |
