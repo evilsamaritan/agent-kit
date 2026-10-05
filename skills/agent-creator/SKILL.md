@@ -23,8 +23,8 @@ argument-hint: "[create|update|delete|sync|verify] [agent or profile]"
 
 ```text
 Agent Kit library                  Project source                    Native targets
-profiles/backend/                 .agent-kit/agents.json            .claude/agents/backend-rust.md
-skills/backend/          +        backend + rust + database   →     .codex/agents/backend-rust.toml
+profiles/developer/                 .agent-kit/agents.json            .claude/agents/backend-developer.md
+skills/backend/          +        developer + backend + rust + database   →     .codex/agents/backend-developer.toml
 role templates                                                     host-native subagent/workflow
 ```
 
@@ -58,15 +58,13 @@ Read [references/profile-catalog.md](../agent-orchestrator/references/profile-ca
 
 Choose the smallest exact set the project agent routinely needs. Start from profile defaults, then replace them when the stack calls for a different composition.
 
-```text
-backend-rust → profile backend + [backend, api-design, database, rust]
-backend-node → profile backend + [backend, api-design, database, javascript, web]
-frontend-react → profile frontend + [frontend, react, web, html, css, accessibility]
-```
+Use [project-agent-recipes.md](references/project-agent-recipes.md) for starting knowledge and responsibility descriptions. Names express ownership, not a stack concatenation. One developer can serve several domains; separate instances only for actual boundaries. Explicit skills replace defaults.
 
 Do not preload every possibly related skill. Other installed skills remain discoverable on demand.
 
-### Access
+#For a non-persistent assignment, `materialize-agents.mjs --brief <name>` produces the same profile behavior and selected source paths without writing runtime files. The host must support authorized delegation; the brief cannot enforce missing API controls.
+
+## Access
 
 | access | Claude default tools | Codex sandbox default |
 |--------|----------------------|-----------------------|
@@ -87,6 +85,8 @@ node skills/agent-creator/scripts/materialize-agents.mjs --project-root /path/to
 ```
 
 When Agent Kit is installed as a plugin, use the script's installed absolute path rather than assuming the consuming project contains `skills/agent-creator/`.
+
+For an old frontend/backend profile, preview `scripts/migrate-project.mjs --project-root /path/to/project`; add `--write` to apply. Migration retains names, old default skills/models, and explicit choices. Then materialize/check. Several instances need distinct descriptions of responsibility.
 
 ## Validation
 

@@ -312,6 +312,13 @@ export function renderCodexAgent(agent, skillPaths = [], source = `profile ${age
   return `${lines.join('\n')}\n`
 }
 
+export function renderAgentBrief(agent, skillPaths = []) {
+  const sources = agent.skills.map((skill, index) =>
+    `- ${skill}${skillPaths[index] ? `: ${JSON.stringify(skillPaths[index])}` : ''}`,
+  ).join('\n')
+  return `# ${agent.name}\n\nResponsibility: ${agent.description}\nProfile: ${agent.profile}\n\n${agent.body.trimEnd()}\n\n## Selected knowledge\n\nLoad relevant bodies from these selected sources and deeper references only as needed:\n\n${sources || 'No default knowledge selected.'}\n\nThe caller supplies the bounded task, file ownership, inputs, deliverable, and required evidence. This brief conveys behavior and knowledge; it does not enforce native tool, sandbox, model, effort, or preload settings absent from the host API.\n`
+}
+
 export function renderProfileReference(profile) {
   const agent = composeAgent(profile)
   return `# ${profile.name}\n\n<!-- ${GENERATED_MARKER} from profiles/${profile.name}/. Do not edit by hand. -->\n\n## Defaults\n\n- Roles: ${agent.roles.join(', ')}\n- Skills: ${agent.skills.length ? agent.skills.join(', ') : 'none'}\n- Effort / access: ${agent.effort} / ${agent.access}\n- Claude model: ${agent.claude.model ?? 'inherit'}\n- Codex model / effort: ${agent.codex.model ?? 'inherit'} / ${agent.codex.effort ?? agent.effort}\n\n## Persona\n\n${agent.body.trimEnd()}\n`

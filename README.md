@@ -11,7 +11,7 @@ profiles/                 +        selected profiles + skills  →     .codex/ag
 role templates                                                     Claude/Codex orchestration
 ```
 
-- A **profile** is a reusable profession such as backend, frontend, tester, or reviewer.
+- A **profile** is a reusable profession such as developer, tester, or reviewer.
 - A **skill** is reusable domain knowledge such as Rust, React, databases, testing, or accessibility.
 - A **project agent** is a profile configured with the exact skills needed by one project.
 - `agent-orchestrator` chooses the professions, instances, effort, and task split for a concrete task, then uses the host runtime's native delegation.
@@ -63,7 +63,7 @@ Ask naturally:
 
 ```text
 Create agents for this project for both Claude and Codex.
-Use a Rust backend profile with database and API skills, plus a tester.
+Use a developer responsible for the backend, with Rust, database, and API knowledge, plus a tester.
 ```
 
 `agent-creator` writes the portable project source:
@@ -73,9 +73,9 @@ Use a Rust backend profile with database and API skills, plus a tester.
   "schema_version": 1,
   "agents": [
     {
-      "name": "backend-rust",
-      "profile": "backend",
-      "skills": ["backend", "api-design", "database", "rust"],
+      "name": "backend-developer",
+      "profile": "developer",
+      "skills": ["architecture", "backend", "api-design", "database", "rust"],
       "runtimes": ["claude", "codex"]
     },
     {
@@ -91,9 +91,9 @@ Use a Rust backend profile with database and API skills, plus a tester.
 It then materializes:
 
 ```text
-.claude/agents/backend-rust.md
+.claude/agents/backend-developer.md
 .claude/agents/tester.md
-.codex/agents/backend-rust.toml
+.codex/agents/backend-developer.toml
 .codex/agents/tester.toml
 ```
 

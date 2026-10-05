@@ -25,6 +25,7 @@ import {
   loadProfiles,
   renderClaudeAgent,
   renderCodexAgent,
+  renderAgentBrief,
 } from '../../../scripts/profile-lib.mjs'
 
 const skillRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..')
@@ -52,6 +53,10 @@ function parseArgs(argv) {
     else if (arg === '--check') args.check = true
     else if (arg === '--prune') args.prune = true
     else if (arg === '--list-profiles') args.listProfiles = true
+    else if (arg === '--brief') {
+      args.brief = argv[++index]
+      if (!args.brief || args.brief.startsWith('--')) throw new Error('--brief requires an agent name')
+    }
     else throw new Error(`Unknown argument: ${arg}`)
   }
   args.config ??= join(args.projectRoot, '.agent-kit', 'agents.json')
@@ -93,7 +98,12 @@ function validateSpec(spec, profiles, names) {
   }
   if (names.has(spec.name)) throw new Error(`Duplicate project agent name: ${spec.name}`)
   names.add(spec.name)
-  if (!profiles.has(spec.profile)) throw new Error(`Unknown profile "${spec.profile}" for agent "${spec.name}"`)
+  if (!profiles.has(spec.profile)) {
+    const hint = ['frontend', 'backend'].includes(spec.profile)
+      ? '; migrate to developer with scripts/migrate-project.mjs (preview by default, --write to apply)'
+      : ''
+    throw new Error(`Unknown profile "${spec.profile}" for agent "${spec.name}"${hint}`)
+  }
   if (spec.skills !== undefined && (!Array.isArray(spec.skills) || spec.skills.some((item) => typeof item !== 'string'))) {
     throw new Error(`${spec.name}: skills must be an array of names`)
   }
@@ -160,6 +170,12 @@ function resolveSkillPath(projectRoot, skill) {
 function expectedFiles(projectRoot, specs, profiles) {
   const files = new Map()
   const names = new Set()
+  for (const profileName of new Set(specs.map((spec) => spec.profile))) {
+    const instances = specs.filter((spec) => spec.profile === profileName)
+    if (instances.length > 1 && (instances.some((spec) => !spec.description) || new Set(instances.map((spec) => spec.description)).size !== instances.length)) {
+      throw new Error(`${profileName}: multiple project instances require distinct responsibility descriptions`)
+    }
+  }
   for (const spec of specs) {
     const runtimes = validateSpec(spec, profiles, names)
     const profile = profiles.get(spec.profile)
@@ -202,6 +218,14 @@ function run() {
   const profileMap = new Map(profiles.map((profile) => [profile.name, profile]))
   const config = readConfig(args.config)
   const files = expectedFiles(args.projectRoot, config.agents, profileMap)
+  if (args.brief) {
+    if (args.check || args.prune) throw new Error('--brief cannot be combined with --check or --prune')
+    const spec = config.agents.find((entry) => entry.name === args.brief)
+    if (!spec) throw new Error(`Project agent not configured: ${args.brief}`)
+    const agent = composeAgent(profileMap.get(spec.profile), spec)
+    process.stdout.write(renderAgentBrief(agent, agent.skills.map((skill) => resolve(resolveSkillPath(args.projectRoot, skill)))))
+    return
+  }
   const orphans = generatedFilesIn(args.projectRoot).filter((path) => !files.has(path))
 
   if (args.check) {

@@ -11,7 +11,7 @@
 
 Map the project and request to recurring responsibilities rather than inventing a large permanent team. Typical responsibilities are implementation, architecture, testing, security review, operations, and documentation.
 
-Use `../references/dispatch-matrix.md` to choose profession profiles and exact skill sets. One profile can produce multiple project variants when the stack needs them, such as `backend-node` and `backend-rust`.
+Use `../references/dispatch-matrix.md` to choose profession profiles and exact skill sets. One profile can produce several responsibility scopes, such as customer UI and admin UI; distinct descriptions explain those boundaries.
 
 ## Step 3: Resolve material choices
 

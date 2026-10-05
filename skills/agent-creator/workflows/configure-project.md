@@ -15,7 +15,7 @@ For each requested project agent:
 2. Start from its default skills.
 3. Replace the list with the smallest exact set matching the project stack and the agent's routine responsibilities.
 4. Keep profile default effort, access, and runtime models unless the request or project constraints justify an override.
-5. Use a profession-shaped name. Add a specialization suffix only when multiple variants coexist, such as `backend-rust` and `backend-node`.
+5. Use a profession name or meaningful responsibility such as `frontend-developer`. Add a subsystem prefix only for an actual split; do not derive names from the list of skills. Preserve existing names. Read `../references/project-agent-recipes.md` for starting recipes.
 
 If a required knowledge skill does not exist, invoke `skill-creator` first. If no profession profile fits, use [maintain-profile.md](maintain-profile.md) only when working in the Agent Kit source repository; otherwise explain that the library needs a new profile rather than inventing a project-only profession body.
 

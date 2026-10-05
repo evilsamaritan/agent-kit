@@ -1,48 +1,13 @@
-# Bootstrap Recipes
+# Bootstrap Recipe Router
 
-## Contents
+The canonical compositions and naming rules live in [project-agent-recipes.md](../../agent-creator/references/project-agent-recipes.md). Init selects them; agent-creator adapts and writes one exact composition.
 
-- [small-react-app](#small-react-app)
-- [go-microservice](#go-microservice)
-- [monorepo-fullstack](#monorepo-fullstack)
-- [library](#library)
-- [data-pipeline](#data-pipeline)
+| Project request | Starting responsibilities |
+|---|---|
+| small-react-app | frontend implementation plus testing when independently useful |
+| go-microservice | service implementation; testing, security, or delivery only where recurring |
+| monorepo-fullstack | UI and service owners when actually separate; architect for coupled decisions |
+| library | implementation, contract design, testing, or writing as the work requires |
+| data-pipeline | data-processing implementation; persistence testing and reliability as applicable |
 
-Recipes are starting compositions. Inspect the repository and remove irrelevant skills before writing `.agent-kit/agents.json`.
-
-## small-react-app
-
-- `frontend-react`: profile `frontend`; skills `frontend`, `react`, `web`, `html`, `css`, `accessibility`.
-- `tester`: profile `tester`; skills `testing`, `react`.
-
-## go-microservice
-
-- `backend-go`: profile `backend`; skills `backend`, `api-design`, `database`, `go`.
-- `tester`: profile `tester`; skills `testing`, `go`.
-- `security`: profile `security`; skills `security`, `auth`.
-- `devops`: profile `devops`; skills `docker`, `ci-cd`, `release-engineering`.
-
-Drop security or devops when those responsibilities do not live in the repository.
-
-## monorepo-fullstack
-
-- `architect`: profile `architect`; skills `architecture`.
-- `frontend`: profile `frontend`; replace framework skill from detected dependencies.
-- `backend`: profile `backend`; replace language and data skills from detected services.
-- `tester`: profile `tester`; skills `testing` plus routinely used framework/language knowledge.
-
-Create multiple backend variants only for genuinely separate stacks.
-
-## library
-
-- `architect`: profile `architect`; skills `architecture`, `api-design` when the public API is central.
-- `tester`: profile `tester`; skills `testing` plus the library language.
-- `writer`: profile `writer`; skills `documentation` plus the library language when examples require it.
-
-## data-pipeline
-
-- `backend`: profile `backend`; skills `backend`, `database`, `background-jobs`, `message-queues` as actually used.
-- `tester`: profile `tester`; skills `testing`, `database`.
-- `sre`: profile `sre`; skills `reliability`, `observability`, `performance`.
-
-Add language-specific knowledge from repository signals. Do not encode a scheduler or cloud vendor merely because it is common in this project class.
+A technology hint selects knowledge, not an agent identity. Keep project agents optional; a small project can use the main session directly.

@@ -11,7 +11,7 @@
 ## Directory
 
 ```text
-profiles/backend/
+profiles/developer/
 ├── PROFILE.md
 ├── claude.yaml
 └── codex.yaml
@@ -21,14 +21,14 @@ profiles/backend/
 
 ```markdown
 ---
-name: backend
-description: Senior backend developer. Use when implementing backend services and endpoints. Do NOT use for frontend UI.
+name: developer
+description: Implement software with coherent local design. Select domain knowledge for the project responsibility.
 role: [implementer]
-skills: [backend, api-design, database]
+skills: [architecture]
 effort: medium
 access: full
 ---
-You are a senior backend engineer...
+You own local design and implementation within agreed boundaries...
 
 ## Role — implementer
 

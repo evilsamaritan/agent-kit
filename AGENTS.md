@@ -1,4 +1,4 @@
-# agent-kit v4.0.0-alpha.2
+# agent-kit v4.0.0-alpha.3
 
 ## Purpose
 
@@ -13,7 +13,7 @@ Profession **profiles** are the stable base entity. A project agent is assembled
 
 **Meta skills** — create and manage the rest (`agent-creator`, `agent-orchestrator`, `skill-creator`, hooks, project init).
 
-**Base profession profiles:** `architect`, `frontend`, `backend`, `devops`, `sre`, `security`, `tester`, `designer`, `reviewer`, `writer`.
+**Base profession profiles:** `architect`, `developer`, `devops`, `sre`, `security`, `tester`, `designer`, `reviewer`, `writer`.
 
 ## Rules
 

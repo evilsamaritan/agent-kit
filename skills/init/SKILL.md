@@ -36,11 +36,11 @@ Recipes are profile/skill starting points, not saved teams or execution graphs.
 
 | Recipe | Typical composition |
 |--------|---------------------|
-| `small-react-app` | frontend-react + tester |
-| `go-microservice` | backend-go + tester + security + devops |
-| `monorepo-fullstack` | architect + frontend + backend + tester |
+| `small-react-app` | frontend-developer + tester |
+| `go-microservice` | backend-developer + tester + security + devops |
+| `monorepo-fullstack` | architect + UI/service developer instances + tester |
 | `library` | architect + tester + writer |
-| `data-pipeline` | backend + database-focused tester + sre |
+| `data-pipeline` | data-processing developer + database-focused tester + sre |
 
 Read [references/recipes.md](references/recipes.md) when a recipe is named.
 

@@ -12,18 +12,18 @@
 1. Identify recurring responsibilities from the repository and user request.
 2. Choose one profession profile per distinct responsibility.
 3. Select the exact knowledge skills for the detected stack.
-4. Add a second variant of the same profile only when distinct stacks coexist.
+4. Add another instance only for a distinct recurring responsibility; describe its boundaries. Use the shared recipes in `../../agent-creator/references/project-agent-recipes.md`.
 5. Keep task-specific team size out of project configuration; `agent-orchestrator` chooses instances per task.
 
 ## Stack mapping
 
 | Signal | Profile | Suggested exact skills |
 |--------|---------|------------------------|
-| React frontend | frontend | frontend, react, web, html, css, accessibility |
-| Vue frontend | frontend | frontend, vue, web, html, css, accessibility |
-| Node backend | backend | backend, api-design, database, javascript, web |
-| Rust backend | backend | backend, api-design, database, rust |
-| Go backend | backend | backend, api-design, database, go |
+| React frontend | developer | architecture, frontend, react, web, html, css, accessibility |
+| Vue frontend | developer | architecture, frontend, vue, web, html, css, accessibility |
+| Node backend | developer | architecture, backend, api-design, database, javascript, web |
+| Rust backend | developer | architecture, backend, api-design, database, rust |
+| Go backend | developer | architecture, backend, api-design, database, go |
 | Containers / CI | devops | docker, ci-cd, release-engineering |
 | Kubernetes platform | devops | docker, kubernetes, ci-cd, release-engineering |
 | Production reliability | sre | reliability, observability, performance |
@@ -36,8 +36,7 @@
 | Recurring responsibility | Add profile when |
 |--------------------------|------------------|
 | architect | Cross-package contracts, major design decisions, recurring problems with a shared cause, structural critique of changes, or decision records recur |
-| frontend | The project owns browser UI |
-| backend | The project owns services, APIs, jobs, or data access |
+| developer | Implementation owns UI, service, runtime, library, or other code; select knowledge for the responsibility |
 | tester | Test authoring/auditing is a recurring independent responsibility |
 | security | Security review recurs; do not add only because every project needs secure code |
 | devops | Deployment, CI, containers, or infrastructure live in this repository |

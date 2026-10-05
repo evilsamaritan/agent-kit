@@ -1,0 +1,3 @@
+# Native defaults. Project overrides and parent policy remain authoritative.
+model: inherit
+color: cyan

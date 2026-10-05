@@ -47,7 +47,7 @@ Follow [workflows/orchestrate.md](workflows/orchestrate.md) for execution.
 |--------|-------------|
 | Small, single-domain change | One profession |
 | Interfaces or architecture unclear | Architect, then implementer(s) |
-| Frontend and backend scopes are independent | Frontend + backend in parallel |
+| Frontend and backend scopes are independent | Two developer instances with UI/service knowledge and disjoint assignments |
 | Implementation needs independent validation | Implementer, then reviewer or tester |
 | Security-sensitive change | Implementer + security review |
 | Operational rollout | DevOps or SRE after implementation |

@@ -20,8 +20,8 @@
   "schema_version": 1,
   "agents": [
     {
-      "name": "backend-rust",
-      "profile": "backend",
+      "name": "backend-developer",
+      "profile": "developer",
       "skills": ["backend", "api-design", "database", "rust"],
       "runtimes": ["claude", "codex"]
     }
@@ -64,26 +64,30 @@ Generated files carry an Agent Kit marker. The materializer may overwrite or pru
 
 ## Examples
 
-### Two backend variants
+### Two development responsibilities
 
 ```json
 {
   "schema_version": 1,
   "agents": [
     {
-      "name": "backend-node",
-      "profile": "backend",
-      "skills": ["backend", "api-design", "database", "javascript", "web"]
+      "name": "frontend-developer",
+      "profile": "developer",
+      "description": "Own the customer UI, client state, and accessible interactions.",
+      "skills": ["architecture", "frontend", "javascript", "web", "html", "css", "accessibility"]
     },
     {
-      "name": "backend-rust",
-      "profile": "backend",
-      "skills": ["backend", "api-design", "database", "rust"],
+      "name": "backend-developer",
+      "profile": "developer",
+      "description": "Own service operations, persistence boundaries, and external API behavior.",
+      "skills": ["architecture", "backend", "api-design", "database", "rust"],
       "codex": { "effort": "high" }
     }
   ]
 }
 ```
+
+Descriptions are required and distinct when a profile has several project instances. They identify responsibilities; technology does not determine identity.
 
 ### Read-only review agent for Codex only
 
