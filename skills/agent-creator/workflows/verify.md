@@ -8,7 +8,7 @@
 
 ## Step 2: Load the checklist
 
-Read `../references/verification-checklist.md` in full.
+Use checklist sections applicable to the target profile, runtime, or project. Read only supporting files needed for those checks.
 
 ## Step 3: Verify a consuming project
 

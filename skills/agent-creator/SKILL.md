@@ -1,6 +1,6 @@
 ---
 name: agent-creator
-description: Create, update, delete, sync, or verify project agents assembled from reusable Agent Kit profession profiles and knowledge skills. Use when setting up backend/frontend/tester or other agents for a project, changing their skill combinations, generating native Claude and Codex agent files, or maintaining the bundled profile library. Do NOT use to run agents or assemble a task workflow (use agent-orchestrator) or to create knowledge skills (use skill-creator).
+description: "Create, update, sync, or verify project agents and profession profiles. Use for exact skill composition and native agent files; run agents with agent-orchestrator."
 compatibility: Full Agent Kit plugin installation is required for bundled profiles and materializer dependencies.
 user-invocable: true
 argument-hint: "[create|update|delete|sync|verify] [agent or profile]"

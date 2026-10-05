@@ -1,7 +1,6 @@
 ---
 name: ci-cd
-description: CI/CD pipeline design — workflow structure, caching, matrix builds, GitHub Actions, GitLab CI, monorepo pipelines, artifact handling, secrets management in CI. Use when writing or reviewing pipelines, optimizing build times, setting up monorepo CI, handling PR checks, or auditing CI security. Do NOT use for release strategy (use release-engineering), container image building (use docker), or deployment orchestration (use kubernetes).
-allowed-tools: Read, Grep, Glob, WebSearch, WebFetch, Edit, Write, Bash
+description: "Build or review delivery pipelines. Use for GitHub Actions, GitLab CI, build caches, matrix jobs, monorepos, artifacts, and CI secrets."
 user-invocable: true
 ---
 

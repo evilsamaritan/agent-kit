@@ -1,7 +1,6 @@
 ---
 name: documentation
-description: Write technical documentation — Diátaxis framework (tutorial/how-to/reference/explanation), README conventions, ADR format, runbook structure, changelog discipline, docs-as-code, API reference docs, onboarding guides, AI-readable docs (llms.txt). Use when writing docs, auditing doc completeness, structuring a docs site, or reviewing .env.example. Do NOT use for API schema design (use api-design) or release versioning (use release-engineering).
-allowed-tools: Read, Grep, Glob, WebSearch, WebFetch, Edit, Write, Bash
+description: "Write or review technical text. Use for Markdown plans, architecture docs, tutorials, READMEs, ADRs, references, runbooks, changelogs, and onboarding."
 user-invocable: true
 ---
 

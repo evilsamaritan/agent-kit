@@ -1,7 +1,6 @@
 ---
 name: api-design
-description: Design APIs — protocol selection, REST, OpenAPI 3.1, RPC patterns, pagination, versioning, error contracts. Use when choosing REST/GraphQL/gRPC, designing endpoints, writing OpenAPI specs, or implementing pagination/error responses. Do NOT use for GraphQL depth (graphql) or real-time (realtime).
-allowed-tools: Read, Grep, Glob, WebSearch, WebFetch
+description: "Design API protocols and contracts. Use for REST, OpenAPI, RPC, pagination, errors, compatibility, and endpoint design; GraphQL depth is in graphql."
 user-invocable: true
 ---
 

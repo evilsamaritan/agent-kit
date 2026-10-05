@@ -144,6 +144,9 @@ Having `references/` alongside a procedure does NOT make the skill special — i
 
 ## Instruction Tone
 
+Separate hard constraints (a violated contract or authority boundary), defaults (a useful starting point), and conditional recommendations (used when their stated force exists). Prefer action + condition + a short example. Keep audit history and rejected proposals outside runtime skill bodies. Do not turn a stylistic preference into a must, or require an extra artifact for a routine change.
+
+
 How you write instructions affects how the agent executes them. Match tone to content type.
 
 | Content type | Tone | Example |

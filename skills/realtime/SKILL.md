@@ -1,7 +1,6 @@
 ---
 name: realtime
-description: Design real-time communication — WebSocket, SSE, WebTransport, scaling, reconnection, presence, CRDTs. Use when implementing WebSocket, SSE, reconnection, presence, binary protocols, collaborative editing, or edge realtime. Do NOT use for message queues or HTTP polling.
-allowed-tools: Read, Grep, Glob, WebSearch, WebFetch
+description: "Design live communication and collaboration. Use for WebSocket, SSE, WebTransport, reconnection, presence, CRDTs, and realtime scaling."
 user-invocable: true
 ---
 

@@ -1,7 +1,6 @@
 ---
 name: message-queues
-description: Design message broker architectures — broker selection, DLQ, idempotency, schema evolution, event-driven patterns. Use when choosing brokers, configuring topics, setting up consumer groups, or implementing idempotent processing. Do NOT use for synchronous APIs (use api-design) or job queues (use background-jobs).
-allowed-tools: Read, Grep, Glob, WebSearch, WebFetch
+description: "Design message broker flows. Use for broker choice, topics, consumer groups, delivery guarantees, idempotency, DLQ, and event schemas."
 user-invocable: true
 ---
 

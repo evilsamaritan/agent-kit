@@ -1,6 +1,6 @@
 ---
 name: visualization
-description: Build polished responsive HTML visualizations from an existing architecture model, document, code, diff, or dataset. Use when asked for an interactive explainer, web preview, navigable diagram set, architecture explorer, consistent light/dark themes, code view, diff view, or mobile-friendly visualization. Owns presentation, visual grammar, responsive composition, interaction, and render checks. Do NOT use to design or validate the source architecture, assess code correctness, or design product UI.
+description: "Create responsive HTML visual explanations. Use for an interactive explainer, architecture explorer, diagram preview, code/diff viewer, or consistent visual themes."
 ---
 
 # Responsive Technical Visualization

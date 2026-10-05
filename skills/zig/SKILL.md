@@ -1,7 +1,6 @@
 ---
 name: zig
-description: Write idiomatic Zig — comptime, allocators, error unions, C interop, build system. Use when working with .zig files, build.zig, build.zig.zon, or any Zig question. Triggers on comptime, allocator, errdefer, @cImport, zig build. Do NOT use for general systems programming patterns (use backend) or Rust (use rust).
-allowed-tools: Read, Grep, Glob, WebSearch, WebFetch
+description: "Write or review Zig. Use for .zig/build.zig, comptime, allocators, errors, C interop, build configuration, and resource cleanup."
 user-invocable: true
 ---
 

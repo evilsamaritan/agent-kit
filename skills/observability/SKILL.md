@@ -1,7 +1,6 @@
 ---
 name: observability
-description: Design observability systems — tracing, metrics (RED/USE), logging, alerting, profiling, eBPF, pipelines. Use when implementing instrumentation, metrics, logging, profiling, or alerting. Do NOT use for SLO/SLI (use reliability) or bottleneck analysis (use performance).
-allowed-tools: Read, Grep, Glob, WebSearch, WebFetch
+description: "Instrument and investigate systems. Use for metrics, logs, tracing, alerts, profiling, eBPF, and telemetry pipelines."
 user-invocable: true
 ---
 

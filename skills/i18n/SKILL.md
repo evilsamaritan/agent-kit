@@ -1,7 +1,6 @@
 ---
 name: i18n
-description: Implement internationalization — ICU MessageFormat, pluralization, RTL, Intl APIs, Temporal, translation workflows. Use when implementing i18n, localization, pluralization, RTL layout, Intl APIs, or translation pipelines. Do NOT use for accessibility (use accessibility) or CSS layout (use html/css).
-allowed-tools: Read, Grep, Glob, WebSearch, WebFetch
+description: "Implement internationalization and localization. Use for ICU messages, plurals, RTL, Intl APIs, dates, language routing, and translation workflows."
 user-invocable: true
 ---
 

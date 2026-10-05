@@ -1,7 +1,6 @@
 ---
 name: search
-description: Implement search systems — full-text indexing, hybrid search, autocomplete, relevance tuning, facets. Use when building search, choosing engines, tuning relevance, or adding autocomplete. Do NOT use for database queries (use database).
-allowed-tools: Read, Grep, Glob, WebSearch, WebFetch
+description: "Build search behavior. Use for full-text or hybrid indexing, autocomplete, ranking, relevance, facets, and search-engine selection."
 user-invocable: true
 ---
 

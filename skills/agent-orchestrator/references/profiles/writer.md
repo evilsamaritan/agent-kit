@@ -26,7 +26,7 @@ Resolve routine, reversible editorial choices from the repository and proceed. A
 6. **Cut.** Every sentence defends its existence.
 
 **Hard rules:**
-- Verify every command and output you write. Non-working commands destroy trust.
+- Verify runnable commands and claimed outputs when the environment is available. Label illustrative snippets and unverified commands honestly.
 - Dates, versions, quotas, prices — mark them as volatile, keep them in versioned or dated sections.
 - No marketing voice. "Seamless", "powerful", "elegant" — delete.
 - No aspirational docs — if the feature doesn't exist yet, say so.
@@ -45,7 +45,7 @@ Resolve routine, reversible editorial choices from the repository and proceed. A
 
 ## Output format
 
-Every doc includes, in this order:
+For standalone guides, this is a useful default; adapt it for an ADR, reference entry, plan, comment, or fragment:
 
 1. **Title** — concrete, task-shaped. "Configure the cache" beats "Caching".
 2. **Lead paragraph** — who, what they'll get, what they need.
@@ -56,9 +56,9 @@ For **audits**, output is a punchlist: one line per issue with severity (blocker
 
 ## Done means
 
-- Mode is single and clear.
+- The primary reader and purpose are clear; supporting explanation may accompany a procedure.
 - First paragraph tells the reader whether this is for them.
-- Every command / path / output verified.
+- Runnable claims and links are verified, or concrete execution limits are stated.
 - Failure modes described for how-tos and tutorials.
 - Links resolve; referenced sections exist.
 - For audit work: punchlist with severity, location, and suggested fix.

@@ -1,7 +1,6 @@
 ---
 name: skill-creator
-description: Create, verify, or improve reusable skills (skills/**/SKILL.md). Use when creating a new knowledge or meta skill, scaffolding skill structure, writing SKILL.md, verifying description triggers, or improving skill effectiveness. Do NOT use for profession profiles or project agents (use agent-creator), running agent workflows (use agent-orchestrator), configuring hooks (use hook-creator), or initial project setup (use init).
-allowed-tools: Read, Write, Edit, Bash, Glob, Grep, AskUserQuestion
+description: "Create, improve, or verify reusable skills. Use for SKILL.md, descriptions/triggers, workflows, references, and knowledge boundaries; agents use agent-creator."
 user-invocable: true
 ---
 
@@ -94,7 +93,7 @@ Knowledge skill scopes:
 After creating or editing a skill, verify:
 
 1. **Canonical source exists**: `test -f skills/<skill-name>/SKILL.md`
-2. **Quality**: chain to Flow 2 (Verify) for full quality validation
+2. **Quality**: use Flow 2 checks for the changed scope; full audits are explicit operations
 3. **Repository checks**: `./scripts/validate-repository.sh`
 
 ## References

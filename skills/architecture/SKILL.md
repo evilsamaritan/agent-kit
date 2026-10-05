@@ -1,6 +1,6 @@
 ---
 name: architecture
-description: "Design, evaluate, and evolve software structure at every scale — system, module, and code: boundaries, contracts, ownership, state, composition, extensibility. Use when designing or redesigning a system or module, adding a feature to existing code without bolting it on, refactoring for maintainability, finding the shared root cause behind recurring bugs, reviewing an architecture, checking whether a merge request or fix treats the cause or only patches a symptom, or applying SOLID and design patterns. Do NOT use for a polished web explainer of an agreed design (use visualization), trivial edits inside a settled design, detailed API/schema design, or CI/CD."
+description: "Design or review software structure. Use for ownership, contracts, boundaries, state/lifecycle, composition, extensibility, refactoring, or root causes at system/module/code scale."
 argument-hint: "[design|review|critique] [target]"
 ---
 
@@ -18,16 +18,20 @@ Scenarios, bug reports, review findings, and feature requests are evidence, not 
 - **A feature:** read the structure that exists and name the structure the feature wants before writing the first line.
 - **A design:** a hundred cases usually reduce to a few operations, policies, states, and failure modes. The scenario list is never the component list or the task list.
 
-### 2. Extend by adding, not by editing
+### 2. Isolate independent variation
 
 Prefer a small core with a narrow contract. Add behavior by composition — plain functions, decorators or middleware, strategies, events, dependencies passed in. Ship conveniences as defaults built on the same public contract, so a consumer can replace them or throw them away. A *seam* is a place where behavior can be added or replaced without editing the code around it.
 
 | Test | Open | Closed |
 |---|---|---|
-| Add a behavior | compose a new piece; the core is untouched | edit the core, a switch, a factory, or a flag list |
+| Add a behavior | compose a new piece; the core is untouched | repeat concrete policy in unrelated consumers |
 | Replace a default | from outside, through the public contract | fork, patch, or ask the owner |
 | Explain it | well-known pattern names and the project's own words | coined vocabulary and a private framework |
 | Weigh it | simpler than the sum of the cases it replaces | more machinery than the cases it serves |
+
+A deliberately closed protocol, exhaustive union dispatch, or state machine may correctly enumerate its cases. Judge whether knowledge spreads and whether an actual extension violates the intended contract; a switch or factory is not a defect by itself.
+
+A deliberately closed protocol, exhaustive union dispatch, or state machine may correctly enumerate its cases. Judge whether knowledge spreads and whether an actual extension violates the intended contract; a switch or factory is not a defect by itself.
 
 Openness is a property of structure, not size: one function parameter is a seam; a plugin registry with one plugin is ceremony. Buy the cheapest seam that works — a parameter, then a passed-in function, then a small contract, then a composition mechanism — and only for variation that exists or is committed. Contrast pairs: [composable-design.md](references/composable-design.md).
 
@@ -46,10 +50,22 @@ Adding or fixing something in existing code is a design decision. Direct embeddi
 |---|---|
 | The change fits an existing seam and owner | Make it. No ceremony. |
 | It needs local restructuring inside the touched module, behavior preserved | Restructure first as a separate step, then add the change. Report both. |
-| It alters another module's contract, a boundary, state ownership, or is hard to reverse | Stop. Present two or three options — direct, local restructuring, wider redesign — with cost now, cost later, and reversibility. Recommend one. |
+| It alters another module's contract, a boundary, state ownership, or is hard to reverse | Check the agreed scope and constraints. If the consequential choice remains unresolved, present viable options with cost now, cost later, and reversibility; recommend one. Proceed with design work already authorized by the task. |
 | It is the second fix of the same kind | Stop patching. Find the shared cause first. |
 
 Never restructure for taste: restructuring must remove a named cost. Judgment and examples: [change-integration.md](references/change-integration.md).
+
+### 5. Check the design of each structural change
+
+Before implementing or approving new behavior, shared mechanisms, contracts, or state ownership, answer from the affected code:
+
+1. What operation is being added, and who owns its rules, state, and lifecycle?
+2. What actually varies, and which invariants stay the same? Distinguish an extensible family from a deliberately closed protocol or state machine.
+3. What does each consumer need to know, and can implementations honor the same behavioral contract, including errors and lifecycle? A contract is ineffective if consumers still inspect concrete types, fields, or capabilities to reconstruct the owner's decisions.
+4. For one relevant extension, which files would change, and why? Name one unrelated consumer that should remain unchanged. Repeated edits to generic consumers expose misplaced knowledge.
+5. Does the chosen seam cost less than the coupling it removes? Verify success, failure, and cleanup where relevant.
+
+For a bounded change, a short reasoning note and code locations are enough; no new document or framework is required. Recheck against the finished code, not just the proposal, and include the relevant extension argument when variation or ownership changed. Use [design-principles.md](references/design-principles.md) to weigh principles such as SOLID, [code-design.md](references/code-design.md) for cohesive units and explicit dependencies, and [composable-design.md](references/composable-design.md#concrete-knowledge-belongs-to-its-owner) for variation and examples. These guide decisions, not pattern quotas.
 
 ## Critical rules
 
@@ -186,7 +202,7 @@ Lead with the conclusion, then only the rationale needed to trust it. No filler:
 
 ## Delegating design-sensitive work
 
-An agent that has not seen the model will bolt its change on. When delegating implementation or review that touches boundaries, owners, or shared mechanisms, pass the relevant owners, contracts, and the proportion table in the task, or tell the agent to load this skill. For an independent architecture critic on a change, run [critique.md](workflows/critique.md) in a separate agent and treat its alternatives as options to weigh, not orders.
+An agent that has not seen the model will bolt its change on. When delegating implementation or review that touches boundaries, owners, or shared mechanisms, pass the relevant owners, contracts, and the proportion table in the task, or tell the agent to load this skill. Implementation retains responsibility for local design; a settled brief does not excuse coupling introduced inside a module. Require evidence from the finished code using the structural-change check above. For an independent architecture critic on a change, run [critique.md](workflows/critique.md) in a separate agent and treat its alternatives as options to weigh, not orders.
 
 ## Context adaptation
 
@@ -213,7 +229,7 @@ Thinking:
 
 Structure:
 
-- **Edit-to-extend** — a factory, switch, flag set, or bundled API that must be edited for every new case and cannot be replaced from outside.
+- **Scattered concrete policy** — independently changing rules are repeated in generic consumers, forcing coordinated edits for a relevant extension. Deliberately closed dispatch belongs at its protocol owner.
 - **God function or file** — one unit owns every step, mixing state, policy, and mechanism.
 - **Shared-state ambiguity** — several components write the same state or enforce the same invariant without an authority model; the same state copied into every consumer.
 - **Leaky core** — policy depends directly on transport, storage, framework, or vendor types.

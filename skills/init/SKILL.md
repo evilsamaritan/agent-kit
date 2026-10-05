@@ -1,6 +1,6 @@
 ---
 name: init
-description: Bootstrap Agent Kit for a software project by detecting its stack, selecting profession profiles and knowledge skills, and materializing native Claude and Codex project agents. Use when setting up Agent Kit in a new project, rebuilding its agent configuration, or asking "create agents for this project" without naming each role. Do NOT use for one narrow agent change (use agent-creator) or to run a task workflow (use agent-orchestrator).
+description: "Set up Agent Kit for a project. Use for stack discovery and an initial agent composition; agent-creator materializes native files."
 user-invocable: true
 argument-hint: "[recipe-name]"
 ---

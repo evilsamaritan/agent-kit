@@ -1,7 +1,6 @@
 ---
 name: frontend
-description: Apply frontend engineering patterns — bundlers, workspaces, code quality tooling, component patterns, state management choices, build configuration. Framework-agnostic. Use when configuring bundlers, structuring a monorepo frontend, auditing code-quality tooling, or picking state/data-fetching patterns. Do NOT use for framework specifics (use react/vue), HTML/CSS depth (use html/css), accessibility (use accessibility), or UX design (use design).
-allowed-tools: Read, Grep, Glob
+description: "Structure frontend applications and tooling. Use for bundlers, workspaces, UI composition, client state, data fetching, and code-quality configuration."
 user-invocable: true
 ---
 

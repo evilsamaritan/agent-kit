@@ -1,7 +1,6 @@
 ---
 name: graphql
-description: Design GraphQL schemas, resolvers, DataLoader, federation, subscriptions, security, codegen. Use when designing schemas, solving N+1, setting up federation, implementing subscriptions, or codegen. Do NOT use for REST (use api-design) or real-time transport (use realtime).
-allowed-tools: Read, Grep, Glob, WebSearch, WebFetch
+description: "Design GraphQL schemas and execution. Use for resolvers, DataLoader/N+1, federation, subscriptions, codegen, and GraphQL security."
 user-invocable: true
 ---
 

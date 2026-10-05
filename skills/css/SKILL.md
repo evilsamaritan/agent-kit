@@ -1,7 +1,6 @@
 ---
 name: css
-description: Design modern CSS — Grid, Flexbox, custom properties, cascade layers, container queries, :has(), CSS nesting, @scope, scroll-driven animations, View Transitions, color functions, logical properties. Use when writing styles, building layout primitives, theming (light/dark), responsive design, or animation. Do NOT use for semantic markup (use html), ARIA (use accessibility), UX decisions (use design), or component architecture (use frontend).
-allowed-tools: Read, Grep, Glob, WebSearch, WebFetch
+description: "Build modern responsive CSS layouts and styles. Use for Grid/Flexbox, tokens, cascade, selectors, containers, nesting, color, transitions, or CSS animation."
 user-invocable: true
 ---
 

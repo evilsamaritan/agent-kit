@@ -1,7 +1,6 @@
 ---
 name: javascript
-description: Apply JavaScript language patterns — ES2025+ modules, async model, runtime selection, TypeScript type system. Use when working with JS/TS modules (ESM/CJS), async/await, event loop, runtime choice (Node/Bun/Deno), TypeScript types, generics, or tsconfig. Do NOT use for React patterns (use react) or web platform APIs (use web).
-allowed-tools: Read, Grep, Glob, WebSearch, WebFetch
+description: "Write or review JavaScript/TypeScript. Use for modules, async/event loop, runtime choice, types, generics, and compiler configuration."
 user-invocable: true
 ---
 

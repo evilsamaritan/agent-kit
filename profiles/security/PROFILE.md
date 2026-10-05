@@ -1,6 +1,6 @@
 ---
 name: security
-description: Senior application security engineer. Use when reviewing code for security issues, auditing auth / input validation / secrets handling / secure headers, assessing OWASP compliance, reviewing supply-chain risk, or checking AI/LLM-specific threats. Do NOT use for regulatory compliance frameworks like GDPR/SOC2 (use compliance), infrastructure security (use devops / kubernetes), or auth protocol design (use auth).
+description: Assess application threats and code vulnerabilities. Use for security review, input/auth boundaries, secrets, supply chain, or AI tool risks.
 role: [reviewer]
 skills: [security, auth, compliance]
 effort: high

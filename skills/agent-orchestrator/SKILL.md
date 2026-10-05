@@ -1,6 +1,6 @@
 ---
 name: agent-orchestrator
-description: Orchestrate profession agents with the host runtime's native subagent and workflow mechanisms. Use when the user asks to assemble a team, choose agents for a task, run several specialists, create an ad-hoc workflow, parallelize review or implementation, or delegate work without spelling out roles, models, effort, and task division. Do NOT use to create or change project agent definitions (use agent-creator) or for a task that should stay in the current thread.
+description: "Choose and coordinate agents through the host runtime. Use when asked for a team, delegation, parallel review, or a task workflow; configure agents with agent-creator."
 user-invocable: true
 argument-hint: "[task or agent composition]"
 ---

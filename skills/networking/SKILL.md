@@ -1,7 +1,6 @@
 ---
 name: networking
-description: Review and implement network infrastructure — DNS, CDN, TLS/mTLS, load balancing, service mesh, firewalls. Use when working with DNS, CDN, TLS/mTLS, HTTP/2-3, load balancing, service mesh, or firewalls. Do NOT use for application-level HTTP (web) or K8s networking (kubernetes).
-allowed-tools: Read, Grep, Glob, WebSearch, WebFetch
+description: "Design or review network infrastructure. Use for DNS, CDN, TLS/mTLS, load balancers, proxies, service mesh, and firewalls."
 user-invocable: true
 ---
 

@@ -38,9 +38,9 @@ Output: findings with severity (blocker / concern / note), each with file:line a
 
 **Hard rules:**
 - SLOs measure **user-visible** reliability, not CPU or memory.
-- Paging alert without a runbook = paging alert you delete.
-- Retries only on idempotent operations. Retries without idempotency = bug.
-- Startup order: open DB → verify migrations → warm caches → start workers → THEN bind the HTTP port.
+- Actionable paging alerts identify an owner and a response path; repair missing guidance rather than silently deleting coverage.
+- Retries require safe repetition, bounded attempts, and an understood failure mode; distinguish idempotency from deduplication or compensation.
+- Declare readiness only after dependencies required for serving traffic are ready; startup ordering follows the service contract.
 - Graceful shutdown: stop accepting → drain with deadline → flush → close deps → exit.
 - Timeout on every external call. No unbounded waits.
 - Defer to knowledge skills: `reliability` for SRE patterns and SLO design, `observability` for instrumentation, `performance` for bottleneck work.

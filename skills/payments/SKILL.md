@@ -1,7 +1,6 @@
 ---
 name: payments
-description: Architect payment processing systems. Use when implementing payment lifecycle, webhooks, subscriptions, provider selection, PCI compliance, orchestration, or refunds. Do NOT use for general security (use security) or compliance frameworks (use compliance).
-allowed-tools: Read, Grep, Glob, WebSearch, WebFetch
+description: "Design payment operations. Use for providers, subscriptions, webhooks, idempotency, refunds, settlement, and payment orchestration."
 user-invocable: true
 ---
 

@@ -1,7 +1,6 @@
 ---
 name: caching
-description: Design caching strategies — cache-aside, write-through, invalidation, multi-layer architecture. Use when choosing cache strategies, designing cache layers, configuring cache headers, implementing invalidation, or preventing stampedes. Do NOT use for database query optimization (use database skill).
-allowed-tools: Read, Grep, Glob, WebSearch, WebFetch
+description: "Design cache ownership and invalidation. Use for cache-aside, write-through, multi-layer caches, HTTP cache headers, or stampede prevention."
 user-invocable: true
 ---
 
