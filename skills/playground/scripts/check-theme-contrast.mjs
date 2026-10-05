@@ -115,5 +115,5 @@ if (failures.length > 0) {
 }
 
 console.log(
-  `Visualization theme contrast OK: ${checks.length * 2} pairs checked; dark token parity verified.`,
+  `Playground theme contrast OK: ${checks.length * 2} pairs checked; dark token parity verified.`,
 )

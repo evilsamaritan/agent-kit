@@ -26,4 +26,4 @@ When the tool is available: validate, compile with the project's pinned version,
 
 ## Step 7: Hand off
 
-Report the source location, what was verified (syntax, compile, visual inspection, host rendering), and open questions. When a document or a web artifact is next, pass the source itself to `documentation` or `visualization`.
+Report the source location, what was verified (syntax, compile, visual inspection, host rendering), and open questions. When a document or a web artifact is next, pass the source itself to `documentation` or `playground`.

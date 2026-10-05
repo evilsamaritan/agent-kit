@@ -89,7 +89,7 @@ node skills/agent-creator/scripts/materialize-agents.mjs --project-root /path/to
 
 When Agent Kit is installed as a plugin, use the script's installed absolute path rather than assuming the consuming project contains `skills/agent-creator/`.
 
-For an old frontend/backend profile, preview `scripts/migrate-project.mjs --project-root /path/to/project`; add `--write` to apply. Migration retains names, old default skills/models, and explicit choices. Then materialize/check. Several instances need distinct descriptions of responsibility.
+For an old frontend/backend profile or a renamed skill (`visualization` → `playground`), preview `scripts/migrate-project.mjs --project-root /path/to/project`; add `--write` to apply. Migration retains names, old default skills/models, and explicit choices. Then materialize/check. Several instances need distinct descriptions of responsibility.
 
 ## Validation
 

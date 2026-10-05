@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="en" data-viz-theme="auto">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="color-scheme" content="light dark" />
+    <title>Concept explainer</title>
+    <script>
+      try {
+        const host = document.documentElement.getAttribute("data-theme");
+        const theme = host === "light" || host === "dark" ? host : localStorage.getItem("visualization-theme");
+        if (theme === "light" || theme === "dark") document.documentElement.dataset.vizTheme = theme;
+      } catch {}
+    </script>
+    <link rel="stylesheet" href="visualization-shell.css" />
+  </head>
+  <body>
+    <!-- STANDALONE PAGE (visualization-shell revision 4)
+         The starting composition for explainers, simulations, presentations,
+         comparisons, and other single-page forms. It shares the stylesheet and
+         the theme runtime with the explorer shell but has no section navigation.
+         Change everything inside <main>; keep the theme control and its hooks. -->
+    <main class="viz-main" data-viz-page data-viz-shell-revision="4">
+      <header class="viz-header">
+        <div class="viz-page-head">
+          <div>
+            <span class="viz-kicker">Explainer · simplified model</span>
+            <h1 class="viz-title">How does a reducer update state?</h1>
+            <p class="viz-summary">An action describes what happened; the reducer computes the next state from the previous one.</p>
+          </div>
+          <div class="viz-theme-control">
+            <div class="viz-segmented" role="group" aria-label="Color theme">
+              <button type="button" data-viz-theme-value="auto" aria-label="System theme" aria-pressed="true">Auto</button>
+              <button type="button" data-viz-theme-value="light" aria-label="Light theme" aria-pressed="false">Light</button>
+              <button type="button" data-viz-theme-value="dark" aria-label="Dark theme" aria-pressed="false">Dark</button>
+            </div>
+          </div>
+        </div>
+      </header>
+      <div class="viz-content">
+        <section class="viz-section" id="flow" aria-labelledby="flow-title">
+          <div class="viz-section__head"><div class="viz-section__heading">
+            <span class="viz-kicker">Data flow</span>
+            <h2 class="viz-section__title" id="flow-title">What happens when the user clicks?</h2>
+            <p class="viz-summary">The view dispatches an action; the store passes it to the reducer and notifies subscribers.</p>
+          </div></div>
+          <div class="viz-panel">
+            <div class="viz-canvas">
+              <div class="viz-flow">
+                <div class="viz-node-card viz-node-card--interface"><strong>View</strong><small>renders state, sends intents</small></div>
+                <span class="viz-connector"><span>dispatches action</span><span class="viz-connector__line" aria-hidden="true"></span></span>
+                <div class="viz-node-card viz-node-card--system"><strong>Store</strong><small>holds state, notifies subscribers</small></div>
+                <span class="viz-connector"><span>calls</span><span class="viz-connector__line" aria-hidden="true"></span></span>
+                <div class="viz-node-card viz-node-card--domain"><strong>Reducer</strong><small>returns the next state</small></div>
+              </div>
+            </div>
+            <div class="viz-legend">Arrows show the order of one update; the view re-renders from the new state.</div>
+          </div>
+        </section>
+      </div>
+    </main>
+    <script src="visualization-shell.js"></script>
+  </body>
+</html>

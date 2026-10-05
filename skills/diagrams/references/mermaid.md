@@ -1,6 +1,6 @@
 # Mermaid
 
-Use Mermaid when the project chose it or the documentation host renders Mermaid fences natively. Selection: [selection.md](selection.md). Browser rendering inside a web artifact belongs to `visualization`.
+Use Mermaid when the project chose it or the documentation host renders Mermaid fences natively. Selection: [selection.md](selection.md). Browser rendering inside a web artifact belongs to `playground`.
 
 ## Contents
 

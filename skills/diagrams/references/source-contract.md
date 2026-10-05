@@ -71,10 +71,10 @@ Does the request change owners, boundaries, contracts, or behavior?
 What is the requested output?
 ├── a diagram (in chat, a file, a doc, a comment, a PR)   -> this skill
 ├── durable prose around it                              -> documentation
-└── a separate explorable or themed web page             -> visualization
+└── a separate explorable or themed web page             -> playground
 ```
 
-Handoff to a writer or to `visualization` includes the existing source blocks or files (not screenshots), the view question, status, authoritative vocabulary, entities and relationships, and open questions. The receiver keeps the language and topology; layout and theme are theirs. Contradictions with code or the model go back to the owner before they are presented as fact.
+Handoff to a writer or to `playground` includes the existing source blocks or files (not screenshots), the view question, status, authoritative vocabulary, entities and relationships, and open questions. The receiver keeps the language and topology; layout and theme are theirs. Contradictions with code or the model go back to the owner before they are presented as fact.
 
 ## Verification
 

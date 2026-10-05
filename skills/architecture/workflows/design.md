@@ -126,7 +126,7 @@ If each case needs a new exception in the core, the model is incomplete. If an e
 
 ## 7. Draw the views
 
-Select and draw the views with [architecture-views.md](../references/architecture-views.md): one static map, plus one dynamic or risk view when it exposes a fact the map cannot. Keep current, target, and transitional architecture in separate views. Put a one-sentence takeaway next to each diagram. Use the `visualization` skill only when a separate responsive HTML explorer is part of the request.
+Select and draw the views with [architecture-views.md](../references/architecture-views.md): one static map, plus one dynamic or risk view when it exposes a fact the map cannot. Keep current, target, and transitional architecture in separate views. Put a one-sentence takeaway next to each diagram. Use the `playground` skill only when a separate responsive HTML explorer is part of the request.
 
 ## 8. Plan delivery
 

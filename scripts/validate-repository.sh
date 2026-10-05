@@ -209,6 +209,9 @@ if grep -rqE 'team-creator|team-orchestrator|agent-runner|\.claude/teams|scripts
   err "stale-reference" "removed team runtime or pre-profile agent path is still referenced"
 fi
 
+node "$repo_root/skills/playground/scripts/check-shell-contract.mjs" || err "playground" "shared assets fail the playground contract"
+node "$repo_root/skills/playground/scripts/check-theme-contrast.mjs" >/dev/null || err "playground" "theme tokens fail the contrast check"
+
 # Every D2 example in skill text must compile with the installed d2.
 if command -v d2 >/dev/null 2>&1; then
   d2_dir=$(mktemp -d)

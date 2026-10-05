@@ -57,7 +57,7 @@ The table routes notation, not a renderer's feature list. A language that *can* 
 
 - **Detailed UML** across several views (class with multiplicities, sequence with fragments, composite states) — PlantUML, whichever language the project prefers elsewhere. Keep the project language for the other views.
 - **Extracted graphs** — Graphviz with a reproducible extractor and filter. The extractor's output is the source of edges; style and layout are separate.
-- **Large interactive graph exploration** — a dedicated viewer through `visualization`, built from the same extracted data.
+- **Large interactive graph exploration** — a dedicated viewer through `playground`, built from the same extracted data.
 - **Architecture zoom levels** — `architecture` chooses System / Structure / Internal / Runtime / Data & State / Deployment / Evolution views; this table only chooses how to draw each.
 
 ## Combining views

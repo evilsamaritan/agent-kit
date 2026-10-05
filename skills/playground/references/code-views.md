@@ -15,7 +15,7 @@
 Code and diff views are implementation evidence, not architecture levels or substitutes for relationship diagrams.
 
 - Architecture selects code evidence only when a public contract, dependency rule, type relationship, or migration mechanism materially supports the decision.
-- Visualization selects the code/diff presentation, focus, annotations, responsive behavior, and theme-safe syntax palette.
+- Playground selects the code/diff presentation, focus, annotations, responsive behavior, and theme-safe syntax palette.
 - Code review owns whether the implementation is correct; a polished excerpt does not validate behavior.
 
 Use a diagram to explain structure, time, state, ownership, or movement. Use a code view to show the exact implementation or contract. Use a diff view to show what changed.

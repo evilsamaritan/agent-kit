@@ -41,6 +41,6 @@ dot -Tsvg -Grankdir=TB docs/diagrams/module-dependencies.dot -o docs/diagrams/mo
 
 `-G`, `-N`, and `-E` set graph, node, and edge defaults; attributes written in the source override them. Compare node identities and labels after any variant.
 
-Do not deliver an unreadable whole-repository graph because the compiler can draw it. Start from the relevant subgraph; very large graphs need an interactive viewer through `visualization`.
+Do not deliver an unreadable whole-repository graph because the compiler can draw it. Start from the relevant subgraph; very large graphs need an interactive viewer through `playground`.
 
 [DOT language](https://graphviz.org/doc/info/lang.html) · [Layout engines](https://graphviz.org/docs/layouts/) · [Command line](https://graphviz.org/doc/info/command.html)

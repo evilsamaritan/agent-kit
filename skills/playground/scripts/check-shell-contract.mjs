@@ -14,6 +14,7 @@ const componentsDoc = path.join(skillDir, 'references', 'shell-components.md')
 
 const files = {
   shell: path.join(assetsDir, 'visualization-shell.html'),
+  page: path.join(assetsDir, 'visualization-page.html'),
   preview: path.join(assetsDir, '_preview.html'),
   css: path.join(assetsDir, 'visualization-shell.css'),
   runtime: path.join(assetsDir, 'visualization-shell.js'),
@@ -28,7 +29,8 @@ const source = Object.fromEntries(
 const failures = []
 const warnings = []
 
-const shellHooks = [
+// The explorer shell contract applies only to pages that use the explorer shell.
+const explorerHooks = [
   'data-viz-shell',
   'data-viz-navigation',
   'data-viz-menu',
@@ -38,6 +40,7 @@ const shellHooks = [
   'data-viz-nav',
   'data-viz-theme-value',
 ]
+const hasHook = (html, hook) => new RegExp(`<[a-zA-Z][^>]*\\s${hook}(?=[=\\s>/])`).test(html)
 const semanticClasses = new Set(['external', 'system', 'interface', 'domain', 'data', 'risk'])
 // A larger inline script is a vendored library, which legitimately contains wheel/touch listeners.
 const MAX_AUTHORED_SCRIPT_CHARS = 20_000
@@ -59,6 +62,7 @@ function vizClassesIn(html) {
 const cssClasses = new Set([
   ...[...source.css.matchAll(/\.(viz-[a-z0-9_-]+)/g)].map((match) => match[1]),
   ...vizClassesIn(source.shell),
+  ...vizClassesIn(source.page),
   ...vizClassesIn(source.preview),
 ])
 // Classes set by the runtime or used only inside generated markup; not part of the authoring vocabulary.
@@ -94,8 +98,14 @@ function checkDocument(name, rawHtml) {
   for (const [, target] of html.matchAll(/\bhref=["']#([^"']+)["']/g)) {
     if (!known.has(target)) failures.push(`${name}: navigation target #${target} does not exist`)
   }
-  for (const hook of shellHooks) {
-    if (!new RegExp(`<[a-zA-Z][^>]*\\s${hook}(?=[=\\s>/])`).test(html)) failures.push(`${name}: missing ${hook}`)
+  const explorer = hasHook(html, 'data-viz-shell')
+  if (explorer) {
+    for (const hook of explorerHooks) if (!hasHook(html, hook)) failures.push(`${name}: explorer shell is missing ${hook}`)
+  } else if (/visualization-shell\.css|\bclass=["'][^"']*\bviz-/.test(html) && !hasHook(html, 'data-viz-theme-value')) {
+    failures.push(`${name}: uses the shared visual system without the shared theme control (data-viz-theme-value)`)
+  }
+  if (!/visualization-shell\.css|prefers-color-scheme|data-viz-theme|color-scheme/.test(rawHtml)) {
+    failures.push(`${name}: no light/dark theme support found`)
   }
 
   const blocks = mermaidBlocksIn(html)
@@ -144,13 +154,15 @@ function checkArtifact(file) {
 
   const current = revisionOf(source.shell)
   const built = revisionOf(html)
-  if (!built) warnings.push(`${name}: no data-viz-shell-revision; cannot tell which shell copy it was built from`)
-  else if (built !== current) warnings.push(`${name}: built from shell revision ${built}; current is ${current} — re-copy the shell assets`)
+  if (!built) {
+    if (/visualization-shell\.(?:css|js)/.test(html)) warnings.push(`${name}: no data-viz-shell-revision; cannot tell which asset copy it was built from`)
+  } else if (built !== current) warnings.push(`${name}: built from shell revision ${built}; current is ${current} — re-copy the shell assets`)
 }
 
 // --- the skill's own assets ------------------------------------------------
 
 const mermaidInShell = checkDocument('shell', source.shell)
+checkDocument('page', source.page)
 const mermaidInPreview = checkDocument('preview', source.preview)
 if (mermaidInPreview === 0) failures.push('preview: no Mermaid examples found')
 const mermaidExamples = mermaidInShell + mermaidInPreview
@@ -257,5 +269,5 @@ if (failures.length > 0) {
 }
 
 console.log(
-  `Visualization shell contract OK: 2 canonical documents, ${mermaidExamples} Mermaid examples, ${artifacts.length} artifact(s); navigation, scrolling, code/diff, IDs, hooks, revisions, and component vocabulary checked.`,
+  `Playground contract OK: 3 canonical documents, ${mermaidExamples} Mermaid examples, ${artifacts.length} artifact(s); navigation, scrolling, code/diff, IDs, hooks, revisions, and component vocabulary checked.`,
 )

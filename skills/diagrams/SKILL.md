@@ -1,6 +1,6 @@
 ---
 name: diagrams
-description: "Author diagrams as code: pick the view and notation, write Mermaid, D2, PlantUML, or Graphviz source that keeps the model's meaning, and compile SVG locally. Use for 'draw this', sequence, state, ER, dependency, or architecture diagrams in Markdown. Not for interactive HTML (visualization) or design decisions (architecture)."
+description: "Author diagrams as code: pick the view and notation, write Mermaid, D2, PlantUML, or Graphviz source that keeps the model's meaning, and compile SVG locally. Use for 'draw this', sequence, state, ER, dependency, or architecture diagrams in Markdown. Not for interactive HTML (playground) or design decisions (architecture)."
 argument-hint: "[what to draw] [language]"
 ---
 
@@ -15,7 +15,7 @@ A diagram is a second way to state a model: its entities, relationships, order, 
 | Which owners, boundaries, contracts, and states exist; which architecture views matter | `architecture` or the relevant domain skill |
 | The document around the diagram: reader, structure, prose, links | `documentation` |
 | View, notation, source text, semantic fidelity, compiler commands, Markdown placement | **this skill** |
-| A separate web artifact: themes, responsive projections, navigation, interactivity, browser rendering | `visualization` |
+| A separate web artifact: themes, responsive projections, navigation, interactivity, browser rendering | `playground` |
 | Quantities, distributions, trends | a chart, not a graph language |
 
 Every skill can draw a small diagram for its own work using this skill's conventions. Drawing does not require a document, an architect, or a web artifact, and none of them requires a diagram.
@@ -107,7 +107,7 @@ Details, handoff, and review checklists: [source-contract.md](references/source-
 | Architecture brief or ADR | `architecture` picks the views; this skill writes them |
 | Answer in chat | a fenced source the user can paste; compile only if asked |
 | Generated dependency graph | Graphviz with a reproducible extractor; filter to the question |
-| Separate explorable web page | hand the same sources to `visualization` |
+| Separate explorable web page | hand the same sources to `playground` |
 | No compiler installed | keep the source, state that the render is unverified |
 
 ## Anti-Patterns
@@ -128,7 +128,7 @@ Details, handoff, and review checklists: [source-contract.md](references/source-
 
 - `architecture` — owns the model and which architecture views to draw; see its architecture-views reference.
 - `documentation` — document mode, structure, and prose around diagrams.
-- `visualization` — web artifacts that embed these sources: browser adapters, theming, responsive projections.
+- `playground` — web artifacts that embed these sources: browser adapters, theming, responsive projections.
 
 ## References
 

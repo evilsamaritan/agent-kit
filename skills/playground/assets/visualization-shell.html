@@ -7,18 +7,19 @@
     <title>Technical visualization</title>
     <script>
       try {
-        const theme = localStorage.getItem("visualization-theme");
+        const host = document.documentElement.getAttribute("data-theme");
+        const theme = host === "light" || host === "dark" ? host : localStorage.getItem("visualization-theme");
         if (theme === "light" || theme === "dark") document.documentElement.dataset.vizTheme = theme;
       } catch {}
     </script>
     <link rel="stylesheet" href="visualization-shell.css" />
   </head>
   <body>
-    <!-- CANONICAL VISUALIZATION SHELL
-         Reuse this structure with visualization-shell.css and
-         visualization-shell.js in every standalone artifact. Change page
-         metadata, copy, navigation entries, mode, and content; do not replace
-         theme, menu, bottom-sheet, focus, or deep-link hooks per artifact. -->
+    <!-- EXPLORER SHELL
+         The section-navigation composition for explorers and references. Other
+         forms start from visualization-page.html. Change page metadata, copy,
+         navigation entries, mode, and content; do not replace theme, menu,
+         bottom-sheet, focus, or deep-link hooks per artifact. -->
     <!-- Use switcher for 1–3 peer views; omit section navigation for one. Change only the value to sidebar for
          a justified 4–12 section reference/atlas; keep the same shell. -->
     <div class="viz-shell" data-viz-shell data-viz-shell-revision="4" data-viz-navigation="switcher">

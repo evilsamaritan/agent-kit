@@ -6,10 +6,10 @@ This reference owns the canonical shell contract and the vocabulary of content c
 
 ## Contents
 
-- [Shell contract](#shell-contract)
+- [Shared system and compositions](#shared-system-and-compositions)
 - [Navigation modes](#navigation-modes)
 - [Hooks](#hooks)
-- [Page skeleton](#page-skeleton)
+- [Explorer shell skeleton](#explorer-shell-skeleton)
 - [Structure components](#structure-components)
 - [Relationship components](#relationship-components)
 - [Wide and compact projections](#wide-and-compact-projections)
@@ -19,18 +19,44 @@ This reference owns the canonical shell contract and the vocabulary of content c
 - [Task-specific styles](#task-specific-styles)
 - [Revisions and copies](#revisions-and-copies)
 
-## Shell contract
+## Shared system and compositions
 
-Every standalone artifact starts from the three shell files, copied together: [visualization-shell.html](../assets/visualization-shell.html), [visualization-shell.css](../assets/visualization-shell.css), and [visualization-shell.js](../assets/visualization-shell.js). Optional scripts are added only when their content exists: `visualization-mermaid.js`, `visualization-code.js`, `visualization-diff.js`.
+Every playground uses the shared stylesheet and theme runtime: [visualization-shell.css](../assets/visualization-shell.css) and [visualization-shell.js](../assets/visualization-shell.js). They own the tokens, typography, components, and the `Auto` / `Light` / `Dark` theme control. Pick one starting composition:
 
-| The shell owns — do not replace, restyle, or duplicate | The artifact owns — change freely |
+| Composition | File | Use for |
+|---|---|---|
+| standalone page | [visualization-page.html](../assets/visualization-page.html) | explainer, simulation, presentation, comparison, small review: header with theme control, then content |
+| explorer shell | [visualization-shell.html](../assets/visualization-shell.html) | explorer and reference: section navigation, desktop sidebar or header switcher, mobile bottom sheet, deep links |
+
+Optional scripts are added only when their content exists: `visualization-mermaid.js`, `visualization-code.js`, `visualization-diff.js`.
+
+| Shared assets own — do not replace, restyle, or duplicate | The artifact owns — change freely |
 |---|---|
-| navigation container, selected-location tracking, deep links, back/forward | page metadata, brand and status copy, navigation labels and targets |
-| desktop sidebar or header, mobile bottom sheet, backdrop, scroll lock, focus containment | title, summary, sections, and everything inside `.viz-content` |
-| the `Auto` / `Light` / `Dark` control, its persistence, and all theme tokens | diagrams, charts, tables, prose, code, diffs |
-| breakpoints and responsive chrome | the wide and compact projection of each view |
+| theme tokens, the theme control, its persistence, and the host-theme bridge | page metadata, title, kicker, summary, sections, and everything inside the content region |
+| component styles and breakpoints | diagrams, charts, tables, prose, code, diffs, controls, task-specific layout |
+| in the explorer shell: navigation container, location tracking, deep links, back/forward, sidebar or header, mobile bottom sheet, backdrop, scroll lock, focus containment | in the explorer shell: navigation labels and targets |
 
-The theme control ships with the shell and stays. A new reusable shell capability is added to the shared assets, not to one artifact. Deviate only when the user explicitly asks to redesign the shell or to integrate the visualization into an existing product UI, and report the deviation.
+### Standalone page
+
+```html
+<main class="viz-main" data-viz-page data-viz-shell-revision="4">
+  <header class="viz-header">
+    <div class="viz-page-head">
+      <div> … viz-kicker, viz-title, viz-summary … </div>
+      <div class="viz-theme-control"> … viz-segmented with data-viz-theme-value buttons … </div>
+    </div>
+  </header>
+  <div class="viz-content"> … sections, panels, task-specific blocks … </div>
+</main>
+```
+
+`viz-page-head` places the title block and the theme control on one row that wraps on narrow screens. Task-specific layout (slides, control panels, annotation rails) uses a task prefix and the shared tokens.
+
+### Host theme
+
+The runtime follows `data-theme="light|dark"` on `<html>` when a host sets it, without overwriting the reader's stored choice; otherwise it uses the stored choice or the system preference. Do not write `data-theme` from the artifact.
+
+A new reusable capability is added to the shared assets, not to one artifact. Deviate only when the user explicitly asks to redesign the shared system or to integrate the playground into an existing product UI, and report the deviation.
 
 ## Navigation modes
 
@@ -43,13 +69,14 @@ Set one attribute on the shell root; everything else stays identical.
 | four to twelve sections of an explicitly requested reference | `sidebar` | persistent side navigation on wide screens, bottom sheet on narrow |
 | more than twelve reference sections | `sidebar` | group with `viz-nav__group` and `viz-nav__label`; never one flat list |
 
-Navigation never justifies more views. Reduce the view set first (SKILL.md, view-set quality gate).
+Navigation never justifies more views. Reduce the view set first ([explorer template](../templates/explorer.md), view-set quality gate).
 
 ## Hooks
 
 | Hook | On | Purpose |
 |---|---|---|
-| `data-viz-shell`, `data-viz-shell-revision`, `data-viz-navigation` | shell root | activates the runtime; records the shell revision; selects the mode |
+| `data-viz-shell`, `data-viz-shell-revision`, `data-viz-navigation` | explorer shell root | activates navigation; records the asset revision; selects the mode |
+| `data-viz-page`, `data-viz-shell-revision` | standalone page `main` | marks a page without the explorer shell; records the asset revision |
 | `data-viz-menu`, `data-viz-menu-toggle`, `data-viz-menu-panel`, `data-viz-menu-dismiss` | sidebar, menu button, panel, close button and backdrop | mobile bottom sheet |
 | `data-viz-nav` | `nav` | location tracking and deep links to `section[id]` |
 | `data-viz-theme-value="auto|light|dark"` | theme buttons | theme control; the root carries `data-viz-theme` |
@@ -61,7 +88,7 @@ Navigation never justifies more views. Reduce the view set first (SKILL.md, view
 
 Set by the runtime, read-only for authors: `data-viz-theme-current`, `data-viz-horizontal-scroll`, `data-viz-render-error`, `data-viz-code-status`. `data-viz-pan-zoom` is reserved: the shell ships no pan/zoom; a task that adds one must mark the region with it so gesture capture is explicit.
 
-## Page skeleton
+## Explorer shell skeleton
 
 ```html
 <div class="viz-shell" data-viz-shell data-viz-shell-revision="4" data-viz-navigation="switcher">
@@ -167,7 +194,7 @@ Put additional CSS after the shared stylesheet, scope it to the content region, 
 
 ## Revisions and copies
 
-Artifacts carry a copy of the shell, so copies drift. The shell root records the revision it was built from in `data-viz-shell-revision`; the assets carry the same number in a header comment. The revision increases whenever a class, hook, or token is removed or renamed. To bring an old artifact up to date, copy the three shell files again and re-run the check:
+Artifacts carry a copy of the shell, so copies drift. The shell root records the revision it was built from in `data-viz-shell-revision`; the assets carry the same number in a header comment. The revision increases whenever a class, hook, or token is removed or renamed. To bring an old artifact up to date, copy the shared assets (and the composition it started from) again and re-run the check:
 
 ```bash
 node scripts/check-shell-contract.mjs path/to/artifact.html

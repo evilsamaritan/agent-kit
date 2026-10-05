@@ -120,6 +120,19 @@ body {
   min-height: 100dvh;
 }
 
+/* Standalone page without the explorer shell: header row with the theme control. */
+.viz-page-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px 24px;
+}
+
+.viz-page-head .viz-theme-control {
+  flex: none;
+}
+
 .viz-main {
   min-width: 0;
 }

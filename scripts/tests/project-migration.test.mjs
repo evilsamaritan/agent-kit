@@ -43,6 +43,14 @@ test('unaffected entries and explicit project tool choices survive migration', (
   assert.deepEqual(result.agents[1].claude.tools, ['Read', 'Bash'])
 })
 
+test('renamed skills are replaced in explicit lists without reordering or touching other entries', () => {
+  const input = { schema_version: 1, agents: [{ name: 'writer', profile: 'writer', skills: ['documentation', 'visualization', 'diagrams'] }, { name: 'reviewer', profile: 'reviewer' }] }
+  const result = migrateProjectConfig(input)
+  assert.deepEqual(result.agents[0].skills, ['documentation', 'playground', 'diagrams'])
+  assert.deepEqual(result.agents[1], input.agents[1])
+  assert.deepEqual(input.agents[0].skills, ['documentation', 'visualization', 'diagrams'])
+})
+
 test('named target and ephemeral brief share the selected profession body', () => {
   const agent = composeAgent(developer, { name: 'frontend-developer', skills: ['architecture'] })
   assert(renderTarget('claude', agent).includes(developer.body.trimEnd()))

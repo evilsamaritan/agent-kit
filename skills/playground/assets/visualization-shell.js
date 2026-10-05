@@ -1,9 +1,6 @@
 // visualization-shell revision 4
 (() => {
   const root = document.documentElement;
-  const shell = document.querySelector("[data-viz-shell]");
-  if (!shell) return;
-
   const storageKey = "visualization-theme";
   const themeButtons = [...document.querySelectorAll("[data-viz-theme-value]")];
   const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)");
@@ -38,13 +35,14 @@
     }
   }
 
-  function setTheme(theme) {
+  function setTheme(theme, { persist = true } = {}) {
     const next = theme === "light" || theme === "dark" ? theme : "auto";
     root.dataset.vizTheme = next;
-    writeTheme(next);
+    if (persist) writeTheme(next);
     themeButtons.forEach((button) => {
       button.setAttribute("aria-pressed", String(button.dataset.vizThemeValue === next));
-      button.closest(".viz-segmented").dataset.vizThemeCurrent = next;
+      const group = button.closest(".viz-segmented");
+      if (group) group.dataset.vizThemeCurrent = next;
     });
     window.dispatchEvent(new CustomEvent("viz-themechange", { detail: { theme: next } }));
   }
@@ -60,7 +58,24 @@
   themeButtons.forEach((button) => {
     button.addEventListener("click", () => selectTheme(button.dataset.vizThemeValue));
   });
-  setTheme(readTheme());
+
+  // A host page contract may set data-theme="light|dark" on <html> (for example a
+  // hosted artifact viewer). Follow it without overwriting the reader's stored choice.
+  const hostTheme = () => {
+    const value = root.getAttribute("data-theme");
+    return value === "light" || value === "dark" ? value : null;
+  };
+  setTheme(hostTheme() ?? readTheme(), { persist: !hostTheme() });
+  if ("MutationObserver" in window) {
+    new MutationObserver(() => {
+      const value = hostTheme();
+      if (value && value !== root.dataset.vizTheme) setTheme(value, { persist: false });
+    }).observe(root, { attributes: true, attributeFilter: ["data-theme"] });
+  }
+
+  // Everything below is the optional explorer shell: navigation, menu, deep links.
+  const shell = document.querySelector("[data-viz-shell]");
+  if (!shell) return;
 
   const menu = shell.querySelector("[data-viz-menu]");
   const menuToggle = shell.querySelector("[data-viz-menu-toggle]");

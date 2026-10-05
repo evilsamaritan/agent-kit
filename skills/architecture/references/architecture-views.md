@@ -1,6 +1,6 @@
 # Architecture View Selection
 
-Use this reference to choose which views of an architecture to draw, to draw them directly in the design document, and to hand an agreed view set to the `visualization` skill when a separate web explorer is required. Architecture owns the model and its concise diagrams; a diagram is part of the design, not decoration and not a handoff stub.
+Use this reference to choose which views of an architecture to draw, to draw them directly in the design document, and to hand an agreed view set to the `playground` skill when a separate web explorer is required. Architecture owns the model and its concise diagrams; a diagram is part of the design, not decoration and not a handoff stub.
 
 ## Contents
 
@@ -12,7 +12,7 @@ Use this reference to choose which views of an architecture to draw, to draw the
 - [Current, target, and transition](#current-target-and-transition)
 - [Drawing views directly](#drawing-views-directly)
 - [View contract](#view-contract)
-- [Handoff to the visualization skill](#handoff-to-the-visualization-skill)
+- [Handoff to the playground skill](#handoff-to-the-playground-skill)
 - [Further reading](#further-reading)
 
 ## Choose a view by question
@@ -93,7 +93,7 @@ Draw the selected views in the design document as diagram-as-code, text, or a ho
 - Arrange the diagram so arrows follow one dominant direction; a view whose arrows must cross repeatedly is usually two views.
 - Do not force non-topological content into a graph language. Containment-only ownership, timelines, comparison matrices, and quantitative charts need a table, a text tree, or their own renderer.
 - Put a one-sentence takeaway next to each diagram. Do not replace the diagram with prose.
-- When a view will be handed to `visualization`, that skill documents optional semantic categories for presentation. Categories are presentation metadata, not architecture; relationship labels and directions stay authoritative.
+- When a view will be handed to `playground`, that skill documents optional semantic categories for presentation. Categories are presentation metadata, not architecture; relationship labels and directions stay authoritative.
 
 ## View contract
 
@@ -109,16 +109,16 @@ Every architecture view states:
 - a one-sentence takeaway;
 - its priority: primary, supporting, or appendix.
 
-## Handoff to the visualization skill
+## Handoff to the playground skill
 
-The `visualization` skill is optional. Combine it only when the agreed model must become a polished responsive HTML explorer with themes, navigation, progressive disclosure, and browser-level render checks. It renders; it must not reinterpret boundaries or invent relationships. Architecture still edits the view set first: merge views with duplicate questions or takeaways, and move evidence inventories out of the primary navigation.
+The `playground` skill is optional. Combine it only when the agreed model must become a polished responsive HTML explorer with themes, navigation, progressive disclosure, and browser-level render checks. It renders; it must not reinterpret boundaries or invent relationships. Architecture still edits the view set first: merge views with duplicate questions or takeaways, and move evidence inventories out of the primary navigation.
 
 ```text
 Need to explain an architecture relationship?
 ├── one or a few maintainable diagrams inside the design document
 │   └── architecture selects and draws them directly
 └── a separate responsive web explorer
-    └── architecture fixes the view contract; visualization renders and verifies it
+    └── architecture fixes the view contract; playground renders and verifies it
 ```
 
 The handoff is a semantic contract, not pixel coordinates; the HTML layer may recompose a view for narrow widths as long as the facts stay the same. Give each selected view in this form:
@@ -145,7 +145,7 @@ The handoff is a semantic contract, not pixel coordinates; the HTML layer may re
 - Textual equivalent: concise statement of the essential entities and relationships
 ```
 
-Omit empty optional columns, but keep stable IDs, direction, status, and evidence explicit. Presentation choices — shell, themes, renderer, semantic color classes — belong to the `visualization` skill.
+Omit empty optional columns, but keep stable IDs, direction, status, and evidence explicit. Presentation choices — shell, themes, renderer, semantic color classes — belong to the `playground` skill.
 
 ## Further reading
 

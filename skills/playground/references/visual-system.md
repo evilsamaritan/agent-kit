@@ -44,7 +44,7 @@ Before rendering, define this compact contract internally:
 | categories | only distinctions that need stable visual identity |
 | relationships | arrow direction and line-style meaning |
 | disclosure | what is visible first and what moves to detail |
-| themes | automatic light/dark; the shell's `Auto` / `Light` / `Dark` control stays |
+| themes | automatic light/dark; the shared `Auto` / `Light` / `Dark` control stays |
 | medium | native interactive artifact or HTML with semantic HTML, Mermaid, SVG, or canvas views |
 
 This brief is a generation constraint, not mandatory prose in the delivered artifact.
@@ -56,7 +56,7 @@ Support both light and dark themes for every HTML or host-native artifact that c
 1. Default to the operating-system preference.
 2. Declare support for both schemes so browser-provided controls and scrollbars match.
 3. Use semantic tokens; never invert the rendered page or diagram.
-4. The shell ships one `Auto` / `Light` / `Dark` control in the navigation's utility area. It defaults to `Auto` and persists only an explicit override. Do not remove it, duplicate it, or move it beside the document title.
+4. Every page has one shared `Auto` / `Light` / `Dark` control: in the explorer shell's utility area, or at the end of the standalone page header row. It defaults to `Auto`, persists only an explicit override, and yields to a host theme signal. Do not remove or duplicate it.
 5. Update embedded diagrams and charts with the same token mapping when the theme changes.
 6. Test both themes independently; passing contrast in one theme proves nothing about the other.
 7. Keep node category and status meanings identical across themes.
@@ -159,7 +159,7 @@ Tabs or segmented controls switch alternate representations of the same scope. S
 Deviate from this system when:
 
 - the user explicitly asks to integrate the artifact into an established accessible product shell;
-- the user explicitly asks to redesign or extend the canonical visualization shell;
+- the user explicitly asks to redesign or extend the shared playground assets;
 - the user supplies explicit brand or delivery requirements;
 - the native renderer cannot express a token or interaction safely;
 - a recognized notation requires different shapes or layout;

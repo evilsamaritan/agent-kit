@@ -28,7 +28,7 @@ HTML is not justified by rounded boxes, animation, or the ability to drag nodes.
 
 ## Multi-view explorer pattern
 
-For a substantial technical design, use a document-like explorer rather than a slide deck, built on the canonical shell ([shell-components.md](shell-components.md)). The shell provides:
+For a substantial technical design, use a document-like explorer rather than a slide deck, built on the explorer shell ([shell-components.md](shell-components.md)). The shell provides:
 
 ```text
 persistent section navigation
@@ -103,13 +103,40 @@ relationships
 
 Render several projections from these stable identities. Avoid copying names and facts into navigation markup, diagram coordinates, details panels, and event handlers independently.
 
-Keep rendering and publishing separate. A local HTML artifact is a complete default result when the user asked for visualization, not deployment. External publication requires explicit authorization.
+Keep rendering and publishing separate. A local HTML artifact, or the host's own artifact when its instructions call for one, is a complete result; public publication requires explicit authorization.
+
+### State for tools
+
+Configurators, simulations, and review tools keep one state object; every control writes to it and every view renders from it:
+
+```js
+const DEFAULTS = Object.freeze({ speed: 1, entities: 120, seed: 7 })
+const state = { ...DEFAULTS }
+
+function render() {
+  drawPreview(state)    // every view derives from state
+  updateReadout(state)  // numbers, labels, exported text
+}
+
+for (const input of controls) input.addEventListener("input", () => {
+  state[input.name] = input.valueAsNumber
+  render()
+})
+resetButton.addEventListener("click", () => { Object.assign(state, DEFAULTS); syncControls(); render() })
+```
+
+- Defaults produce a meaningful first view; named presets snap several controls to a coherent combination.
+- Changes re-render immediately; no "Apply" button for local computation.
+- Reset is explicit and restores the defaults.
+- Export only what the reader needs next: a copyable configuration, a short natural-language summary of the non-default choices, or collected review feedback. A copy button confirms success.
+- Deterministic simulations take a seed so a reader can reproduce a run; animation respects reduced motion and can be paused and stepped.
+- Group controls by concern; advanced options go in a collapsed group.
 
 Prefer native HTML controls and CSS layout. Delivery paths and optional dependencies are in [runtime-output.md](runtime-output.md). Add a diagram or chart library only when it materially improves layout, interaction, or accessibility and is compatible with the target environment.
 
 ## Responsive behavior
 
-The shell owns responsive chrome: the collapsing navigation, the mobile bottom sheet with its backdrop, scroll lock, focus containment, and dismissal. Content follows [responsive-layout.md](responsive-layout.md): recompose or switch to a compact projection before scrolling, keep labels at reading size, stack supporting panels without changing semantic order, and retain the selected section and view through layout changes. A mobile reader may need a simplified overview plus selected detail rather than the same dense graph in a narrow column.
+In the explorer shell, the shared assets own responsive chrome: the collapsing navigation, the mobile bottom sheet with its backdrop, scroll lock, focus containment, and dismissal. Content follows [responsive-layout.md](responsive-layout.md): recompose or switch to a compact projection before scrolling, keep labels at reading size, stack supporting panels without changing semantic order, and retain the selected section and view through layout changes. A mobile reader may need a simplified overview plus selected detail rather than the same dense graph in a narrow column.
 
 ## Accessibility and durability
 

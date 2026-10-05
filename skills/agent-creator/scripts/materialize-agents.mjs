@@ -19,6 +19,7 @@ import {
   runtimeRegistry,
 } from '../../../scripts/profile-lib.mjs'
 import { compareTargets } from '../../../scripts/profile-runtimes/shared.mjs'
+import { RENAMED_SKILLS } from '../../../scripts/project-migrations.mjs'
 
 const toolkitRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..', '..', '..')
 const CONFIG_FIELDS = new Set(['schema_version', 'agents'])
@@ -136,7 +137,10 @@ function resolveSources(projectRoot, directories, skills, label) {
       }
     }
     if (existsSync(libraryPath)) return { name, absolute: libraryPath, project: false, shadows: false }
-    throw new Error(`${label}: skill "${name}" is not installed in the project or in Agent Kit at ${toolkitRoot}`)
+    const renamed = RENAMED_SKILLS[name]
+      ? `; it was renamed to "${RENAMED_SKILLS[name]}" — run skills/agent-creator/scripts/migrate-project.mjs (preview by default, --write to apply)`
+      : ''
+    throw new Error(`${label}: skill "${name}" is not installed in the project or in Agent Kit at ${toolkitRoot}${renamed}`)
   })
 }
 
