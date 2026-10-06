@@ -51,3 +51,5 @@ Report:
 - selected profiles and exact skills;
 - validation commands and outcomes;
 - preserved user-owned agents.
+
+Generated targets are portable and safe to commit. Whether to commit or ignore them is the user's decision; do not add ignore entries for them or for `.agent-kit/`.

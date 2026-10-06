@@ -122,7 +122,9 @@ node <agent-kit>/skills/agent-creator/scripts/materialize-agents.mjs --project-r
 node <agent-kit>/skills/agent-creator/scripts/materialize-agents.mjs --project-root .
 ```
 
-The diff separates changed profile behavior, settings, and skills from path-only refreshes. Each target records the kit version and an input fingerprint, so `--check` (or `--check --agent NAME`) reports a stale agent with its cause.
+The diff names changed profile behavior, settings, skills, and skill sources. `--check` (or `--check --agent NAME`) passes only when regeneration would write nothing and reports a stale agent with its cause.
+
+Generated targets are portable: they name library skills by host identifier (`agent-kit:<skill>`, or the bare name in Kimi) and project skills by name or project-relative path, never by an absolute path, home directory, user name, or kit version. The same recipe renders the same bytes on every machine, so the files are correct to commit, and a kit upgrade changes them only when an agent's content changes. Whether to commit them or ignore them is your project's choice; Agent Kit adds no ignore entries. Each collaborator needs Agent Kit installed in the host they use.
 
 ## Run a task team
 
@@ -144,7 +146,7 @@ Individual skills can also be installed with:
 npx skills add agent-kit/<skill-name>
 ```
 
-Claude targets include authoritative local skill source paths. Native `skills` preloading is host-dependent; bare plugin names in a project agent have not been behaviorally verified here. Read the selected source when it was not preloaded. Refresh generated targets after an installation moves or updates. Creating the first native agent directory may require restarting the host session.
+Claude targets preload library skills by qualified id (`agent-kit:<skill>`), which Claude Code resolves exactly and skips with a debug-log warning when the plugin is missing. Creating the first native agent directory may require restarting the host session.
 
 ## Maintain the profile library
 

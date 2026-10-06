@@ -3,6 +3,9 @@
 // this file only holds the helpers they have in common.
 
 export const CORE_EFFORT = ['low', 'medium', 'high', 'xhigh', 'max']
+// Plugin name in every manifest; hosts that namespace plugin skills expose a
+// library skill as `agent-kit:<skill>` regardless of where it is installed.
+export const PLUGIN_NAME = 'agent-kit'
 export const ACCESS = ['read-only', 'edits', 'full']
 
 export const oneLine = (value) => typeof value === 'string' && value.trim() === value && value.length > 0 && !/[\r\n]/.test(value)
@@ -31,11 +34,21 @@ export function layered(profile, project, portableValue, portableOverride, key) 
 }
 
 const SOURCES_HEADING = '## Selected knowledge sources'
-const SOURCES_INTRO = 'Use these source paths as the authoritative selected knowledge. If a body was not already loaded from its listed source, read it when relevant before acting; load linked references only as needed. Do not assume an unqualified skill name resolves to this installation.'
 
-export function knowledgeInstructions(sources) {
+// Portable source locators. A library skill uses the host identifier each user's
+// own installation resolves; a project skill uses its host catalog name when the
+// host discovers that directory, else its project-relative path. No locator
+// names a machine, user, or kit version.
+export function skillLocator(runtime, { name, project, directory, relative }) {
+  if (!project) return runtime.librarySkill(name)
+  return runtime.discoveredSkillDirectories.includes(directory) ? name : relative
+}
+
+export const isSkillPath = (locator) => locator.includes('/')
+
+export function knowledgeInstructions(sources, intro) {
   if (!sources.length) return ''
-  return `\n\n${SOURCES_HEADING}\n\n${SOURCES_INTRO}\n\n${sources.map(({ name, path }) => `- ${name}: ${JSON.stringify(path)}`).join('\n')}`
+  return `\n\n${SOURCES_HEADING}\n\n${intro}\n\n${sources.map(({ name, path }) => `- ${name}: ${JSON.stringify(path)}`).join('\n')}`
 }
 
 // Split a rendered body into profession behavior and the selected-source list.
@@ -79,12 +92,41 @@ export function stripGeneratedComments(text) {
   return text.split('\n').filter((line) => !MARKER.test(line) && !METADATA.test(line)).join('\n').replace(/^\n+/, '')
 }
 
+// A committed target must read the same on every machine. Source locators are
+// host identifiers or project-relative paths; nothing may name a home, user,
+// temporary directory, or plugin installation.
+const MACHINE_LOCAL = [
+  [/(?:^|[\s"'`(=:])\/(?:Users|home|root|private|var\/folders|tmp)\//m, 'an absolute home or temporary path'],
+  [/\b[A-Za-z]:[\\/]+(?:Users|Documents and Settings)[\\/]/i, 'a Windows user path'],
+  [/(?:^|[\s"'`(=:])~[\\/]/m, 'a home-relative path'],
+  [/\$\{?HOME\}?|%USERPROFILE%/, 'a home-directory variable'],
+  [/plugins[\\/]+(?:cache|managed)[\\/]/, 'a plugin installation path'],
+]
+const RELATIVE_LOCATOR = /^(?![\\/]|~|[A-Za-z]:)(?!.*(?:^|[\\/])\.\.(?:[\\/]|$))/
+
+// Returns human-readable reasons a target is machine-local; empty when portable.
+// `machine` lists literal paths of the running installation that must not appear.
+export function portabilityIssues(content, parsed, machine = []) {
+  const issues = MACHINE_LOCAL.filter(([pattern]) => pattern.test(content)).map(([, reason]) => `contains ${reason}`)
+  for (const [skill, locator] of parsed?.locators ?? Object.entries(parsed?.sources ?? {})) {
+    if (!RELATIVE_LOCATOR.test(locator)) issues.push(`source for ${skill} is not a host identifier or project-relative path: ${locator}`)
+  }
+  for (const value of machine) {
+    // A whole path, not a fragment: a short home such as /w must not match read/write.
+    const path = new RegExp(`(?:^|[\\s"'\`(=:])${value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}(?=[\\/"'\`\\s)]|$)`, 'm')
+    if (value && value.length > 1 && path.test(content)) issues.push(`contains the local path ${value}`)
+  }
+  return [...new Set(issues)]
+}
+
 const sameValue = (a, b) => JSON.stringify(a ?? null) === JSON.stringify(b ?? null)
 const show = (value) => (value === undefined || value === null ? '(inherit/default)' : Array.isArray(value) ? value.join(', ') || '(none)' : String(value))
 
 // Compare two parsed targets of one runtime. `kind` is the most significant
-// difference: semantic (behavior, settings, skills), paths (machine-local
-// source locations only), provenance (kit version only), or none.
+// difference: semantic (behavior, settings, skills), sources (where a selected
+// skill is loaded from), provenance (metadata only), or none. Every kind except
+// none is drift: generated targets are portable, so a difference is never
+// explained by the machine that produced it.
 export function compareTargets(previous, next) {
   const changes = []
   if (previous.description !== next.description) changes.push('description changed')
@@ -109,12 +151,19 @@ export function compareTargets(previous, next) {
     changes.push(`profile behavior changed (${after.filter((line) => !before.has(line)).length} new or edited line(s))`)
   }
   const semantic = changes.length > 0
-  const moved = next.skills.filter((skill) => previous.sources[skill] && next.sources[skill] && previous.sources[skill] !== next.sources[skill])
-  if (moved.length) changes.push(`local source path changed for ${moved.join(', ')} (installation upgraded or moved)`)
-  const before = previous.provenance?.kit ?? 'unknown baseline'
-  const after = next.provenance?.kit
-  const versionChanged = Boolean(after) && before !== after
-  if (versionChanged) changes.push(`agent-kit: ${before} → ${after}`)
-  const kind = semantic ? 'semantic' : moved.length ? 'paths' : versionChanged ? 'provenance' : 'none'
+  const moved = next.skills.filter((skill) => previous.skills.includes(skill) && (previous.sources[skill] ?? null) !== (next.sources[skill] ?? null))
+  for (const skill of moved) changes.push(`source for ${skill}: ${previous.sources[skill] ?? '(none)'} → ${next.sources[skill] ?? '(none)'}`)
+  let metadata = false
+  if (!previous.provenance) {
+    if (next.provenance) changes.push('metadata: unknown baseline (no agent-kit-metadata)')
+    metadata = Boolean(next.provenance)
+  } else if (previous.provenance.kit !== undefined) {
+    changes.push(`metadata: kit version ${previous.provenance.kit} no longer recorded`)
+    metadata = true
+  } else if (!sameValue(previous.provenance, next.provenance)) {
+    changes.push('metadata: composition fingerprint changed')
+    metadata = true
+  }
+  const kind = semantic ? 'semantic' : moved.length ? 'sources' : metadata ? 'provenance' : 'none'
   return { changes, kind }
 }

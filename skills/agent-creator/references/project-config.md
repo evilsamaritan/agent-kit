@@ -7,6 +7,8 @@
 - [Field reference](#field-reference)
 - [Composition rules](#composition-rules)
 - [Generated targets](#generated-targets)
+- [Commit or ignore](#commit-or-ignore)
+- [Sync and freshness](#sync-and-freshness)
 - [Examples](#examples)
 
 ## Purpose
@@ -60,26 +62,42 @@
 
 | Runtime | Target | Key mapping |
 |---------|--------|-------------|
-| Claude Code | `.claude/agents/<name>.md` | body → prompt, skills → `skills`, effort/model/tools → frontmatter |
-| Codex | `.codex/agents/<name>.toml` | body → `developer_instructions`, effort → `model_reasoning_effort`, access → `sandbox_mode`, skills → `skills.config` |
-| Kimi Code | `.kimi-code/agents/<name>.md` | body → full system prompt plus `${agents_md}`, `${skills}`, source paths, and a handoff; access → explicit `tools`; effort and model are not applied |
+| Claude Code | `.claude/agents/<name>.md` | body → prompt, skills → `skills` (skill ids) and the selected-sources list, effort/model/tools → frontmatter |
+| Codex | `.codex/agents/<name>.toml` | body and selected skills → `developer_instructions`, effort → `model_reasoning_effort`, access → `sandbox_mode` (no `skills.config`) |
+| Kimi Code | `.kimi-code/agents/<name>.md` | body → full system prompt plus `${agents_md}`, `${skills}`, selected skill names, and a handoff; access → explicit `tools`; effort and model are not applied |
 
-Generated files carry an Agent Kit marker and `agent-kit-metadata` (kit version and an input fingerprint). The materializer may overwrite or prune only marked files.
+Every selected skill is written in a form the host resolves inside each user's own installation:
 
-Library skill paths are absolute, so native targets are local materializations. Commit them only if every collaborator refreshes after installing; otherwise keep `.agent-kit/agents.json` as the shared source and regenerate per machine.
+| Skill | Claude Code | Codex | Kimi Code |
+|-------|-------------|-------|-----------|
+| Agent Kit library | `agent-kit:<skill>` | `agent-kit:<skill>` | `<skill>` |
+| Project skill the host discovers | `<skill>` in `.claude/skills/` | `<skill>` in `.agents/skills/` | `<skill>` in `.kimi-code/skills/` or `.agents/skills/` |
+| Other project skill | project-relative path | project-relative path | — |
+
+No target contains an absolute path, home directory, user name, or kit version. The same recipe and kit version render byte-identical files on every machine. Each collaborator needs Agent Kit installed and enabled in the host they use; a host without it skips the library skills (Claude logs a debug warning, Codex and Kimi omit them from the skill list).
+
+Generated files carry an Agent Kit marker and `agent-kit-metadata` with a fingerprint of the resolved composition. It changes only when the agent does, so a kit upgrade leaves an unchanged agent's file untouched. The materializer may overwrite or prune only marked files.
+
+## Commit or ignore
+
+Whether generated targets live in git is the project user's decision. Agent Kit does not add them, or `.agent-kit/`, to `.gitignore`, `.git/info/exclude`, or any other ignore list, and agents must not do so on the user's behalf.
+
+- **Commit** (the default outcome): teammates and CI get the same agents without running the materializer. Pin one Agent Kit version for the project; CI can run `materialize-agents.mjs --check` with that version.
+- **Keep local**: the project user adds the generated directories to their own ignore file, and each collaborator materializes from the committed `.agent-kit/agents.json`.
+
+Optional for Claude Code teams: committing `enabledPlugins` and `extraKnownMarketplaces` in `.claude/settings.json` prompts collaborators to install the plugin. That is also the project's choice; Agent Kit does not write it.
 
 ## Sync and freshness
 
 | Command | Use |
 |---------|-----|
-| `--dry-run` | Preview the semantic diff: profile behavior, settings, skills, local source paths, kit version |
+| `--dry-run` | Preview the semantic diff: profile behavior, settings, skills, skill sources, metadata |
 | (no flag) | Write changed targets and print the same diff |
-| `--check` | Fail on missing, changed, or orphaned targets |
-| `--check --portable` | Same, but accept path-only refreshes (another machine or install root) |
+| `--check` | Fail on missing, changed, orphaned, or non-portable targets; passes exactly when regeneration would write nothing |
 | `--check --agent NAME` | Freshness of one selected agent before delegating to it |
 | `--prune` | Delete generated targets no longer configured |
 
-A target generated before 4.0 has no metadata; its baseline is reported as unknown and compared by its parsed settings and body.
+`--portable` is deprecated and has no effect. A target generated before 4.0 has no metadata; its baseline is reported as unknown and compared by its parsed settings and body. A 4.0.0-rc.1 target reports each absolute source as not portable, its new locator, and that the kit version is no longer recorded; regenerate it once.
 
 ## Examples
 

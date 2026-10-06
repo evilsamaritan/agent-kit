@@ -19,10 +19,12 @@ export const KIMI_TOOLS_BY_ACCESS = {
   edits: ['Read', 'Grep', 'Glob', 'ReadMediaFile', 'WebSearch', 'FetchURL', 'Skill', 'Edit', 'Write'],
   full: ['Read', 'Grep', 'Glob', 'ReadMediaFile', 'WebSearch', 'FetchURL', 'Skill', 'Edit', 'Write', 'Bash', 'TaskList', 'TaskOutput', 'TaskStop', 'WaitFor'],
 }
-// Template variables Kimi substitutes in an agent body; unknown ${...} stays verbatim.
-export const KIMI_TEMPLATE_VARIABLES = ['base_prompt', 'skills', 'agents_md', 'cwd', 'cwd_listing', 'os', 'shell', 'now', 'plugin_sections', 'additional_dirs_info']
+// Template variables Kimi substitutes in an agent body (0.29.0 and later docs);
+// unknown ${...} stays verbatim.
+export const KIMI_TEMPLATE_VARIABLES = ['base_prompt', 'skills', 'skills_section', 'agents_md', 'cwd', 'cwd_listing', 'os', 'windows_notes', 'shell', 'now', 'role_additional', 'plugin_sections', 'additional_dirs_info', 'additional_dirs_section']
 const TEMPLATE = new RegExp(`\\$\\{(${KIMI_TEMPLATE_VARIABLES.join('|')})\\}`, 'g')
 
+const SOURCES_INTRO = 'Load these selected knowledge skills when relevant before acting with the Skill tool, by the exact quoted name; load linked references only as needed. The skill index below lists where each one is installed.'
 const identity = (agent) => `You are the project custom agent "${agent.name}", materialized from the Agent Kit profession profile "${agent.profile}".\n\n`
 // A custom sub-agent body owns its whole system prompt. Bring back the project
 // instructions and skill index on purpose, and define the handoff.
@@ -34,6 +36,8 @@ export const kimi = {
   directory: '.kimi-code/agents',
   extension: '.md',
   skillDirectories: ['.kimi-code/skills', '.agents/skills'],
+  // Kimi lists every project root by bare skill name, project skills before plugins.
+  discoveredSkillDirectories: ['.kimi-code/skills', '.agents/skills'],
   // Kimi custom agents have no model or effort fields; the parent's Agent call
   // chooses a model only when a subagent model pool is configured.
   schema: {
@@ -62,6 +66,11 @@ export const kimi = {
     return join(root, this.directory, `${name}${this.extension}`)
   },
 
+  // Kimi does not namespace plugin skills; its Skill tool looks up the bare name.
+  librarySkill(name) {
+    return name
+  },
+
   render(agent, sources, source, provenance) {
     for (const [label, text] of [['profile body', agent.body], ['description', agent.description]]) {
       const used = [...new Set([...text.matchAll(TEMPLATE)].map((match) => match[0]))]
@@ -74,7 +83,7 @@ export const kimi = {
     if (settings.disallowedTools?.length) lines.push(`disallowedTools: ${yamlList(settings.disallowedTools)}`)
     if (settings.subagents) lines.push(`subagents: ${yamlList(settings.subagents)}`)
     lines.push('---', '', generatedComments(source, provenance, true), '')
-    return `${lines.join('\n')}${identity(agent)}${agent.body.trimEnd()}${knowledgeInstructions(sources)}${CONTEXT}\n`
+    return `${lines.join('\n')}${identity(agent)}${agent.body.trimEnd()}${knowledgeInstructions(sources, SOURCES_INTRO)}${CONTEXT}\n`
   },
 
   parse(content) {

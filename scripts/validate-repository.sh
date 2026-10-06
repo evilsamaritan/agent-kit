@@ -114,7 +114,12 @@ grep -q '^tools: \[.*"Bash"' "$kimi_target" || err "materializer" "Kimi full acc
 node "$repo_root/scripts/validate-codex-agent.mjs" "$project_test_dir"/.codex/agents/*.toml
 
 grep -q 'sandbox_mode = "read-only"' "$project_test_dir/.codex/agents/reviewer.toml" || err "materializer" "read-only access did not reach Codex sandbox"
-grep -q '\[\[skills.config\]\]' "$project_test_dir/.codex/agents/backend-developer.toml" || err "materializer" "Codex skill configuration missing"
+grep -q 'agent-kit:backend' "$project_test_dir/.codex/agents/backend-developer.toml" || err "materializer" "Codex target does not name its library skills"
+grep -q '^skills: \["agent-kit:backend"' "$project_test_dir/.claude/agents/backend-developer.md" || err "materializer" "Claude target does not preload library skills by qualified id"
+# Generated targets are committed by choice, so they must name nothing local.
+if grep -rqF -e "$repo_root" -e "$HOME" -e 'plugins/cache' "$project_test_dir/.claude/agents" "$project_test_dir/.codex/agents" "$kimi_target"; then
+  err "portability" "a generated target contains a local path"
+fi
 
 mkdir -p "$collision_test_dir/.agent-kit" "$collision_test_dir/.claude/agents"
 jq -n '{schema_version: 1, agents: [{name: "backend", profile: "developer", runtimes: ["claude"]}]}' > "$collision_test_dir/.agent-kit/agents.json"
@@ -132,23 +137,26 @@ node "$repo_root/skills/agent-creator/scripts/materialize-agents.mjs" --project-
 [[ -f "$project_test_dir/.claude/agents/manual.md" ]] || err "materializer" "prune removed manual agent"
 node "$repo_root/skills/agent-creator/scripts/materialize-agents.mjs" --project-root "$project_test_dir" --check
 
-# Freshness: a moved installation is a local refresh, not a semantic change;
-# a changed setting is stale everywhere. --dry-run never writes.
+# Freshness: targets are portable, so any difference is drift — a machine-local
+# source path fails as not portable, a changed setting as stale. --dry-run never
+# writes. Two-machine, fresh-clone, and upgrade cases live in scripts/tests.
 materialize=("node" "$repo_root/skills/agent-creator/scripts/materialize-agents.mjs" "--project-root" "$project_test_dir")
 reviewer_target="$project_test_dir/.codex/agents/reviewer.toml"
-sed "s#$repo_root/skills#/moved/agent-kit/skills#g" "$reviewer_target" > "$reviewer_target.next" && mv "$reviewer_target.next" "$reviewer_target"
-if "${materialize[@]}" --check >/dev/null 2>&1; then err "freshness" "moved source paths passed the local check"; fi
+sed 's#\\"agent-kit:architecture\\"#\\"/moved/agent-kit/skills/architecture/SKILL.md\\"#' "$reviewer_target" > "$reviewer_target.next" && mv "$reviewer_target.next" "$reviewer_target"
+grep -q '/moved/agent-kit' "$reviewer_target" || err "freshness" "test setup did not inject a machine-local path"
+if "${materialize[@]}" --check >/dev/null 2>&1; then err "freshness" "a machine-local source path passed the check"; fi
 freshness_report=$("${materialize[@]}" --check --agent reviewer 2>/dev/null || true)
-grep -q 'local source path changed' <<<"$freshness_report" || err "freshness" "path refresh was not reported"
-"${materialize[@]}" --check --portable >/dev/null || err "freshness" "portable check rejected a path-only refresh"
+grep -q 'not portable' <<<"$freshness_report" || err "freshness" "a machine-local source path was not reported as not portable"
+"${materialize[@]}" >/dev/null
 sed 's/model_reasoning_effort = "high"/model_reasoning_effort = "low"/' "$reviewer_target" > "$reviewer_target.next" && mv "$reviewer_target.next" "$reviewer_target"
 "${materialize[@]}" --dry-run | grep -q 'effort: low → high' || err "freshness" "setting drift was not reported"
 grep -q 'model_reasoning_effort = "low"' "$reviewer_target" || err "freshness" "--dry-run wrote a target"
-if "${materialize[@]}" --check --portable >/dev/null 2>&1; then err "freshness" "portable check accepted a setting change"; fi
+if "${materialize[@]}" --check --portable >/dev/null 2>&1; then err "freshness" "deprecated --portable accepted a setting change"; fi
 "${materialize[@]}" >/dev/null
 "${materialize[@]}" --check >/dev/null || err "freshness" "refresh did not restore an up-to-date target"
-grep -q '^# agent-kit-metadata: {"kit":' "$reviewer_target" || err "freshness" "provenance marker missing"
-printf 'Project materialization OK: Claude, Codex, collision, drift, prune, and freshness cases.\n'
+grep -q '^# agent-kit-metadata: {"inputs":' "$reviewer_target" || err "freshness" "composition fingerprint missing"
+if grep -q '"kit":' "$reviewer_target"; then err "freshness" "target records the kit version"; fi
+printf 'Project materialization OK: Claude, Codex, Kimi, collision, drift, prune, portability, and freshness cases.\n'
 
 for file in "$repo_root"/skills/*/SKILL.md; do
   skill=$(basename "$(dirname "$file")")

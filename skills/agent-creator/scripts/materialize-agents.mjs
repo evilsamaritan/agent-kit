@@ -2,7 +2,8 @@
 // Materialize project agents from Agent Kit profiles and .agent-kit/agents.json.
 
 import { existsSync, mkdirSync, readFileSync, readdirSync, statSync, unlinkSync, writeFileSync } from 'node:fs'
-import { dirname, join, relative, resolve } from 'node:path'
+import { homedir } from 'node:os'
+import { dirname, join, relative, resolve, sep } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import {
   ACCESS,
@@ -10,7 +11,7 @@ import {
   DEFAULT_RUNTIMES,
   RUNTIMES,
   composeAgent,
-  inputFingerprint,
+  compositionFingerprint,
   isGeneratedAgent,
   kitVersion,
   loadProfiles,
@@ -18,10 +19,13 @@ import {
   renderTarget,
   runtimeRegistry,
 } from '../../../scripts/profile-lib.mjs'
-import { compareTargets } from '../../../scripts/profile-runtimes/shared.mjs'
+import { compareTargets, portabilityIssues, skillLocator } from '../../../scripts/profile-runtimes/shared.mjs'
 import { RENAMED_SKILLS } from '../../../scripts/project-migrations.mjs'
 
 const toolkitRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..', '..', '..')
+// Literal local paths that must never reach a target; the structural and pattern
+// checks in portabilityIssues cover other machines.
+const MACHINE_PATHS = [toolkitRoot, homedir()]
 const CONFIG_FIELDS = new Set(['schema_version', 'agents'])
 const SPEC_FIELDS = new Set(['name', 'profile', 'skills', 'runtimes', 'description', 'effort', 'access', ...RUNTIMES])
 const NAME = /^[a-z0-9]+(?:-[a-z0-9]+)*$/
@@ -31,8 +35,7 @@ const USAGE = `Usage: materialize-agents.mjs [--project-root DIR] [--config FILE
 
   (default)        write native targets and print what changed
   --dry-run        print the semantic diff without writing
-  --check          fail when a target is missing, changed, or orphaned
-  --portable       with --check, ignore machine-local source path changes
+  --check          fail when a target is missing, changed, orphaned, or not portable
   --agent NAME     limit --check/--dry-run/writing to one project agent
   --prune          also delete generated targets no longer in the config
   --brief NAME     print a generic-subagent brief for one project agent
@@ -52,6 +55,7 @@ function parseArgs(argv) {
     else if (arg === '--brief') args.brief = value(index++, arg)
     else if (arg === '--agent') args.agent = value(index++, arg)
     else if (arg === '--check') args.check = true
+    // Deprecated in 4.0.0-rc.2: targets are portable by construction.
     else if (arg === '--portable') args.portable = true
     else if (arg === '--dry-run') args.dryRun = true
     else if (arg === '--prune') args.prune = true
@@ -59,7 +63,7 @@ function parseArgs(argv) {
     else if (arg === '--help' || arg === '-h') args.help = true
     else throw new Error(`Unknown argument: ${arg}\n\n${USAGE}`)
   }
-  if (args.portable && !args.check) throw new Error('--portable applies to --check')
+  if (args.portable) console.error('note: --portable is deprecated and has no effect; generated targets are portable, so --check compares them exactly.')
   if (args.brief && (args.check || args.prune || args.dryRun)) throw new Error('--brief cannot be combined with --check, --dry-run, or --prune')
   if (args.agent && args.prune) throw new Error('--prune works on the whole project; drop --agent')
   args.config ??= join(args.projectRoot, '.agent-kit', 'agents.json')
@@ -125,18 +129,23 @@ function validateSpec(spec, profiles, names) {
   return runtimes
 }
 
+// Hosts never preload or model-invoke a skill that opts out of model invocation.
+const modelInvocable = (path) => !/^disable-model-invocation:\s*true\s*$/m.test(/^---\r?\n([\s\S]*?)\r?\n---/.exec(readFileSync(path, 'utf8'))?.[1] ?? '')
+
 // Project-local skills win over the installed library, in the runtime's own
 // discovery order. Report a shadowed library skill instead of hiding it.
+// `directory` and `relative` locate a project skill inside the project (POSIX).
 function resolveSources(projectRoot, directories, skills, label) {
   return skills.map((name) => {
     const libraryPath = join(toolkitRoot, 'skills', name, 'SKILL.md')
     for (const directory of directories) {
       const path = join(projectRoot, directory, name, 'SKILL.md')
       if (existsSync(path)) {
-        return { name, absolute: path, project: true, shadows: existsSync(libraryPath) && resolve(path) !== resolve(libraryPath) }
+        const shadows = existsSync(libraryPath) && resolve(path) !== resolve(libraryPath)
+        return { name, absolute: path, directory, relative: relative(projectRoot, path).split(sep).join('/'), project: true, shadows, invocable: modelInvocable(path) }
       }
     }
-    if (existsSync(libraryPath)) return { name, absolute: libraryPath, project: false, shadows: false }
+    if (existsSync(libraryPath)) return { name, absolute: libraryPath, project: false, shadows: false, invocable: modelInvocable(libraryPath) }
     const renamed = RENAMED_SKILLS[name]
       ? `; it was renamed to "${RENAMED_SKILLS[name]}" — run skills/agent-creator/scripts/migrate-project.mjs (preview by default, --write to apply)`
       : ''
@@ -151,7 +160,6 @@ function expectedTargets(projectRoot, specs, profiles) {
       throw new Error(`${profileName}: multiple project instances require distinct responsibility descriptions`)
     }
   }
-  const version = kitVersion(toolkitRoot)
   const targets = new Map()
   const names = new Set()
   for (const spec of specs) {
@@ -161,15 +169,18 @@ function expectedTargets(projectRoot, specs, profiles) {
     for (const id of runtimes) {
       const runtime = runtimeRegistry.get(id)
       const resolved = resolveSources(projectRoot, runtime.skillDirectories, agent.skills, spec.name)
-      // Claude reads project-local sources relative to the project; library paths
-      // and Codex skills.config stay absolute and make the target machine-local.
-      const sources = resolved.map((entry) => ({
-        name: entry.name,
-        path: entry.project && id === 'claude' ? relative(projectRoot, entry.absolute) : entry.absolute,
-      }))
-      const provenance = { kit: version, inputs: inputFingerprint(profile, spec, id) }
+      // Portable locators only (see skillLocator): host identifiers and
+      // project-relative paths, resolved by each user's own installation. The
+      // same recipe renders the same bytes on every machine.
+      const sources = resolved.map((entry) => ({ name: entry.name, path: skillLocator(runtime, entry) }))
+      const provenance = { inputs: compositionFingerprint(agent, id, sources) }
       const content = renderTarget(id, agent, sources, `.agent-kit/agents.json profile ${spec.profile}`, provenance)
-      const notes = resolved.filter((entry) => entry.shadows).map((entry) => `project skill ${entry.name} shadows the Agent Kit skill of the same name`)
+      const leaks = portabilityIssues(content, runtime.parse(content), MACHINE_PATHS)
+      if (leaks.length) throw new Error(`${spec.name} · ${id}: rendered target is not portable: ${leaks.join('; ')}`)
+      const notes = [
+        ...resolved.filter((entry) => entry.shadows).map((entry) => `project skill ${entry.name} shadows the Agent Kit skill of the same name`),
+        ...resolved.filter((entry) => !entry.invocable).map((entry) => `skill ${entry.name} sets disable-model-invocation, so ${runtime.label} will not load it for this agent`),
+      ]
       targets.set(runtime.targetPath(projectRoot, spec.name), { agent: spec.name, runtime, content, notes })
     }
   }
@@ -194,11 +205,19 @@ function assess(path, target) {
   const current = readFileSync(path, 'utf8')
   if (current === target.content) return { kind: 'none', changes: [] }
   if (!isGeneratedAgent(current)) return { kind: 'collision', changes: ['user-owned file with the same name'] }
+  let parsed
   try {
-    return compareTargets(target.runtime.parse(current), target.runtime.parse(target.content))
+    parsed = target.runtime.parse(current)
   } catch {
     return { kind: 'semantic', changes: ['previous target could not be parsed; treat as a full refresh'] }
   }
+  const result = compareTargets(parsed, target.runtime.parse(target.content))
+  // The bytes differ even when the parsed composition does not.
+  if (result.kind === 'none') result.kind = 'format'
+  if (result.kind === 'format') result.changes.push('generated text differs without a composition change (renderer update or hand edit)')
+  const leaks = portabilityIssues(current, parsed, MACHINE_PATHS)
+  if (leaks.length) result.changes.unshift(...leaks.map((issue) => `not portable: ${issue}`))
+  return result
 }
 
 function report(projectRoot, rows) {
@@ -230,7 +249,9 @@ function run() {
     if (!spec) throw new Error(`Project agent not configured: ${args.brief}`)
     const agent = composeAgent(profileMap.get(spec.profile), spec)
     const sources = resolveSources(args.projectRoot, runtimeRegistry.get('claude').skillDirectories, agent.skills, spec.name)
-      .map((entry) => ({ name: entry.name, path: entry.project ? relative(args.projectRoot, entry.absolute) : entry.absolute }))
+      // The brief is ephemeral output for this session, so library skills keep the
+      // local path; it is never written to the project.
+      .map((entry) => ({ name: entry.name, path: entry.project ? entry.relative : entry.absolute }))
     process.stdout.write(renderAgentBrief(agent, sources))
     return
   }
@@ -247,13 +268,14 @@ function run() {
     report(args.projectRoot, changed)
     for (const path of orphans) console.log(`orphan · ${relative(args.projectRoot, path)}\n  - generated target no longer configured; rerun with --prune`)
     if (!args.check) return
-    const tolerated = new Set(['none', 'provenance', ...(args.portable ? ['paths'] : [])])
-    const stale = rows.filter((row) => !tolerated.has(row.result.kind)).length + orphans.length
+    // Targets are portable, so any difference is drift: --check passes exactly
+    // when regenerating would write nothing.
+    const stale = rows.filter((row) => row.result.kind !== 'none').length + orphans.length
     if (stale) {
       console.error(`Project agent targets are stale: ${stale} target(s). Refresh with materialize-agents.mjs${args.agent ? ` --agent ${args.agent}` : ''}.`)
       process.exit(1)
     }
-    console.log(`Project agent targets up to date: ${targets.size} target(s)${args.portable ? ' (machine-local paths ignored)' : ''}.`)
+    console.log(`Project agent targets up to date: ${targets.size} target(s), Agent Kit ${kitVersion(toolkitRoot)}.`)
     return
   }
 

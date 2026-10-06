@@ -1,4 +1,4 @@
-# agent-kit v4.0.0-rc.1
+# agent-kit v4.0.0-rc.2
 
 ## Purpose
 
@@ -241,7 +241,7 @@ Also accepted: `model` (alias, full ID, or `inherit`), `effort`, `disallowedTool
 effort: ultra                       # Optional. Codex-only levels; `ultra` is rejected in the core.
 ```
 
-Also accepted: `model` and `sandbox_mode`. The project materializer maps the profile body to `developer_instructions`, `effort` to `model_reasoning_effort`, `access` to `sandbox_mode`, and resolved skills to `skills.config` entries pointing at each `SKILL.md`. Live session policy remains authoritative over child defaults. `agent-orchestrator` capability-checks named custom-agent selection and falls back to a generic native subagent carrying the same persona and skill composition when a client cannot apply the named config.
+Also accepted: `model` and `sandbox_mode`. The project materializer maps the profile body to `developer_instructions`, `effort` to `model_reasoning_effort`, `access` to `sandbox_mode`, and resolved skills to catalog names in `developer_instructions` (no `skills.config`: Codex role files may only disable skills). Live session policy remains authoritative over child defaults. `agent-orchestrator` capability-checks named custom-agent selection and falls back to a generic native subagent carrying the same persona and skill composition when a client cannot apply the named config.
 
 ### Kimi overlay — `kimi.yaml` (optional)
 
@@ -253,7 +253,7 @@ Also accepted: `tools`, `disallowedTools`, `subagents`. Kimi custom agents have 
 
 ### Generated targets and freshness
 
-Generated targets carry a marker plus `agent-kit-metadata` with the kit version and a fingerprint of the profile and project inputs (machine paths excluded). Library skill paths are absolute, so a target is a local materialization: refresh it after an upgrade or relocation. `materialize-agents.mjs --dry-run` prints a semantic diff (behavior, settings, skills, local paths); `--check` fails on any drift, `--check --portable` ignores path-only refreshes, and `--agent NAME` limits either to one agent.
+Generated targets are portable and correct to commit: library skills are named by host identifier (`agent-kit:<skill>` for Claude and Codex, the bare name for Kimi), project skills by catalog name or project-relative path, with no absolute path, home directory, user name, or kit version ([ADR 0001](docs/decisions/0001-portable-generated-agents.md)). Each carries a marker plus `agent-kit-metadata` with a fingerprint of its resolved composition. The same recipe and kit version render byte-identical files on every machine, and an upgrade rewrites a target only when its content changes. `materialize-agents.mjs --dry-run` prints a semantic diff (behavior, settings, skills, sources); `--check` passes only when regeneration would write nothing and reports non-portable content; `--agent NAME` limits either to one agent. Committing or ignoring generated targets is the project's choice; Agent Kit writes no ignore entries.
 
 ### Body structure
 

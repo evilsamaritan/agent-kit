@@ -16,7 +16,7 @@ Use checklist sections applicable to the target profile, runtime, or project. Re
 2. Run the installed materializer with `--check`.
 3. Parse generated Codex targets as TOML.
 4. Validate Claude frontmatter and selected skills.
-5. Verify generated paths match each entry's runtime list.
+5. Verify generated paths match each entry's runtime list and that targets name skills by identifier or project-relative path only.
 6. Verify non-generated agent files were not modified.
 
 ## Step 4: Verify the profile library

@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 
-import { existsSync, readFileSync } from 'node:fs'
+import { readFileSync } from 'node:fs'
 
 const REQUIRED = ['name', 'description', 'developer_instructions', 'model_reasoning_effort', 'sandbox_mode']
 
@@ -37,11 +37,9 @@ function validate(path) {
   for (const key of REQUIRED) {
     if (typeof root[key] !== 'string' || !root[key]) throw new Error(`${path}: missing string ${key}`)
   }
-  for (const [index, skill] of skills.entries()) {
-    if (typeof skill.path !== 'string' || !skill.path) throw new Error(`${path}: skills.config[${index}] has no path`)
-    if (skill.enabled !== true) throw new Error(`${path}: skills.config[${index}] is not enabled`)
-    if (!existsSync(skill.path)) throw new Error(`${path}: skills.config[${index}] path does not exist: ${skill.path}`)
-  }
+  // Codex keeps only disabling skills.config entries from a role file, and a
+  // path would pin one machine; generated targets name skills in the instructions.
+  if (skills.length) throw new Error(`${path}: generated agents must not contain [[skills.config]]`)
 }
 
 if (process.argv.length < 3) {

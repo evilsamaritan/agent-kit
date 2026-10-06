@@ -12,7 +12,7 @@ Extract the required outcome, constraints, affected areas, write permissions, ex
 4. If no project agent fits, read `../references/profile-catalog.md`, then load only the selected profile reference.
 5. If the missing composition should persist beyond this task, invoke `agent-creator` before execution. Otherwise use the profile persona as an ephemeral fallback.
 6. Check whether the current host's delegation tool can select the named agent and apply its config. A discovered file or mention without a named-agent selector is not sufficient.
-7. Before delegating to a generated agent, run the installed agent-creator materializer with `--check --agent NAME`. A stale result names the cause (profile behavior, settings, skills, or moved source paths). Refresh through agent-creator when the sync is authorized; otherwise use `--brief NAME` for a current generic-subagent brief and say the native target is stale.
+7. Before delegating to a generated agent, run the installed agent-creator materializer with `--check --agent NAME`. A stale result names the cause (profile behavior, settings, skills, skill sources, or non-portable content). Refresh through agent-creator when the sync is authorized; otherwise use `--brief NAME` for a current generic-subagent brief and say the native target is stale.
 
 ## Step 3: Choose the workflow shape
 
@@ -42,7 +42,7 @@ Do not ask two agents to solve the same problem unless independent judgment is t
 
 ## Step 5: Map onto the host runtime
 
-Read `../references/runtime-adapters.md`, then use the native mechanism available in the current session. Prefer a named native project agent only when the host exposes a working selector. Otherwise pass the selected profile persona, exact project skills with source paths, supported model/effort overrides, and concrete task to a generic native subagent without inventing a permanent wrapper format.
+Read `../references/runtime-adapters.md`, then use the native mechanism available in the current session. Prefer a named native project agent only when the host exposes a working selector. Otherwise pass the selected profile persona, exact project skills with their sources, supported model/effort overrides, and concrete task to a generic native subagent without inventing a permanent wrapper format.
 
 ## Step 6: Execute and coordinate
 

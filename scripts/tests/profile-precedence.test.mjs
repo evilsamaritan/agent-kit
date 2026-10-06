@@ -41,9 +41,9 @@ test('Claude keeps read-only honest when memory would grant Write/Edit', () => {
   assert.throws(() => composeAgent(security, { access: 'read-only', claude: { memory: 'project' } }), /memory/)
 })
 
-test('Claude receives the resolved source without depending on bare-name discovery', () => {
+test('Claude preloads library skills by qualified id, never by a bare name another plugin could match', () => {
   const agent = composeAgent(security, { skills: ['security'] })
-  const target = renderTarget('claude', agent, [{ name: 'security', path: '/installed/agent-kit/skills/security/SKILL.md' }])
-  assert.match(target, /^skills: \["security"\]$/m)
-  assert.match(target, /security: "\/installed\/agent-kit\/skills\/security\/SKILL.md"/)
+  const target = renderTarget('claude', agent)
+  assert.match(target, /^skills: \["agent-kit:security"\]$/m)
+  assert.match(target, /^- security: "agent-kit:security"$/m)
 })

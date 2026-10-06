@@ -127,16 +127,31 @@ function stable(value) {
   return JSON.stringify(value ?? null)
 }
 
-// Fingerprint of the inputs a target was built from, independent of machine paths.
-export function inputFingerprint(profile, spec, runtimeId) {
-  const inputs = { front: profile.front, body: profile.body, overlay: profile[runtimeId] ?? {}, spec, runtime: runtimeId }
+// Fingerprint of the resolved composition one target renders: identity, body,
+// exact skills, that runtime's settings, and the portable source locators. It
+// changes only when the composition does, so a kit upgrade that leaves an agent
+// unchanged leaves its committed file unchanged. Kit version and machine paths
+// are not inputs.
+export function compositionFingerprint(agent, runtimeId, sources = []) {
+  const inputs = {
+    runtime: runtimeId,
+    name: agent.name,
+    profile: agent.profile,
+    description: agent.description,
+    body: agent.body,
+    skills: agent.skills,
+    settings: agent[runtimeId] ?? {},
+    sources: sources.map(({ name, path }) => [name, path]),
+  }
   return createHash('sha256').update(stable(inputs)).digest('hex').slice(0, 16)
 }
 
-export function renderTarget(runtimeId, agent, sources = [], source = `profile ${agent.profile}`, provenance) {
+// Without resolved sources, every selected skill is taken from the library.
+export function renderTarget(runtimeId, agent, sources, source = `profile ${agent.profile}`, provenance) {
   const runtime = runtimeRegistry.get(runtimeId)
   if (!runtime) throw new Error(`Unknown runtime "${runtimeId}"`)
-  return runtime.render(agent, sources, source, provenance)
+  const resolved = sources ?? agent.skills.map((name) => ({ name, path: runtime.librarySkill(name) }))
+  return runtime.render(agent, resolved, source, provenance)
 }
 
 export function renderAgentBrief(agent, sources = []) {

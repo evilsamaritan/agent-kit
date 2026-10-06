@@ -16,13 +16,13 @@
 
 ## Knowledge delivery
 
-- `[[skills.config]]` entries name each selected skill's `SKILL.md` path. Library paths are absolute, so the TOML is a local materialization; refresh it after Agent Kit is upgraded or moved.
-- `developer_instructions` also lists the selected sources, so a child that did not load a skill can read it.
+- A custom agent inherits the parent's skill catalog. A role file can only disable skills (Codex 0.157+ keeps `[[skills.config]]` entries with `enabled = false`), so generated targets write no `skills.config`.
+- `developer_instructions` names each selected skill by catalog name: plugin skills are `agent-kit:<skill>`, `.agents/skills/` project skills keep their name, other project skills use a project-relative path. The child reads the `SKILL.md` from the location the catalog lists.
 
 ## Model, effort, and sandbox
 
 - Omitted `model` and `model_reasoning_effort` inherit from the parent session. A spawn request or `[agents]` defaults may select a model; a model selected without an effort uses that model's default effort.
-- When spawning a child, Codex reapplies the parent turn's live sandbox and approval overrides. Treat `sandbox_mode` in the TOML as a default, not a guarantee.
+- When spawning a child, Codex reapplies the parent turn's live sandbox and approval overrides. Codex 0.157+ ignores `sandbox_mode` in a role file altogether (roles may not control it), so the generated value only documents intent; the parent session's sandbox applies.
 - `agents.max_concurrent_threads_per_session` bounds parallel children.
 
 ## Spawn and coordinate
@@ -31,4 +31,4 @@ Use the client's subagent controls to spawn, steer, wait for, and collect childr
 
 ## Fallback
 
-Spawn a generic child with the brief from `--brief NAME`, the concrete task, and explicit model and effort when the client permits overrides. The fallback inherits the parent sandbox and tools; do not claim it enforces the generated `sandbox_mode` or `skills.config`.
+Spawn a generic child with the brief from `--brief NAME`, the concrete task, and explicit model and effort when the client permits overrides. The fallback inherits the parent sandbox and tools; do not claim it enforces the generated `sandbox_mode`.

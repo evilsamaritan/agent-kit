@@ -32,7 +32,7 @@ Omitted `runtimes` means `claude` and `codex`. Add `kimi` when the project uses 
 
 ## Step 4: Materialize native agents
 
-Run the installed `scripts/materialize-agents.mjs` with `--project-root` pointing at the consuming project. For a sync after an Agent Kit upgrade, run `--dry-run` first and report its semantic diff: changed profile behavior, settings, skills, and path-only refreshes. Routine authorized refreshes proceed; a diff that widens tools/sandbox or pins a costlier model is a material change to confirm. Use `--prune` after deletion or a runtime list change so obsolete generated targets are removed safely.
+Run the installed `scripts/materialize-agents.mjs` with `--project-root` pointing at the consuming project. For a sync after an Agent Kit upgrade, run `--dry-run` first and report its semantic diff: changed profile behavior, settings, skills, and skill sources. Routine authorized refreshes proceed; a diff that widens tools/sandbox or pins a costlier model is a material change to confirm. Use `--prune` after deletion or a runtime list change so obsolete generated targets are removed safely.
 
 The expected outputs are:
 
@@ -48,8 +48,9 @@ Do not manually patch an output to fix generation. Change `.agent-kit/agents.jso
 1. Run the materializer with `--check`.
 2. Parse every generated Codex file as TOML.
 3. Confirm Claude frontmatter contains the intended name, description, skills, model, effort, and tools.
-4. Confirm Codex TOML contains `name`, `description`, `developer_instructions`, `model_reasoning_effort`, `sandbox_mode`, and the selected skill paths.
-5. Confirm user-owned native agent files remain unchanged.
-6. If `.claude/agents/` did not exist before this run, tell the user the new Claude agents become selectable after the session restarts; a running session does not watch a newly created agents directory.
+4. Confirm Codex TOML contains `name`, `description`, `developer_instructions` naming the selected skills, `model_reasoning_effort`, and `sandbox_mode`, and no `[[skills.config]]`.
+5. Confirm no target names an absolute path, home directory, or kit version (`--check` reports it as not portable). Do not add ignore entries: committing or ignoring the targets is the user's decision.
+6. Confirm user-owned native agent files remain unchanged.
+7. If `.claude/agents/` did not exist before this run, tell the user the new Claude agents become selectable after the session restarts; a running session does not watch a newly created agents directory.
 
 Report the project composition, generated targets, overrides, the sync diff, and validation evidence.

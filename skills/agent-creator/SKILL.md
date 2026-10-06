@@ -16,6 +16,7 @@ argument-hint: "[create|update|delete|sync|verify] [agent or profile]"
 - Skills are the agent's exact project knowledge composition when `skills` is present in `.agent-kit/agents.json`. If omitted, the profile defaults apply.
 - Use native runtime targets: Claude Markdown custom agents and Codex TOML custom agents. Do not create a shared pseudo-runtime, wrapper agent, or proprietary execution protocol.
 - Preserve non-generated runtime files. The materializer refuses to overwrite them and prunes only files carrying the Agent Kit generated marker.
+- Generated targets are portable and correct to commit. Committing or ignoring them is the project user's decision: never add ignore entries for `.claude/agents/`, `.codex/agents/`, `.kimi-code/agents/`, or `.agent-kit/`, and never write host plugin settings on their behalf.
 - Default to Claude and Codex project targets so the project can switch runtimes; add Kimi Code when the project uses it. Narrow `runtimes` only when the user explicitly wants one host.
 - Ask before expanding access, selecting a materially more expensive model, or deleting a non-generated file. Routine profile/skill selection and regeneration are part of the requested operation.
 
@@ -62,7 +63,7 @@ Use [project-agent-recipes.md](references/project-agent-recipes.md) for starting
 
 Do not preload every possibly related skill. Other installed skills remain discoverable on demand.
 
-#For a non-persistent assignment, `materialize-agents.mjs --brief <name>` produces the same profile behavior and selected source paths without writing runtime files. The host must support authorized delegation; the brief cannot enforce missing API controls.
+For a non-persistent assignment, `materialize-agents.mjs --brief <name>` produces the same profile behavior and selected source paths without writing runtime files. The host must support authorized delegation; the brief cannot enforce missing API controls.
 
 ## Access
 
@@ -85,9 +86,9 @@ node skills/agent-creator/scripts/materialize-agents.mjs --project-root /path/to
 node skills/agent-creator/scripts/materialize-agents.mjs --project-root /path/to/project --prune
 ```
 
-`--dry-run` previews the semantic diff; `--check --portable` ignores path-only refreshes; `--agent NAME` limits a check or refresh to one agent. Library skill paths are absolute, so refresh targets after upgrading or moving Agent Kit.
+`--dry-run` previews the semantic diff; `--check` passes only when regeneration would write nothing and flags any absolute, home, or plugin-cache path as not portable; `--agent NAME` limits a check or refresh to one agent. Targets name library skills by host identifier (`agent-kit:<skill>`; bare in Kimi), so they render byte-identically on every machine and change after an upgrade only when an agent's content does. `--portable` is deprecated and has no effect.
 
-When Agent Kit is installed as a plugin, use the script's installed absolute path rather than assuming the consuming project contains `skills/agent-creator/`.
+When Agent Kit is installed as a plugin, run the script from its installed location rather than assuming the consuming project contains `skills/agent-creator/`. That location is only where the command runs; it never appears in a generated target.
 
 For an old frontend/backend profile or a renamed skill (`visualization` → `playground`), preview `scripts/migrate-project.mjs --project-root /path/to/project`; add `--write` to apply. Migration retains names, old default skills/models, and explicit choices. Then materialize/check. Several instances need distinct descriptions of responsibility.
 
