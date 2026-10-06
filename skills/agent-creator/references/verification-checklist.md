@@ -50,7 +50,7 @@
 ## Kimi target
 
 - [ ] Frontmatter has `name`, `description`, and an explicit `tools` allowlist derived from access.
-- [ ] Body keeps `${agents_md}`, `${skills}`, the selected skill names (bare, loaded with the Skill tool), and the handoff section; profile text contains no Kimi template variable.
+- [ ] Body starts with `${base_prompt}` and keeps the selected skill names (bare, loaded with the Skill tool) and the handoff section; profile text contains no Kimi template variable.
 - [ ] The agent name is not `coder`, `explore`, or `plan`.
 
 ## Safety and drift

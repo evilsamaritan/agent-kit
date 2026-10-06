@@ -1,4 +1,4 @@
-# agent-kit v4.0.0-rc.4
+# agent-kit v4.0.0-rc.5
 
 ## Purpose
 
@@ -212,7 +212,7 @@ Also accepted: `model` and `sandbox_mode`. The project materializer maps the pro
 whenToUse: Code reviews and PR checks   # Kimi routing hint.
 ```
 
-Also accepted: `tools`, `disallowedTools`, `subagents`. Kimi custom agents have no model or effort fields; access maps to an explicit Kimi tool allowlist (`Read`, `Grep`, `Glob`, `ReadMediaFile`, `WebSearch`, `FetchURL`, `Skill`, plus `Edit`/`Write` and `Bash`/task tools). The body replaces the delegated agent's whole system prompt, so the renderer appends `${agents_md}`, `${skills}`, the selected sources, and a handoff, and rejects profile text containing Kimi template variables. Kimi targets are opt-in per agent (`runtimes`).
+Also accepted: `tools`, `disallowedTools`, `subagents`. Kimi custom agents have no model or effort fields; access maps to an explicit Kimi tool allowlist (`Read`, `Grep`, `Glob`, `ReadMediaFile`, `WebSearch`, `FetchURL`, `Skill`, plus `Edit`/`Write` and `Bash`/task tools). The body replaces the delegated agent's whole system prompt, so the renderer starts it with Kimi's `${base_prompt}` (its rules, AGENTS.md, skill index, working directory), then adds the profession body, the selected sources, and a handoff, and rejects profile text containing Kimi template variables. Kimi targets are opt-in per agent (`runtimes`).
 
 ### Generated targets and freshness
 

@@ -63,7 +63,7 @@
 |---------|--------|-------------|
 | Claude Code | `.claude/agents/<name>.md` | body → prompt, skills → `skills` (skill ids) and the selected-sources list, effort/model/tools → frontmatter |
 | Codex | `.codex/agents/<name>.toml` | body and selected skills → `developer_instructions`, effort → `model_reasoning_effort`, access → `sandbox_mode` (no `skills.config`) |
-| Kimi Code | `.kimi-code/agents/<name>.md` | body → full system prompt plus `${agents_md}`, `${skills}`, selected skill names, and a handoff; access → explicit `tools`; effort and model are not applied |
+| Kimi Code | `.kimi-code/agents/<name>.md` | full system prompt: Kimi's `${base_prompt}` (its rules, AGENTS.md, skill index, working directory), then the body, selected skill names, and a handoff; access → explicit `tools`; effort and model are not applied |
 
 Every selected skill is written in a form the host resolves inside each user's own installation:
 

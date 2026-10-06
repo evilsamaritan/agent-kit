@@ -108,7 +108,7 @@ fi
 [[ ! -f "$project_test_dir/.claude/agents/reviewer.md" ]] || err "materializer" "runtime filtering failed"
 kimi_target="$project_test_dir/.kimi-code/agents/backend-developer.md"
 [[ -f "$kimi_target" ]] || err "materializer" "Kimi target missing"
-grep -q '${agents_md}' "$kimi_target" && grep -q '${skills}' "$kimi_target" || err "materializer" "Kimi target lost project or skill context"
+grep -q '${base_prompt}' "$kimi_target" || err "materializer" "Kimi target does not start from the host base prompt"
 grep -q '^tools: \[.*"Bash"' "$kimi_target" || err "materializer" "Kimi full access tools missing"
 [[ -f "$project_test_dir/.codex/agents/tester.toml" && ! -e "$project_test_dir/.kimi-code/agents/tester.md" ]] || err "materializer" "omitted runtimes must mean Claude and Codex only"
 [[ $(<"$project_test_dir/.claude/agents/manual.md") == "manual project agent" ]] || err "materializer" "manual agent was modified"

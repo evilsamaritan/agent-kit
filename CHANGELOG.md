@@ -1,5 +1,12 @@
 # Changelog
 
+## 4.0.0-rc.5
+
+### Changed
+
+- Kimi Code agents start from Kimi's own `${base_prompt}` (operating and safety rules, AGENTS.md as reference data, the skill index, the working directory), then the profession body, the selected skills, and the handoff. Raw `${agents_md}` and `${skills}` sections are gone, so delegated Kimi agents keep the host's rules and the AGENTS.md framing. Regenerate Kimi targets; `--dry-run` reports a format-only change.
+- `agent-orchestrator`: a project agent's description is its default responsibility, and an assignment narrows it (owned files, forbidden areas, the settled design to implement). Prefer configured agents with narrowed assignments over bare generic subagents, which carry none of the composed profession and skills; propose a new agent when a different split recurs.
+
 ## 4.0.0-rc.4
 
 A full review of every skill, verified finding by finding, and the fixes it called for. Per-skill notes stay in the skills; this entry summarizes.
