@@ -1,4 +1,4 @@
-# agent-kit v4.0.0-rc.5
+# agent-kit v4.0.0-rc.6
 
 ## Purpose
 
@@ -209,14 +209,14 @@ Also accepted: `model` and `sandbox_mode`. The project materializer maps the pro
 ### Kimi overlay — `kimi.yaml` (optional)
 
 ```yaml
-whenToUse: Code reviews and PR checks   # Kimi routing hint.
+whenToUse: Code reviews and PR checks   # Kimi routing hint; the default says to prefer the agent over Kimi's built-in coder/explore.
 ```
 
 Also accepted: `tools`, `disallowedTools`, `subagents`. Kimi custom agents have no model or effort fields; access maps to an explicit Kimi tool allowlist (`Read`, `Grep`, `Glob`, `ReadMediaFile`, `WebSearch`, `FetchURL`, `Skill`, plus `Edit`/`Write` and `Bash`/task tools). The body replaces the delegated agent's whole system prompt, so the renderer starts it with Kimi's `${base_prompt}` (its rules, AGENTS.md, skill index, working directory), then adds the profession body, the selected sources, and a handoff, and rejects profile text containing Kimi template variables. Kimi targets are opt-in per agent (`runtimes`).
 
 ### Generated targets and freshness
 
-Generated targets name library skills by host identifier (`agent-kit:<skill>` for Claude and Codex, the bare name for Kimi) and project skills by catalog name or project-relative path, so they work wherever Agent Kit is installed. Each carries a marker plus `agent-kit-metadata` with a fingerprint of its resolved composition; an upgrade rewrites a target only when its content changes. `materialize-agents.mjs --dry-run` prints a semantic diff (behavior, settings, skills, sources); `--check` passes only when regeneration would write nothing; `--agent NAME` limits either to one agent. Whether a project commits generated targets is its own choice; Agent Kit does not touch ignore files.
+Generated targets name library skills by host identifier (`agent-kit:<skill>` for Claude and Codex, the bare name for Kimi) and project skills by catalog name or project-relative path, so they work wherever Agent Kit is installed. Each carries a marker plus `agent-kit-metadata` with a fingerprint of its resolved composition; an upgrade rewrites a target only when its content changes. `materialize-agents.mjs --dry-run` prints a semantic diff (behavior, settings, skills, sources); `--check` passes only when regeneration would write nothing; `--agent NAME` limits either to one agent. Whether a project commits generated targets is its own choice; Agent Kit does not touch ignore files. Hosts pick a subagent by its description, so every target says when to prefer the project agent over the host's generic subagents, including for a narrower task inside its area; delegation uses the configured composition without prompting.
 
 ### Body structure
 

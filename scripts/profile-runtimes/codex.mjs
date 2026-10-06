@@ -10,6 +10,7 @@ import {
   readProvenance,
   splitKnowledge,
   validateFields,
+  delegationDescription,
 } from './shared.mjs'
 
 const CODEX_EFFORT = [...CORE_EFFORT, 'ultra']
@@ -61,7 +62,7 @@ export const codex = {
   render(agent, sources, source, provenance) {
     const settings = agent.codex
     const instructions = `${identity(agent)}${agent.body.trimEnd()}${knowledgeInstructions(sources, SOURCES_INTRO)}\n`
-    const lines = [generatedComments(source, provenance), `name = ${JSON.stringify(agent.name)}`, `description = ${JSON.stringify(agent.description)}`]
+    const lines = [generatedComments(source, provenance), `name = ${JSON.stringify(agent.name)}`, `description = ${JSON.stringify(delegationDescription(agent))}`]
     if (settings.model) lines.push(`model = ${JSON.stringify(settings.model)}`)
     lines.push(
       `model_reasoning_effort = ${JSON.stringify(settings.effort)}`,

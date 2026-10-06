@@ -40,7 +40,7 @@
 | `profile` | yes | Bundled profession profile name |
 | `skills` | no | Exact knowledge-skill set; omitted means profile defaults. The profile's required skills are always added |
 | `runtimes` | no | Subset of `claude`, `codex`, `kimi`; omitted means `claude` and `codex` |
-| `description` | no | Project-specific routing description |
+| `description` | no | Project-specific responsibility; generated targets add when the host should prefer this agent over its generic subagents (Kimi: a default `whenToUse`) |
 | `effort` | no | Portable effort override: low, medium, high, xhigh, max |
 | `access` | no | Intended access override: read-only, edits, full |
 | `claude` | no | Claude runtime overrides: `model`, `effort`, `color`, `tools`, `disallowedTools`, `maxTurns`, `memory`, `background`, `isolation` |

@@ -17,6 +17,7 @@ import {
   stripGeneratedComments,
   validateFields,
   yamlList,
+  delegationDescription,
 } from './shared.mjs'
 
 const CLAUDE_COLORS = ['red', 'blue', 'green', 'yellow', 'purple', 'orange', 'pink', 'cyan']
@@ -85,7 +86,7 @@ export const claude = {
   // skill outside .claude/skills has no id and is listed by path in the body.
   render(agent, sources, source, provenance) {
     const settings = agent.claude
-    const lines = ['---', `name: ${agent.name}`, `description: ${JSON.stringify(agent.description)}`, `effort: ${settings.effort}`]
+    const lines = ['---', `name: ${agent.name}`, `description: ${JSON.stringify(delegationDescription(agent))}`, `effort: ${settings.effort}`]
     for (const key of RENDERED) {
       if (settings[key] !== undefined) lines.push(`${key}: ${JSON.stringify(settings[key])}`)
     }

@@ -35,6 +35,14 @@ export function layered(profile, project, portableValue, portableOverride, key) 
 
 const SOURCES_HEADING = '## Selected knowledge sources'
 
+// Hosts choose a subagent by its description, and a project agent competes with
+// the host's generic subagents. The description says when to prefer it, so the
+// configured composition is used without prompting the parent to pick it.
+export function delegationDescription(agent) {
+  const base = agent.description.trim().replace(/[.\s]*$/, '.')
+  return `${base} Project agent with the ${agent.profile} profession and this project's selected skills: use it proactively instead of a generic subagent for this work, including a narrower task inside it.`
+}
+
 // Source locators. A library skill uses the host identifier each user's
 // own installation resolves; a project skill uses its host catalog name when the
 // host discovers that directory, else its project-relative path. No locator

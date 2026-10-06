@@ -29,6 +29,9 @@ const identity = (agent) => `You are the project custom agent "${agent.name}", m
 // A custom sub-agent body owns its whole system prompt. Start from Kimi's own base
 // prompt (operating and safety rules, tools, AGENTS.md as project reference data,
 // the skill index, the working directory), then add the profession and the handoff.
+const defaultWhenToUse = (agent) => agent.access === 'read-only'
+  ? 'Use instead of the built-in explore or coder for this work in this project, including a narrower scope inside it. Give it the scope to check and the settled design or specification to check against.'
+  : 'Use instead of the built-in coder for this work in this project, including a narrower task inside it (a module, a layer, a set of files). Give it the files it owns and the settled design it follows.'
 const BASE = '${base_prompt}\n\n# Project agent\n\n'
 const HANDOFF = '\n\n## Handoff\n\nYour final message is returned to the delegating agent. Make it the complete, self-contained result: what you did, the evidence, and anything left open.'
 
@@ -80,7 +83,9 @@ export const kimi = {
     }
     const settings = agent.kimi
     const lines = ['---', `name: ${agent.name}`, `description: ${JSON.stringify(agent.description)}`]
-    if (settings.whenToUse) lines.push(`whenToUse: ${JSON.stringify(settings.whenToUse)}`)
+    // Kimi lists description and whenToUse for every agent next to its built-in coder
+    // and explore; the default whenToUse says when this project agent wins.
+    lines.push(`whenToUse: ${JSON.stringify(settings.whenToUse ?? defaultWhenToUse(agent))}`)
     lines.push(`tools: ${yamlList(settings.tools)}`)
     if (settings.disallowedTools?.length) lines.push(`disallowedTools: ${yamlList(settings.disallowedTools)}`)
     if (settings.subagents) lines.push(`subagents: ${yamlList(settings.subagents)}`)

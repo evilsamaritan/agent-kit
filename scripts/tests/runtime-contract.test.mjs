@@ -152,3 +152,16 @@ test('Kimi rejects profile text that its template engine would substitute', () =
   assert.doesNotThrow(() => renderTarget('kimi', { ...agent, body: `${agent.body}\nconst x = \`\${value}\`` }))
   assert.throws(() => kimi.validate({ model: 'k2' }, 'spec'), /unsupported field "model"/)
 })
+
+test('generated agents tell the host to prefer them over generic subagents', () => {
+  const agent = composeAgent(reviewer, { name: 'game-reviewer', description: 'Review game changes.' })
+  for (const id of ['claude', 'codex']) {
+    const description = runtimeRegistry.get(id).parse(renderTarget(id, agent)).description
+    assert.match(description, /^Review game changes\. Project agent with the reviewer profession/)
+    assert.match(description, /instead of a generic subagent for this work, including a narrower task inside it\.$/)
+  }
+  const kimiTarget = renderTarget('kimi', agent)
+  assert.match(kimiTarget, /^description: "Review game changes\."$/m)
+  assert.match(kimiTarget, /^whenToUse: "Use instead of the built-in explore or coder/m)
+  assert.match(renderTarget('kimi', composeAgent(reviewer, { kimi: { whenToUse: 'Code reviews only' } })), /^whenToUse: "Code reviews only"$/m)
+})

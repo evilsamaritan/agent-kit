@@ -1,5 +1,11 @@
 # Changelog
 
+## 4.0.0-rc.6
+
+### Changed
+
+- Generated agents compete with the host's generic subagents out of the box. Claude Code and Codex descriptions end with when to prefer the project agent (its profession and selected skills) over a generic subagent, including for a narrower task inside its area; Kimi Code agents get a default `whenToUse` that says to use them instead of the built-in `coder` or `explore`. A project `kimi.whenToUse` still wins. Regenerate targets; `--dry-run` reports the description change.
+
 ## 4.0.0-rc.5
 
 ### Changed
