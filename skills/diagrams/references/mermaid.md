@@ -69,7 +69,7 @@ stateDiagram-v2
   Discarded --> [*]
 ```
 
-Composite states with history, orthogonal regions, or entry/exit actions that matter → PlantUML.
+Mermaid draws composite states and concurrent regions. History states and entry/exit actions have no Mermaid notation; when the model needs them → PlantUML.
 
 ## ER
 

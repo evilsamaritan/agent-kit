@@ -1,6 +1,6 @@
 # EU AI Act Compliance — Implementation Guide
 
-Deep dive into EU AI Act requirements, risk classification, conformity assessment, and GDPR intersection.
+Deep dive into EU AI Act requirements, risk classification, conformity assessment, and GDPR intersection. Dates are not stated here: see [enforcement-trends.md](enforcement-trends.md) and check the regulation's current status first (the Digital Omnibus on AI, adopted in 2026, changed several application dates). Code blocks are sketches of the data to record, not implementations.
 
 ## Contents
 
@@ -10,7 +10,7 @@ Deep dive into EU AI Act requirements, risk classification, conformity assessmen
 - [GDPR and AI Act Intersection](#gdpr-and-ai-act-intersection)
 - [Conformity Assessment Process](#conformity-assessment-process)
 - [DPIA Template for AI Systems](#dpia-template-for-ai-systems)
-- [Implementation Timeline for Teams](#implementation-timeline-for-teams)
+- [Implementation Steps for Teams](#implementation-steps-for-teams)
 
 ---
 
@@ -20,21 +20,20 @@ Deep dive into EU AI Act requirements, risk classification, conformity assessmen
 Is the AI system on the Prohibited list (Art. 5)?
 ├── Yes → BANNED (social scoring, manipulative AI, untargeted facial scraping,
 │         emotion recognition in workplace/education, real-time remote biometric ID)
-│         Enforced: Feb 2, 2025
+│         Applies since the first phase (dates in enforcement-trends)
 └── No → Is it a General-Purpose AI model (GPAI)?
     ├── Yes → GPAI obligations apply (Art. 51-56)
-    │         Enforced: Aug 2, 2025
     │         - Technical documentation
     │         - Comply with Copyright Directive
     │         - Publish training data summary
     │         - Systemic risk models: additional safety evaluations
     └── No → Is it in Annex III (high-risk categories)?
         ├── Yes → HIGH-RISK requirements (Art. 6-49)
-        │         Enforced: Aug 2, 2026
-        │         Full conformity assessment required
+        │         Application date postponed by the omnibus: see enforcement-trends
+        │         Conformity assessment required
         └── No → Does it interact with people or generate content?
-            ├── Yes → LIMITED RISK — transparency obligations only
-            │         Disclose AI use to users, label AI-generated content
+            ├── Yes → LIMITED RISK — transparency obligations (Art. 50)
+            │         Disclose AI interaction to users, mark synthetic content
             └── No → MINIMAL RISK — no obligations
 ```
 
@@ -146,14 +145,15 @@ Oversight tiers by risk severity:
 └── Tier 4 (kill switch): Human can shut down system entirely
 ```
 
-### 6. Transparency (Art. 13)
+### 6. Transparency: Art. 13 (to deployers) and Art. 50 (to people)
 
-Users must be informed:
-- That they are interacting with an AI system
-- The system's capabilities and limitations
-- The level of accuracy and potential error rates
-- Any circumstances that may affect performance
-- Contact information for the provider
+**Art. 13** concerns providers of high-risk systems: they must supply deployers with instructions for use covering:
+- Intended purpose, capabilities, and limitations
+- Level of accuracy, robustness, and known error conditions
+- Circumstances that may affect performance
+- Human-oversight measures and provider contact details
+
+**Art. 50** concerns people who meet an AI system: tell them they are interacting with AI (unless obvious), mark synthetic audio, image, video, and text as machine-generated, and disclose deepfakes and emotion-recognition or biometric-categorisation use.
 
 ---
 
@@ -165,16 +165,16 @@ Users must be informed:
 |-------|-----------------|-------------------|------------|
 | Lawful basis | Required for any personal data processing | N/A (AI Act does not replace GDPR) | Both apply simultaneously |
 | DPIA | Required for high-risk processing (Art. 35) | Conformity assessment required | DPIA can feed into conformity assessment |
-| Automated decisions | Right to explanation (Art. 22) | Transparency + human oversight | AI Act adds operational requirements |
+| Automated decisions | Right not to be subject to solely automated decisions with legal or similarly significant effects, with human intervention and the ability to contest (Art. 22) | Transparency + human oversight | AI Act adds operational requirements |
 | Data minimization | Collect only what's needed | Training data must be relevant, representative | Tension: bias testing may require protected attributes |
 | Right to object | Can refuse automated processing | Human oversight must allow override | Complementary — both enable human control |
 
-### EDPB Guidance (April 2025)
+### EDPB Opinion 28/2024 on AI models (December 2024)
 
-- LLMs rarely achieve anonymization standards
-- Deploying third-party LLMs requires legitimate interest assessment
-- Training on personal data requires explicit lawful basis
-- AI-generated outputs containing personal data are subject to GDPR
+- Whether a model trained on personal data is anonymous is assessed case by case: identification of people in the training data, directly or through queries, must be very unlikely
+- Legitimate interest can be a legal basis for developing or deploying a model, but only when the processing is strictly necessary and passes the balancing test; document the three-step assessment
+- A model developed with unlawfully processed personal data can make its deployment unlawful, unless the model has been duly anonymized
+- Personal data in model outputs is subject to GDPR like any other processing
 
 ---
 
@@ -190,8 +190,9 @@ Users must be informed:
    └── Complete technical documentation
 
 3. ASSESS
-   ├── Self-assessment (most Annex III categories)
-   └── Third-party assessment (biometric systems, critical infrastructure)
+   ├── Internal control (self-assessment): most Annex III areas, including critical infrastructure
+   └── Notified body: Annex III point 1 (biometrics) may use internal control where harmonised
+       standards are applied, otherwise a notified body; Annex I products follow their sectoral route
 
 4. REGISTER
    └── Register in EU AI database BEFORE market deployment
@@ -245,14 +246,13 @@ Users must be informed:
 
 ---
 
-## Implementation Timeline for Teams
+## Implementation Steps for Teams
 
-| When | Action |
-|------|--------|
-| Now | Inventory all AI/ML systems, classify risk levels |
-| Now | Ensure GDPR compliance for all AI data processing |
-| Now | Remove any prohibited AI practices |
-| Q2 2026 | Complete conformity assessment for high-risk systems |
-| Q2 2026 | Prepare technical documentation and register in EU database |
-| Aug 2026 | High-risk compliance deadline (unless extended to Dec 2027) |
-| Ongoing | Post-market monitoring, incident reporting, periodic reassessment |
+Relative order; map each step to the dates in enforcement-trends.
+
+1. Inventory all AI/ML systems and classify risk; check whether each is a provider or a deployer role.
+2. Remove any prohibited practice.
+3. Ensure GDPR compliance for the data processing (basis, DPIA where required).
+4. For high-risk systems: build the risk management system, data governance, technical documentation, logging, and oversight; run the conformity assessment; register before placing on the market.
+5. Prepare transparency measures (Art. 50) for chatbots and synthetic content.
+6. Stay current: post-market monitoring, serious-incident reporting, reassessment on significant change, and a periodic check of the regulation's status.

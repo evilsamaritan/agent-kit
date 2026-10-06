@@ -4,7 +4,7 @@
 
 1. Detect the stack, project boundaries, and existing Agent Kit config.
 2. Read `.agent-kit/agents.json` when present.
-3. Inspect existing `.claude/agents/` and `.codex/agents/` files. Distinguish Agent Kit generated files from user-owned files by the generated marker.
+3. Inspect existing `.claude/agents/`, `.codex/agents/`, and `.kimi-code/agents/` files. Distinguish Agent Kit generated files from user-owned files by the generated marker.
 4. Resolve the materializer from this skill's installed directory.
 
 ## Step 2: Select profiles and skills
@@ -39,6 +39,7 @@ The expected outputs are:
 ```text
 .claude/agents/<name>.md
 .codex/agents/<name>.toml
+.kimi-code/agents/<name>.md   (when kimi is selected)
 ```
 
 Do not manually patch an output to fix generation. Change `.agent-kit/agents.json`, the reusable profile, or the materializer.
@@ -49,8 +50,9 @@ Do not manually patch an output to fix generation. Change `.agent-kit/agents.jso
 2. Parse every generated Codex file as TOML.
 3. Confirm Claude frontmatter contains the intended name, description, skills, model, effort, and tools.
 4. Confirm Codex TOML contains `name`, `description`, `developer_instructions` naming the selected skills, `model_reasoning_effort`, and `sandbox_mode`, and no `[[skills.config]]`.
-5. Confirm user-owned native agent files remain unchanged.
-6. If `.claude/agents/` did not exist before this run, tell the user the new Claude agents become selectable after the session restarts; a running session does not watch a newly created agents directory.
+5. When Kimi is selected, confirm the target has an explicit `tools` allowlist and lists the selected skills by bare name.
+6. Confirm user-owned native agent files remain unchanged.
+7. If `.claude/agents/` did not exist before this run, tell the user the new Claude agents become selectable after the session restarts; a running session does not watch a newly created agents directory.
 
 Report the project composition, generated targets, overrides, the sync diff, and validation evidence.
 
@@ -61,8 +63,11 @@ No script is needed; edit the project files directly:
 1. List the generated agents: files in `.claude/agents/`, `.codex/agents/`, and `.kimi-code/agents/` that carry the Agent Kit generated marker. Leave every other file alone.
 2. Rewrite `.agent-kit/agents.json` against the current profiles and skills:
    - `frontend` and `backend` profiles become `developer`; keep the agent name and description, and give it the zone skills its work needs (`frontend`, `backend`, `mobile`, `gamedev`, plus the language). `development` comes with the profile.
-   - Renamed skills: `visualization` → `playground`.
+   - When several entries now share a profile, give each a distinct one-line description of its responsibility; the materializer rejects same-profile instances without one.
+   - A `security` profile entry becomes `reviewer` with `security` (plus `auth` or `compliance` when in scope); keep the agent name. The reviewer is read-only by default, so set `access` only if it must run commands.
+   - Renamed skills: `visualization` → `playground`. Removed skills: drop `hook-creator` and `update-config`.
    - Keep explicit model, effort, access, and tool choices the project made; drop entries that only restated old library defaults.
    - Projects without `agents.json` (3.x used plugin agents): create one from the recipes.
-3. Show the user the old and new `agents.json` side by side before writing it.
-4. Run the materializer with `--dry-run`, then without it, then `--prune` to delete generated targets that are no longer configured, then `--check`.
+3. Search project instructions, hooks, and scripts for `agent-kit:<profile>` agent references (3.x plugin agents) and for the removed `--portable` flag; point them at the project agent names and drop the flag.
+4. Show the user the old and new `agents.json` side by side before writing it.
+5. Run the materializer with `--dry-run`, then without it, then `--prune` to delete generated targets that are no longer configured, then `--check`.

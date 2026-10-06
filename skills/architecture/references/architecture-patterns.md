@@ -211,13 +211,7 @@ Do not publish vague state-change notifications that force every consumer to que
 
 ## CQRS
 
-CQRS separates the models used to change state from those used to answer queries. It ranges from separate code paths over one store to independently maintained read models.
-
-**Useful when:** command rules are rich, query shapes differ materially, read projections need independent optimization, or multiple views derive from the same facts.
-
-**Costs:** model duplication, projection lag, reconciliation, more test paths, and user-visible consistency decisions.
-
-Do not adopt separate infrastructure merely because commands and queries are different functions. Escalate the separation only as measured forces require it.
+Separate command and query models are an integration pattern between write owners and read projections: [integration-patterns.md](integration-patterns.md#cqrs-separate-query-model).
 
 ## Event sourcing
 

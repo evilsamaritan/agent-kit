@@ -27,8 +27,8 @@ Scan the codebase for data-related code:
 - [ ] Consistent naming convention (snake_case or camelCase -- pick one)
 
 **Idempotency**
-- [ ] Every entity has a stable business key for deduplication
-- [ ] Upserts use the business key for conflict detection
+- [ ] Retried commands carry a key derived from intent, scoped per client
+- [ ] Replays claim with `DO NOTHING` and return the stored result; `DO UPDATE` upserts are version-guarded
 - [ ] Updates are conditional (version guard or timestamp guard)
 - [ ] No auto-generated IDs used as deduplication keys
 - [ ] Replay of events produces identical state
@@ -43,12 +43,15 @@ Scan the codebase for data-related code:
 **Migration Discipline**
 - [ ] Migrations are sequential and versioned
 - [ ] Each migration is a single logical change
-- [ ] Destructive changes (DROP, ALTER TYPE) have explicit rollback
-- [ ] Migrations run inside transactions where supported
+- [ ] Destructive changes (DROP, ALTER TYPE) run last, after no deployed code reads the structure, with a forward-fix plan and a verified backup or point-in-time recovery
+- [ ] Migrations run inside transactions where the engine supports transactional DDL, except steps that cannot (concurrent index builds)
+- [ ] Migration sessions set a lock timeout; index builds on large tables are concurrent or online
+- [ ] New constraints on large tables are added unvalidated, then validated; backfills are batched
 - [ ] No manual schema changes outside migration files
 
 **Connection Management**
-- [ ] Pool size appropriate for workload
+- [ ] Total connections across all instances fit the server's limit; pool size comes from measurement
+- [ ] Session state (tenant, settings) is transaction-scoped when a transaction-mode pooler is used
 - [ ] Idle timeout prevents connection hoarding
 - [ ] Connection timeout prevents hanging on startup
 - [ ] Health check on connection checkout or periodic ping

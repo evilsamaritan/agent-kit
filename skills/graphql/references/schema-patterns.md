@@ -1,187 +1,125 @@
 # GraphQL Schema Patterns
 
-Advanced schema design, custom scalars, directives, error handling, and schema evolution.
+Depth for the graphql skill: payloads, scalars, authorization, pagination, evolution, and limits. Code samples are TypeScript-flavoured pseudocode; the patterns apply to any server.
+
+## Contents
+
+- [Mutation Payloads](#mutation-payloads)
+- [Input Types](#input-types)
+- [Custom Scalars](#custom-scalars)
+- [Authorization](#authorization)
+- [Pagination — Relay Implementation](#pagination--relay-implementation)
+- [Schema Evolution](#schema-evolution)
+- [Cost and Depth Limits](#cost-and-depth-limits)
+- [Trusted Documents](#trusted-documents)
+- [Spec and Server Status](#spec-and-server-status)
 
 ---
 
-## Schema Design Patterns
-
-### Mutation Response Pattern
-
-Always return a payload type from mutations — never return the entity directly.
+## Mutation Payloads
 
 ```graphql
-# Pattern: Mutation → Payload { entity + errors }
 type Mutation {
   createUser(input: CreateUserInput!): CreateUserPayload!
-  updateUser(id: ID!, input: UpdateUserInput!): UpdateUserPayload!
   deleteUser(id: ID!): DeleteUserPayload!
 }
 
 type CreateUserPayload {
-  user: User               # null if errors
-  errors: [UserError!]!    # empty if success
+  user: User                      # null when errors is non-empty
+  errors: [CreateUserError!]!     # expected outcomes only
 }
 
 type DeleteUserPayload {
-  deletedId: ID            # ID of deleted resource
-  errors: [UserError!]!
+  deletedId: ID
+  errors: [DeleteUserError!]!
 }
 
-# Typed business errors (not GraphQL errors)
-type UserError {
-  field: String             # Which input field caused the error
-  code: UserErrorCode!      # Machine-readable code
-  message: String!          # Human-readable message
+type CreateUserError {
+  field: String
+  code: CreateUserErrorCode!
+  message: String!
 }
 
-enum UserErrorCode {
+enum CreateUserErrorCode {
   EMAIL_TAKEN
   INVALID_EMAIL
   NAME_TOO_SHORT
-  NOT_FOUND
-  UNAUTHORIZED
 }
 ```
 
-**Why not throw GraphQL errors?**
-- GraphQL errors are for system/transport failures
-- Business errors belong in the response (predictable, typed, queryable)
-- Clients can handle errors without try/catch
+- Error codes are per mutation, so each enum lists only outcomes that mutation can produce.
+- Authentication and permission failures, outages, and bugs are not payload errors; they go to top-level `errors` with `extensions.code`.
+- Clients must handle unknown enum values: a new code is an additive change only if clients have a fallback branch for it.
 
-### Input Coercion Pattern
+---
+
+## Input Types
 
 ```graphql
-# Separate create vs update inputs
 input CreateUserInput {
-  email: String!      # Required on create
-  name: String!       # Required on create
-  role: UserRole      # Optional, defaults server-side
+  email: String!      # required on create
+  name: String!
+  role: UserRole      # optional, server default
 }
 
 input UpdateUserInput {
-  email: String       # Optional on update
-  name: String        # Optional on update
-  role: UserRole      # Optional on update
-}
-
-# Never reuse output types as inputs
-# Never make all fields optional on create input
-```
-
-### Nullable vs Non-Nullable
-
-```graphql
-type User {
-  id: ID!              # Always present
-  email: String!       # Always present
-  name: String!        # Always present
-  bio: String          # Nullable — user may not have set it
-  avatar: URL          # Nullable — may not exist
-  orders: [Order!]!    # Non-null list of non-null items (may be empty [])
-  latestOrder: Order   # Nullable — user may have no orders
+  email: String       # all optional on update
+  name: String
+  role: UserRole
 }
 ```
 
-**Rules:**
-- `[Item!]!` — list is never null, items are never null (can be empty `[]`)
-- `[Item!]` — list can be null (prefer `[Item!]!` instead)
-- `String!` — field is always present
-- `String` — field may be null (legitimate absence)
+Separate create and update inputs. For updates, distinguish "field omitted" from "explicitly null" when null means "clear the value".
 
 ---
 
 ## Custom Scalars
 
 ```graphql
-scalar DateTime    # ISO 8601: "2024-01-15T12:00:00Z"
-scalar Date        # ISO 8601: "2024-01-15"
-scalar URL         # Valid URL string
-scalar EmailAddress # Valid email format
-scalar JSON        # Arbitrary JSON (use sparingly)
-scalar BigInt      # Numbers > 2^53
-scalar UUID        # UUID v4 format
-scalar Money       # Decimal monetary value
+scalar DateTime     # RFC 3339 timestamp with offset
+scalar Date         # calendar date
+scalar URL
+scalar EmailAddress
+scalar BigInt       # integers beyond 2^53
+scalar Decimal      # exact decimal as string — money amounts
 ```
 
-**Implementation (graphql-scalars library):**
-```typescript
-import { DateTimeResolver, URLResolver, EmailAddressResolver } from 'graphql-scalars'
-
-const resolvers = {
-  DateTime: DateTimeResolver,
-  URL: URLResolver,
-  EmailAddress: EmailAddressResolver,
-}
-```
-
-Use custom scalars instead of `String` for: dates, URLs, emails, money. Provides validation at the schema level.
+Each scalar has parse (input) and serialize (output) functions that validate; most ecosystems ship a scalar library. Avoid a free-form `JSON` scalar except at true extension points: it opts out of the type system.
 
 ---
 
-## Directives
+## Authorization
 
-### Schema Directives
-
-```graphql
-# Auth directive
-directive @auth(requires: Role!) on FIELD_DEFINITION
-directive @deprecated(reason: String) on FIELD_DEFINITION
-
-type Query {
-  me: User @auth(requires: USER)
-  adminDashboard: Dashboard @auth(requires: ADMIN)
-  oldEndpoint: String @deprecated(reason: "Use newEndpoint instead")
-}
-
-enum Role {
-  USER
-  ADMIN
-  MODERATOR
-}
-```
-
-### Directive Implementation
+Authorize in the domain or service layer; the resolver passes the viewer from context.
 
 ```typescript
-function authDirective(directiveName: string) {
-  return {
-    authDirectiveTypeDefs: `directive @${directiveName}(requires: Role!) on FIELD_DEFINITION`,
-    authDirectiveTransformer: (schema: GraphQLSchema) =>
-      mapSchema(schema, {
-        [MapperKind.OBJECT_FIELD]: (fieldConfig) => {
-          const directive = getDirective(schema, fieldConfig, directiveName)?.[0]
-          if (directive) {
-            const { requires } = directive
-            const { resolve } = fieldConfig
-            fieldConfig.resolve = async (source, args, context, info) => {
-              if (!context.user) throw new AuthenticationError('Not authenticated')
-              if (context.user.role !== requires) throw new ForbiddenError('Insufficient permissions')
-              return resolve(source, args, context, info)
-            }
-          }
-          return fieldConfig
-        },
-      }),
-  }
-}
+// resolver: thin
+Query: {
+  invoice: (_, { id }, ctx) => ctx.services.invoices.getForViewer(ctx.viewer, id),
+},
+Invoice: {
+  lineItems: (invoice, args, ctx) => ctx.services.invoices.lineItemsForViewer(ctx.viewer, invoice.id, args),
+},
+
+// service: owns the decision
+getForViewer(viewer, id):
+  invoice = repo.find(id)
+  if invoice is null or not policy.canRead(viewer, invoice) → return null   // or a NotFound result; do not reveal existence
+  return invoice
 ```
+
+- **Object-level checks:** "can this viewer read this record?" (owner, tenant, relationship), not only "does the viewer have role X?".
+- **Every access path:** root fields, nested fields that reach other objects, `node(id)`, and subscriptions all go through the same policy.
+- **Directives as a coarse gate:** a declarative `@requiresScopes` or `@auth` directive can reject early, but it checks the operation, not the record. With roles, check permissions (role → permission set), not role equality, so higher roles are not locked out.
+- **Failure mode to avoid:** checks only in resolvers or directives means each new field is unprotected until someone remembers it.
+
+Authorization models (RBAC, ABAC, relationship-based): `auth`.
 
 ---
 
-## Pagination — Full Relay Implementation
+## Pagination — Relay Implementation
 
 ```graphql
-# Generic connection types
-interface Connection {
-  pageInfo: PageInfo!
-  totalCount: Int
-}
-
-interface Edge {
-  cursor: String!
-}
-
 type PageInfo {
   hasNextPage: Boolean!
   hasPreviousPage: Boolean!
@@ -189,156 +127,126 @@ type PageInfo {
   endCursor: String
 }
 
-# Concrete implementation
-type UserConnection implements Connection {
+type UserConnection {
   edges: [UserEdge!]!
   pageInfo: PageInfo!
-  totalCount: Int
 }
 
-type UserEdge implements Edge {
+type UserEdge {
   node: User!
   cursor: String!
 }
 
 type Query {
-  users(
-    first: Int
-    after: String
-    last: Int
-    before: String
-    filter: UserFilter
-  ): UserConnection!
-}
-
-input UserFilter {
-  role: UserRole
-  search: String
-  createdAfter: DateTime
+  users(first: Int, after: String, last: Int, before: String, filter: UserFilter): UserConnection!
 }
 ```
 
-### Resolver Implementation
-
 ```typescript
-async function resolveConnection(args, queryFn) {
-  const { first, after, last, before } = args
-  const limit = first || last || 20
-  const cursor = after || before
+const MAX_PAGE = 100
 
-  // Decode cursor
-  const decodedCursor = cursor ? JSON.parse(Buffer.from(cursor, 'base64').toString()) : null
+async function resolveUsers(args, ctx) {
+  if (args.first != null && args.last != null) throw userInputError('Use first or last, not both')
+  const backward = args.last != null
+  const limit = Math.min(Math.max(args.first ?? args.last ?? 20, 1), MAX_PAGE)
 
-  // Query with limit + 1 to detect hasMore
-  const items = await queryFn({ cursor: decodedCursor, limit: limit + 1 })
-  const hasMore = items.length > limit
-  const sliced = items.slice(0, limit)
+  const sort = ['createdAt', 'id']
+  const raw = backward ? args.before : args.after
+  const position = raw ? ctx.cursors.verify(raw, { sort, filter: args.filter }) : null  // throws on bad signature, expiry, or mismatch
 
+  // forward: rows after position in sort order; backward: rows before it, in reverse order
+  const rows = await ctx.services.users.page({ filter: args.filter, sort, position, limit: limit + 1, reverse: backward }, ctx.viewer)
+  const hasMore = rows.length > limit
+  const page = rows.slice(0, limit)
+  if (backward) page.reverse()
+
+  const edges = page.map(node => ({ node, cursor: ctx.cursors.sign({ key: [node.createdAt, node.id], sort, filter: args.filter }) }))
   return {
-    edges: sliced.map(item => ({
-      node: item,
-      cursor: Buffer.from(JSON.stringify({ id: item.id })).toString('base64'),
-    })),
+    edges,
     pageInfo: {
-      hasNextPage: first ? hasMore : false,
-      hasPreviousPage: last ? hasMore : false,
-      startCursor: sliced[0] ? encodeCursor(sliced[0]) : null,
-      endCursor: sliced.at(-1) ? encodeCursor(sliced.at(-1)) : null,
+      hasNextPage: backward ? Boolean(args.before) : hasMore,
+      hasPreviousPage: backward ? hasMore : Boolean(args.after),
+      startCursor: edges[0]?.cursor ?? null,
+      endCursor: edges.at(-1)?.cursor ?? null,
     },
   }
 }
 ```
 
+`hasNextPage` when paging backward (and `hasPreviousPage` when paging forward) may be approximated as shown; the Relay spec allows it. Cursor signing and binding: `api-design` ([rest-patterns.md](../../api-design/references/rest-patterns.md#pagination)).
+
 ---
 
 ## Schema Evolution
 
-### Non-Breaking Changes (Safe)
-
-| Change | Safe? | Notes |
-|--------|-------|-------|
-| Add field | Yes | Existing queries ignore new fields |
-| Add optional argument | Yes | Existing queries don't send it |
-| Add enum value | Careful | Clients with exhaustive switches break |
-| Add type to union | Careful | Clients with `__typename` switches may break |
-| Deprecate field | Yes | Add `@deprecated`, remove later |
-
-### Breaking Changes (Avoid)
-
-| Change | Breaking? | Migration |
-|--------|-----------|-----------|
-| Remove field | Yes | Deprecate first, monitor usage, remove after N months |
-| Rename field | Yes | Add new field, deprecate old, migrate clients |
-| Change field type | Yes | Add new field with new type |
-| Make nullable → non-null | Yes | May break clients expecting null |
-| Make non-null → nullable | Usually safe | Clients already handle the value |
-| Remove enum value | Yes | Deprecate, stop returning it, then remove |
-
-### Deprecation Workflow
+| Change | Breaking? | Notes |
+|--------|-----------|-------|
+| Add output field or type | No | Existing operations ignore it |
+| Add optional argument or input field | No | Must not change behavior when omitted |
+| Add enum value or union member | Only for clients without a fallback branch | Document that clients must tolerate unknown values |
+| Remove or rename a field | Yes | Add the new field, deprecate the old, remove after usage stops |
+| Change a field's type | Yes | Add a new field |
+| Output field non-null → nullable | Yes | Clients assume a value |
+| Output field nullable → non-null | No for readers, but failures now bubble further | Check error propagation |
+| Argument or input field optional → required | Yes | Existing operations omit it |
+| Remove an enum value | Yes | Stop returning it, deprecate, then remove |
 
 ```graphql
 type User {
-  fullName: String! @deprecated(reason: "Use `name` instead. Will be removed 2026-07-01.")
+  fullName: String! @deprecated(reason: "Use `name`. Removal planned after usage reaches zero; see the changelog.")
   name: String!
 }
 ```
 
-1. Add new field alongside old
-2. Deprecate old field with reason + removal date
-3. Monitor usage of deprecated field (introspection query logging)
-4. Remove after all clients migrate
+1. Add the new field alongside the old one.
+2. Deprecate the old field with a reason and a removal plan.
+3. Track usage of the deprecated field per client (operation names or trusted-document ids).
+4. Remove when usage is zero or the announced date passes.
+
+Run a schema diff against the last released schema in CI and fail on breaking changes.
 
 ---
 
-## Security Patterns
+## Cost and Depth Limits
 
-### Query Complexity Analysis
+Analyze each document at validation time, before execution:
 
-```typescript
-import { createComplexityLimitRule } from 'graphql-validation-complexity'
-
-const complexityRule = createComplexityLimitRule(1000, {
-  scalarCost: 1,
-  objectCost: 10,
-  listFactor: 20,
-  introspectionListFactor: 2,
-})
-
-// Or field-level cost annotation
-const typeDefs = `
-  type Query {
-    users(first: Int): [User!]! @cost(complexity: 10, multipliers: ["first"])
-    user(id: ID!): User @cost(complexity: 1)
-  }
-`
+```
+cost(field) = own weight × (list size from first/last argument, or a default cap for unbounded lists)
+cost(document) = sum over the selection tree, including every alias
+reject if depth > maxDepth, cost > maxCost, aliases > maxAliases, or operations per request > maxBatch
 ```
 
-### Depth Limiting
+- Weights: scalars ≈ 0, objects ≈ 1, fields backed by a remote call higher.
+- Lists without a size argument count with a pessimistic default.
+- Return the computed cost in `extensions` so clients can see their budget use; rate-limit by cost per client.
+- Example syntax: the GraphQL cost directives specification (`@cost(weight: ...)`, `@listSize(slicingArguments: [...])`) is supported by some servers and routers; others take a weights map in code. Check what the project's server supports.
 
-```typescript
-import depthLimit from 'graphql-depth-limit'
+---
 
-const server = new ApolloServer({
-  validationRules: [depthLimit(10)],
-})
-```
+## Trusted Documents
 
-### Persisted Queries Implementation
+| | Automatic persisted queries (APQ) | Trusted documents (safelist) |
+|-|-----------------------------------|------------------------------|
+| Purpose | Bandwidth: send a hash instead of query text | Security: execute only known operations |
+| Registration | At runtime, by any client (hash + text) | At build time, from client code, by the release pipeline |
+| Unknown operation | Client resends with text; server caches it | Rejected |
+| Protects against arbitrary queries | No | Yes |
 
-```typescript
-// Build-time: extract queries from client code
-// queries.json
-{
-  "abc123": "query GetUser($id: ID!) { user(id: $id) { id name email } }",
-  "def456": "mutation CreateOrder($input: CreateOrderInput!) { ... }"
-}
+Pattern:
+1. Extract operations from client code at build time into a manifest (`id → document`).
+2. Publish the manifest to the server or router with the client release.
+3. In production, accept only `{ documentId, variables }` (or the hash) for first-party clients; reject raw `query` text and unknown ids.
+4. Keep old manifest entries until old client versions are gone (mobile clients live long).
 
-// Runtime: only execute registered queries
-const server = new ApolloServer({
-  persistedQueries: {
-    cache: new InMemoryLRUCache(),
-  },
-  // In production: reject non-persisted queries
-  allowBatchedHttpRequests: false,
-})
-```
+Server-specific configuration is named "trusted documents", "persisted documents", "operation safelisting", or "persisted queries" depending on the product; confirm the mode is an allowlist and not APQ.
+
+---
+
+## Spec and Server Status
+
+Check the project's server and client versions before relying on any of these.
+
+- **Spec editions:** the September 2025 edition is the newest published edition. `@defer`/`@stream` (incremental delivery) are not in it, nor in the working draft.
+- **graphql-js v17** (17.0.0, June 2026) ships incremental delivery as experimental: a schema opts in to the directives (`GraphQLDeferDirective`/`GraphQLStreamDirective` are not in `specifiedDirectives`), and execution goes through `experimentalExecuteIncrementally()`; plain `execute()` stays single-result. Other servers implement earlier or different payload formats; client and server must agree.
+- **GraphQL-over-HTTP** is a working-draft specification, not a release; the `application/graphql-response+json` media type and its status-code rules come from it. Many servers still default to `application/json` with status 200 for all executed requests.

@@ -6,203 +6,114 @@ user-invocable: true
 
 # Docker — Container Build & Runtime
 
+Use the current supported release of every base image and tool. Tags in this skill are placeholders; example versions live in the references.
+
 ## Hard Rules
 
-- NEVER run containers as root in production — use `USER nonroot` or `USER 1001`
-- NEVER use `FROM image:latest` — pin version + digest for reproducibility
-- NEVER put secrets in Dockerfile instructions — use `--mount=type=secret` or runtime env
-- NEVER `COPY . .` before dependency install — cache-busts dependency layer
-- ALWAYS include a `.dockerignore` — exclude `.git`, `node_modules`, `.env*`, secrets
-- ALWAYS lint Dockerfiles with `hadolint` before committing
+- NEVER run containers as root in production — numeric `USER` (for example `65532`) or a `:nonroot` base tag
+- NEVER use `FROM image:latest` — pin a version tag, and a digest for production; pair digest pins with an update bot, or pinned bases silently stop getting security patches
+- NEVER put secrets in Dockerfile instructions, `ARG`, or `ENV` — use `--mount=type=secret` at build time and mounted files or a secret store at runtime
+- NEVER `COPY . .` before the dependency install — it busts the dependency layer
+- ALWAYS include a `.dockerignore` (`.git`, dependency folders, `.env*`, build output, secrets)
+- ALWAYS use exec-form `CMD`/`ENTRYPOINT` (JSON array) so the app is PID 1 and receives signals
+- ALWAYS lint Dockerfiles (`hadolint`) in CI
 
 ---
 
 ## Multi-Stage Build Pattern
 
+Build tools stay in the build stage; only runtime artifacts reach the final image. Install from the lockfile, copy source after the install, copy the runtime dependencies and build output into a minimal non-root image.
+
 ```dockerfile
-# Stage 1: Build
-FROM node:22-slim AS builder
+FROM node:<lts>-slim AS build
 WORKDIR /app
-COPY package*.json ./
+COPY package.json package-lock.json ./
 RUN npm ci --ignore-scripts
 COPY . .
-RUN npm run build
+RUN npm run build && npm prune --omit=dev
 
-# Stage 2: Runtime (minimal)
-FROM gcr.io/distroless/nodejs22-debian12
-COPY --from=builder /app/dist /app
+FROM gcr.io/distroless/nodejs<lts>-debian<N>:nonroot
 WORKDIR /app
-CMD ["server.js"]
+COPY --from=build /app/node_modules ./node_modules
+COPY --from=build /app/dist ./dist
+CMD ["dist/server.js"]
 ```
 
-Pattern: install deps, copy source, build, copy artifacts to minimal runtime image.
-
-## Layer Caching Strategy
-
-Order Dockerfile instructions from least-changing to most-changing:
-
-```
-1. Base image         (rarely changes)
-2. System packages    (changes monthly)
-3. Dependencies       (changes weekly)  ← COPY package*.json + install
-4. Source code        (changes daily)   ← COPY . .
-5. Build step         (changes daily)
-```
-
-**Cache-busting rule:** Any changed layer invalidates all subsequent layers.
-
-## Dockerfile Best Practices
-
-| Practice | Do | Don't |
-|----------|-----|-------|
-| Copy deps first | `COPY package*.json ./` then `RUN npm ci` | `COPY . .` then `RUN npm ci` |
-| Non-root user | `USER nonroot` or `USER 1001` | Run as root |
-| Copy vs Add | `COPY` for files | `ADD` (unless extracting tar or URL) |
-| One process | One CMD per container | Multiple services in one container |
-| .dockerignore | Include `node_modules`, `.git`, `*.md` | No .dockerignore (bloated context) |
-| Specific tags | `FROM node:22.14-slim` | `FROM node:latest` |
-| Combined RUN | `RUN apt-get update && apt-get install -y curl && rm -rf /var/lib/apt/lists/*` | Separate RUN per package |
-| Lint Dockerfiles | `hadolint Dockerfile` | No linting (inconsistent, error-prone) |
+Order instructions from least to most changing: base image, system packages, lockfile and dependency install, source, build. A changed layer invalidates every layer after it. Language variants (Node, Python, Go, Rust), cache mounts, and monorepo builds: [dockerfile-patterns.md](references/dockerfile-patterns.md).
 
 ## Base Image Decision Tree
 
 ```
-Need shell/debugging?
-├── Yes → Alpine (~5MB) or Wolfi (~6MB, fewer CVEs)
+Need a shell or package manager in the runtime image?
+├── Yes → slim or alpine variant (musl: check native-library compatibility),
+│         or a minimal distro-style image that has a package manager
 └── No
-    ├── Static binary? → scratch (0MB base)
-    └── Runtime needed? → distroless or Chainguard (~2-20MB)
+    ├── Static binary → scratch (add CA certificates and a numeric USER)
+    └── Needs a language runtime → distroless or another minimal runtime image
 ```
 
-Chainguard images: zero known CVEs, rebuilt nightly, include SBOM + Sigstore signatures + SLSA Build Level 2 attestations.
+Prefer minimal bases that publish an SBOM and signatures, and verify them rather than trusting a vendor's "zero CVE" claim. Vendor names and comparison: [dockerfile-patterns.md](references/dockerfile-patterns.md).
 
-## Scaffolding with `docker init`
+## Runtime Behaviour
 
-Run `docker init` in a project directory to generate a production-ready Dockerfile, compose.yaml, and .dockerignore. Detects language (Go, Node, Python, Rust, Java) and applies multi-stage build patterns automatically.
+- **PID 1 and signals**: exec-form `CMD` makes the app PID 1, which ignores signals it has no handler for. The app must handle `SIGTERM` and drain; for shells, wrappers, or child processes add an init (`docker run --init`, `init: true` in Compose, or a tiny init in the image).
+- **Shutdown**: set `STOPSIGNAL` if the app expects something other than `SIGTERM`, and make the stop grace period longer than the drain time. Shutdown semantics: `reliability` and `backend`.
+- **Health checks without curl**: shell-less images cannot run `curl`. Use a built-in subcommand of the app binary, a small static health binary, or leave probing to the orchestrator. Semantics of liveness vs readiness: `reliability`.
+- **Debugging shell-less containers**: a debug container that joins the target's namespaces (`docker run --rm -it --pid container:<id> --network container:<id> <debug-image>`), `kubectl debug` on Kubernetes, or a `:debug` variant of the base; `docker debug` where your Docker distribution provides it. Do not ship a shell in the production image just for debugging.
 
-```bash
-docker init    # interactive — detects project, asks port + entry point
-```
+## Compose
 
-## Compose v2 Patterns
-
-```yaml
-services:
-  api:
-    build: .
-    depends_on:
-      db:
-        condition: service_healthy
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:3000/health"]
-      interval: 10s
-      timeout: 5s
-      retries: 3
-    profiles: ["app"]
-
-  db:
-    image: postgres:17
-    environment:
-      POSTGRES_PASSWORD_FILE: /run/secrets/db_password
-    secrets:
-      - db_password
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres"]
-      interval: 5s
-    volumes:
-      - pgdata:/var/lib/postgresql/data
-
-secrets:
-  db_password:
-    file: ./secrets/db_password.txt
-
-volumes:
-  pgdata:
-```
-
-Key features: `depends_on` + `condition: service_healthy`, `profiles`, `secrets`, `develop.watch` (file sync without rebuild).
+Compose describes local development and single-host stacks. Use `depends_on` with `condition: service_healthy`, profiles for optional services, file-based secrets, and `develop.watch` for file sync. Production Compose and patterns: [compose-patterns.md](references/compose-patterns.md).
 
 ## Buildx, BuildKit & Bake
 
-Buildx is the default builder. Bake is GA — use it for multi-target builds.
+Buildx is the default builder. Use cache mounts for package caches, secret mounts for credentials, and Bake for multi-target builds.
 
 ```bash
-# Multi-platform build
-docker buildx build --platform linux/amd64,linux/arm64 -t app:latest .
-
-# Cache mount (persistent package cache across builds)
-RUN --mount=type=cache,target=/root/.npm npm ci
-
-# Secret mount (build-time secrets, not in layer)
-RUN --mount=type=secret,id=npmrc,target=/root/.npmrc npm ci
-
-# Bake — declarative multi-target builds (docker-bake.hcl)
-docker buildx bake                                    # build all targets in parallel
-docker buildx bake api --var TAG=1.2.3                # single target + variable
+docker buildx build --platform linux/amd64,linux/arm64 -t registry.example.com/app:1.2.3 --push .
+docker buildx bake                       # all targets in docker-bake.hcl, in parallel
+TAG=1.2.3 docker buildx bake api         # HCL variables are overridden by environment variables
+docker buildx bake api --set api.tags=registry.example.com/api:1.2.3   # override target attributes
 ```
 
-Bake: define build targets in HCL/JSON/Compose. Parallelizes independent targets. Supports remote cache, policies, and `--var` for CLI variable overrides.
+`docker init` scaffolds a Dockerfile, Compose file, and `.dockerignore` for common languages; review the result against the rules above.
 
-## Security & Supply Chain Checklist
+## Security & Supply Chain
 
-- [ ] Non-root user (`USER nonroot` / `USER 1001`)
-- [ ] Minimal base image (distroless, Chainguard, Alpine, scratch)
-- [ ] No secrets in image layers (use `--mount=type=secret` or runtime env)
-- [ ] Read-only root filesystem (`--read-only`)
-- [ ] Drop all capabilities (`--cap-drop=ALL --cap-add=NET_BIND_SERVICE`)
-- [ ] Scan images for CVEs (`trivy`, `grype`, `docker scout`)
-- [ ] Pin image digests for production (`FROM node@sha256:abc123...`)
-- [ ] Generate SBOM (`docker buildx build --sbom=true`)
-- [ ] Sign images (`cosign sign`, Sigstore keyless)
-- [ ] Verify provenance (SLSA attestations, `cosign verify-attestation`)
-- [ ] Lint Dockerfiles (`hadolint`)
+- [ ] Non-root, numeric user; minimal base image
+- [ ] No secrets in layers, `ARG`, or `ENV`
+- [ ] Runtime hardening: read-only root filesystem (`--read-only` plus tmpfs), `--cap-drop=ALL` and add back only what is needed, `no-new-privileges`
+- [ ] Image scan in CI (`trivy`, `grype`, `docker scout`)
+- [ ] Base digests pinned and kept current by an update bot
+- [ ] SBOM and provenance attached at build (`--sbom=true`, `--provenance=mode=max`), image signed (`cosign`, keyless)
 
-## Health Check Patterns
-
-| Type | Use Case | Example |
-|------|----------|---------|
-| HTTP | Web services | `curl -f http://localhost:3000/health` |
-| TCP | Database/cache | `pg_isready`, `redis-cli ping` |
-| Command | Custom logic | `test -f /tmp/healthy` |
-
----
-
-## Context Adaptation
-
-**DevOps** — Multi-stage builds for CI/CD, registry caching, multi-arch builds, Compose for local dev, supply chain (SBOM, signing, scanning in CI).
-
-**Security** — Non-root containers, read-only filesystems, capability dropping, build-time secrets (`--mount=type=secret`), runtime secrets (env, mounted files), pinned digests, Sigstore attestations, Chainguard base images.
-
-**SRE** — Health check patterns (HTTP, TCP, command), resource limits, OOM prevention, graceful shutdown via STOPSIGNAL, logging drivers, restart policies.
-
----
+Controls, verification, and policy gates: `security` (supply chain). Pipeline wiring: `ci-cd`.
 
 ## Anti-Patterns
 
 | Anti-Pattern | Why It Fails | Correct Approach |
 |-------------|-------------|-----------------|
-| Running as root | Container escape = host root | `USER nonroot` in Dockerfile |
-| Fat base images (ubuntu, debian) | 100MB+ bloat, larger attack surface | Alpine, Chainguard, distroless, or scratch |
-| `latest` tag in production | Non-reproducible builds, surprise breakage | Pin specific version + digest |
-| `COPY . .` before dependency install | Cache-busts dependency layer on every code change | Copy lockfile first, install, then copy source |
-| No .dockerignore | Bloated build context, secrets leaked | Ignore `.git`, `node_modules`, secrets |
-| Hardcoded secrets in Dockerfile | Secrets baked into image layers | Build secrets (`--mount=type=secret`) or runtime env |
-| No SBOM or image signing | Invisible supply chain, unverifiable provenance | `--sbom=true`, cosign sign, Sigstore attestations |
-| Skipping Dockerfile linting | Inconsistent, insecure patterns slip in | `hadolint` in CI pipeline |
+| Running as root | Container escape lands as host root | Numeric `USER` or `:nonroot` base |
+| Shell-form `CMD` | A shell becomes PID 1 and swallows `SIGTERM`; slow, killed shutdowns | Exec-form `CMD` plus a signal handler or init |
+| `latest` or floating tags in production | Non-reproducible builds, surprise breakage | Version tag plus digest, updated by a bot |
+| Digest pins with no update path | Base image never gets security patches | Dependabot or Renovate bumps the digest |
+| Fat base images for static or runtime-only apps | Larger attack surface and size | `scratch`, distroless, or slim |
+| Secrets in `ARG`, `ENV`, or `COPY .env` | Visible in image history | Build secret mounts, runtime secret files |
+| One image, many services | Any change rebuilds and redeploys everything | One image per deployable |
+| Installing debug tools in the production image | Larger surface, drift from what runs | A namespace-joining debug container or `kubectl debug` |
 
 ---
 
 ## Related Knowledge
 
-- **kubernetes** — container images built here run in Kubernetes clusters
-- **devops** — CI/CD pipelines that build, scan, and push images
-- **security** — container security hardening, supply chain integrity
-- **observability** — container logging drivers, health check integration
+- **kubernetes** — images built here run in clusters (probes, security context)
+- **ci-cd** — pipelines that build, scan, and push images
+- **release-engineering** — tagging, promotion, rollback of image versions
+- **security** — supply chain integrity and hardening
+- **reliability** — health semantics and graceful shutdown
+- **observability** — container logging and health integration
 
 ## References
 
-- [dockerfile-patterns.md](references/dockerfile-patterns.md) — Language-specific Dockerfile patterns, optimization techniques, and BuildKit features
-- [compose-patterns.md](references/compose-patterns.md) — Compose v2 advanced patterns, networking, volumes, and production configurations
-- [container-patterns.md](references/container-patterns.md) — General container runtime patterns, security, restart policies
-
-Load references when you need language-specific Dockerfile templates or complex Compose configurations.
+- [dockerfile-patterns.md](references/dockerfile-patterns.md) — Language Dockerfiles, BuildKit features, bake, monorepo builds, `.dockerignore`, debugging, image sources (load for concrete templates and example versions)
+- [compose-patterns.md](references/compose-patterns.md) — Compose dependencies, profiles, networks, volumes, secrets, multi-file and production setups

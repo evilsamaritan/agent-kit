@@ -14,7 +14,7 @@
 Use when one profession owns the task and another context would add coordination cost without independent value.
 
 ```text
-main → backend → main synthesis
+main → backend-developer → main synthesis
 ```
 
 ## Pipeline
@@ -22,7 +22,7 @@ main → backend → main synthesis
 Use when each stage needs the previous stage's decision or artifact.
 
 ```text
-architect → backend + frontend → tester → main synthesis
+architect → backend-developer + frontend-developer → tester → main synthesis
 ```
 
 Pass only the contract needed by the next stage: decisions, interfaces, changed paths, known risks, and acceptance checks.
@@ -32,9 +32,9 @@ Pass only the contract needed by the next stage: decisions, interfaces, changed 
 Use when assignments have independent evidence or disjoint file ownership.
 
 ```text
-                 ┌→ frontend ─┐
-main contract ───┤            ├→ integration check
-                 └→ backend ──┘
+                 ┌→ frontend-developer ─┐
+main contract ───┤                      ├→ integration check
+                 └→ backend-developer ──┘
 ```
 
 Parallel read work is usually safe. Parallel writes need separate paths or native worktrees.
@@ -60,7 +60,9 @@ tests ───────┤
 maintenance ─┘
 ```
 
-Keep reviewers independent until their findings return. The synthesizer removes duplicates and resolves contradictions against source evidence.
+Give each reviewer the artifact and its rubric, not the author's explanation, and keep reviewers independent until their findings return. The synthesizer removes duplicates and resolves contradictions against source evidence.
+
+LLM review varies from run to run, so give each reviewer one dimension in a fresh context and merge the results rather than asking one reviewer for everything.
 
 ## Failure handling
 

@@ -31,6 +31,7 @@ argument-hint: "[task or agent composition]"
 | Review or research with independent lenses | Parallelize, then synthesize |
 | Dependent implementation stages | Run a pipeline and pass compressed handoffs |
 | Missing project agent | Use the bundled profile as an ephemeral fallback, or invoke `agent-creator` when persistence is needed |
+| Requirements or design unsettled before a multi-agent task | Settle them with the user through `grill-me` first |
 | Save/reuse this workflow | Use the host's native workflow facility when it exists and the user asked for it explicitly |
 
 Follow [workflows/orchestrate.md](workflows/orchestrate.md) for execution.
@@ -53,7 +54,7 @@ Follow [workflows/orchestrate.md](workflows/orchestrate.md) for execution.
 | Interfaces or architecture unclear | Architect, then implementer(s) |
 | Frontend and backend scopes are independent | Two developer instances with UI/service knowledge and disjoint assignments |
 | Implementation needs independent validation | Implementer, then reviewer or tester |
-| Security-sensitive change | Implementer + security review |
+| Security-sensitive change | Implementer, then a reviewer composed with `security` |
 | Operational rollout | DevOps or SRE after implementation |
 | Broad audit | Separate reviewers by evidence axis, then one synthesis |
 

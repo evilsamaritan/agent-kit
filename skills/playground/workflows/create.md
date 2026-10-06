@@ -38,7 +38,7 @@ Use the SKILL.md decision tree and load one template from `templates/`. Mixed re
 
 1. Write one line of job and takeaway per section, view, slide, or tool panel. Merge duplicates and drop sections whose takeaway is already visible.
 2. For diagrams, pick views with [diagram-selection.md](../references/diagram-selection.md); keep supplied sources and their language; write new sources with `diagrams`.
-3. For tools, define the state object, its defaults, presets, and what the reader exports (see interactive-html, "State for tools").
+3. For tools, define the state object, its defaults, presets, and what the reader exports (see [interactive-html.md](../references/interactive-html.md#state-for-tools)).
 4. Decide the compact projection of each wide element before building it ([responsive-layout.md](../references/responsive-layout.md)).
 5. Assign meaning before style: categories, relationship grammar, and legend ([visual-language.md](../references/visual-language.md)).
 
@@ -57,10 +57,10 @@ Follow the host's page contract when its instructions provide an artifact or pre
 
 ## 7. Check, render, and inspect
 
-**Check.**
+**Check.** `<skill-dir>` is this skill's absolute directory; scripts and assets do not resolve from the consuming project.
 
 ```bash
-node scripts/check-shell-contract.mjs path/to/artifact.html
+node <skill-dir>/scripts/check-shell-contract.mjs path/to/artifact.html
 ```
 
 **Compile** diagram sources first when the page embeds compiled SVG: check the compiler's exit status and output; a missing compiler leaves the render unverified and the source unchanged.

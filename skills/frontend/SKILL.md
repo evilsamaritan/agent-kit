@@ -1,144 +1,129 @@
 ---
 name: frontend
-description: "Structure frontend applications and tooling. Use for bundlers, workspaces, UI composition, client state, data fetching, and code-quality configuration."
+description: "Structure frontend UI across frameworks. Use for component composition, state ownership, rendering strategy (SSR, SSG, SPA), data-fetching boundaries, and verifying a UI change in a browser. Build tooling is in javascript."
 user-invocable: true
 ---
 
-# Frontend Engineering Patterns
+# Frontend
 
-Frontend infrastructure and patterns that cut across frameworks — build tooling, module systems, workspace organization, code-quality stacks, and framework-agnostic component patterns.
+Framework-neutral decisions about how a UI is put together: who owns each piece of state, where rendering happens, how components compose, and how to check a change. Framework APIs live in `react` and `vue`; build tooling lives in `javascript`.
 
 ## Scope and boundaries
 
 **This skill covers:**
-- Bundler choice and config (Vite, webpack, esbuild, Rspack, Rolldown, Turbopack, Parcel)
-- Workspace and monorepo structure (npm/pnpm/yarn workspaces, Turborepo, Nx)
-- Code-quality tooling stack (ESLint, Biome, Prettier, TypeScript project references)
-- Framework-agnostic component patterns (composition, compound components, render props, slots)
-- Data-fetching / server-state patterns at a conceptual level
-- Build output: tree-shaking, code-splitting, differential serving
+- State ownership: which kind of state it is, and who owns it
+- Rendering strategy: build time, request time, or client
+- Component composition and the data-fetching boundary
+- Module boundaries inside a UI (public entry points, barrels)
+- Verifying a UI change in a browser
 
 **This skill does not cover:**
-- React-specific hooks, RSC, Suspense → `react`
-- Vue-specific composition API, reactivity → `vue`
-- HTML semantics, CSS layout → `html/css`
-- ARIA, keyboard nav, WCAG → `accessibility`
-- UX/IA/interaction design → `design`
-- i18n/l10n → `i18n`
-- JS/TS language patterns → `javascript`
-- Web platform APIs (CORS, service workers) → `web`
-- SEO → `seo`
+- Bundlers, workspaces, lint/format, build targets, `sideEffects` → [build-tooling.md](../javascript/references/build-tooling.md) in `javascript`
+- React hooks, Server Components, Suspense → `react`
+- Vue reactivity, Pinia, Nuxt → `vue`
+- Semantic markup, forms → `html`; layout, tokens, motion → `css`
+- WCAG, ARIA, keyboard behavior → `accessibility`
+- UX flows, information architecture → `design`
+- Browser APIs (CORS, storage, service workers) → `web`
+- Metadata, crawlability → `seo`; render performance → `performance`
+- Code practice inside a component (ownership, variants, async lifetime) → `development`
 
-## Decision tree — picking a bundler
-
-```
-Are you building an app (not a lib)?
-├─ yes →
-│  Need SSR/SSG/RSC?
-│  ├─ yes → use the framework's bundler (Next/Nuxt/SvelteKit) — don't roll your own
-│  └─ no → Vite (SPA default; fast, sensible)
-└─ no (you're building a library) →
-   Is it pure JS/TS?
-   ├─ yes → tsup / unbuild / pkgroll — simple, declarative
-   └─ no (styles, assets) → Vite in library mode, or Rollup directly
-
-Migrating off webpack?
-  Rspack (webpack-compatible config, much faster)
-  or Turbopack (Next.js path)
-```
-
-**Rolldown** — Rust-based Rollup-compatible bundler, planned as Vite's native default bundler (replacing esbuild + Rollup). Expect mention in Vite 7+.
-
-Don't change bundler for speed alone — dev-time speed matters, prod bundle size matters more.
-
-## Decision tree — picking a workspace manager
+## Decision tree — who owns this state
 
 ```
-Single team, < 5 packages?
-  pnpm workspaces (simple, fast, low memory)
-
-Multi-team, many packages, cross-package dependency graph?
-  pnpm + Turborepo (for caching) — most common modern stack
-  Nx if you need strong plugin ecosystem + codegen
-
-Polyglot monorepo (JS + Go + Python)?
-  Bazel (if you can afford the ramp) or Pants
+What kind of state is it?
+├── Data that lives on a server (lists, records, permissions)
+│   └── Server cache: one cache layer owns it, keyed by request, with
+│       invalidation. Never copy it into a client store "to share it".
+├── Something the user should be able to link, reload, or go back to
+│   (filters, page, selected tab, sort)
+│   └── URL: the address is the owner; components read it
+├── Values being edited before submit
+│   └── Form: the form owns the draft; the server cache owns the result
+├── Open/closed, hover, focus, scroll position of one component
+│   └── Local UI state in that component
+└── Client-only state read by distant components (session, cart draft, theme)
+    └── Shared client state: one owner module exposes operations that keep
+        its invariants; everyone else calls them (`development`, one writer)
 ```
 
-## Code-quality stack — defaults
+Rules:
+- **Derived is computed, not stored.** Storing a value that can be computed from other state creates two sources of truth.
+- **Lift only as far as needed.** Move state up to the nearest common parent; reach for shared state only when distance makes that painful.
+- **Server state is a cache with invalidation, local state is a toggle.** Do not hand-roll dedup, retry, revalidation, or optimistic rollback; use the framework's data layer or a server-state library. Cache-key and invalidate-after-mutation rules → `caching`.
+- **Controlled or uncontrolled, not both.** A parent owns the value, or the child does and reports changes. A component that does both drifts.
 
-Pick one per axis. Don't install two linters.
+## Decision tree — where does rendering happen
 
-| axis | default | alt |
-|------|---------|-----|
-| linter | ESLint (flat config) | Biome (single binary, faster, fewer plugins) |
-| formatter | Prettier | Biome |
-| type checker | `tsc --noEmit` in CI + project references | — |
-| pre-commit | lint-staged + husky (or simple-git-hooks) | — |
+```
+What does the route need?
+├── Same content for everyone, changes rarely → build time (static generation)
+├── Needs crawlable HTML and per-request data → request time (server rendering),
+│   streaming where the framework supports it
+├── Mostly static with a few dynamic regions → static shell + dynamic islands,
+│   or time-based revalidation
+├── Authenticated app, no crawlers, heavy interactivity → client rendering
+└── Mix → decide per route, not per app
+```
 
-**Rules:**
-- Linter stops at correctness; formatter stops at style. They are different jobs.
-- One source of truth for config — root `eslint.config.js`, not per-package.
-- Fast feedback over thorough: type check on save in IDE, full lint in CI.
+- **HTML first, enhance after.** Core content and primary forms should work before JavaScript runs where practical; script adds interactivity.
+- Streaming and server components need framework support; confirm it before designing around them.
+- Metadata and crawler behavior → `seo`. Cache-Control policy → `caching`; header syntax and navigation → `web`.
 
-## Component patterns — framework-agnostic
+## Component structure
 
-- **Components compose.** No component extends another; it composes children, slots, or props.
-- **Compound components** — when a set of elements share internal state (`Select`, `Tabs`, `Disclosure`).
-- **Headless / render-prop / slot patterns** — separate behavior (state machine) from presentation (markup). Same state, many skins.
-- **Container vs presentational** is a heuristic, not a rule. Modern frameworks blur the line — use it when it simplifies, drop it when it adds boilerplate.
-- **Controlled vs uncontrolled.** Controlled = parent owns state. Uncontrolled = child owns it, parent reads via ref/event. Both valid. Don't mix.
+- **Layers by role:** primitives (button, input, dialog) → composed components (data table, confirm dialog) → route-level compositions that wire data to components. Dependencies point down only.
+- **Components compose; they do not extend.** Share behavior through children, slots, props, or headless behavior units that bring no markup.
+- **Compound components** fit sets of elements that share internal state (tabs, select, disclosure).
+- **Container versus presentational** is a heuristic. Use it when it separates data access from markup; drop it when it adds files.
+- **Data access at the boundary.** Route-level or feature-level code fetches; leaf components receive data and callbacks. A leaf that fetches for itself cannot be reused or tested in isolation.
+- **Every data-driven view has four states** — loading, empty, error, success — designed up front, not patched in.
 
-## Data-fetching / server-state — concepts
+## Module boundaries — barrel files
 
-- **Local state ≠ server state.** Server state is cache with invalidation; local state is UI toggles. Different tools.
-- **Server-state library** (TanStack Query / SWR / Apollo) handles: caching, dedup, revalidation, retry, optimistic updates. Never hand-roll these.
-- **Suspense / streaming** lets you render shells before data. Requires framework support.
-
-Framework specifics in `react` / `vue`.
-
-## Build output — what matters
-
-- **Tree-shaking** requires ESM + side-effect-free packages. Mark `"sideEffects": false` in package.json where true.
-- **Code-splitting** by route is default. By component only when the component is large and optional.
-- **Ship modern JS to modern browsers.** Differential serving via `<script type="module">` + `<script nomodule>` if legacy matters; otherwise just ship modern JS (ES2022+).
-- **Bundle analysis.** `vite-bundle-visualizer` / `source-map-explorer` / `bundle-analyzer`. Check what you ship — regressions creep.
+One rule for the whole kit:
+- A re-export file (`index`) is **fine at a package or slice boundary** where it defines the public API, provided the package marks side effects accurately and does not `export *` large trees.
+- It is **harmful** when repeated at every directory level, when it re-exports modules with side effects, or inside libraries consumed by bundlers that cannot prune it.
+- Consumers import from the boundary, never from files behind it (`feature-sliced-design` applies this per slice).
 
 ## Verifying a UI change
 
-Open the changed flow in a browser. Check the states it can be in — loading, empty, error, success — keyboard and focus order, semantics, and contrast, at the narrowest and widest supported widths. A passing type check says nothing about any of these.
+Open the changed flow in a browser. Check the states it can be in — loading, empty, error, success — keyboard and focus order, semantics, and contrast, at the narrowest and widest supported widths. Watch the console and network panel for errors and unexpected requests. A passing type check says nothing about any of these.
+
+UI causes of poor Core Web Vitals: a hero image discovered late or lazy-loaded, content inserted without reserved space, long handlers on interaction, hydration of regions that never change. Definitions, thresholds, and field measurement (p75) → `performance`; ranking signal → `seo`.
 
 ## Context adaptation
 
-**As implementer:** pick the simplest stack that matches scale. Default: Vite + pnpm + ESLint + Prettier + TypeScript. Don't pre-optimize.
+**As implementer:** find the owner of each piece of state before writing code; pick the rendering mode per route; keep components small enough to name by role.
 
-**As reviewer:** check for mismatched tooling (lint + format overlap), stale deps with security issues, missing tree-shaking markers, missing bundle analysis in CI.
+**As reviewer:** look for server data copied into client stores, derived values stored, components that fetch for themselves, state with two writers, and missing loading/empty/error states.
 
-**As architect:** frontend architecture is 70% workspace structure + 30% framework choice. Decide both early; migrations are painful.
+**As architect:** state ownership and rendering mode are the expensive-to-reverse decisions. Decide them early; framework choice follows from them.
 
 ## Anti-patterns
 
-- **Tooling sprawl** — two linters, two formatters, three CI workflows for the same thing.
-- **Custom bundler config from scratch** — 95% of cases are covered by defaults. Reach for custom only when the generic path fails.
-- **Framework lock-in in "shared" packages.** A package that imports React is not shared — it's a React package. Own the naming.
-- **Monorepo cargo-cult.** A single-team, single-app codebase doesn't need Turborepo.
-- **Barrel-file everything.** `index.ts` re-exports kill tree-shaking and slow the TS compiler.
-- **Pre-commit hooks that run the full test suite.** Commits will get skipped. Run tests in CI, not on commit.
+- **Server data mirrored into a client store.** Two caches disagree. Let the cache layer own it.
+- **State stored when it can be derived.** Compute it.
+- **Shared state with many writers.** Expose operations from one owner instead of open mutation.
+- **Fetching in leaf components.** Fetch at the boundary, pass data down.
+- **One rendering mode for the whole app** when routes have different needs.
+- **Framework lock-in in "shared" packages.** A package that imports one framework is a package for that framework; name and document it as such.
+- **Barrel files at every level.** See the rule above.
+- **Treating a green build as a verified UI.** Run it.
 
 ## Related Knowledge
 
-- `development` — code practice inside components and modules: ownership, variant families, dependencies, async lifetime
+- `development` — one writer, explicit dependencies, async lifetime inside components
 - `react`, `vue` — framework specifics
-- `html/css` — markup and layout depth
+- `html`, `css` — markup, layout, tokens, motion
 - `accessibility` — WCAG, ARIA, keyboard
-- `javascript` — language and tsconfig depth
-- `web` — browser APIs
-- `feature-sliced-design` — an architectural convention for organizing frontend code
-- `performance` — render performance, Core Web Vitals
+- `javascript` — language, tsconfig, build tooling
+- `web` — browser APIs, caching headers, navigation
+- `seo` — metadata, crawlers; `performance` — render performance, Core Web Vitals (definitions, thresholds, measurement)
+- `caching` — client cache keys and invalidation after a mutation
+- `design` — flows, dashboards, interaction patterns
+- `feature-sliced-design` — a convention for organizing frontend code
 
 ## References
 
-- [bundlers.md](references/bundlers.md) — bundler decision tree with configs
-- [workspaces.md](references/workspaces.md) — monorepo patterns
-- [code-quality.md](references/code-quality.md) — lint / format / types / hooks stack
-- [patterns.md](references/patterns.md) — framework-agnostic component patterns
+- [build-tooling.md](../javascript/references/build-tooling.md) — bundlers, workspaces, lint/format, build targets (owned by `javascript`)

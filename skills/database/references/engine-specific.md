@@ -8,7 +8,7 @@ Syntax and features that vary across database engines. Consult when working with
 - [MySQL / MariaDB](#mysql--mariadb)
 - [SQLite](#sqlite)
 - [MongoDB](#mongodb)
-- [Redis / KeyDB](#redis--keydb)
+- [Key-Value Stores](#key-value-stores)
 - [Time-Series Extensions](#time-series-extensions)
 - [Vector Search Extensions](#vector-search-extensions)
 - [Edge Databases](#edge-databases-sqlite-based)
@@ -29,97 +29,70 @@ Syntax and features that vary across database engines. Consult when working with
 ### Key Syntax
 
 ```sql
--- Upsert
-INSERT INTO orders (idempotency_key, status)
-VALUES ($1, $2)
-ON CONFLICT (idempotency_key) DO UPDATE SET status = EXCLUDED.status;
+-- Idempotent claim (return stored result on conflict; see schema-patterns.md)
+INSERT INTO shipments (client_id, idempotency_key, request_hash)
+VALUES ($1, $2, $3)
+ON CONFLICT (client_id, idempotency_key) DO NOTHING
+RETURNING shipment_id;
 
--- UUID generation
-DEFAULT gen_random_uuid()
+-- Last-writer-wins upsert, guarded so an older write cannot win
+INSERT INTO device_state (device_id, state, version)
+VALUES ($1, $2, $3)
+ON CONFLICT (device_id) DO UPDATE
+  SET state = EXCLUDED.state, version = EXCLUDED.version
+  WHERE device_state.version < EXCLUDED.version;
 
 -- Timezone-aware timestamps
-TIMESTAMPTZ NOT NULL DEFAULT NOW()
+created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 
 -- JSONB indexing
 CREATE INDEX idx_events_payload ON events USING GIN (payload);
 
--- Partial index
-CREATE INDEX idx_orders_active ON orders (created_at) WHERE status = 'active';
+-- Partial index, built without blocking writes (not inside a transaction block)
+CREATE INDEX CONCURRENTLY idx_orders_open ON orders (created_at) WHERE status = 'open';
 
--- Advisory lock
-SELECT pg_advisory_xact_lock(hashtext('process-payments'));
+-- Transaction-scoped advisory lock
+SELECT pg_advisory_xact_lock(hashtext('nightly-rollup'));
 
--- CTE (Common Table Expression)
-WITH recent_orders AS (
-  SELECT * FROM orders WHERE created_at > NOW() - INTERVAL '1 hour'
-)
-SELECT account_id, COUNT(*) FROM recent_orders GROUP BY account_id;
+-- Migration session guard: fail fast instead of queueing behind a long transaction
+SET lock_timeout = '3s';
+
+-- Two-step constraint on a large table
+ALTER TABLE orders ADD CONSTRAINT orders_total_positive CHECK (total_minor > 0) NOT VALID;
+ALTER TABLE orders VALIDATE CONSTRAINT orders_total_positive;
 ```
 
-### PostgreSQL 17 Features
+### Recent PostgreSQL Features Worth Checking
 
-```sql
--- JSON_TABLE: transform JSON into relational rows
-SELECT jt.*
-FROM api_responses,
-     JSON_TABLE(payload, '$.items[*]' COLUMNS (
-       id TEXT PATH '$.id',
-       name TEXT PATH '$.name',
-       price NUMERIC PATH '$.price'
-     )) AS jt;
+Check the server version (`SHOW server_version`) before using any of these.
 
--- EXPLAIN with SERIALIZE and MEMORY options
-EXPLAIN (ANALYZE, BUFFERS, SERIALIZE, MEMORY) SELECT ...;
-
--- Incremental backups (pg_basebackup --incremental)
--- Logical replication failover slots for HA
-```
-
-### PostgreSQL 18 Features
-
-```sql
--- UUIDv7: time-ordered UUIDs (no extension needed)
-DEFAULT uuidv7()
-
--- Virtual generated columns (computed on read, no storage cost)
-ALTER TABLE orders ADD COLUMN total_display TEXT
-  GENERATED ALWAYS AS (quantity || ' x ' || price) VIRTUAL;
-
--- Temporal primary key (constraint over ranges)
-CREATE TABLE room_bookings (
-  room_id INT,
-  booked_during TSTZRANGE,
-  guest TEXT,
-  PRIMARY KEY (room_id, booked_during WITHOUT OVERLAPS)
-);
-
--- OLD/NEW in RETURNING clause
-UPDATE orders SET status = 'shipped'
-WHERE order_id = $1
-RETURNING OLD.status AS previous_status, NEW.status AS current_status;
-```
-
-Key improvements: asynchronous I/O subsystem (up to 3x read performance), skip scan for multi-column B-tree indexes, OAuth authentication support.
+| Capability | Minimum version |
+|---|---|
+| `MERGE`, `UNIQUE NULLS NOT DISTINCT` | 15 |
+| `JSON_TABLE`, `EXPLAIN (SERIALIZE, MEMORY)`, incremental base backups, logical replication failover slots | 17 |
+| `uuidv7()` built in | 18 |
+| Virtual generated columns (computed on read) | 18 |
+| Temporal keys: `PRIMARY KEY (room_id, booked_during WITHOUT OVERLAPS)` | 18 |
+| `RETURNING OLD.col, NEW.col` | 18 |
+| B-tree skip scan on multi-column indexes, asynchronous I/O | 18 |
 
 ### Declarative Partitioning
 
 ```sql
--- Range partitioning by time
+-- Range partitioning by time; partitions created ahead by a scheduled job, named events_YYYYMM
 CREATE TABLE events (
-  id UUID DEFAULT gen_random_uuid(),
+  id         UUID NOT NULL DEFAULT gen_random_uuid(),
   created_at TIMESTAMPTZ NOT NULL,
-  payload JSONB
+  payload    JSONB,
+  PRIMARY KEY (id, created_at)               -- unique keys must include the partition key
 ) PARTITION BY RANGE (created_at);
 
-CREATE TABLE events_2025 PARTITION OF events
-  FOR VALUES FROM ('2025-01-01') TO ('2026-01-01');
-CREATE TABLE events_2026 PARTITION OF events
-  FOR VALUES FROM ('2026-01-01') TO ('2027-01-01');
+CREATE TABLE events_default PARTITION OF events DEFAULT;   -- catches rows with no partition
 
 -- Hash partitioning by tenant
 CREATE TABLE orders (
   tenant_id UUID NOT NULL,
-  order_id UUID NOT NULL
+  order_id  UUID NOT NULL
 ) PARTITION BY HASH (tenant_id);
 
 CREATE TABLE orders_p0 PARTITION OF orders FOR VALUES WITH (MODULUS 4, REMAINDER 0);
@@ -128,9 +101,9 @@ CREATE TABLE orders_p1 PARTITION OF orders FOR VALUES WITH (MODULUS 4, REMAINDER
 ```
 
 ### Connection Pooling
-- PgBouncer (external pooler): transaction-mode or session-mode
-- Application-level: `pg` pool (Node.js), HikariCP (Java), SQLAlchemy pool (Python)
-- Pool sizing baseline: `connections = (core_count * 2) + effective_spindle_count`
+- External pooler (PgBouncer-class) in transaction mode for many short connections; session mode when the app depends on session state.
+- Transaction mode breaks session-level `SET`, session advisory locks, `LISTEN`, and (depending on the pooler version) prepared statements. Use transaction-scoped settings.
+- Size pools from measurement; the sum across instances must stay under `max_connections` with headroom for maintenance.
 
 ---
 
@@ -145,10 +118,13 @@ CREATE TABLE orders_p1 PARTITION OF orders FOR VALUES WITH (MODULUS 4, REMAINDER
 ### Key Syntax
 
 ```sql
--- Upsert
-INSERT INTO orders (idempotency_key, status)
-VALUES (?, ?)
-ON DUPLICATE KEY UPDATE status = VALUES(status);
+-- Upsert with a row alias (MySQL 8.0.19+, where VALUES() in this clause is deprecated;
+-- MariaDB still uses VALUES(col))
+INSERT INTO device_state (device_id, state, version)
+VALUES (?, ?, ?) AS new
+ON DUPLICATE KEY UPDATE
+  state   = IF(new.version > device_state.version, new.state, device_state.state),
+  version = GREATEST(device_state.version, new.version);
 
 -- UUID generation (MySQL 8.0+)
 UUID() -- returns CHAR(36), store as BINARY(16) for performance
@@ -169,6 +145,7 @@ SELECT * FROM articles WHERE MATCH(title, body) AGAINST('search term' IN BOOLEAN
 
 ### Differences from PostgreSQL
 - No partial indexes (use generated columns + index as workaround)
+- Online DDL: request `ALGORITHM=INSTANT` or `ALGORITHM=INPLACE, LOCK=NONE` explicitly so the statement fails instead of silently copying the table
 - No advisory locks (use `GET_LOCK()` / `RELEASE_LOCK()` -- session-scoped, not transaction-scoped)
 - No native array or range types
 - ENUM is a column type (not a separate type definition)
@@ -187,10 +164,11 @@ SELECT * FROM articles WHERE MATCH(title, body) AGAINST('search term' IN BOOLEAN
 ### Key Syntax
 
 ```sql
--- Upsert (SQLite 3.24+)
-INSERT INTO orders (idempotency_key, status)
-VALUES (?, ?)
-ON CONFLICT (idempotency_key) DO UPDATE SET status = excluded.status;
+-- Idempotent claim (3.24+; RETURNING needs 3.35+)
+INSERT INTO shipments (client_id, idempotency_key, request_hash)
+VALUES (?, ?, ?)
+ON CONFLICT (client_id, idempotency_key) DO NOTHING
+RETURNING shipment_id;
 
 -- No native UUID -- generate in application layer, store as TEXT or BLOB
 -- No TIMESTAMPTZ -- store as TEXT (ISO 8601) or INTEGER (Unix epoch)
@@ -204,7 +182,7 @@ PRAGMA foreign_keys = ON;
 
 ### Limitations
 - No concurrent writers (single-writer, multi-reader)
-- No ALTER COLUMN (must recreate table)
+- Limited ALTER TABLE: rename table or column, add and drop column, and set or drop NOT NULL (from 3.53.0); changing a column type or other constraints means recreating the table
 - No native DECIMAL type (use INTEGER with implied decimals for money)
 - No built-in JSON indexing (use generated columns)
 - Limited data types: NULL, INTEGER, REAL, TEXT, BLOB
@@ -228,11 +206,11 @@ PRAGMA foreign_keys = ON;
   orderId: "ord-123",
   account: { id: "acc-456", name: "Example Corp" },  // embedded
   items: [
-    { sku: "WIDGET-A", qty: 10, price: 9.99 },
-    { sku: "WIDGET-B", qty: 5, price: 14.99 }
+    { sku: "WIDGET-A", qty: 10, price: NumberDecimal("9.99") },   // Decimal128, never double, for money
+    { sku: "WIDGET-B", qty: 5, price: NumberDecimal("14.99") }
   ],
   status: "confirmed",
-  createdAt: ISODate("2025-01-15T10:30:00Z")
+  createdAt: new Date()
 }
 
 // Referencing (normalized) -- when child data is large, shared, or updated independently
@@ -264,84 +242,30 @@ db.articles.createIndex({ title: "text", body: "text" });
 ```
 
 ### Transactions
-- Multi-document transactions supported (4.0+ for replica sets, 4.2+ for sharded clusters)
+- Multi-document transactions work on replica sets and sharded clusters, not on a standalone server
 - Prefer single-document operations where possible (atomic by default)
 - Transactions have performance overhead -- design documents to minimize cross-document writes
 
 ---
 
-## Redis / KeyDB
+## Key-Value Stores
 
-### Use Cases
-- Caching (TTL-based expiry, cache-aside pattern)
-- Session storage
-- Rate limiting (sliding window with sorted sets)
-- Pub/Sub for real-time notifications
-- Distributed locks (Redlock algorithm)
-- Leaderboards (sorted sets)
-
-### Key Patterns
-
-```
-# Cache-aside pattern
-GET user:123           -> cache hit? return
-                       -> cache miss? query DB, SET user:123 <data> EX 300
-
-# Rate limiting (sliding window)
-ZADD ratelimit:user:123 <timestamp> <request-id>
-ZREMRANGEBYSCORE ratelimit:user:123 0 <window-start>
-ZCARD ratelimit:user:123  -> count in window
-
-# Distributed lock
-SET lock:process-payments <unique-id> NX EX 30   -> acquired if OK
-DEL lock:process-payments                         -> release
-
-# Sorted set leaderboard
-ZADD leaderboard 1500 "player-A"
-ZADD leaderboard 2300 "player-B"
-ZREVRANGE leaderboard 0 9 WITHSCORES             -> top 10
-```
-
-### Anti-Patterns
-- Using Redis as primary data store without persistence strategy
-- Keys without TTL (unbounded memory growth)
-- Large values (> 1MB) in a single key
-- KEYS command in production (blocks server -- use SCAN instead)
+In-memory key-value stores used as caches, session stores, rate limiters, and lock services are covered by `caching` ([redis-patterns.md](../../caching/references/redis-patterns.md)), including the owner-checked distributed lock. Use one as a primary store only with a persistence and recovery strategy you have tested.
 
 ---
 
 ## Time-Series Extensions
 
-### TimescaleDB (PostgreSQL Extension)
+### Time-Series Extension on PostgreSQL (e.g., TimescaleDB)
 - Hypertables: automatic time-based partitioning
-- Continuous aggregates: materialized views that auto-refresh
-- Retention policies: automated data lifecycle management
-- Compression: columnar compression for historical data
+- Continuous aggregates: incrementally refreshed rollups
+- Retention policies: drop old chunks on a schedule
+- Columnar compression for historical chunks
 
-```sql
--- Convert regular table to hypertable
-SELECT create_hypertable('metrics', 'time');
+Function names and signatures for these have changed across releases; read the documentation for the installed extension version before writing setup SQL.
 
--- Continuous aggregate
-CREATE MATERIALIZED VIEW metrics_hourly
-WITH (timescaledb.continuous) AS
-SELECT time_bucket('1 hour', time) AS bucket,
-       sensor_id,
-       AVG(value) AS avg_value,
-       MAX(value) AS max_value
-FROM metrics
-GROUP BY bucket, sensor_id;
-
--- Retention policy
-SELECT add_retention_policy('metrics', INTERVAL '90 days');
-
--- Compression policy
-SELECT add_compression_policy('metrics', INTERVAL '7 days');
-```
-
-### InfluxDB, QuestDB, ClickHouse
-- Purpose-built for time-series/analytics workloads
-- Consider when: write volume > 100K rows/sec, retention-based lifecycle is critical, or queries are primarily time-range aggregations
+### Dedicated Time-Series and Analytical Engines
+- Purpose-built engines (InfluxDB, QuestDB, ClickHouse) fit when write volume, retention-based lifecycle, or time-range aggregation dominates and the relational database becomes the bottleneck.
 
 ---
 
@@ -370,12 +294,21 @@ FROM documents
 WHERE category = 'technical'
 ORDER BY embedding <=> $1::vector
 LIMIT 10;
+
+-- The ANN index returns candidates before the filter applies, so a selective filter can
+-- return fewer than 10 rows. Options: iterative index scans (pgvector 0.8+),
+-- a partial index per hot filter value, or partitioning by the filter column.
+SET hnsw.iterative_scan = relaxed_order;
+CREATE INDEX idx_documents_embedding_technical ON documents
+  USING hnsw (embedding vector_cosine_ops) WHERE category = 'technical';
 ```
+
+Record the embedding model and version in a column next to the vector; vectors from different models must not share an index.
 
 ### MongoDB Atlas Vector Search
 
 ```javascript
-// Vector search index (created via Atlas UI or API)
+// Vector search index (created via Atlas UI or API); filter fields must be declared as filter fields in the index
 // Search query with vector + filter
 db.documents.aggregate([
   {
@@ -401,7 +334,7 @@ SQLite-based distributed databases for edge and local-first architectures.
 
 **Key properties**:
 - Single-writer, multi-reader model (reads scale horizontally)
-- Sub-10ms reads for co-located requests
+- Low-latency reads for requests co-located with a replica
 - Per-tenant database isolation is natural (one SQLite file per tenant)
 - Embedded replicas sync automatically with primary
 
@@ -410,7 +343,7 @@ SQLite-based distributed databases for edge and local-first architectures.
 - Limited SQL dialect compared to PostgreSQL/MySQL
 - Ecosystem tooling is younger
 
-Popular choices include: Turso/LibSQL, Cloudflare D1, LiteFS, electric-sql.
+Popular choices include: Turso/LibSQL, Cloudflare D1, LiteFS (SQLite replication; beta). Postgres sync engines such as Electric are a different model: they sync from PostgreSQL to clients.
 
 ---
 
@@ -423,7 +356,7 @@ Use the decision tree in SKILL.md to choose a database type first. This table ma
 | General-purpose OLTP | PostgreSQL, MySQL, MariaDB, CockroachDB | PostgreSQL: richest type system. MySQL: widest hosting. CockroachDB: distributed SQL. |
 | Embedded / edge / mobile | SQLite, Turso/LibSQL, Cloudflare D1 | SQLite: zero-config. Turso: distributed edge replicas. D1: Cloudflare-native. |
 | Flexible schema, horizontal scale | MongoDB, CouchDB, FerretDB | MongoDB: mature sharding. FerretDB: MongoDB-compatible on PostgreSQL. |
-| Caching, sessions, real-time | Redis, KeyDB, Valkey, DragonflyDB | Redis: ecosystem. Valkey: open-source fork. Dragonfly: multi-threaded. |
+| Caching, sessions, real-time | see `caching` | |
 | Time-series, IoT, metrics | TimescaleDB, InfluxDB, QuestDB | TimescaleDB: PostgreSQL extension. InfluxDB: purpose-built. |
 | Analytics, OLAP | ClickHouse, DuckDB, StarRocks | ClickHouse: distributed. DuckDB: embedded analytical. |
 | Vector search | pgvector, Qdrant, Weaviate, Milvus, Pinecone | pgvector: use if already on PostgreSQL. Specialized: higher scale/recall. |

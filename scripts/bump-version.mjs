@@ -17,10 +17,7 @@ if (!/^# agent-kit v[^\n]+\n/.test(current)) throw new Error('AGENTS.md version 
 outputs.set(instructions, current.replace(/^# agent-kit v[^\n]+/, `# agent-kit v${version}`))
 for (const relative of ['.claude-plugin/plugin.json', '.claude-plugin/marketplace.json', '.codex-plugin/plugin.json', '.kimi-plugin/plugin.json']) {
   const path = join(root, relative)
-  if (!existsSync(path)) {
-    if (relative.startsWith('.kimi-plugin/')) continue
-    throw new Error(`Manifest missing: ${relative}`)
-  }
+  if (!existsSync(path)) throw new Error(`Manifest missing: ${relative}`)
   const data = JSON.parse(readFileSync(path, 'utf8'))
   if (relative.endsWith('marketplace.json')) {
     const entry = data.plugins.find((plugin) => plugin.name === 'agent-kit')

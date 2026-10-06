@@ -2,7 +2,7 @@
 
 How the SKILL.md patterns map onto iOS, UIKit, and SwiftUI.
 
-> **Volatile.** Background execution budgets, permission prompts, App Review Guidelines, privacy-manifest rules, and SDK submission requirements change with each iOS release. Items marked *(verify)* depend on OS version or store policy — check current Apple developer documentation and App Review Guidelines before relying on them.
+> **Volatile.** Background execution budgets, permission prompts, App Review Guidelines, privacy-manifest rules, and SDK submission requirements change with each iOS release. Rules tied to a named iOS version or date were checked against Apple documentation; for a newer release or a policy question, read the current Apple developer documentation and App Review Guidelines before relying on them.
 
 ## Contents
 
@@ -76,7 +76,7 @@ Finish a short operation after backgrounding     → beginBackgroundTask / endBa
 Periodic refresh, system-chosen time             → BGAppRefreshTask (short)
 Deferrable heavy work (DB cleanup, ML, sync)     → BGProcessingTask (requiresNetworkConnectivity, requiresExternalPower)
 Upload or download that must survive suspension  → background URLSession
-User-started long task with visible progress     → BGContinuedProcessingTask *(verify, newer iOS)*
+User-started long task with visible progress     → BGContinuedProcessingTask (iOS 26+)
 Specific modes (audio, navigation, VoIP calls, Bluetooth) → the matching background mode only
 ```
 
@@ -133,13 +133,13 @@ Specific modes (audio, navigation, VoIP calls, Bluetooth) → the matching backg
 ## Releases on the App Store
 
 - TestFlight: internal testers immediately; external testers after beta review.
-- Phased release spreads an update to automatic-update users over seven days and can be paused; users can still update manually from the store *(verify schedule and pause limits)*.
+- Phased release spreads an update to automatic-update users over seven days (1%, 2%, 5%, 10%, 20%, 50%, 100%) and can be paused for 30 days in total; anyone can still update manually from the App Store at any time.
 - There is no first-party forced update; implement it with the server-driven minimum-version check.
 - Expedited review can be requested for critical fixes; do not plan hotfixes around it.
 - Archive and upload dSYMs for every build to the crash reporter; MetricKit and Xcode Organizer provide crash, hang, and energy reports.
-- Downloaded code that changes app features is limited by the App Review Guidelines (around section 2.5.2) and the developer license terms; over-the-air script updates must stay within them *(verify current wording)*.
-- Privacy manifests (`PrivacyInfo.xcprivacy`), required-reason API declarations, privacy nutrition labels, and signatures for listed third-party SDKs are submission requirements *(verify)*.
-- Submissions must be built with a recent Xcode and SDK, raised yearly *(verify)*.
+- Downloaded code that changes app features is limited by the App Review Guidelines (around section 2.5.2) and the developer license terms; over-the-air script updates must stay within them. Guideline 2.5.2 bars downloading or executing code that introduces or changes the app's features or functionality.
+- Privacy manifests (`PrivacyInfo.xcprivacy`), required-reason API declarations, privacy nutrition labels, and signatures for listed third-party SDKs are submission requirements. Since May 1, 2024, uploads must include approved reasons for the listed required-reason APIs used by the app and its third-party SDKs.
+- Submissions must be built with a recent Xcode and SDK, raised yearly. Since April 28, 2026, uploads must use Xcode 26 or later with the iOS 26 SDK (or the matching 26 SDK for other platforms).
 
 ## Testing commands
 
@@ -181,6 +181,6 @@ final class UploadTransport: NSObject, URLSessionTaskDelegate {
 ```
 
 4. The transfer runs in a system process while the app is suspended or terminated by the system. On completion the app is relaunched in the background through `application(_:handleEventsForBackgroundURLSession:completionHandler:)`; recreate the session with the same identifier, update records from delegate callbacks keyed by `taskDescription`, then call the stored completion handler from `urlSessionDidFinishEvents(forBackgroundURLSession:)`.
-5. For resumability, either upload in file-backed chunks (one task per chunk, offset in the record) or use `URLSession`'s resumable-upload support where the server implements the matching protocol *(verify)*. Send the idempotency key as a request header on every attempt.
+5. For resumability, either upload in file-backed chunks (one task per chunk, offset in the record) or use `URLSession`'s resumable-upload support (iOS 17+) where the server implements the matching IETF-draft protocol (104 informational response, `Upload-Incomplete` header, HEAD to read the offset, PATCH to resume). Send the idempotency key as a request header on every attempt.
 6. If the user force-quits, the system cancels the session's transfers. Launch reconciliation compares records in active states with `session.getAllTasks` and re-creates missing tasks from the server offset.
 7. After relaunch, the screen restores its route and upload ID from scene storage and observes the record in the local store.

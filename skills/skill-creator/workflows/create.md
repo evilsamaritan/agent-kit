@@ -4,8 +4,8 @@
 
 Before gathering requirements, determine the skill's taxonomy class:
 
-1. **Type**: knowledge / meta. If the request is behavioral role content, route to `agent-creator` and its role-templates instead of creating a runtime skill.
-2. **Scope** (knowledge only): broad / specialized / language / framework / platform-tech / regulatory
+1. **Mode**: kit authoring (inside the Agent Kit repository) or project skill (see SKILL.md Critical Rule 1). The mode decides the target directory and the validation.
+2. **Class**: broad / specialized / regulatory knowledge, or meta. If the request is behavioral role content, route to `agent-creator` and its role-templates instead of creating a skill.
 
 Classification decision tree:
 ```
@@ -13,21 +13,15 @@ Is this primarily behavioral guidance for a profession or worker?
 ├── Yes → route to agent-creator / role-template; do not create a skill
 └── No
     Does it create or manage other skills/agents?
-    ├── Yes → type: meta
-    └── No → type: knowledge
+    ├── Yes → meta
+    └── No → knowledge
         How wide is the domain?
-        ├── Multiple technologies/vendors → scope: broad (must be agnostic in SKILL.md)
-        ├── Regulatory/compliance → scope: regulatory (evergreen core, volatile in refs)
-        ├── Programming language → scope: language
-        ├── Framework/library → scope: framework
-        ├── Platform technology → scope: platform-tech
-        └── Narrow sub-domain → scope: specialized
+        ├── Multiple technologies/vendors → broad (agnostic in SKILL.md)
+        ├── Regulatory/compliance → regulatory (evergreen core, volatile in refs)
+        └── Language, framework, platform technology, or narrow sub-domain → specialized
 ```
 
-Classification determines:
-- **Structure template** to use (see CLAUDE.md "Structure Templates by Class")
-- **Agnosticity rules** (broad knowledge = vendor-agnostic in SKILL.md)
-- **Sizing expectations** (all classes: soft 500, ceiling ~550 lines; language/framework typically compact 200-300 lines because detail lives in references/)
+The class picks the structure template in `references/skill-template.md` ("Structure Templates by Class") and the agnostic rule in SKILL.md's Classes table.
 
 ## Step 2: Gather Requirements
 
@@ -66,31 +60,19 @@ Read `references/best-practices.md` from skill base directory.
 
 ## Step 5: Choose Name
 
-Generate 3 name candidates ranked best to worst. Each with a 1-line description.
+Pick a name; offer two or three alternatives only when the choice is unclear.
 
 Naming rules:
-- Lowercase, hyphens only (no consecutive hyphens, must not start/end with hyphen)
-- Max 64 characters
-- Verb-led when possible (e.g., `create-migration`, `deploy-service`)
-- Namespace by domain if ambiguous (e.g., `kotlin-be-create-dao`, `frontend-add-page`)
-- Match existing patterns in `skills/`
+- Lowercase, hyphens only (no consecutive hyphens, must not start/end with hyphen), max 64 characters
+- Knowledge skills are named by domain (`caching`, `release-engineering`); procedural skills may be verb-led (`create-migration`)
+- Prefix a domain only to disambiguate (`api-add-endpoint` beside `cli-add-command`)
+- Match the names already in the target skill directory
 
-If the user supplied a valid name or one candidate clearly matches repository conventions, use it. Present the candidates with `AskUserQuestion` only when naming is a real unresolved choice.
+Use a valid name the user supplied.
 
 ## Step 6: Write Description
 
-Draft the description following the formula:
-
-```
-WHAT (imperative verb + object) + WHEN (trigger phrases) + KEY CAPABILITIES (if space allows)
-```
-
-Rules:
-- Single line, soft target 80-500 chars, hard cap 1024 (500-1024 is fine when negative triggers add value)
-- Start with a verb (Create, Run, Add, Write, Configure, etc.)
-- Include "Use when" with trigger phrases -- exact words users would say
-- Be specific -- mention technologies, patterns, file types
-- Add "Do NOT use for..." if skill could be confused with another
+Draft the description with the formula and rules in `references/best-practices.md` ("Description Writing Guide").
 
 Use the draft directly when it faithfully reflects the request. Ask only when sibling boundaries or intended triggers remain ambiguous.
 
@@ -98,10 +80,7 @@ Use the draft directly when it faithfully reflects the request. Ask only when si
 
 Load `references/skill-template.md` from skill base directory.
 
-Select the structure template matching the classification from Step 1:
-- **Broad knowledge** → Scope and boundaries / Decision tree / Core rules / Context Adaptation
-- **Specialized / language / framework** → Core concepts / Decision points / Hard rules / Anti-Patterns
-- **Meta** → Purpose / Critical rules / Flow selection / Quick reference / Validation
+Select the structure template matching the class from Step 1 ("Structure Templates by Class").
 
 Fill in the template:
 1. Frontmatter: portable `name` + `description`; omit `allowed-tools` unless a reviewed one-turn permission grant is necessary
@@ -110,18 +89,9 @@ Fill in the template:
 4. For skills with reference material: tables, decision trees, advisory tone
 5. Validation section
 6. References section (link to workflows/ and references/)
-7. **Code naming patterns**: use rule + examples format (e.g., `onSelectLoadDetailsEpic`), not `<Placeholder>` templates
+7. **Code naming patterns**: use rule + examples format (see best-practices "Code Pattern Notation"), not `<Placeholder>` templates
 
-Create directory and write file:
-```bash
-mkdir -p skills/<skill-name>
-mkdir -p skills/<skill-name>/workflows    # if workflows planned
-mkdir -p skills/<skill-name>/references   # if references planned
-mkdir -p skills/<skill-name>/scripts      # if scripts planned
-mkdir -p skills/<skill-name>/assets        # if assets planned
-```
-
-Write `SKILL.md` to `skills/<skill-name>/SKILL.md`.
+Create the skill directory chosen by the mode (kit: `skills/<skill-name>/`; project: the host's project skill directory) with only the subdirectories the plan needs, then write `SKILL.md` there.
 
 ## Step 8: Generate Supporting Files
 
@@ -136,10 +106,6 @@ For skills with multiple independent procedures: each procedure is a separate fi
 
 ## Step 9: Verify Access
 
-Write all files to `skills/<skill-name>/`. The Claude plugin discovers the root `skills/` directory and the Codex manifest exposes `./skills/`, so no project-local mirror is needed. Verify the canonical source:
-
-```bash
-test -f skills/<skill-name>/SKILL.md
-```
+Verify the source exists in the mode's directory (`test -f <skill-dir>/SKILL.md`). In the kit, the Claude, Codex, and Kimi manifests already expose `skills/`, so no mirror is needed; in a project, the host discovers its own project skill directory.
 
 After creation, chain to Flow 2 automatically and fix any safe in-scope issues before reporting completion.

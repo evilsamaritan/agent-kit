@@ -1,176 +1,58 @@
 # Library Reference
 
+Crates by category. Check currency before adding a crate: recent releases, open security advisories, and whether its MSRV fits the project's `rust-version`. Versions are deliberately omitted; read them from the project's lockfile, and from crates.io or `cargo search` for new choices. Prefer the project's existing crates over introducing a second one for the same job.
+
 ## Contents
 
-- [Async Runtime](#async-runtime)
-- [Error Handling](#error-handling)
-- [Web / HTTP](#web--http)
-- [Serialization](#serialization)
-- [Database / Storage](#database--storage)
-- [Observability](#observability)
-- [Concurrency / Data Structures](#concurrency--data-structures)
-- [CLI](#cli)
-- [Time](#time)
-- [IDs](#ids)
-- [Configuration](#configuration)
-- [Testing](#testing)
-- [Build Tools (cargo extensions)](#build-tools-cargo-extensions)
-- [Do NOT Use (deprecated / superseded)](#do-not-use-deprecated--superseded)
+- [Choosing by category](#choosing-by-category)
+- [Feature flags worth knowing](#feature-flags-worth-knowing)
+- [Cargo extensions](#cargo-extensions)
+- [Superseded](#superseded)
 
-Curated crate catalog for production Rust.
-**One recommendation per category.** Alternatives noted where the choice is context-dependent.
+## Choosing by category
 
----
+| Category | Default | Alternatives and when |
+|----------|---------|-----------------------|
+| Async runtime (services) | `tokio` | `smol` for small or embedded executors. Libraries should not force a runtime |
+| Errors | `thiserror` for typed library errors; `anyhow` for application propagation | `miette` for CLIs and compilers that show source spans; `color-eyre` for backtraces in a `main` |
+| HTTP server | `axum` | Others when the team already runs them |
+| HTTP client | `reqwest` | Enable a TLS backend feature explicitly and check the current feature names in its docs; prefer rustls where a system OpenSSL is a burden |
+| gRPC | `tonic` | |
+| Middleware | `tower`, `tower-http` | |
+| Serialization | `serde` with the format crate (`serde_json`, `toml`) | `postcard` for `no_std` binary; `rkyv` for zero-copy; `bitcode` for compact binary. Benchmark before choosing on speed |
+| SQL | `sqlx` (async, checked queries) | `diesel` for a synchronous ORM; check each one's current async story |
+| Embedded key-value | `redb` | `fjall` for write-heavy LSM workloads; `heed` for LMDB |
+| Observability | `tracing` with `tracing-subscriber` | `metrics` for counters and histograms; `opentelemetry` for OTLP export |
+| Concurrent data | `dashmap` for a concurrent map, `crossbeam` for lock-free structures | `rayon` for CPU-parallel iterators; `flume` or the runtime's channels for message passing |
+| CLI | `clap` with `derive` | `argh` when binary size matters |
+| Time | `jiff` for new code | `chrono` or `time` when a dependency already pins one |
+| IDs | `uuid` (v4 random, v7 time-sortable) | v7 keeps database indexes better ordered |
+| Configuration | `figment` for layered sources | `config` for simple cases; `dotenvy` for `.env` in development |
+| Testing | `proptest`, `insta`, `tokio-test` | `criterion` or `divan` for benchmarks; `kani-verifier` (the Kani model checker) and `bolero` for formal and fuzz harnesses |
 
-## Async Runtime
+## Feature flags worth knowing
 
-**`tokio` 1.x** — the only choice for production.
-- Required by: reqwest, sqlx, axum, tonic, tower
-- Features: `["full"]` for development, specific features for production builds
-- Note: async-std discontinued. Use smol only for embedded/no-std.
+- `tokio` with `features = ["full"]` is convenient in applications; libraries and production builds enable only what they use.
+- `reqwest` TLS and JSON are opt-in features whose names have changed across major versions; read the version's feature list.
+- `uuid` generators (`v4`, `v7`) are features.
+- `sqlx` needs a runtime and a database feature; check the current names.
 
----
-
-## Error Handling
-
-| Crate | When |
-|-------|------|
-| **`thiserror` 2.x** | Library crates — typed errors callers match on |
-| **`anyhow` 1.x** | Binary/application code — opaque propagation |
-| **`miette` 7.x** | CLIs and compilers — rich diagnostics with source spans |
-| **`color-eyre` 0.6** | Main function — colorized error reports |
-
----
-
-## Web / HTTP
-
-| Crate | Role |
-|-------|------|
-| **`axum` 0.8** | HTTP server — preferred over actix-web (better DX, Tower ecosystem) |
-| **`reqwest` 0.12** | HTTP client — use `rustls-tls` feature, avoid `openssl` |
-| **`tower-http` 0.6** | Middleware: CORS, tracing, compression, auth |
-| **`tonic` 0.12** | gRPC server and client |
-
----
-
-## Serialization
-
-| Crate | When |
-|-------|------|
-| **`serde` 1.x** | Default — derive Serialize/Deserialize on everything |
-| **`serde_json`** | JSON (required for axum/reqwest) |
-| **`bitcode` 0.6** | Fast binary — best combined ser+deser+size performance |
-| **`rkyv` 0.8** | Zero-copy deserialization — when latency matters most |
-| **`postcard`** | no-std binary serialization |
-
----
-
-## Database / Storage
-
-| Crate | When |
-|-------|------|
-| **`sqlx` 0.8** | Postgres / SQLite / MySQL — async, compile-time query checking |
-| **`redb` 2.x** | Embedded KV — pure Rust, ACID, B-tree, stable |
-| **`fjall` 0.x** | Embedded KV — write-heavy workloads (LSM-tree) |
-| **`heed` 3.x** | LMDB wrapper — when you need the fastest possible reads |
-| ~~sled~~ | Do NOT use — still alpha, rewrite in progress |
-
----
-
-## Observability
-
-| Crate | Role |
-|-------|------|
-| **`tracing` 0.1** | Structured spans and events — use instead of `log` |
-| **`tracing-subscriber` 0.3** | Subscriber setup with `env-filter` |
-| **`metrics` 0.23** | Counters, gauges, histograms |
-| **`opentelemetry` 0.27** | OTLP export for distributed tracing |
-
----
-
-## Concurrency / Data Structures
-
-| Crate | When |
-|-------|------|
-| **`dashmap` 6.x** | Concurrent HashMap — standard choice |
-| **`papaya`** | Concurrent HashMap — lock-free reads, better tail latency |
-| **`crossbeam` 0.8** | Lock-free data structures, scoped threads |
-| **`rayon` 1.x** | CPU-parallel iterators |
-| **`flume`** | MPMC channels — faster than std, simpler than crossbeam |
-| **`kanal`** | Fastest async/sync channel available |
-
----
-
-## CLI
-
-**`clap` 4.x** with `features = ["derive"]` — derive-based, handles everything.  
-Use `argh` only if binary size is critical.
-
----
-
-## Time
-
-| Crate | When |
-|-------|------|
-| **`jiff` 0.2** | New projects — best timezone correctness, IANA database built-in |
-| **`chrono` 0.4** | When ecosystem compatibility required (sqlx uses it) |
-| **`time` 0.3** | no-std environments |
-
----
-
-## IDs
-
-```toml
-uuid = { version = "1", features = ["v4", "v7"] }
-```
-- UUIDv4 for random IDs
-- UUIDv7 for time-sortable IDs (better DB index performance)
-
----
-
-## Configuration
-
-| Crate | When |
-|-------|------|
-| **`figment` 0.10** | Complex config — layered sources (file + env + defaults) |
-| **`config` 0.14** | Simpler projects |
-| **`dotenvy`** | Load `.env` files in development |
-
----
-
-## Testing
-
-| Crate | Role |
-|-------|------|
-| **`proptest` 1.x** | Property-based testing |
-| **`insta` 1.x** | Snapshot testing |
-| **`tokio-test`** | Test utilities for async code |
-| **`divan` 0.1** | Benchmarking — simpler API than criterion |
-| **`criterion` 0.5** | Benchmarking — more features, statistical analysis |
-| **`kani`** | Formal verification (requires separate install) |
-| **`bolero` 0.13** | Unified fuzzing + proptest + kani harness |
-
----
-
-## Build Tools (cargo extensions)
+## Cargo extensions
 
 ```bash
-cargo install cargo-nextest    # faster parallel test runner
-cargo install cargo-deny       # license / duplicate / vuln checking
+cargo install cargo-nextest    # faster parallel test runner (does not run doctests)
+cargo install cargo-deny       # licenses, duplicates, advisories
 cargo install cargo-audit      # security advisory scanning
-cargo install cargo-machete    # find unused dependencies
+cargo install cargo-machete    # unused dependencies
 cargo install cargo-expand     # expand macros for debugging
 ```
 
----
+## Superseded
 
-## Do NOT Use (deprecated / superseded)
-
-| Crate | Reason | Use instead |
-|-------|--------|-------------|
-| `lazy_static` | superseded | `std::sync::LazyLock` |
-| `once_cell` | superseded | `std::sync::OnceLock` / `LazyLock` |
-| `async-std` | discontinued | `tokio` |
-| `sled` | perpetual alpha | `redb` or `fjall` |
-| `failure` | superseded | `thiserror` + `anyhow` |
-| `async-trait` | superseded | native `async fn` in traits (stable since Rust 1.75) |
+| Crate | Use instead |
+|-------|-------------|
+| `lazy_static`, `once_cell` | `std::sync::LazyLock` (Rust 1.80+) and `OnceLock` (Rust 1.70+) |
+| `async-std` | `smol` (the async-std README names it as the replacement) or `tokio` for services; async-std is discontinued |
+| `failure` | `thiserror` and `anyhow` |
+| `sled` | `redb` or `fjall` for new projects (sled's own README says its main branch is an in-progress rewrite) |
+| `async-trait` | Native `async fn` in traits where traits are statically dispatched; keep the macro for `dyn` use |

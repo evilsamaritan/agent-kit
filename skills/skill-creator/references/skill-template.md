@@ -6,7 +6,7 @@ Unified template with optional sections. Include only what applies to your skill
 
 - [Full Template](#full-template)
 - [Section Guide](#section-guide)
-- [Frontmatter Quick Reference](#frontmatter-quick-reference)
+- [Structure Templates by Class](#structure-templates-by-class)
 - [Permission Fields](#permission-fields)
 
 ---
@@ -23,7 +23,7 @@ description: Verb phrase describing what and when. Use when trigger phrases matc
 
 ## Purpose
 
-One sentence: what this skill accomplishes or enables.
+<!-- Optional: include only what the description does not already say -->
 
 ## Prerequisites
 
@@ -46,7 +46,7 @@ command --flags
 
 ### Step 1: Gather Requirements
 
-- Ask: What is the target? (use AskUserQuestion if ambiguous)
+- Ask: What is the target? (ask the user only if ambiguous)
 - Check: Does prerequisite X exist?
 
 ### Step 2: Make Decisions
@@ -80,7 +80,7 @@ Check:
 Need to do X?
 ├── Scenario A → Use Pattern 1 (reason)
 ├── Scenario B → Use Pattern 2 (reason)
-└── Scenario C → Ask: (use AskUserQuestion)
+└── Scenario C → Ask the user
 ` ``
 
 ## Quick Reference
@@ -174,18 +174,14 @@ Not every skill needs every section. Use this table to decide what to include.
 
 ## Structure Templates by Class
 
-Choose the template that matches your skill's taxonomy class (see CLAUDE.md "Skill Taxonomy").
-
-> **Note on roles.** Behavioral role content (how an agent thinks / structures work) is not a skill in v2. Role-templates live at `skills/agent-creator/templates/*.md` and are managed by `agent-creator`. This file covers **knowledge** and **meta** skill templates only.
+Choose the template that matches the skill's class (see the Classes table in SKILL.md). Behavioral role content is not a skill; role-templates belong to `agent-creator`.
 
 ### Broad Knowledge Skill Template
 
-Type: knowledge, scope: broad. Must be vendor/framework agnostic in SKILL.md. Framework refs go in `references/<framework>.md`.
+Type: knowledge, class: broad. Must be vendor/framework agnostic in SKILL.md. Framework refs go in `references/<framework>.md`.
 
 ```markdown
 # Domain Name
-
-Expert-level [domain] knowledge.
 
 ## Scope and boundaries
 ## Decision tree
@@ -198,12 +194,12 @@ Expert-level [domain] knowledge.
 
 ### Specialized / Language / Framework Skill Template
 
-Type: knowledge, scope: specialized | language | framework | platform-tech. May be specific by design. Follow the universal line budget (soft 500, ceiling ~550). Language/framework skills typically stay compact (~200-300 lines) because the detail belongs in references; workflows are usually unnecessary but not forbidden.
+Type: knowledge, class: specialized (including language, framework, and platform technology). May be specific by design. Follow the universal line budget (soft 500, ceiling ~550). Language/framework skills typically stay compact (~200-300 lines) because the detail belongs in references; workflows are usually unnecessary but not forbidden.
+
+A language or framework skill opens with one line telling the agent to determine the project's version from its manifest or lockfile first; version-specific notes live in a reference.
 
 ```markdown
 # Technology Name
-
-Expert-level [technology] knowledge.
 
 ## Core concepts / Mental model
 ## Decision points
@@ -215,7 +211,7 @@ Expert-level [technology] knowledge.
 
 ### Regulatory Skill Template
 
-Type: knowledge, scope: regulatory. Evergreen principles in SKILL.md, volatile data (dates, enforcement trends, prices) in references/.
+Type: knowledge, class: regulatory. Evergreen principles in SKILL.md, volatile data (dates, enforcement trends, prices) in references/.
 
 ```markdown
 # Domain Name
@@ -245,43 +241,14 @@ Type: meta. Skills that create/manage other skills or agents.
 ```
 
 **Meta sub-types:**
-- **Producer** — writes files or configs (`skill-creator`, `agent-creator`, `update-config`, `hook-creator`). Should include `## Validation` describing how to verify output.
+- **Producer** — writes files or configs (`skill-creator`, `agent-creator`). Should include `## Validation` describing how to verify output.
 - **Router / dispatcher** — delegates to other skills (`init`, `agent-orchestrator`). `## Validation` is optional; delegatees own their verification.
 
 ---
 
-## Frontmatter Quick Reference
+## Frontmatter
 
-```yaml
-# Required
-name: kebab-case-name           # Max 64 chars, must match directory
-description: Verb phrase. Use when trigger phrases.  # Max 1024 chars, single line
-
-# Optional — routing and behavior
-when_to_use: Extra Claude trigger examples   # Claude Code extension; keep description portable
-allowed-tools: Bash(script *)                # One-turn permission grant, not a tool restriction
-disallowed-tools: Write, Edit                # One-turn Claude Code restriction
-user-invocable: false                        # Hide from direct invocation (default: true)
-context: fork                                # Isolated sub-agent execution
-agent: general-purpose                       # Agent type for context: fork
-model: model-id                              # Override model (agent-specific)
-effort: high                                 # Model-dependent effort override
-background: false                            # With fork, wait for the result
-argument-hint: "[issue-number]"              # Autocomplete hint for arguments
-arguments: issue-number format               # Named positional arguments
-disable-model-invocation: false              # Prevent auto-loading
-paths: "src/**/*.ts"                         # Path-scoped activation
-shell: bash                                  # Dynamic-context shell
-hooks: {}                                    # Lifecycle hooks (PreToolUse, PostToolUse, Stop)
-
-# Optional — distribution
-license: MIT                                 # Open-source license
-compatibility: "Requires Node.js 18+"        # Environment requirements, 1-500 chars
-metadata:                                    # Custom key-value pairs
-  author: Your Name
-  version: 1.0.0
-  mcp-server: server-name
-```
+The field table, defaults, and host portability are in [best-practices.md](best-practices.md#frontmatter-reference). A new skill needs only `name` and `description`.
 
 ---
 

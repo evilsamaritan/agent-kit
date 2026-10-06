@@ -4,7 +4,7 @@ Data structures, Lua scripts, pub/sub, clustering, and persistence.
 
 ## Contents
 
-- [Licensing and Valkey](#licensing-and-valkey)
+- [Licensing Note](#licensing-note)
 - [Data Structure Selection](#data-structure-selection)
 - [Data Structure Patterns](#data-structure-patterns)
 - [Lua Scripts](#lua-scripts)
@@ -18,9 +18,9 @@ Data structures, Lua scripts, pub/sub, clustering, and persistence.
 
 ---
 
-## Licensing note
+## Licensing Note
 
-Redis OSS 7.2 and earlier -- BSD. Redis 7.4+ -- dual SSPL / RSALv2 (not open-source under OSI). Valkey is the Linux Foundation fork of Redis 7.2, permissively licensed (BSD-3-Clause), API-compatible. For new deployments on self-hosted or permissively-licensed infra, prefer Valkey. Dragonfly is a modern Redis-compatible alternative with different architecture (multi-threaded).
+Redis-compatible servers differ in license and governance, and these terms have changed more than once: Valkey (Linux Foundation fork made just before the Redis license change) is BSD-licensed; Redis 7.4 moved to source-available licenses, and Redis 8 added AGPLv3 as an option. Other compatible servers (for example Dragonfly) use their own licenses and architectures. Choose by your organization's license policy and by what your managed provider offers, and verify current terms before deciding. The commands below work on Redis and Valkey unless noted.
 
 ---
 
@@ -46,13 +46,11 @@ Redis OSS 7.2 and earlier -- BSD. Redis 7.4+ -- dual SSPL / RSALv2 (not open-sou
 # Store session with TTL
 SET session:abc123 '{"userId":"u1","role":"admin"}' EX 3600
 
-# Atomic get-and-refresh
-GET session:abc123
-EXPIRE session:abc123 3600
-
-# Conditional set (only if not exists -- for distributed lock)
-SET lock:resource NX EX 30
+# Atomic get-and-refresh TTL (Redis 6.2+)
+GETEX session:abc123 EX 3600
 ```
+
+For locks, use the [canonical recipe](#distributed-locking), not a bare `SET NX`.
 
 ### Hash: Object Cache
 
@@ -78,14 +76,14 @@ ZADD leaderboard 1500 "player:alice"
 ZADD leaderboard 2300 "player:bob"
 ZADD leaderboard 1800 "player:charlie"
 
-# Top 10 with scores (descending)
-ZREVRANGE leaderboard 0 9 WITHSCORES
+# Top 10 with scores (descending; ZRANGE ... REV replaces the deprecated ZREVRANGE, Redis 6.2+)
+ZRANGE leaderboard 0 9 REV WITHSCORES
 
 # Player rank (0-indexed, descending)
 ZREVRANK leaderboard "player:alice"
 
-# Score range query
-ZRANGEBYSCORE leaderboard 1000 2000 WITHSCORES
+# Score range query (ZRANGE ... BYSCORE replaces the deprecated ZRANGEBYSCORE)
+ZRANGE leaderboard 1000 2000 BYSCORE WITHSCORES
 ```
 
 ### Sorted Set: Rate Limiter (Sliding Window)
@@ -130,28 +128,29 @@ LRANGE activity:user:123 0 9
 
 ## Lua Scripts
 
+Every key a script touches must be passed in `KEYS`, and in Redis Cluster all of them must hash to the same slot — give keys used together a shared hash tag (`{product:42}:data`, `{product:42}:lock`).
+
 ### Atomic Cache-Aside with Stampede Prevention
 
 ```lua
--- KEYS[1] = cache key
--- KEYS[2] = lock key
--- ARGV[1] = lock TTL (seconds)
--- Returns: cached value, or nil if lock acquired (caller should compute)
+-- KEYS[1] = cache key, e.g. {product:42}:data
+-- KEYS[2] = lock key,  e.g. {product:42}:lock   (same hash tag)
+-- ARGV[1] = lock token (random, per caller)
+-- ARGV[2] = lock TTL (seconds)
+-- Returns {value} on hit, {false, 1} if this caller holds the lock and must compute,
+-- {false, 0} if another caller is computing (wait briefly or serve stale)
 
 local cached = redis.call('GET', KEYS[1])
 if cached then
-    return cached
+    return {cached}
 end
-
--- Try to acquire lock (only first request computes)
-local acquired = redis.call('SET', KEYS[2], '1', 'NX', 'EX', ARGV[1])
-if acquired then
-    return nil  -- Caller should compute and SET the cache
-else
-    -- Another request is computing; return stale or wait
-    return redis.call('GET', KEYS[1])
+if redis.call('SET', KEYS[2], ARGV[1], 'NX', 'EX', ARGV[2]) then
+    return {false, 1}
 end
+return {false, 0}
 ```
+
+The caller that got the lock computes, sets the value, and releases with the owner-checked delete from [Distributed Locking](#distributed-locking).
 
 ### Atomic Rate Limiter
 
@@ -184,19 +183,7 @@ else
 end
 ```
 
-### Conditional Delete (Release Lock)
-
-```lua
--- KEYS[1] = lock key
--- ARGV[1] = expected owner value
--- Only delete if the lock is still held by the expected owner
-
-if redis.call('GET', KEYS[1]) == ARGV[1] then
-    return redis.call('DEL', KEYS[1])
-else
-    return 0
-end
-```
+Lock acquire, extend, and owner-checked release scripts: [Distributed Locking](#distributed-locking).
 
 ---
 
@@ -217,24 +204,20 @@ PUBLISH channel:user:123 '{"type":"dm","from":"alice"}'
 ### Pub/Sub for Cache Invalidation
 
 ```python
-# On write (any server instance):
+# Writer: source first, then the shared entry, then tell every instance
 def update_user(user_id, data):
     db.update(user_id, data)
-    redis.publish('cache:invalidate', json.dumps({
-        'type': 'user',
-        'id': user_id,
-    }))
+    redis.delete(f"user:{user_id}")
+    redis.publish('cache:invalidate', f"user:{user_id}")
 
-# All server instances subscribe:
-def on_invalidation(message):
-    data = json.loads(message)
-    local_cache.delete(f"{data['type']}:{data['id']}")
-    redis.delete(f"{data['type']}:{data['id']}")
+# Every instance: drop only its in-process copy
+def on_invalidation(key):
+    local_cache.delete(key)
 
 sub.subscribe('cache:invalidate', on_invalidation)
 ```
 
-**Limitation:** Redis pub/sub is fire-and-forget. If a subscriber is disconnected, it misses messages. Use Redis Streams for reliable messaging.
+**Limitation:** pub/sub is fire-and-forget; a disconnected subscriber misses messages and keeps its copy until TTL. Keep in-process TTLs short, or use a stream when every instance must see every invalidation. Client-side caching with server-assisted tracking (`CLIENT TRACKING`, Redis 6+) is an alternative for L1 invalidation.
 
 ---
 
@@ -264,43 +247,63 @@ EXPIRE user:123:name 3600
 EXEC
 ```
 
-**Note:** MULTI/EXEC is atomic but NOT isolated -- other clients can interleave commands between MULTI and EXEC. Use Lua scripts for true isolation.
+**Note:** MULTI/EXEC runs the queued commands in sequence with no other client's commands interleaved, but a command cannot use an earlier command's result and there is no rollback. Use WATCH for optimistic check-and-set, or a Lua script when logic depends on values read inside the operation.
 
 ---
 
 ## Distributed Locking
 
-### Single-Instance Lock
+The canonical recipe for this kit; other skills link here.
+
+1. **Acquire** with a random token as the value and a TTL: `SET lock:{name} <token> NX PX <ttl_ms>`.
+2. **TTL longer than the work**, or renew it while working (extend only if the token still matches). A lock that expires mid-work lets a second worker in.
+3. **Release only if you still own it** — compare the token and delete atomically (Lua below). A plain `DEL` after expiry deletes another worker's lock.
+4. **Fencing token when the lock guards a write.** A paused process can still believe it holds an expired lock. Issue a monotonically increasing number with each acquisition (`INCR lock:{name}:fence`) and have the protected store reject writes carrying an older number. Without fencing, a lock gives efficiency (avoiding duplicate work), not correctness.
 
 ```python
-import uuid, time
+import uuid
 
-def acquire_lock(redis, resource, ttl=30):
-    owner = str(uuid.uuid4())
-    acquired = redis.set(f"lock:{resource}", owner, nx=True, ex=ttl)
-    return owner if acquired else None
+RELEASE = """
+if redis.call('GET', KEYS[1]) == ARGV[1] then
+    return redis.call('DEL', KEYS[1])
+end
+return 0
+"""
 
-def release_lock(redis, resource, owner):
-    # Lua script: only delete if owner matches
-    script = """
-    if redis.call('GET', KEYS[1]) == ARGV[1] then
-        return redis.call('DEL', KEYS[1])
-    end
-    return 0
-    """
-    redis.eval(script, 1, f"lock:{resource}", owner)
+EXTEND = """
+if redis.call('GET', KEYS[1]) == ARGV[1] then
+    return redis.call('PEXPIRE', KEYS[1], ARGV[2])
+end
+return 0
+"""
+
+def acquire_lock(redis, key, ttl=30):
+    token = uuid.uuid4().hex
+    return token if redis.set(key, token, nx=True, ex=ttl) else None
+
+def release_lock(redis, key, token):
+    return redis.eval(RELEASE, 1, key, token) == 1
+
+def extend_lock(redis, key, token, ttl_ms):
+    return redis.eval(EXTEND, 1, key, token, ttl_ms) == 1
 ```
 
-### Redlock (Multi-Instance)
+```python
+# Skip-if-running guard for a scheduled job
+token = acquire_lock(redis, "lock:daily-report", ttl=3600)
+if token is None:
+    return "skipped: already running"
+try:
+    run_report()
+finally:
+    release_lock(redis, "lock:daily-report", token)
+```
 
-For high availability, acquire lock on N/2+1 independent Redis instances:
+For correctness-critical mutual exclusion (only one writer may ever act), prefer the database itself — a row lock, an advisory lock, or a conditional write — over a cache-based lock.
 
-1. Get current time
-2. Try to acquire lock on all N instances with short timeout
-3. Lock acquired if: majority (N/2+1) agree AND total time < TTL
-4. If failed, release lock on all instances
+### Redlock (multiple independent instances)
 
-**Libraries:** redlock-py, redlock (Node.js), Redisson (Java)
+Redlock acquires the lock on a majority of N independent instances within the TTL. It improves availability of the lock service, but it depends on bounded clock drift and process pauses and does not replace fencing: treat it as an efficiency lock. Client libraries exist for most languages.
 
 ---
 
@@ -308,10 +311,11 @@ For high availability, acquire lock on N/2+1 independent Redis instances:
 
 ### Redis Cluster
 
-- 16384 hash slots distributed across nodes
-- Each key maps to a slot: `CRC16(key) % 16384`
-- Automatic failover with sentinel nodes
-- Multi-key operations only work on same slot (use hash tags: `{user:123}:profile`, `{user:123}:settings`)
+- 16384 hash slots distributed across primaries; resharding moves whole slots
+- Each key maps to a slot: `CRC16(key) % 16384`, computed over the hash tag if the key has one
+- Failover is built in: the cluster promotes a replica when a primary fails. Sentinel is the separate failover system for primary/replica setups without Cluster.
+- Multi-key commands, transactions, and Lua scripts work only when all keys share a slot (use hash tags: `{user:123}:profile`, `{user:123}:settings`)
+- Clients must be cluster-aware (follow `MOVED` / `ASK` redirects)
 
 ### Hash Tags for Co-location
 
@@ -404,4 +408,4 @@ MEMORY USAGE key_name
 
 ### Memory Optimization
 
-Use hashes for small objects (ziplist encoding: < 128 fields, < 64 bytes each). Set TTLs on all cache keys. Use `UNLINK` instead of `DEL` for large keys (non-blocking). Monitor with `redis-cli --bigkeys` and `MEMORY DOCTOR`.
+Small hashes, lists, and sorted sets use a compact encoding (listpack) below configurable thresholds (`hash-max-listpack-entries`, `hash-max-listpack-value`). Set TTLs on all cache keys. Use `UNLINK` instead of `DEL` for large keys (non-blocking). Monitor with `redis-cli --bigkeys` and `MEMORY DOCTOR`.

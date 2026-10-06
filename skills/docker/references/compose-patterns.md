@@ -1,6 +1,6 @@
 # Docker Compose v2 Patterns
 
-Advanced Compose patterns for networking, volumes, profiles, secrets, and production configurations.
+Advanced Compose patterns for networking, volumes, profiles, secrets, and production configurations. Image tags are examples: use the current supported release and pin production images.
 
 ## Contents
 

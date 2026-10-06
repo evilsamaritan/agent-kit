@@ -13,10 +13,7 @@ If chained from verify: skill is already identified, skip to Step 2.
 
 Otherwise:
 - **User specified a name** → use it
-- **Ambiguous** → List available skills, use `AskUserQuestion`:
-  ```bash
-  ls skills/
-  ```
+- **Ambiguous** → list the skills in the skill directory and ask the user which one
 
 Read SKILL.md, then the workflow/reference/script implicated by the symptom. Expand to dependent files for a cross-file change; read the entire tree only for an explicitly scoped full audit.
 
@@ -83,14 +80,11 @@ For each in-scope change:
 2. Apply the edit using `Edit` tool (or `Write` for new files)
 3. Confirm the change was applied
 
-After all changes, verify the canonical skill source exists:
-```bash
-test -f skills/<skill-name>/SKILL.md
-```
+After all changes, verify the skill source exists: `test -f <skill-dir>/SKILL.md`.
 
 ## Step 6: Verify
 
-Apply relevant checks from Flow 2 and run repository validation. A focused change does not require an exhaustive report for every unmodified supporting file.
+Apply relevant checks from Flow 2; in the kit, also run repository validation. A focused change does not require an exhaustive report for every unmodified supporting file.
 
 ---
 

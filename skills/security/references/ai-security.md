@@ -1,11 +1,13 @@
 # AI/LLM Security Reference
 
+The lists below are the OWASP GenAI Security Project's published Top 10s: LLM Applications 2025 edition, and Agentic Applications for 2026 (published December 2025). Both were the current editions at genai.owasp.org in October 2026; check for a newer edition before citing numbers.
+
 Security patterns for applications that integrate AI models, LLM APIs, RAG pipelines, or autonomous agents.
 
 ## Contents
 
 - [OWASP Top 10 for LLM Applications](#owasp-top-10-for-llm-applications)
-- [Prompt Injection Prevention](#prompt-injection-prevention)
+- [Prompt Injection and Containment](#prompt-injection-and-containment)
 - [Output Handling](#output-handling)
 - [Agentic Application Security](#agentic-application-security)
 - [RAG Security](#rag-security)
@@ -17,46 +19,45 @@ Security patterns for applications that integrate AI models, LLM APIs, RAG pipel
 
 | # | Risk | What to check | Mitigation |
 |---|------|---------------|------------|
-| LLM01 | **Prompt Injection** | Can external content override system instructions? | Separate instructions from data, input filtering, output validation |
+| LLM01 | **Prompt Injection** | Can external content override system instructions? | Containment (below); separate instructions from data; filtering only as detection |
 | LLM02 | **Sensitive Information Disclosure** | Can the model leak PII, system prompts, or training data? | Output filtering, PII scrubbing, prompt isolation |
 | LLM03 | **Supply Chain** | Are model sources, plugins, training data trusted? | Verify model provenance, audit plugins, pin model versions |
 | LLM04 | **Data and Model Poisoning** | Can training/fine-tuning data be tampered with? | Data validation, provenance tracking, anomaly detection |
 | LLM05 | **Improper Output Handling** | Is LLM output passed unsanitized to interpreters? | Validate and sanitize all LLM output before use in code, queries, or rendering |
 | LLM06 | **Excessive Agency** | Can the model take destructive actions without oversight? | Least-privilege tool access, human-in-the-loop for destructive ops |
 | LLM07 | **System Prompt Leakage** | Can users extract system instructions? | Do not rely on prompt secrecy for security, defense-in-depth |
-| LLM08 | **Vector/Embedding Weaknesses** | Can embeddings be manipulated or poisoned? | Access control on vector stores, input validation before embedding |
+| LLM08 | **Vector and Embedding Weaknesses** | Can embeddings be manipulated or poisoned? | Access control on vector stores, input validation before embedding |
 | LLM09 | **Misinformation** | Does the application present hallucinations as fact? | Grounding with retrieval, confidence scoring, citation requirements |
 | LLM10 | **Unbounded Consumption** | Can a user trigger excessive token/compute usage? | Token limits, rate limiting, cost budgets per request |
 
 ---
 
-## Prompt Injection Prevention
+## Prompt Injection and Containment
 
-### Direct injection
-User crafts input that overrides system instructions.
+**Assume injection succeeds.** No input filter, summarizer, or instruction hierarchy reliably stops prompt injection, direct (a user's text overrides instructions) or indirect (instructions hidden in emails, documents, web pages, records, or tool results). Design so that a compromised context cannot do harm.
 
-**Mitigations:**
-1. Never concatenate untrusted input directly into system prompts
-2. Use structured message formats that separate roles (system, user, assistant)
-3. Validate and sanitize user input before passing to the model
-4. Apply output validation — do not trust LLM decisions for security-critical logic
+### Containment decision
 
-### Indirect injection
-Malicious instructions embedded in external data the LLM processes (emails, documents, web pages, database records).
+A single context should not hold all three of:
+1. **Untrusted content** (user input, retrieved or fetched data)
+2. **Private data** (secrets, personal data, internal documents)
+3. **An outbound channel** (network requests, email, rendering of URLs or images, writing to shared stores)
 
-**Mitigations:**
-1. Treat all retrieved content as untrusted data, not instructions
-2. Summarize or transform retrieved content before including in prompts
-3. Monitor for anomalous model behavior after processing external content
-4. Implement content sandboxing — process external data in isolated contexts
+If an agent needs all three, split the work across contexts with a deterministic gate between them, or remove one capability.
 
-### Detection signals
-| Signal | Risk |
-|--------|------|
-| Input containing "ignore previous instructions" or similar overrides | Direct prompt injection attempt |
-| Retrieved documents with instruction-like language targeting the model | Indirect injection via data source |
-| Sudden behavioral changes after processing new data sources | Possible poisoned data source |
-| Model attempting to call tools outside its normal pattern | Possible injection-driven excessive agency |
+### Controls that hold
+
+1. **Deterministic authorization on every tool call**, enforced in code outside the model, against the end user's permissions and a per-tool allowlist.
+2. **Per-tool, scoped credentials**, no shared admin tokens; short-lived where possible.
+3. **Human approval for irreversible, financial, or externally visible actions.**
+4. **Egress control**: restrict domains the agent can reach and block data-bearing URLs in rendered output.
+5. **Structured interfaces**: parse model output into a schema, validate, then act on the validated data.
+6. **Bounded execution**: token, time, and action limits per run; kill switch.
+7. **Audit log** of every tool call, its inputs, outputs, and the identity it ran as.
+
+### Detection and noise reduction (not prevention)
+
+Input filtering, summarizing or transforming retrieved content, and monitoring for anomalous tool-call patterns reduce noise and surface attacks; none of them is a control. Treat a string match on "ignore previous instructions" as telemetry, never as protection.
 
 ---
 
@@ -79,23 +80,31 @@ LLM output is **untrusted input** from a security perspective. Never:
 
 ## Agentic Application Security
 
-### Core risks (OWASP Agentic Top 10)
-| Risk | Description | Mitigation |
-|------|-------------|------------|
-| Agent goal hijacking | Malicious input redirects agent objectives | Input validation, goal anchoring, behavioral monitoring |
-| Excessive autonomy | Agent takes actions beyond intended scope | Least-agency principle, action budgets, human approval gates |
-| Identity and privilege abuse | Agent acts with more privilege than needed | Per-tool permissions, scoped credentials, no shared admin tokens |
-| Cascading failures | Error in one agent propagates through multi-agent system | Circuit breakers, isolated execution, rollback capabilities |
-| Human-agent trust exploitation | Users over-trust agent outputs | Confidence indicators, mandatory review for high-impact actions |
-| Rogue agents | Compromised or malfunctioning agents operating autonomously | Agent health monitoring, kill switches, behavioral anomaly detection |
+OWASP Top 10 for Agentic Applications (2026), ASI01 to ASI10:
+
+| ID | Risk |
+|----|------|
+| ASI01 | Agent Goal Hijack |
+| ASI02 | Tool Misuse and Exploitation |
+| ASI03 | Identity and Privilege Abuse |
+| ASI04 | Agentic Supply Chain Vulnerabilities |
+| ASI05 | Unexpected Code Execution (RCE) |
+| ASI06 | Memory & Context Poisoning |
+| ASI07 | Insecure Inter-Agent Communication |
+| ASI08 | Cascading Failures |
+| ASI09 | Human-Agent Trust Exploitation |
+| ASI10 | Rogue Agents |
+
+The containment decision and controls above address most of these: scoped credentials and deterministic authorization (ASI02, ASI03), egress control and approval gates (ASI01, ASI05), isolation of memory and inter-agent channels with authentication (ASI06, ASI07), pinned and verified tools, models, and plugins (ASI04), bounded execution and kill switches (ASI08, ASI10), and honest confidence and review steps for users (ASI09).
 
 ### Design principles
-1. **Least agency** — Grant minimum autonomy required for the task
-2. **Scoped credentials** — Each tool gets its own minimal-privilege credential
-3. **Human-in-the-loop** — Require approval for destructive, financial, or irreversible actions
-4. **Audit trail** — Log every tool call, decision, and outcome
-5. **Bounded execution** — Set token limits, time limits, and action count limits per agent run
-6. **Isolation** — Run agents in sandboxed environments with no access to production secrets
+
+1. **Least agency** — the minimum autonomy the task needs.
+2. **Scoped credentials** per tool.
+3. **Human-in-the-loop** for destructive, financial, or irreversible actions.
+4. **Audit trail** of every tool call, decision, and outcome.
+5. **Bounded execution** — token, time, and action limits.
+6. **Isolation** — sandboxed runs with no production secrets.
 
 ---
 
@@ -104,7 +113,7 @@ LLM output is **untrusted input** from a security perspective. Never:
 | Risk | Attack vector | Mitigation |
 |------|--------------|------------|
 | Data poisoning | Injecting malicious documents into the knowledge base | Validate and sanitize documents before indexing, track provenance |
-| Prompt injection via retrieval | Adversarial content in retrieved chunks | Treat retrieved content as data not instructions, summarize before use |
+| Prompt injection via retrieval | Adversarial content in retrieved chunks | Treat retrieved content as untrusted data; apply containment, not just filtering |
 | Information leakage | RAG exposing documents user should not access | Enforce access control at retrieval time, not just at indexing |
 | Embedding manipulation | Crafted inputs that map to specific retrieval results | Monitor for anomalous retrieval patterns, rate limit indexing |
 

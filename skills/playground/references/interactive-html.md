@@ -1,10 +1,8 @@
-# Interactive HTML Explainers
+# Interaction and State
 
 ## Contents
 
 - [When HTML earns its cost](#when-html-earns-its-cost)
-- [Multi-view explorer pattern](#multi-view-explorer-pattern)
-- [Information architecture](#information-architecture)
 - [Interaction contract](#interaction-contract)
 - [Implementation shape](#implementation-shape)
 - [Responsive behavior](#responsive-behavior)
@@ -26,51 +24,6 @@ Prefer a static view unless at least one of these capabilities materially improv
 
 HTML is not justified by rounded boxes, animation, or the ability to drag nodes.
 
-## Multi-view explorer pattern
-
-For a substantial technical design, use a document-like explorer rather than a slide deck, built on the explorer shell ([shell-components.md](shell-components.md)). The shell provides:
-
-```text
-persistent section navigation
-  + document status and scope
-  + current section title and takeaway
-  + diagram / text-and-contracts switch when both are useful
-  + one focused visual canvas
-  + boundary note, legend, or evidence footer
-```
-
-The section sequence should progress through the reader's model, not through arbitrary page counts. For example:
-
-```text
-overview
-  -> responsibility and ownership
-  -> module or component structure
-  -> contracts
-  -> selected lifecycles and flows
-  -> failure behavior and rules
-```
-
-This pattern is especially useful when many related views share vocabulary and readers need to jump directly to a topic. It should still work as a freely navigable document; do not force a next-slide sequence.
-
-The first viewport should establish location, status, takeaway, and the primary visual. Move long rationale, contracts, and evidence into the related detail level rather than placing an introduction wall before the diagram.
-
-## Information architecture
-
-Give every section:
-
-1. a stable identifier and deep link;
-2. a short type label such as `Component graph`, `Lifecycle`, or `Contract`;
-3. a precise title;
-4. one-sentence takeaway;
-5. one primary visual or structured text view;
-6. only the legend, boundary, evidence, or caveat needed for that section.
-
-Use tabs only for complementary representations of the same scope, such as `Diagram` and `Text and API`. Do not use tabs as page or chapter navigation, for sequential steps, or when readers must compare the hidden views side by side.
-
-Keep navigation labels semantic and short. Preserve the same nouns across navigation, titles, diagram nodes, details panels, and source data.
-
-Choose the navigation mode only after duplicate and non-visual views have been removed ([shell-components.md](shell-components.md#navigation-modes)). Navigation does not make an oversized view set concise: if the primary result needs more than three views and no reference deliverable was requested, return to view selection before building.
-
 ## Interaction contract
 
 Every interaction must answer a reader need:
@@ -90,18 +43,7 @@ Avoid hover-only information, hidden navigation, auto-advancing sequences, and i
 
 ## Implementation shape
 
-Represent long-lived content as one structured model. Use the field names of the architecture handoff so nothing is translated twice:
-
-```text
-views
-  id, question, audience, scope/level, status/priority, takeaway
-entities
-  id, name, type, responsibility, boundary or authority, evidence status
-relationships
-  source, kind, target, label, status, order or cardinality
-```
-
-Render several projections from these stable identities. Avoid copying names and facts into navigation markup, diagram coordinates, details panels, and event handlers independently.
+Represent long-lived content as one structured model (for an explorer, the fields of its view contract: [explorer.md](../templates/explorer.md#view-model)). Render several projections from stable identities. Avoid copying names and facts into navigation markup, diagram coordinates, details panels, and event handlers independently.
 
 Keep rendering and publishing separate. A local HTML artifact, or the host's own artifact when its instructions call for one, is a complete result; public publication requires explicit authorization.
 

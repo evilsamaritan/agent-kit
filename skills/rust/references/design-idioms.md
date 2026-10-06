@@ -8,32 +8,23 @@ How Rust expresses the practice in `development` and the boundaries chosen with 
 - [Variant Families: Enum or Trait](#variant-families-enum-or-trait)
 - [Typestate Pattern](#typestate-pattern)
 - [Passing Dependencies: Generics or Trait Objects](#passing-dependencies-generics-or-trait-objects)
-- [Design Checklist](#design-checklist)
+- [Ownership Review](#ownership-review)
 
 ---
 
 ## Ports as Traits, Adapters as Crates
 
-The domain crate has **zero infrastructure dependencies**.  
-Traits are ports. Structs implementing them are adapters.
-
-```
-crates/
-├── types/        # shared types — zero deps
-├── core/         # domain logic — depends only on types/
-├── db/           # database adapter — depends on core/, types/
-├── api/          # HTTP adapter — depends on core/, types/
-└── app/          # binary — wires everything together
-```
+A port is a trait the domain owns; an adapter is a type that implements it. Dependency direction and module layout are in `architecture`; the Rust-specific choices are the trait shape and static or dynamic dispatch.
 
 ```rust
-// core/src/ports.rs — defines the ports (interfaces)
+// core/src/ports.rs: declare Send futures so generic code can be spawned on a multi-thread runtime
 pub trait UserRepository: Send + Sync + 'static {
-    async fn save(&self, user: &User) -> Result<(), RepositoryError>;
-    async fn find_by_email(&self, email: &str) -> Result<Option<User>, RepositoryError>;
+    fn save(&self, user: &User) -> impl Future<Output = Result<(), RepositoryError>> + Send;
+    fn find_by_email(&self, email: &str)
+        -> impl Future<Output = Result<Option<User>, RepositoryError>> + Send;
 }
 
-// core/src/services.rs — domain logic depends only on ports
+// core/src/services.rs: the domain is generic over the port
 pub struct UserService<R: UserRepository> {
     repo: R,
 }
@@ -49,21 +40,16 @@ impl<R: UserRepository> UserService<R> {
     }
 }
 
-// db/src/postgres.rs — concrete adapter
+// db/src/postgres.rs: an adapter may use `async fn` in the impl
 pub struct PostgresUserRepo { pool: sqlx::PgPool }
 
 impl UserRepository for PostgresUserRepo {
-    async fn save(&self, user: &User) -> Result<(), RepositoryError> { ... }
-    async fn find_by_email(&self, email: &str) -> Result<Option<User>, RepositoryError> { ... }
-}
-
-// In tests: in-memory adapter
-#[cfg(test)]
-mod tests {
-    struct InMemoryUserRepo { users: Mutex<Vec<User>> }
-    impl UserRepository for InMemoryUserRepo { ... }
+    async fn save(&self, user: &User) -> Result<(), RepositoryError> { /* ... */ Ok(()) }
+    async fn find_by_email(&self, email: &str) -> Result<Option<User>, RepositoryError> { /* ... */ Ok(None) }
 }
 ```
+
+A trait with native `async fn` or `-> impl Future` is not dyn-compatible, so `Box<dyn UserRepository>` does not compile. Use generics (above), the `async-trait` macro, hand-boxed futures, or an enum of adapters when the implementation is chosen at runtime. A test adapter is an in-memory struct implementing the same trait (see [testing-strategies.md](testing-strategies.md)).
 
 ---
 
@@ -145,7 +131,7 @@ impl ApiKey<Verified> {
 // compile error: ApiKey<Unverified> has no .authorize() method ✓
 ```
 
-Use `bon` crate for builder pattern with required/optional fields enforced at compile time:
+A derive-based builder crate (for example `bon`) enforces required fields at compile time:
 
 ```rust
 #[derive(bon::Builder)]
@@ -161,63 +147,47 @@ pub struct Config {
 
 ## Passing Dependencies: Generics or Trait Objects
 
-No framework needed — dependencies arrive through constructors with trait bounds:
+Dependencies arrive through constructors, as generic parameters with trait bounds:
 
 ```rust
-// Static dispatch (preferred — zero cost)
+// Static dispatch (default): zero cost, works with async-fn-in-trait ports
 pub struct App<U: UserRepository, E: EmailService, P: PaymentGateway> {
     users: U,
     email: E,
     payment: P,
 }
 
-// Dynamic dispatch (when you need runtime polymorphism)
-pub struct App {
-    users: Box<dyn UserRepository>,
-    email: Box<dyn EmailService>,
-    payment: Box<dyn PaymentGateway>,
+// Dynamic dispatch: runtime selection. Requires dyn-compatible traits
+// (sync methods, `async-trait`, or boxed futures)
+pub struct DynApp {
+    users: Box<dyn UserStore>,
+    email: Box<dyn EmailSender>,
 }
 
-// App module wires everything in main()
+// main() is the composition root: the only place that names concrete types
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
     let config = Config::from_env()?;
     let pool = PgPool::connect(&config.database_url).await?;
-    
+
     let app = App {
         users: PostgresUserRepo::new(pool.clone()),
         email: SmtpEmailService::new(&config.smtp),
-        payment: StripeGateway::new(&config.stripe_key),
+        payment: ProviderGateway::new(&config.payment_key),
     };
-    
+
     serve(app, config.port).await
 }
 ```
 
-The key insight: test code wires the same `App` with in-memory implementations — no mocking frameworks needed.
+Tests wire the same `App` with in-memory implementations; no mocking framework is needed.
 
 ---
 
-## Design Checklist
-
-Before handing off any design:
-
-- [ ] All public traits defined with signatures and doc comments
-- [ ] All error types defined with variants — `Send + Sync + 'static`
-- [ ] All invariants stated explicitly
-- [ ] Module boundaries enforce dependency direction (domain never depends on infrastructure)
-- [ ] `[workspace.dependencies]` with versions for all crates
-- [ ] `[workspace.lints]` configured
-- [ ] API parameters use borrowed types (`&str`, `&[T]`, `impl AsRef<Path>`) — not owned
-- [ ] Domain concepts wrapped in newtype structs (not raw `String`, `u64`, `Uuid`)
-- [ ] `pub` fields only where needed — encapsulation is correct
-- [ ] `Default` impl is sensible (not just `#[derive(Default)]` producing nonsense)
-- [ ] Open questions flagged (not silently assumed)
-
-### Ownership & Lifetime Review
+## Ownership Review
 
 ```rust
-// Prefer borrowing in functions — caller decides lifetime
+// Prefer borrowing in functions: the caller decides lifetime
 pub fn process(data: &[u8]) -> Result<Output, Error>   // NOT: data: Vec<u8>
 pub fn lookup(key: &str) -> Option<&Value>              // NOT: key: String
 
@@ -228,6 +198,7 @@ pub fn normalize(s: &str) -> Cow<'_, str> {
 }
 ```
 
-- No unnecessary clones — each clone should be justified
-- `Arc<Mutex<T>>` usage is minimal; prefer message passing (`tokio::sync::mpsc`)
-- `unsafe` blocks: each requires a `// SAFETY:` comment explaining soundness
+- Each `clone()` is justified; a clone that exists to satisfy the borrow checker usually signals a design problem
+- `Arc<Mutex<T>>` is minimal; prefer message passing when one task can own the state
+- Domain concepts are newtypes, not raw `String`, `u64`, or `Uuid`
+- `pub` fields only where the invariant allows it

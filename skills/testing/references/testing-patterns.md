@@ -1,5 +1,7 @@
 # Advanced Testing Patterns
 
+Depth behind the testing skill. Tool names per ecosystem live in [testing-frameworks.md](testing-frameworks.md).
+
 ## Contents
 
 - [Strategy Shapes](#strategy-shapes)
@@ -8,7 +10,6 @@
 - [Property-Based Testing](#property-based-testing)
 - [Visual Regression Testing](#visual-regression-testing)
 - [Snapshot Testing Best Practices](#snapshot-testing-best-practices)
-- [Accessibility Testing](#accessibility-testing)
 - [Parameterized Tests](#parameterized-tests)
 - [Flaky Test Patterns](#flaky-test-patterns)
 - [Test Architecture for Microservices](#test-architecture-for-microservices)
@@ -161,7 +162,7 @@ Code coverage measures which lines execute during tests. Mutation testing measur
 
 ### Interpreting results
 
-- **90%+ kill rate** on critical paths = strong test suite
+- **Kill rate on critical paths** is the signal; read the surviving mutants rather than chase a fixed percentage
 - **Surviving mutants** = test gaps. Each survivor points to a specific weakness.
 - **Equivalent mutants** = mutations that don't change behavior (e.g., changing dead code). Ignore these.
 - **Timeouts** = mutant caused infinite loop. Usually counts as killed.
@@ -192,7 +193,7 @@ Property: "For any valid user input, the function does not throw"
 
 | Pattern | Example |
 |---------|---------|
-| **Round-trip** | encode(decode(x)) == x |
+| **Round-trip** | decode(encode(x)) == x |
 | **Idempotent** | f(f(x)) == f(x) |
 | **Invariant** | sort(xs).length == xs.length |
 | **Commutative** | f(a, b) == f(b, a) |
@@ -235,9 +236,9 @@ CSS changes, dependency updates, and refactors can break UI appearance without b
 
 - Test components in isolation (component library/storybook) AND full pages
 - Use consistent viewport sizes (define standard breakpoints)
-- Disable animations and transitions during capture
-- Use a consistent font rendering environment (Docker or CI)
-- Set a sensible diff threshold (0.1% — too strict causes false positives)
+- Disable animations and transitions; fix the clock and random seeds during capture
+- Render baselines in the same container image as CI so fonts and rasterization match
+- Calibrate the diff threshold on the CI renderer: the smallest value that stays green across repeated runs of unchanged code. Raise it per snapshot only with a reason; a global loose threshold hides real regressions
 - Review visual diffs in PR — never auto-approve
 - Store baselines in version control or a dedicated storage service
 
@@ -284,45 +285,6 @@ expect(response.data.items[0]).toHaveProperty("id")
 
 ---
 
-## Accessibility Testing
-
-### What it solves
-
-Functional tests verify behavior. Accessibility tests verify that the interface is usable by people with disabilities — screen readers, keyboard navigation, color contrast, ARIA attributes. Automated a11y testing catches 30-40% of WCAG violations; the rest requires manual review.
-
-### Testing layers
-
-| Layer | What it catches | When to run |
-|-------|----------------|-------------|
-| Static analysis (lint) | Missing alt text, invalid ARIA roles, heading order | Every commit (pre-commit hook or CI) |
-| Automated audit | Color contrast, focus order, landmark structure | Every PR (CI pipeline) |
-| Component-level tests | ARIA attributes, keyboard interaction, focus management | Unit/integration tests |
-| Manual review | Screen reader experience, cognitive load, complex interactions | Before major releases |
-
-### What to test automatically
-
-- Images have meaningful alt text (or `alt=""` for decorative)
-- All interactive elements are keyboard-accessible (Tab, Enter, Escape)
-- Color contrast meets WCAG AA (4.5:1 for text, 3:1 for large text)
-- Form inputs have associated labels
-- ARIA roles and attributes are valid and complete
-- Focus is managed correctly after dynamic content changes (modals, alerts)
-- Page has correct heading hierarchy (h1 > h2 > h3, no skips)
-- Landmark regions exist (main, nav, banner, contentinfo)
-
-### Integration with test suites
-
-Run accessibility checks as part of integration tests, not as a separate process. Embed a11y assertions alongside functional assertions for the same component. This ensures accessibility is not an afterthought.
-
-### Anti-patterns
-
-- Treating a11y as a separate phase after development (shift-left instead)
-- Relying only on automated tools (they miss 60-70% of issues)
-- Adding `aria-label` to everything instead of using semantic HTML
-- Disabling a11y rules that are "too noisy" instead of fixing violations
-
----
-
 ## Parameterized Tests
 
 Framework syntax for parameterized tests:
@@ -334,6 +296,8 @@ Framework syntax for parameterized tests:
 | Go | `tests := []struct{ input, want }{ ... }; for _, tt := range tests { t.Run(...) }` |
 | JUnit | `@ParameterizedTest @MethodSource("cases")` |
 | Rust | `#[test_case(...)]` or `rstest` |
+| xUnit (.NET) | `[Theory] [InlineData(input, expected)]` or `[MemberData(nameof(Cases))]` |
+| Swift Testing | `@Test(arguments: [...]) func name(input: T) { ... }` |
 
 ---
 
@@ -353,7 +317,7 @@ Framework syntax for parameterized tests:
 | Ordering | Passes alone, fails in suite (or specific order) | Run test in isolation, shuffle test order |
 | Concurrency | Fails intermittently under parallel execution | Check for global state, shared resources, port conflicts |
 | Environment | Fails on specific OS, locale, or timezone | Standardize CI environment, inject clocks and locale |
-| External deps | Fails when external service is slow or down | Mock external services, use containers for real deps |
+| External deps | Fails when external service is slow or down | Replace third-party services behind your adapter; use containers for infrastructure |
 | Resource leaks | Fails after many tests run | Check for unclosed connections, uncleared timers, leaked event listeners |
 
 ### Prevention principles
@@ -368,22 +332,7 @@ Framework syntax for parameterized tests:
 
 ## Test Architecture for Microservices
 
-### Testing diamond (not pyramid)
-
-In microservices, the test pyramid inverts at the service level:
-
-```
-        /  E2E  \          Minimal — only critical user journeys
-       /----------\
-      /  Contract   \      Many — verify all service boundaries
-     /----------------\
-    /   Integration     \   Moderate — real deps, containerized
-   /----------------------\
-  /        Unit            \  Foundation — business logic
- /--------------------------\
-```
-
-Contract tests replace the large integration test layer from monoliths.
+Service suites usually take the honeycomb or diamond shape ([Strategy Shapes](#strategy-shapes)): contract tests replace most cross-service e2e tests.
 
 ### Service-level test strategy
 

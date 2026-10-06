@@ -103,7 +103,7 @@ fn process() -> anyhow::Result<()> {
 
 ## Pattern 4: Error in async Traits
 
-Async trait errors must be `Send + Sync + 'static` to work across thread boundaries:
+Errors from async traits cross task boundaries, so they should be `Send + 'static` (and `Sync` when shared by reference):
 
 ```rust
 // BAD: Box<dyn Error> is not necessarily Send + Sync
@@ -165,7 +165,7 @@ let result = risky_operation();
 // ignoring result entirely
 
 // ❌ panic instead of error
-let value = map.get(key).expect("key must exist"); // in production code
+let value = map.get(key).expect("key must exist"); // key comes from input, not an invariant
 
 // ❌ Stringly-typed errors
 return Err("something went wrong".into()); // caller can't match
@@ -187,9 +187,9 @@ pub fn parse(s: &str) -> Result<Config, Box<dyn Error>>
 
 Use during code review or before marking implementation complete:
 
-- [ ] No `.unwrap()` or `.expect()` in non-test production code
-- [ ] Every `?` has a `.context(...)` or equivalent at the right level
-- [ ] Error types are `Send + Sync + 'static` (required for async)
+- [ ] No `.unwrap()` or `.expect()` on fallible input; `.expect("invariant")` only where the contract excludes the state
+- [ ] Context is added with `.context(...)` or equivalent where an error crosses a layer boundary
+- [ ] Error types are `Send + 'static` (and `Sync` where shared) when they cross async tasks
 - [ ] Library code returns typed errors (not `anyhow::Error`)
 - [ ] All error variants are necessary — no "catch-all" variants hiding details
 - [ ] `#[from]` conversions don't silently swallow context

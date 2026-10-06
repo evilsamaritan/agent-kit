@@ -36,6 +36,7 @@ const USAGE = `Usage: materialize-agents.mjs [--project-root DIR] [--config FILE
   --agent NAME     limit --check/--dry-run/writing to one project agent
   --prune          also delete generated targets no longer in the config
   --brief NAME     print a generic-subagent brief for one project agent
+  --runtime ID     with --brief: the host the brief is for (claude, codex, kimi); default: the agent's first runtime
   --list-profiles  list bundled profession profiles`
 
 function parseArgs(argv) {
@@ -51,6 +52,7 @@ function parseArgs(argv) {
     else if (arg === '--config') args.config = resolve(value(index++, arg))
     else if (arg === '--brief') args.brief = value(index++, arg)
     else if (arg === '--agent') args.agent = value(index++, arg)
+    else if (arg === '--runtime') args.runtime = value(index++, arg)
     else if (arg === '--check') args.check = true
     else if (arg === '--dry-run') args.dryRun = true
     else if (arg === '--prune') args.prune = true
@@ -60,6 +62,8 @@ function parseArgs(argv) {
   }
   if (args.brief && (args.check || args.prune || args.dryRun)) throw new Error('--brief cannot be combined with --check, --dry-run, or --prune')
   if (args.agent && args.prune) throw new Error('--prune works on the whole project; drop --agent')
+  if (args.runtime && !args.brief) throw new Error('--runtime applies to --brief')
+  if (args.runtime && !RUNTIMES.includes(args.runtime)) throw new Error(`--runtime must be one of ${RUNTIMES.join(', ')}`)
   args.config ??= join(args.projectRoot, '.agent-kit', 'agents.json')
   return args
 }
@@ -147,7 +151,9 @@ function resolveSources(projectRoot, directories, skills, label) {
   })
 }
 
-function expectedTargets(projectRoot, specs, profiles) {
+// The whole config is validated; sources are resolved and targets rendered only for
+// `only` when given, so one agent's operation does not depend on the others' skills.
+function expectedTargets(projectRoot, specs, profiles, only) {
   for (const profileName of new Set(specs.map((spec) => spec?.profile))) {
     const instances = specs.filter((spec) => spec?.profile === profileName)
     if (instances.length > 1 && (instances.some((spec) => !spec.description) || new Set(instances.map((spec) => spec.description)).size !== instances.length)) {
@@ -158,6 +164,7 @@ function expectedTargets(projectRoot, specs, profiles) {
   const names = new Set()
   for (const spec of specs) {
     const runtimes = validateSpec(spec, profiles, names)
+    if (only && spec.name !== only) continue
     const profile = profiles.get(spec.profile)
     const agent = composeAgent(profile, spec)
     for (const id of runtimes) {
@@ -231,13 +238,16 @@ function run() {
   }
   const profileMap = new Map(profiles.map((profile) => [profile.name, profile]))
   const config = readConfig(args.config)
-  const all = expectedTargets(args.projectRoot, config.agents, profileMap)
+  const selected = args.brief ?? args.agent
+  const all = expectedTargets(args.projectRoot, config.agents, profileMap, selected)
 
   if (args.brief) {
     const spec = config.agents.find((entry) => entry.name === args.brief)
     if (!spec) throw new Error(`Project agent not configured: ${args.brief}`)
     const agent = composeAgent(profileMap.get(spec.profile), spec)
-    const sources = resolveSources(args.projectRoot, runtimeRegistry.get('claude').skillDirectories, agent.skills, spec.name)
+    // Resolve skills the way the host that receives the brief discovers them.
+    const runtimeId = args.runtime ?? (spec.runtimes ?? DEFAULT_RUNTIMES)[0]
+    const sources = resolveSources(args.projectRoot, runtimeRegistry.get(runtimeId).skillDirectories, agent.skills, spec.name)
       // The brief is ephemeral output for this session, so library skills keep the
       // local path; it is never written to the project.
       .map((entry) => ({ name: entry.name, path: entry.project ? entry.relative : entry.absolute }))

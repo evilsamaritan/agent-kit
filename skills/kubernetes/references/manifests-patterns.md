@@ -62,83 +62,88 @@ spec:
         app.kubernetes.io/name: api
     spec:
       serviceAccountName: api-sa
-      terminationGracePeriodSeconds: 30
+      terminationGracePeriodSeconds: 30     # must exceed preStop delay + app drain time
       securityContext:
         runAsNonRoot: true
-        runAsUser: 1001
-        fsGroup: 1001
+        runAsUser: 10001
+        fsGroup: 10001
+        seccompProfile: { type: RuntimeDefault }
       containers:
         - name: api
-          image: registry.example.com/api:1.2.3
+          image: registry.example.com/api:1.2.3@sha256:<digest>
           imagePullPolicy: IfNotPresent
           ports:
             - containerPort: 8080
               name: http
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities: { drop: ["ALL"] }
+            readOnlyRootFilesystem: true      # recommended extra; mount emptyDir where the app writes
           env:
-            - name: NODE_ENV
-              value: production
-            - name: DB_PASSWORD
-              valueFrom:
-                secretKeyRef:
-                  name: db-credentials
-                  key: password
+            - name: LOG_LEVEL
+              value: info
           envFrom:
             - configMapRef:
                 name: api-config
+          volumeMounts:
+            - { name: db-credentials, mountPath: /run/secrets/db, readOnly: true }
+            - { name: tmp, mountPath: /tmp }
           resources:
             requests:
               cpu: 100m
               memory: 128Mi
             limits:
-              memory: 512Mi  # CPU limit omitted — let HPA handle
+              memory: 512Mi
           readinessProbe:
-            httpGet:
-              path: /healthz
-              port: http
-            initialDelaySeconds: 5
+            httpGet: { path: /readyz, port: http }
             periodSeconds: 5
-            failureThreshold: 3
-          livenessProbe:
-            httpGet:
-              path: /healthz
-              port: http
-            initialDelaySeconds: 15
-            periodSeconds: 10
             failureThreshold: 3
           startupProbe:
-            httpGet:
-              path: /healthz
-              port: http
-            initialDelaySeconds: 5
+            httpGet: { path: /readyz, port: http }
             periodSeconds: 5
-            failureThreshold: 30  # 5 * 30 = 150s max startup time
+            failureThreshold: 30              # 5 * 30 = 150s max startup time
           lifecycle:
             preStop:
-              exec:
-                command: ["sh", "-c", "sleep 5"]  # Allow LB to drain
+              sleep: { seconds: 5 }           # native sleep: works on shell-less images
+      volumes:
+        - name: db-credentials
+          secret: { secretName: db-credentials }
+        - name: tmp
+          emptyDir: {}
 ```
 
-### Probe Decision Guide
+Prefer mounting secrets as files over `secretKeyRef` env vars: env vars leak into crash dumps, child processes, and `describe` output, and do not update without a restart. Encrypt Secrets in etcd at rest (API server encryption configuration or a KMS provider).
 
-| Probe | Purpose | When to Use |
-|-------|---------|-------------|
-| `readinessProbe` | Gate traffic routing | Always — prevents traffic to unready pods |
-| `livenessProbe` | Restart stuck processes | Always — auto-recovers hung containers |
-| `startupProbe` | Slow-start applications | When app takes >10s to initialize |
+### Graceful Shutdown
 
-**Rules:**
-- Startup probe runs first (disables liveness during startup)
-- Readiness failure removes pod from Service endpoints (no restart)
-- Liveness failure restarts the container
-- Never use the same endpoint for liveness and readiness if the readiness check is expensive
+On termination the pod is removed from endpoints while `SIGTERM` is sent, and the two race: load balancers and kube-proxy may keep sending traffic for a few seconds. A short `preStop` delay lets endpoint removal propagate before the app starts refusing connections; the app then drains in-flight work on `SIGTERM`.
+
+- `preStop: { sleep: { seconds: N } }` is the native form (beta and on by default since 1.30, GA in 1.34). It needs no shell, so it works on distroless and scratch images. On older clusters, fall back to `exec: { command: ["sh", "-c", "sleep 5"] }`, which fails on shell-less images.
+- Set `terminationGracePeriodSeconds` greater than `preStop` delay plus the app's drain time; the preStop time counts against it.
+- Shutdown semantics (readiness flip, drain order, timeouts): `reliability`; app-side handling: `backend`.
+
+### Probe Guide
+
+| Probe | Purpose | Use |
+|-------|---------|-----|
+| `startupProbe` | Gates the other probes during boot | Slow starters (more than about 10s) |
+| `readinessProbe` | Gates traffic routing | Always; checks "can serve", not shared dependencies |
+| `livenessProbe` | Restarts a wedged process | Optional; only for failures a restart fixes; never check dependencies |
+
+- Startup runs first and disables liveness and readiness until it succeeds.
+- Readiness failure removes the pod from Service endpoints without a restart.
+- Liveness failure restarts the container, so a liveness check that touches a database turns a database outage into a restart storm.
+- Use `/livez` and `/readyz` as separate endpoints. Policy and design: `reliability`.
 
 ---
 
 ## Native Sidecar Containers
 
-Kubernetes 1.33+ (GA) supports native sidecar containers via `initContainers` with `restartPolicy: Always`.
+Native sidecar containers (GA since Kubernetes 1.33) are declared via `initContainers` with `restartPolicy: Always`.
 
 ### Full Example with Sidecar
+
+The snippet shows only the sidecar wiring; add the pod and container `securityContext`, probes, and `serviceAccountName` from the production example above so it passes the `restricted` standard.
 
 ```yaml
 apiVersion: apps/v1
@@ -150,32 +155,51 @@ spec:
   selector:
     matchLabels: { app.kubernetes.io/name: api }
   template:
+    metadata:
+      labels: { app.kubernetes.io/name: api }
     spec:
+      securityContext:
+        runAsNonRoot: true
+        seccompProfile: { type: RuntimeDefault }
       initContainers:
-        # Native sidecar — starts before main, runs alongside, stops after
+        # Regular init container: runs to completion before the main container starts
+        - name: fetch-config
+          image: registry.example.com/config-fetcher:1.4.0@sha256:<digest>
+          args: ["--out", "/etc/app"]
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities: { drop: ["ALL"] }
+          volumeMounts:
+            - { name: app-config, mountPath: /etc/app }
+        # Native sidecar: restartPolicy Always keeps it running beside the main container
         - name: log-shipper
-          image: fluent-bit:3.2
+          image: registry.example.com/log-shipper:2.1.0@sha256:<digest>
           restartPolicy: Always
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities: { drop: ["ALL"] }
           resources:
             requests: { cpu: 50m, memory: 64Mi }
             limits: { memory: 128Mi }
           volumeMounts:
-            - name: shared-logs
-              mountPath: /var/log/app
-        # Regular init container (runs to completion before main starts)
-        - name: db-migrate
-          image: registry.example.com/api:1.2.3
-          command: ["npm", "run", "migrate"]
+            - { name: shared-logs, mountPath: /var/log/app, readOnly: true }
       containers:
         - name: api
-          image: registry.example.com/api:1.2.3
+          image: registry.example.com/api:1.2.3@sha256:<digest>
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities: { drop: ["ALL"] }
           volumeMounts:
-            - name: shared-logs
-              mountPath: /var/log/app
+            - { name: shared-logs, mountPath: /var/log/app }
+            - { name: app-config, mountPath: /etc/app, readOnly: true }
       volumes:
         - name: shared-logs
           emptyDir: {}
+        - name: app-config
+          emptyDir: {}
 ```
+
+Do not run schema migrations in an init container: every replica would migrate on every start. Run them once as a Job or pipeline step (see Database Migration Job below and `database`).
 
 **Lifecycle order:** native sidecars (`restartPolicy: Always`) start first, then regular init containers run to completion, then main containers start. On shutdown, main containers stop first, then native sidecars.
 
@@ -253,7 +277,7 @@ data:
 
 ```yaml
 # Using External Secrets Operator
-apiVersion: external-secrets.io/v1beta1
+apiVersion: external-secrets.io/v1
 kind: ExternalSecret
 metadata:
   name: db-credentials
@@ -271,13 +295,15 @@ spec:
         property: password
 ```
 
+ESO API versions track the operator release: `v1beta1` stopped being served in v0.17.0, so use `external-secrets.io/v1` for `ExternalSecret`, `SecretStore`, and `ClusterSecretStore`, and check the installed CRD versions (`kubectl get crd externalsecrets.external-secrets.io -o jsonpath='{.spec.versions[*].name}'`).
+
 ---
 
 ## Ingress Patterns (Legacy)
 
-> **Note:** Ingress NGINX is retiring March 2026. For new projects, use Gateway API instead. See [operators-gateway.md](operators-gateway.md) for Gateway API patterns. Both can coexist during migration.
+> **Note:** the ingress-nginx controller was retired and archived in March 2026: existing installs keep running but receive no further fixes, including security fixes. The Ingress API itself remains supported but frozen. Use Gateway API for new work; see [operators-gateway.md](operators-gateway.md) for migration. Both can coexist during migration.
 
-### nginx Ingress with TLS
+### Ingress with TLS (existing clusters)
 
 ```yaml
 apiVersion: networking.k8s.io/v1
@@ -286,10 +312,9 @@ metadata:
   name: api-ingress
   annotations:
     cert-manager.io/cluster-issuer: letsencrypt-prod
-    nginx.ingress.kubernetes.io/rate-limit: "100"
-    nginx.ingress.kubernetes.io/rate-limit-window: "1m"
+    # controller-specific annotations (rate limits, rewrites) are not portable
 spec:
-  ingressClassName: nginx
+  ingressClassName: <your-ingress-class>
   tls:
     - hosts: [api.example.com]
       secretName: api-tls
@@ -410,13 +435,14 @@ spec:
   hard:
     requests.cpu: "10"
     requests.memory: 20Gi
-    limits.cpu: "20"
     limits.memory: 40Gi
     pods: "50"
     services: "20"
 ```
 
-### Default Container Limits
+A quota on `limits.cpu` forces every container to declare a CPU limit; quota `requests.cpu` and memory limits instead unless CPU limits are wanted.
+
+### Default Container Requests and Memory Limits
 
 ```yaml
 apiVersion: v1
@@ -427,16 +453,16 @@ metadata:
 spec:
   limits:
     - type: Container
-      default:
-        memory: 256Mi
-        cpu: 250m
       defaultRequest:
         memory: 128Mi
         cpu: 100m
+      default:
+        memory: 256Mi
       max:
         memory: 2Gi
-        cpu: "2"
 ```
+
+Do not set `default` or `max` for CPU unless CPU limits are intended: they inject a CPU limit into every container that lacks one.
 
 ---
 
@@ -456,5 +482,7 @@ metadata:
 | Level | Restrictions |
 |-------|-------------|
 | `privileged` | No restrictions |
-| `baseline` | Prevents known privilege escalations |
-| `restricted` | Hardened, best practice (non-root, no host access, read-only root) |
+| `baseline` | Blocks known privilege escalations (host namespaces, privileged containers, most capabilities) |
+| `restricted` | Hardened: `runAsNonRoot: true`, `allowPrivilegeEscalation: false`, drop `ALL` capabilities (only `NET_BIND_SERVICE` may be added), seccomp `RuntimeDefault` or `Localhost`, restricted volume types, no host access |
+
+A read-only root filesystem is not required by `restricted`; it is a recommended extra. The `enforce`, `audit`, and `warn` modes can use different levels, so roll out with `warn` and `audit` first.

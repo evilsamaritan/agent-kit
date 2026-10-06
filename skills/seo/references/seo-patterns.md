@@ -1,20 +1,41 @@
-# SEO Patterns & Implementation Guide
+# SEO Patterns and Implementation Guide
 
-Detailed patterns for structured data, technical SEO, and rendering strategies.
+Detailed patterns for structured data, technical SEO, sitemaps, and hreflang. Feature availability changes; the retired-features note below is dated.
 
 ## Contents
 
-- [JSON-LD Schema Examples](#json-ld-schema-examples)
+- [JSON-LD Examples](#json-ld-examples)
+- [Retired and Limited Features](#retired-and-limited-features)
 - [Meta Tag Templates](#meta-tag-templates)
-- [Sitemap Generation](#sitemap-generation)
+- [Indexing Controls](#indexing-controls)
+- [Sitemaps and IndexNow](#sitemaps-and-indexnow)
 - [Technical SEO Audit Checklist](#technical-seo-audit-checklist)
 - [hreflang Implementation](#hreflang-implementation)
-- [SSR/SSG SEO Patterns](#ssrssg-seo-patterns)
+- [Framework Metadata Hooks](#framework-metadata-hooks)
 - [Structured Data Testing](#structured-data-testing)
 
 ---
 
-## JSON-LD Schema Examples
+## JSON-LD Examples
+
+Every value must match what the visitor sees. Use absolute URLs and ISO 8601 dates.
+
+### Article
+
+```html
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "Article",
+  "headline": "Article Title",
+  "author": { "@type": "Person", "name": "Author Name", "url": "https://example.com/authors/name" },
+  "datePublished": "2026-01-15",
+  "dateModified": "2026-01-20",
+  "image": ["https://example.com/image.jpg"],
+  "publisher": { "@type": "Organization", "name": "Brand" }
+}
+</script>
+```
 
 ### Organization (homepage)
 
@@ -26,16 +47,7 @@ Detailed patterns for structured data, technical SEO, and rendering strategies.
   "name": "Company Name",
   "url": "https://example.com",
   "logo": "https://example.com/logo.png",
-  "sameAs": [
-    "https://twitter.com/company",
-    "https://linkedin.com/company/company",
-    "https://github.com/company"
-  ],
-  "contactPoint": {
-    "@type": "ContactPoint",
-    "telephone": "+1-800-555-0000",
-    "contactType": "customer service"
-  }
+  "sameAs": ["https://www.linkedin.com/company/company", "https://github.com/company"]
 }
 </script>
 ```
@@ -57,21 +69,13 @@ Detailed patterns for structured data, technical SEO, and rendering strategies.
     "url": "https://example.com/product",
     "priceCurrency": "USD",
     "price": "29.99",
-    "availability": "https://schema.org/InStock",
-    "priceValidUntil": "2026-12-31"
-  },
-  "aggregateRating": {
-    "@type": "AggregateRating",
-    "ratingValue": "4.5",
-    "reviewCount": "127"
+    "availability": "https://schema.org/InStock"
   }
 }
 </script>
 ```
 
-### FAQ page
-
-FAQPage schema: `@type: "FAQPage"` with `mainEntity` array of `Question` objects, each containing `name` (question text) and `acceptedAnswer` with `@type: "Answer"` and `text`.
+Add `aggregateRating` or `review` only when real, visible reviews exist on that page. Generate `price` and `availability` from the same source as the page, so they cannot drift.
 
 ### BreadcrumbList
 
@@ -83,143 +87,119 @@ FAQPage schema: `@type: "FAQPage"` with `mainEntity` array of `Question` objects
   "itemListElement": [
     { "@type": "ListItem", "position": 1, "name": "Home", "item": "https://example.com/" },
     { "@type": "ListItem", "position": 2, "name": "Category", "item": "https://example.com/category" },
-    { "@type": "ListItem", "position": 3, "name": "Product", "item": "https://example.com/category/product" }
+    { "@type": "ListItem", "position": 3, "name": "Product" }
   ]
 }
 </script>
 ```
 
-### WebSite with SearchAction (sitelinks search box)
+The last item may omit `item` when it is the current page.
 
-```html
-<script type="application/ld+json">
-{
-  "@context": "https://schema.org",
-  "@type": "WebSite",
-  "url": "https://example.com",
-  "potentialAction": {
-    "@type": "SearchAction",
-    "target": {
-      "@type": "EntryPoint",
-      "urlTemplate": "https://example.com/search?q={search_term_string}"
-    },
-    "query-input": "required name=search_term_string"
-  }
-}
-</script>
-```
+---
+
+## Retired and Limited Features
+
+State as of October 2026, from Google's Search Central documentation and changelog. Its structured-data gallery is the current list of visual features.
+
+| Feature | Status |
+|---------|--------|
+| FAQ rich result | No longer shown in Google Search (deprecation notice May 2026; the documentation was later removed). `FAQPage` remains valid schema.org vocabulary; it needs no removal and may still help other consumers |
+| HowTo rich result | No longer shown on any device (discontinued September 2023) |
+| WebSite sitelinks search box (`SearchAction`) | Retired in November 2024; the markup does nothing in Google |
+| `Speakable` | Documented as beta: English-language news publishers, U.S. users with Google Home devices set to English; do not present it as a general voice or AI feature |
+| `Dataset` | Still used by Dataset Search; do not remove |
+
+Markup for a retired feature causes no penalty and no rich result. Do not add new markup for it unless another consumer needs the vocabulary.
 
 ---
 
 ## Meta Tag Templates
 
-### Blog post / Article page
+### Article page
 
 ```html
 <head>
-  <title>Article Title — Blog Name</title>
-  <meta name="description" content="Concise summary of the article content, 150-160 characters." />
+  <title>Article Title - Blog Name</title>
+  <meta name="description" content="Concise, accurate summary of the article." />
   <link rel="canonical" href="https://example.com/blog/article-slug" />
-  <meta name="author" content="Author Name" />
 
-  <!-- Open Graph -->
   <meta property="og:type" content="article" />
   <meta property="og:title" content="Article Title" />
-  <meta property="og:description" content="Social-optimized description" />
+  <meta property="og:description" content="Social-preview description" />
   <meta property="og:image" content="https://example.com/images/article-og.jpg" />
   <meta property="og:url" content="https://example.com/blog/article-slug" />
   <meta property="article:published_time" content="2026-01-15T10:00:00Z" />
-  <meta property="article:author" content="https://example.com/authors/name" />
 
-  <!-- Twitter -->
   <meta name="twitter:card" content="summary_large_image" />
 </head>
 ```
 
-### E-commerce product page
+### Product page
 
 ```html
 <head>
-  <title>Product Name — Category | Brand</title>
-  <meta name="description" content="Product description with key features, price, availability." />
+  <title>Product Name - Category | Brand</title>
+  <meta name="description" content="Key features and availability of the product." />
   <link rel="canonical" href="https://example.com/products/product-slug" />
-
   <meta property="og:type" content="product" />
   <meta property="og:title" content="Product Name" />
   <meta property="og:image" content="https://example.com/products/image.jpg" />
-  <meta property="product:price:amount" content="29.99" />
-  <meta property="product:price:currency" content="USD" />
 </head>
-```
-
-### Noindex patterns
-
-```html
-<!-- Pages that should NOT be indexed -->
-<meta name="robots" content="noindex, follow" />  <!-- Don't index, but follow links -->
-<meta name="robots" content="noindex, nofollow" /> <!-- Don't index, don't follow -->
-
-<!-- Use for: -->
-<!-- - Search result pages -->
-<!-- - User account pages -->
-<!-- - Paginated archives (page 2+, keep page 1 indexed) -->
-<!-- - Staging/preview environments -->
-<!-- - Thank you / confirmation pages -->
 ```
 
 ---
 
-## Sitemap Generation
+## Indexing Controls
 
-### Next.js App Router sitemap
+| Goal | Mechanism |
+|------|-----------|
+| Keep a page out of results | `<meta name="robots" content="noindex">` or `X-Robots-Tag: noindex`; the page must stay crawlable so the directive is seen |
+| Keep content private | Authentication. Robots directives are not access control |
+| Stop crawling (save budget) | robots.txt `Disallow`; does not remove an indexed URL |
+| Merge duplicate URLs | `rel="canonical"` on duplicates pointing at the preferred URL, plus redirects when the duplicate has no purpose |
+| Limit snippets | `nosnippet`, `max-snippet`, `data-nosnippet`; affects search and AI features that quote the page |
 
-```ts
-// app/sitemap.ts
-import { MetadataRoute } from 'next';
+Pages that fit `noindex`: internal search results, account and checkout pages, thank-you pages, staging and preview environments (also protect them with authentication).
 
-export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
-  const baseUrl = 'https://example.com';
+Paginated lists stay indexable with a self-referencing canonical on each page; do not canonicalize page 2 to page 1. A long-lived `noindex` page eventually stops passing link signals, so `noindex, follow` is not a lasting way to keep links flowing. Duplicate content is not penalized: the engine clusters duplicates and picks a canonical, so the job is to make your preferred URL win with consistent canonicals, redirects, and internal links.
 
-  // Static pages
-  const staticPages = ['', '/about', '/pricing', '/contact'].map(route => ({
-    url: `${baseUrl}${route}`,
-    lastModified: new Date(),
-    changeFrequency: 'monthly' as const,
-    priority: route === '' ? 1.0 : 0.8,
-  }));
+---
 
-  // Dynamic pages from DB/CMS
-  const posts = await db.post.findMany({ select: { slug: true, updatedAt: true } });
-  const postPages = posts.map(post => ({
-    url: `${baseUrl}/blog/${post.slug}`,
-    lastModified: post.updatedAt,
-    changeFrequency: 'weekly' as const,
-    priority: 0.6,
-  }));
+## Sitemaps and IndexNow
 
-  return [...staticPages, ...postPages];
-}
-```
-
-### Sitemap index for large sites (50k+ URLs)
+Sitemap entries carry truthful `lastmod` values taken from real content changes (a CMS update timestamp), never the build or request time. Omit `priority` and `changefreq`.
 
 ```xml
 <?xml version="1.0" encoding="UTF-8"?>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+  <url>
+    <loc>https://example.com/blog/article-slug</loc>
+    <lastmod>2026-01-20</lastmod>
+  </url>
+</urlset>
+```
+
+Over 50,000 URLs or 50 MB uncompressed: split files and reference them from a sitemap index.
+
+```xml
 <sitemapindex xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
-  <sitemap>
-    <loc>https://example.com/sitemap-pages.xml</loc>
-    <lastmod>2026-01-15</lastmod>
-  </sitemap>
-  <sitemap>
-    <loc>https://example.com/sitemap-blog.xml</loc>
-    <lastmod>2026-01-14</lastmod>
-  </sitemap>
-  <sitemap>
-    <loc>https://example.com/sitemap-products.xml</loc>
-    <lastmod>2026-01-15</lastmod>
-  </sitemap>
+  <sitemap><loc>https://example.com/sitemap-pages.xml</loc><lastmod>2026-01-15</lastmod></sitemap>
+  <sitemap><loc>https://example.com/sitemap-blog.xml</loc><lastmod>2026-01-20</lastmod></sitemap>
 </sitemapindex>
 ```
+
+For Google, discovery relies on the sitemap, internal links, and the URL Inspection tool for single URLs. The Search Console API does not submit pages for indexing, and Google's Indexing API is limited to job-posting and livestream content.
+
+### IndexNow (Bing, Yandex, Naver, Seznam, and other participants)
+
+```
+POST https://api.indexnow.org/IndexNow
+Content-Type: application/json
+
+{ "host": "example.com", "key": "<api-key>", "urlList": ["https://example.com/updated-page"] }
+```
+
+Host the key file at `https://example.com/<key>.txt`. Google does not support IndexNow.
 
 ---
 
@@ -229,153 +209,88 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
 
 | Check | How to verify | Fix |
 |-------|---------------|-----|
-| robots.txt accessible | Fetch `/robots.txt` — 200 OK | Create file at root |
-| No accidental noindex | Search `<meta name="robots" content="noindex"` | Remove from production pages |
-| Canonical tags present | Every page has `<link rel="canonical">` | Add to `<head>` |
-| No orphan pages | All pages reachable from internal links | Add to navigation or sitemap |
-| XML sitemap valid | Validate at `/sitemap.xml` | Fix schema, add missing URLs |
-| No redirect chains | Check for 301→301→200 | Point to final URL directly |
-| No 404 on important pages | Crawl site, check status codes | Fix broken links or redirect |
+| robots.txt reachable | Fetch `/robots.txt`, expect 200 | Create the file at the root |
+| No accidental noindex | Search rendered HTML and `X-Robots-Tag` headers | Remove from production pages |
+| Render-critical resources allowed | URL Inspection rendered view | Unblock CSS and JS |
+| No orphan pages | Every page reachable through internal links | Link from navigation or related pages |
+| Sitemap valid and current | Fetch and validate `/sitemap.xml` | Fix format, remove non-canonical URLs |
+| No redirect chains | Crawl for 301 to 301 to 200 | Point to the final URL |
+| No broken important pages | Crawl status codes | Fix links or add redirects |
 
 ### Indexability
 
 | Check | How to verify | Fix |
 |-------|---------------|-----|
-| Title tags unique | No duplicate `<title>` across pages | Make each title descriptive and unique |
-| Meta descriptions unique | No duplicate descriptions | Write unique descriptions per page |
-| H1 tag present and unique | One `<h1>` per page | Add/fix heading hierarchy |
-| Images have alt text | Audit `<img>` tags | Add descriptive alt attributes |
-| Internal links use descriptive anchor text | Not "click here" | Use keyword-relevant anchor text |
+| Canonical on every indexable page | Inspect `<head>` | Add self-referencing canonical |
+| Unique titles and descriptions | Crawl and compare | Write per-page values |
+| Clear main heading and hierarchy | Inspect headings | Fix structure |
+| Images have alt text | Audit `<img>` | Describe informative images |
+| Descriptive internal anchor text | Review links | Replace "click here" |
+| Content in initial HTML | View source or fetch without JS | Server-render or pre-render |
 
-### Mobile & Performance
+### Experience and performance
 
 | Check | How to verify | Fix |
 |-------|---------------|-----|
-| Mobile-friendly | Google Mobile-Friendly Test | Fix viewport, tap targets, font sizes |
-| Core Web Vitals passing | PageSpeed Insights, CrUX | Optimize LCP, INP, CLS |
-| HTTPS everywhere | No mixed content warnings | Upgrade all resources to HTTPS |
-| Page speed < 3s | Lighthouse performance score | Optimize images, JS, CSS |
+| Mobile usability | Lighthouse and real-device check | Fix viewport, tap targets, text size |
+| Core Web Vitals (field) | CrUX, Search Console report | See `performance` |
+| HTTPS everywhere | No mixed content | Upgrade resources |
 
 ---
 
 ## hreflang Implementation
 
-### Via sitemap (recommended for large sites)
+Via sitemap (best for large sites):
 
 ```xml
-<?xml version="1.0" encoding="UTF-8"?>
-<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"
-        xmlns:xhtml="http://www.w3.org/1999/xhtml">
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9" xmlns:xhtml="http://www.w3.org/1999/xhtml">
   <url>
     <loc>https://example.com/page</loc>
     <xhtml:link rel="alternate" hreflang="en" href="https://example.com/page" />
     <xhtml:link rel="alternate" hreflang="de" href="https://example.com/de/page" />
-    <xhtml:link rel="alternate" hreflang="ja" href="https://example.com/ja/page" />
     <xhtml:link rel="alternate" hreflang="x-default" href="https://example.com/page" />
   </url>
   <url>
     <loc>https://example.com/de/page</loc>
     <xhtml:link rel="alternate" hreflang="en" href="https://example.com/page" />
     <xhtml:link rel="alternate" hreflang="de" href="https://example.com/de/page" />
-    <xhtml:link rel="alternate" hreflang="ja" href="https://example.com/ja/page" />
     <xhtml:link rel="alternate" hreflang="x-default" href="https://example.com/page" />
   </url>
 </urlset>
 ```
 
-### Common hreflang mistakes
+`i18n` owns locale routing and language negotiation; this skill owns the hreflang annotations that describe the result.
+
+### Common mistakes
 
 | Mistake | Problem | Fix |
 |---------|---------|-----|
-| Missing return links | EN→DE exists but DE→EN missing | Every page links to ALL variants |
-| Wrong language codes | `hreflang="uk"` (UK is a country) | Use ISO 639-1: `en`, `de`, `uk` (Ukrainian) |
-| No x-default | No fallback for unlisted languages | Add x-default pointing to main version |
-| Mixing methods | hreflang in both `<head>` and sitemap | Pick one method only |
-| Non-canonical URLs | hreflang pointing to redirected URLs | All hreflang URLs must be canonical |
+| Missing return links | EN lists DE but DE does not list EN | Every page lists all variants, itself included |
+| Wrong code | `hreflang="en-UK"`: region subtags are ISO 3166-1 alpha-2 codes and the United Kingdom is `GB` | `en-GB`. Format is language first, optional region second; a region alone is invalid. `uk` is valid and means Ukrainian |
+| No `x-default` | No fallback for unlisted languages | Point `x-default` at the language selector or main version |
+| Mixing methods | hreflang in head and sitemap disagree | Pick one method |
+| Non-canonical targets | hreflang points at redirected or non-canonical URLs | Every target is a canonical, 200 URL |
 
 ---
 
-## SSR/SSG SEO Patterns
+## Framework Metadata Hooks
 
-### Next.js metadata API
-
-```tsx
-// app/blog/[slug]/page.tsx
-import { Metadata } from 'next';
-
-export async function generateMetadata({ params }): Promise<Metadata> {
-  const post = await getPost(params.slug);
-  return {
-    title: `${post.title} — Blog Name`,
-    description: post.excerpt,
-    openGraph: {
-      title: post.title,
-      description: post.excerpt,
-      images: [{ url: post.image, width: 1200, height: 630 }],
-      type: 'article',
-      publishedTime: post.publishedAt,
-    },
-    alternates: {
-      canonical: `https://example.com/blog/${params.slug}`,
-    },
-  };
-}
-```
-
-### Nuxt SEO setup
-
-```ts
-// nuxt.config.ts
-export default defineNuxtConfig({
-  app: {
-    head: {
-      htmlAttrs: { lang: 'en' },
-      meta: [
-        { name: 'viewport', content: 'width=device-width, initial-scale=1' },
-      ],
-    },
-  },
-  routeRules: {
-    '/blog/**': { swr: 3600 },  // ISR: revalidate every hour
-    '/docs/**': { prerender: true },  // SSG at build time
-  },
-});
-```
-
-```ts
-// pages/blog/[slug].vue — per-page SEO
-const { data: post } = await useFetch(`/api/posts/${route.params.slug}`);
-useHead({
-  title: `${post.value.title} — Blog`,
-  meta: [
-    { name: 'description', content: post.value.excerpt },
-    { property: 'og:title', content: post.value.title },
-    { property: 'og:image', content: post.value.image },
-  ],
-  link: [
-    { rel: 'canonical', href: `https://example.com/blog/${route.params.slug}` },
-  ],
-});
-```
+Use the framework's per-page metadata API so title, description, canonical, Open Graph, and JSON-LD come from the same content record as the page body. Examples: Next.js `generateMetadata` (route `params` has been a Promise since Next.js 15, and synchronous access was removed in 16: `const { slug } = await params`), Nuxt `useSeoMeta` and `useHead`, framework sitemap and robots route conventions. Take the project's framework version from its manifest before copying any snippet, and keep sitemap `lastmod` bound to real content timestamps.
 
 ---
 
 ## Structured Data Testing
 
-### Validation tools
-
-| Tool | URL | Purpose |
-|------|-----|---------|
-| Google Rich Results Test | search.google.com/test/rich-results | Test JSON-LD for rich result eligibility |
-| Schema.org Validator | validator.schema.org | Validate against full Schema.org spec |
-| Google Search Console | search.google.com/search-console | Monitor indexing, coverage, enhancements |
-| Lighthouse SEO audit | Chrome DevTools | Automated SEO checks |
-
-### Common validation errors
+| Tool | Purpose |
+|------|---------|
+| Google Rich Results Test | Eligibility for features Google still shows |
+| Schema.org Validator | Validity against the schema.org vocabulary |
+| Search Console | Indexing status, enhancement reports, field Core Web Vitals |
+| Lighthouse SEO audit | Basic automated checks |
 
 | Error | Cause | Fix |
 |-------|-------|-----|
-| Missing required field | Schema type requires fields (e.g., `image` for Article) | Add all required properties |
-| Invalid URL format | Relative URL in JSON-LD | Use absolute URLs everywhere |
-| Date format wrong | `"January 15, 2026"` instead of ISO | Use `"2026-01-15"` or `"2026-01-15T10:00:00Z"` |
-| Mismatch with page content | JSON-LD data differs from visible content | Structured data must reflect visible content |
+| Missing required field | Type requires a property (for example `image`) | Add the property |
+| Invalid URL | Relative URL in JSON-LD | Use absolute URLs |
+| Wrong date format | Free-text date | ISO 8601 |
+| Mismatch with page | JSON-LD differs from visible content | Generate both from one source |

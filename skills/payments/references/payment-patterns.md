@@ -1,409 +1,284 @@
-# Payment Patterns — Provider-Agnostic Architecture
+# Payment Patterns — Provider-Agnostic
+
+Integration shape, event handling, refunds, and money. TypeScript-flavoured; the patterns apply in any language.
 
 ## Contents
 
-- [Provider Adapter Pattern](#provider-adapter-pattern) — core interface, adapter implementation, provider registry
-- [Idempotent Payment Processing](#idempotent-payment-processing) — key strategy, safe retry pattern
-- [Webhook Handler](#webhook-handler-provider-agnostic) — signature verification, normalized events, idempotent processing
-- [Reconciliation](#reconciliation) — daily reconciliation job
-- [Refund Flows](#refund-flows) — refund handler, dispute/chargeback handling
-- [Multi-Currency](#multi-currency) — currency handling rules, zero-decimal currencies
-- [Payment Method Saving](#payment-method-saving) — setup intents, off-session charges
-- [Receipt Generation](#receipt-generation) — receipt data model
-
-## Provider Adapter Pattern
-
-Abstract payment operations behind a common interface. Each provider implements the same contract.
-
-### Core Interface
-
-```typescript
-interface PaymentProvider {
-  name: string;
-
-  // Lifecycle operations
-  createPaymentIntent(params: CreatePaymentParams): Promise<PaymentIntent>;
-  capturePayment(paymentId: string, amount?: number): Promise<PaymentCapture>;
-  refundPayment(paymentId: string, params: RefundParams): Promise<Refund>;
-
-  // Customer & payment method management
-  createCustomer(params: CustomerParams): Promise<Customer>;
-  tokenizePaymentMethod(params: TokenizeParams): Promise<PaymentMethod>;
-
-  // Subscriptions
-  createSubscription(params: SubscriptionParams): Promise<Subscription>;
-  updateSubscription(subscriptionId: string, params: UpdateSubscriptionParams): Promise<Subscription>;
-  cancelSubscription(subscriptionId: string, params: CancelParams): Promise<Subscription>;
-
-  // Webhooks
-  verifyWebhookSignature(payload: string | Buffer, signature: string, secret: string): boolean;
-  parseWebhookEvent(payload: string | Buffer): NormalizedEvent;
-}
-
-interface CreatePaymentParams {
-  amount: Money;
-  customerId?: string;
-  paymentMethodId?: string;
-  metadata?: Record<string, string>;
-  idempotencyKey: string;
-  capture?: boolean;          // true = auth+capture; false = auth only
-  returnUrl?: string;         // for redirect-based flows
-  paymentMethodTypes?: string[];
-}
-
-interface Money {
-  amount: number;    // smallest currency unit (cents for USD, yen for JPY)
-  currency: string;  // ISO 4217 lowercase
-}
-
-interface PaymentIntent {
-  id: string;
-  providerId: string;         // provider's native ID
-  provider: string;           // 'stripe' | 'adyen' | 'braintree' | etc.
-  status: PaymentStatus;
-  amount: Money;
-  clientToken?: string;       // client secret / session token for frontend SDK
-  metadata?: Record<string, string>;
-}
-
-type PaymentStatus =
-  | 'requires_payment_method'
-  | 'requires_confirmation'
-  | 'requires_action'         // 3DS, redirect, etc.
-  | 'processing'
-  | 'authorized'              // auth hold placed
-  | 'captured'                // funds claimed
-  | 'canceled'
-  | 'failed';
-
-interface NormalizedEvent {
-  id: string;
-  provider: string;
-  type: NormalizedEventType;
-  originalType: string;       // provider's native event type
-  data: Record<string, unknown>;
-  timestamp: Date;
-}
-
-type NormalizedEventType =
-  | 'payment.succeeded'
-  | 'payment.failed'
-  | 'payment.refunded'
-  | 'subscription.created'
-  | 'subscription.updated'
-  | 'subscription.canceled'
-  | 'invoice.paid'
-  | 'invoice.payment_failed'
-  | 'dispute.created';
-```
-
-### Adapter Implementation (Stripe Example)
-
-```typescript
-class StripeAdapter implements PaymentProvider {
-  name = 'stripe';
-  private client: Stripe;
-
-  constructor(secretKey: string) {
-    this.client = new Stripe(secretKey);
-  }
-
-  async createPaymentIntent(params: CreatePaymentParams): Promise<PaymentIntent> {
-    const pi = await this.client.paymentIntents.create({
-      amount: params.amount.amount,
-      currency: params.amount.currency,
-      customer: params.customerId,
-      payment_method: params.paymentMethodId,
-      capture_method: params.capture === false ? 'manual' : 'automatic',
-      automatic_payment_methods: { enabled: true },
-      metadata: params.metadata,
-    }, {
-      idempotencyKey: params.idempotencyKey,
-    });
-
-    return {
-      id: generateInternalId(),
-      providerId: pi.id,
-      provider: 'stripe',
-      status: this.mapStatus(pi.status),
-      amount: params.amount,
-      clientToken: pi.client_secret ?? undefined,
-      metadata: params.metadata,
-    };
-  }
-
-  verifyWebhookSignature(payload: string | Buffer, signature: string, secret: string): boolean {
-    try {
-      this.client.webhooks.constructEvent(payload, signature, secret);
-      return true;
-    } catch {
-      return false;
-    }
-  }
-
-  parseWebhookEvent(payload: string | Buffer): NormalizedEvent {
-    const raw = JSON.parse(typeof payload === 'string' ? payload : payload.toString());
-    return {
-      id: raw.id,
-      provider: 'stripe',
-      type: this.mapEventType(raw.type),
-      originalType: raw.type,
-      data: raw.data.object,
-      timestamp: new Date(raw.created * 1000),
-    };
-  }
-
-  private mapEventType(stripeType: string): NormalizedEventType {
-    const map: Record<string, NormalizedEventType> = {
-      'payment_intent.succeeded': 'payment.succeeded',
-      'payment_intent.payment_failed': 'payment.failed',
-      'charge.refunded': 'payment.refunded',
-      'customer.subscription.created': 'subscription.created',
-      'customer.subscription.updated': 'subscription.updated',
-      'customer.subscription.deleted': 'subscription.canceled',
-      'invoice.payment_succeeded': 'invoice.paid',
-      'invoice.payment_failed': 'invoice.payment_failed',
-      'charge.dispute.created': 'dispute.created',
-    };
-    return map[stripeType] ?? 'payment.failed';
-  }
-
-  private mapStatus(stripeStatus: string): PaymentStatus {
-    const map: Record<string, PaymentStatus> = {
-      'requires_payment_method': 'requires_payment_method',
-      'requires_confirmation': 'requires_confirmation',
-      'requires_action': 'requires_action',
-      'processing': 'processing',
-      'requires_capture': 'authorized',
-      'succeeded': 'captured',
-      'canceled': 'canceled',
-    };
-    return map[stripeStatus] ?? 'failed';
-  }
-}
-```
-
-### Provider Registry
-
-```typescript
-class PaymentService {
-  private providers = new Map<string, PaymentProvider>();
-  private defaultProvider: string;
-
-  constructor(defaultProvider: string) {
-    this.defaultProvider = defaultProvider;
-  }
-
-  register(provider: PaymentProvider): void {
-    this.providers.set(provider.name, provider);
-  }
-
-  getProvider(name?: string): PaymentProvider {
-    const provider = this.providers.get(name ?? this.defaultProvider);
-    if (!provider) throw new Error(`Payment provider '${name}' not registered`);
-    return provider;
-  }
-
-  // Route to provider based on rules
-  resolveProvider(params: CreatePaymentParams): PaymentProvider {
-    // Example routing logic:
-    // - High-value transactions → provider with lower interchange fees
-    // - Specific currencies → provider with best regional coverage
-    // - Fallback → default provider
-    return this.getProvider(this.defaultProvider);
-  }
-}
-
-// Bootstrap
-const paymentService = new PaymentService('stripe');
-paymentService.register(new StripeAdapter(process.env.STRIPE_SECRET_KEY!));
-// paymentService.register(new AdyenAdapter(process.env.ADYEN_API_KEY!));
-```
+- [Payments Module and Capability Interfaces](#payments-module-and-capability-interfaces)
+- [Mapping Provider Events and Statuses](#mapping-provider-events-and-statuses)
+- [Webhook Processing](#webhook-processing)
+- [Idempotency Keys](#idempotency-keys)
+- [Refunds](#refunds)
+- [Money and Currencies](#money-and-currencies)
+- [Saved Payment Methods and Off-Session Charges](#saved-payment-methods-and-off-session-charges)
+- [Reconciliation](#reconciliation)
+- [Disputes](#disputes)
+- [Orchestration](#orchestration)
 
 ---
 
-## Idempotent Payment Processing
+## Payments Module and Capability Interfaces
 
-### Idempotency Key Strategy
-
-Generate deterministic idempotency keys: `${action}-${orderId}-v${version}` (e.g., `charge-order-123-v1`). Increment version when inputs change (e.g., amount changed). Use distinct action prefixes for different operations (`charge-`, `refund-`).
-
-### Safe Retry Pattern
+**One provider:** a single module owns every SDK call and exposes your own types. No interface, no registry.
 
 ```typescript
-async function chargeWithRetry(
-  provider: PaymentProvider,
-  params: CreatePaymentParams,
-  maxRetries: number = 3
-): Promise<PaymentIntent> {
-  for (let attempt = 0; attempt <= maxRetries; attempt++) {
-    try {
-      return await provider.createPaymentIntent(params);
-    } catch (err: unknown) {
-      const isRetryable = err instanceof Error &&
-        ('code' in err && (err as any).code === 'ECONNRESET' ||
-         'statusCode' in err && (err as any).statusCode >= 500);
-
-      if (isRetryable && attempt < maxRetries) {
-        await sleep(Math.pow(2, attempt) * 1000); // exponential backoff
-        continue; // safe — idempotency key prevents double charge
-      }
-      throw err;
-    }
-  }
-  throw new Error('Unreachable');
-}
+// payments/index.ts — the only place that imports the provider SDK
+export async function startCheckout(order: Order, idempotencyKey: string): Promise<CheckoutSession>
+export async function refund(request: RefundRequest): Promise<RefundRecord>
+export function verifyEvent(rawBody: Buffer, headers: Headers): WebhookEnvelope   // throws InvalidSignature
+export function mapEvent(envelope: WebhookEnvelope): PaymentEvent                   // throws on unmappable data
 ```
+
+**Two or more committed providers:** split by capability so each provider implements only what it supports.
+
+```typescript
+interface Charges {
+  createPayment(p: CreatePayment): Promise<PaymentAttempt>     // p.idempotencyKey required
+  capture(paymentRef: ProviderRef, amount: Money, idempotencyKey: string): Promise<PaymentAttempt>
+}
+interface Refunds {
+  refund(paymentRef: ProviderRef, amount: Money, idempotencyKey: string): Promise<ProviderRefund>
+}
+interface Subscriptions {
+  subscribe(p: Subscribe): Promise<SubscriptionState>
+  changePlan(p: ChangePlan): Promise<SubscriptionState>
+}
+interface WebhookSource {
+  // each provider reads its own headers or payload fields for verification
+  verify(rawBody: Buffer, headers: Headers): WebhookEnvelope   // throws InvalidSignature only
+  map(envelope: WebhookEnvelope): PaymentEvent                 // throws UnknownProviderStatus and similar
+}
+
+type ProviderRef = { provider: ProviderId; id: string }   // ProviderId is a closed union of live providers
+type WebhookEnvelope = { provider: ProviderId; eventId: string; type: string; payload: unknown }   // eventId: the provider's event id
+```
+
+Selection is an explicit rule (by market, method, or merchant account), written where it is tested; adding a provider adds a case the compiler checks.
 
 ---
 
-## Webhook Handler (Provider-Agnostic)
+## Mapping Provider Events and Statuses
+
+Provider event sets are open: providers add events at any time. Your mapped set is closed.
 
 ```typescript
-async function handleWebhook(req: Request, providerName: string) {
-  const provider = paymentService.getProvider(providerName);
+type PaymentEvent =
+  | { kind: 'payment_succeeded'; ref: ProviderRef; orderId: string; amount: Money }
+  | { kind: 'payment_failed'; ref: ProviderRef; orderId: string; reason: string }
+  | { kind: 'refund_updated'; ref: ProviderRef; refundId: string; status: RefundStatus }
+  | { kind: 'subscription_changed'; ref: ProviderRef; subscriptionId: string }
+  | { kind: 'dispute_opened'; ref: ProviderRef; disputeId: string; amount: Money; evidenceDueBy: Date }
+  | { kind: 'ignored'; providerType: string }                       // explicit: not handled here
 
-  // 1. Verify signature (provider-specific)
-  const signature = req.headers[`x-${providerName}-signature`]
-    ?? req.headers['stripe-signature']
-    ?? req.headers['x-adyen-hmac-signature']
-    ?? '';
+function mapEvent(raw: WebhookEnvelope): PaymentEvent {
+  switch (raw.type) {
+    case 'payment_intent.succeeded':      return { kind: 'payment_succeeded', /* ... */ }
+    case 'payment_intent.payment_failed': return { kind: 'payment_failed', /* ... */ }
+    // ...every type you subscribed to
+    default:                              return { kind: 'ignored', providerType: raw.type }
+  }
+}
 
-  if (!provider.verifyWebhookSignature(req.rawBody, signature as string, getWebhookSecret(providerName))) {
-    throw new UnauthorizedError('Invalid webhook signature');
+type PaymentStatus = 'requires_payment_method' | 'requires_action' | 'processing'
+                   | 'authorized' | 'captured' | 'canceled' | 'failed'
+
+function mapStatus(s: string): PaymentStatus {
+  switch (s) {
+    case 'requires_payment_method': return 'requires_payment_method'
+    case 'requires_action':         return 'requires_action'
+    case 'processing':              return 'processing'
+    case 'requires_capture':        return 'authorized'
+    case 'succeeded':               return 'captured'
+    case 'canceled':                return 'canceled'
+    default: throw new UnknownProviderStatus(s)     // surfaces in alerts; never guessed
+  }
+}
+```
+
+The worker logs `ignored` events and finishes; the consumer of `PaymentEvent` switches exhaustively over `kind` with no default. Subscribe the webhook endpoint only to the event types you map.
+
+---
+
+## Webhook Processing
+
+```typescript
+// HTTP endpoint: verify, claim, enqueue, acknowledge. Mapping happens in the worker.
+async function receive(req: RawRequest): Promise<Response> {
+  let envelope: WebhookEnvelope
+  try { envelope = source.verify(req.rawBody, req.headers) }
+  catch (err) {
+    if (err instanceof InvalidSignature) return status(400)   // bad signature or stale timestamp
+    throw err                                                  // anything else is a 500; the provider redelivers
   }
 
-  // 2. Parse to normalized event
-  const event = provider.parseWebhookEvent(req.rawBody);
+  await db.transaction(async tx => {
+    const claimed = await tx.query(
+      `INSERT INTO payment_events (provider, event_id, type, payload, received_at)
+       VALUES ($1, $2, $3, $4, now()) ON CONFLICT (provider, event_id) DO NOTHING RETURNING id`,
+      [envelope.provider, envelope.eventId, envelope.type, envelope.payload])
+    if (claimed.rowCount === 0) return                         // duplicate delivery
+    await tx.jobs.enqueue('payment-event', { id: claimed.rows[0].id })   // same transaction as the claim
+  })
+  return status(200)
+}
 
-  // 3. Idempotent processing — skip if already handled
-  const existing = await db.webhookEvents.findUnique({ where: { eventId: event.id } });
-  if (existing) return { received: true };
+// Worker: map the stored event, then dispatch on kind
+async function processPaymentEvent(id: string) {
+  const stored: WebhookEnvelope = await db.paymentEvents.get(id)
+  const event = source.map(stored)   // a mapping error fails the job: alerted, stored, replayable
+  switch (event.kind) {
+    case 'ignored':           return log.info('payment event not handled', { type: event.providerType })
+    case 'payment_succeeded': return onPaymentSucceeded(event)
+    // ...one case per kind, no default
+  }
+}
 
-  // 4. Route by normalized event type
+// Worker: idempotent per order, verifies amounts against your records
+async function onPaymentSucceeded(e: Extract<PaymentEvent, { kind: 'payment_succeeded' }>) {
+  await db.transaction(async tx => {
+    const order = await tx.orders.lockById(e.orderId)
+    if (!order) throw new UnknownOrder(e.orderId)                     // alert; do not drop
+    if (order.status === 'paid') return                               // already applied
+    if (!sameMoney(order.total, e.amount)) {
+      await tx.orders.flag(order.id, 'amount_mismatch', e)            // manual review, no fulfilment
+      return
+    }
+    await tx.orders.markPaid(order.id, e.ref)
+    await tx.outbox.add('order.paid', { orderId: order.id })          // fulfilment downstream
+  })
+}
+```
+
+- The claim (unique insert) happens before any side effect; the loser of a race returns 2xx and does nothing.
+- The claim and the enqueue commit together (an outbox or a database-backed queue). If the enqueue could fail after the claim commits, a redelivery would see the claim and the event would never be processed.
+- Verification failures are the only 400. Mapping runs in the worker, so an unmappable status raises an alert and stays stored for replay instead of looking like a bad signature.
+- Store the payload so a failed job can be retried or replayed without the provider.
+- Events arrive out of order: apply state transitions only forward (a late `payment_failed` must not undo `paid`), or re-fetch the object's current state from the provider before acting.
+- Queue and retry mechanics: `background-jobs`; the outbox pattern: `architecture`.
+
+---
+
+## Idempotency Keys
+
+The pattern (claim first, scoped keys from intent, request hash, external side effects via the provider key or an outbox) is owned by `message-queues` → [idempotency-patterns.md](../../message-queues/references/idempotency-patterns.md); this section lists the payment keys.
+
+| Operation | Key derived from |
+|-----------|------------------|
+| Create payment for an order | `pay:{orderId}:{attemptNo}` — attempt number increments only when the customer starts a new attempt |
+| Capture | `capture:{paymentId}` |
+| Refund | `refund:{refundId}` — your refund record's id, created before the provider call |
+| Plan change | `plan-change:{changeRequestId}` |
+| Payout | `payout:{payoutId}` |
+
+- The key is created once, stored with the intent, and reused on every retry of that intent.
+- If inputs change (amount, currency), it is a new intent with a new key; providers reject a reused key with different parameters.
+- Provider key retention is limited (often about a day); long-running retries also check your own records before calling.
+- Retry policy for provider calls (which errors, backoff with jitter, budgets): `reliability`.
+
+---
+
+## Refunds
+
+```typescript
+async function requestRefund(paymentId: string, amount: Money, reason: RefundReason, requestedBy: string) {
+  const { refund, payment } = await db.transaction(async tx => {
+    const payment = await tx.payments.lockById(paymentId)
+    const refunded = await tx.refunds.sumActive(paymentId)          // succeeded + pending; failed excluded
+    const refundable = subtract(payment.captured, refunded)
+    if (amount.minor <= 0n || amount.currency !== payment.captured.currency) throw new InvalidRefundAmount()
+    if (amount.minor > refundable.minor) throw new ExceedsRefundable(refundable)
+    const refund = await tx.refunds.insert({ paymentId, amount, reason, requestedBy, status: 'pending' })   // id = idempotency key
+    return { refund, payment }
+  })
+
+  await submitRefund(refund, payment.ref)
+  return refund
+}
+
+// Also run by a sweeper job for `pending` refunds that have no provider reference yet
+async function submitRefund(refund: RefundRecord, paymentRef: ProviderRef) {
   try {
-    await processNormalizedEvent(event);
-    await db.webhookEvents.create({
-      data: { eventId: event.id, provider: providerName, type: event.type, processedAt: new Date() },
-    });
+    const result = await refunds.refund(paymentRef, refund.amount, `refund:${refund.id}`)   // same key on every attempt
+    await db.refunds.update(refund.id, { providerRef: result.ref, status: result.status })
   } catch (err) {
-    console.error(`Webhook processing failed [${event.type}]:`, err);
-    throw err; // return 500 so provider retries
+    if (err instanceof ProviderRejected) {                     // definitive: the provider will not refund this
+      await db.refunds.update(refund.id, { status: 'failed', failureCode: err.code })
+      throw err
+    }
+    log.warn('refund submission outcome unknown; left pending for retry', { refundId: refund.id, err })
   }
-
-  return { received: true };
 }
 
-async function processNormalizedEvent(event: NormalizedEvent) {
-  switch (event.type) {
-    case 'payment.succeeded':
-      await fulfillOrder(event.data.metadata?.orderId as string, event.data.id as string);
-      break;
-    case 'payment.failed':
-      await notifyPaymentFailed(event.data.metadata?.orderId as string);
-      break;
-    case 'invoice.paid':
-      await extendSubscriptionAccess(event.data);
-      await sendReceipt(event.data);
-      break;
-    case 'invoice.payment_failed':
-      await startDunning(event.data);
-      break;
-    case 'subscription.canceled':
-      await revokeAccess(event.data);
-      await sendCancellationEmail(event.data);
-      break;
-    case 'dispute.created':
-      await handleDispute(event);
-      break;
-  }
+type RefundReason = 'customer_request' | 'duplicate' | 'fraud' | 'order_canceled' | 'other'   // yours; map at the provider edge
+```
+
+- A timeout or network error leaves the record `pending`; the sweeper (`background-jobs`) resubmits it with the same key, so the provider refunds at most once. Only a definitive rejection marks it `failed`, which releases the amount.
+- Several partial refunds per payment; the order's refund status is derived from totals (`none`, `partial`, `full`), never stored separately.
+- Final refund state arrives by webhook (`refund_updated`); refunds can fail after acceptance.
+- A full refund is an explicit amount equal to the refundable balance, not "amount omitted".
+
+---
+
+## Money and Currencies
+
+```typescript
+type Money = { minor: bigint; currency: string }   // currency: ISO 4217 code, uppercase ("USD", "JPY", "KWD")
+
+// Exponent from a maintained currency table. Intl (CLDR data) is convenient but differs from
+// ISO 4217 for a few currencies; use an ISO 4217 table when the ledger must match it exactly.
+function exponent(currency: string): number {
+  return new Intl.NumberFormat('en', { style: 'currency', currency }).resolvedOptions().maximumFractionDigits ?? 2
+}
+
+// Parse a decimal string without floating point
+function fromDecimal(value: string, currency: string): Money {
+  const e = exponent(currency)
+  const [whole, frac = ''] = value.split('.')
+  if (frac.length > e) throw new TooManyDecimals(value, currency)
+  return { minor: BigInt(whole + frac.padEnd(e, '0')), currency }
 }
 ```
+
+- 0-decimal (JPY, KRW), 2-decimal (USD, EUR), and 3-decimal (KWD, BHD, OMR, TND) currencies exist; never assume `× 100`.
+- Providers sometimes use a different exponent than ISO 4217 for specific currencies, or require amounts divisible by 10 or 100. Convert at the provider boundary, in the provider module, with that provider's documented table; your ledger stays in ISO minor units.
+- Provider APIs may expect lowercase codes; normalize at the boundary.
+- Tokens with more decimals than ISO currencies (stablecoins on-chain) keep their own precision; do not squeeze them into 2-decimal minor units.
+- Formatting for display: `i18n`. Splitting amounts (tax lines, installments): allocate remainders explicitly so parts sum to the total.
+
+---
+
+## Saved Payment Methods and Off-Session Charges
+
+- Save a method only with the customer's consent for future use, recorded with what it covers (one merchant, recurring, or unscheduled charges).
+- Collect and authenticate at setup (a setup flow with SCA where required); keep the mandate or network transaction reference the provider returns.
+- Off-session charges are flagged as merchant-initiated and may still fail with "authentication required": notify the customer and bring them back on-session to authenticate.
+- Card updates (network account updater) can change expiry or number silently; react to provider events instead of storing card details.
 
 ---
 
 ## Reconciliation
 
-### Daily Reconciliation Job
+Daily job:
+1. Fetch provider balance transactions or the settlement report for the period.
+2. Load local payments, refunds, disputes, and fees for the same period.
+3. Match by provider reference; report missing locally, missing at the provider, amount or currency mismatches, and fee differences.
+4. Raise each discrepancy to an owner; never auto-correct the ledger silently.
 
-Run daily: fetch provider transactions for yesterday, fetch local payment records for the same period, then cross-reference by provider transaction ID. Find three types of discrepancies: transactions missing locally, transactions missing in provider, and amount mismatches. Alert ops on any discrepancy with the specific IDs affected.
-
----
-
-## Refund Flows
-
-### Provider-Agnostic Refund Handler
-
-```typescript
-async function processRefund(
-  orderId: string,
-  reason: 'requested_by_customer' | 'duplicate' | 'fraudulent',
-  amount?: number // undefined = full refund
-): Promise<Refund> {
-  const order = await db.orders.findUniqueOrThrow({ where: { id: orderId } });
-  if (order.refundedAt) throw new ConflictError('Order already refunded');
-
-  const provider = paymentService.getProvider(order.paymentProvider);
-  const refund = await provider.refundPayment(order.providerPaymentId, {
-    amount: amount ? { amount, currency: order.currency } : undefined,
-    reason,
-    metadata: { orderId, refundedBy: getCurrentUserId() },
-    idempotencyKey: `refund-${orderId}-${amount ?? 'full'}`,
-  });
-
-  await db.orders.update({
-    where: { id: orderId },
-    data: { status: amount ? 'partially_refunded' : 'refunded', refundedAt: new Date(), refundId: refund.id, refundAmount: refund.amount.amount },
-  });
-  await sendRefundConfirmation(order.userId, order, refund);
-  return refund;
-}
-```
-
-### Dispute / Chargeback Handling
-
-On `dispute.created` webhook: (1) log dispute immediately (provider, dispute ID, order ID, amount, reason, status, evidence due date), (2) alert ops team, (3) auto-gather evidence if order ID exists (shipping proof, access logs, correspondence) and submit via provider API before the evidence deadline.
+Settlement payouts are reconciled separately: payout total = sum of included balance transactions.
 
 ---
 
-## Multi-Currency
+## Disputes
 
-### Currency Handling Rules
-
-```typescript
-// ALWAYS store amounts as integers in smallest currency unit
-interface Money {
-  amount: number;    // 9999 = $99.99 USD, 9999 = ¥9999 JPY
-  currency: string;  // ISO 4217 lowercase
-}
-
-// Zero-decimal currencies (no fractional units)
-const ZERO_DECIMAL = new Set([
-  'bif', 'clp', 'djf', 'gnf', 'jpy', 'kmf', 'krw',
-  'mga', 'pyg', 'rwf', 'ugx', 'vnd', 'vuv', 'xaf', 'xof', 'xpf',
-]);
-
-function toSmallestUnit(displayAmount: number, currency: string): number {
-  return Math.round(ZERO_DECIMAL.has(currency.toLowerCase()) ? displayAmount : displayAmount * 100);
-}
-function toDisplayAmount(smallestUnit: number, currency: string): number {
-  return ZERO_DECIMAL.has(currency.toLowerCase()) ? smallestUnit : smallestUnit / 100;
-}
-function formatMoney(money: Money, locale: string = 'en-US'): string {
-  return new Intl.NumberFormat(locale, { style: 'currency', currency: money.currency.toUpperCase() })
-    .format(toDisplayAmount(money.amount, money.currency));
-}
-```
+On `dispute_opened`: record it with amount, reason, and evidence deadline; freeze related fulfilment where possible; alert; gather evidence (delivery proof, usage logs, communication, terms accepted); submit before the deadline. Track outcomes to tune fraud rules. Do not refund a disputed payment separately; the dispute already moves the funds.
 
 ---
 
-## Payment Method Saving
+## Orchestration
 
-1. Create setup intent with `tokenizePaymentMethod({ customerId, usage: 'off_session' })` -- returns client token for frontend SDK
-2. Charge saved method later with `createPaymentIntent({ customerId, paymentMethodId: savedMethodId })` using deterministic idempotency key
+When routing or failover across providers is required:
 
----
-
-## Receipt Generation
-
-Build receipts from order + payment + line items. Include: receipt number, date, customer info, line items (name, qty, unit price, total), subtotal, tax, total, currency, payment method summary ("Visa ****4242").
+- **Routing inputs:** currency, card country and network, method, amount, merchant account, recent success rate and cost per provider.
+- **Failover:** retry on another provider only for errors that prove the first attempt did not authorize (network errors before a response are ambiguous — check status first); never for issuer declines such as insufficient funds or suspected fraud.
+- **One payment, several attempts:** model attempts as children of your payment, each with its own provider and idempotency key; reconciliation runs per provider.
+- **Tokens are provider-bound** unless you use network tokens or a vault that can forward card data to several providers.

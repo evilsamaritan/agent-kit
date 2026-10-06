@@ -1,6 +1,6 @@
 ---
 name: architecture
-description: "Design or review system and module structure: boundaries, data ownership, contracts between modules, consistency, application styles, ADRs, and views. Use for a new system or subsystem, a redesign or migration, an architecture review, or root causes across modules."
+description: "Design or review system and module structure: boundaries, data ownership, contracts between modules, consistency, application styles, decision rationale, and views. Use for a new system or subsystem, a redesign or migration, an architecture review, or root causes across modules."
 argument-hint: "[design|review|critique] [target]"
 ---
 
@@ -83,7 +83,7 @@ When invoked with an argument, `design` or `review` selects the workflow and the
 | Define module boundaries, a core, state ownership, dependency direction | [module-design.md](references/module-design.md) |
 | Choose a system or application style: monolith, modular, hexagonal, host with modules, services, events | [architecture-patterns.md](references/architecture-patterns.md) |
 | Reason about state, scale, consistency, failure, and compatibility across a system | [system-design.md](references/system-design.md) |
-| Coordinate state and messages across owners: repository, saga, outbox | [integration-patterns.md](references/integration-patterns.md) |
+| Coordinate state and messages across owners: repository, saga, outbox, CQRS | [integration-patterns.md](references/integration-patterns.md) |
 | Select or draw architecture views | [architecture-views.md](references/architecture-views.md) |
 | Turn an agreed architecture into a polished responsive HTML explorer | finish the model and views, then combine with `playground` |
 | Record a consequential decision or keep a decision log | [adr-template.md](references/adr-template.md) |
@@ -199,6 +199,7 @@ Communication:
 ## Related Knowledge
 
 - `development` — the practice inside a module: units, variant families, dependencies, async lifetime, errors, refactoring
+- `grill-me` — settle requirements and open decisions with the user before designing
 - `diagrams` — notation, source, and compilation for the views this skill selects
 - `playground` — turns an agreed architecture model and its views into a polished responsive HTML explorer
 - `api-design` — protocol and compatibility design for exposed contracts
@@ -227,7 +228,7 @@ By scale:
 - [system-design.md](references/system-design.md) — state, flow, scale, failure, and compatibility across a system
 - [architecture-patterns.md](references/architecture-patterns.md) — system and application styles with forces and costs
 - [module-design.md](references/module-design.md) — core, boundaries, contracts, state ownership, dependency direction
-- [integration-patterns.md](references/integration-patterns.md) — repository and unit of work, saga, transactional outbox
+- [integration-patterns.md](references/integration-patterns.md) — repository and unit of work, saga, transactional outbox, CQRS
 
 Outputs and health:
 

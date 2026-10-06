@@ -1,6 +1,6 @@
 # Advanced TypeScript Patterns
 
-Deep-dive into TypeScript's type system: conditional types, template literals, mapped types, branded types, type-safe builders, recursive types, variadic tuples, pattern matching, tsconfig decision tree, and TS 7 migration.
+Deep-dive into TypeScript's type system: conditional types, template literals, mapped types, branded types, type-safe builders, recursive types, variadic tuples, pattern matching, the tsconfig decision tree, and the TypeScript 6 and 7 changes.
 
 ## Contents
 
@@ -13,7 +13,7 @@ Deep-dive into TypeScript's type system: conditional types, template literals, m
 - [Variadic Tuple Types](#variadic-tuple-types)
 - [Pattern Matching with Infer](#pattern-matching-with-infer)
 - [tsconfig Decision Tree](#tsconfig-decision-tree)
-- [TS 7 Go Rewrite and Migration](#ts-7-go-rewrite-and-migration)
+- [TypeScript 6 and 7](#typescript-6-and-7)
 - [Native TS Execution](#native-ts-execution)
 
 ---
@@ -114,8 +114,6 @@ type DeepPartial<T> = {
 
 ```typescript
 // Builder with compile-time required field tracking
-type BuilderState = Record<string, boolean>;
-
 interface Config {
   host: string;
   port: number;
@@ -125,24 +123,25 @@ interface Config {
 class ConfigBuilder<State extends Partial<Record<keyof Config, true>> = {}> {
   private config: Partial<Config> = {};
 
+  // The cast is the one place the state type is asserted; keep it in the builder
   host(h: string): ConfigBuilder<State & { host: true }> {
     this.config.host = h;
-    return this as any;
+    return this as unknown as ConfigBuilder<State & { host: true }>;
   }
 
   port(p: number): ConfigBuilder<State & { port: true }> {
     this.config.port = p;
-    return this as any;
+    return this as unknown as ConfigBuilder<State & { port: true }>;
   }
 
   ssl(s: boolean): ConfigBuilder<State & { ssl: true }> {
     this.config.ssl = s;
-    return this as any;
+    return this as unknown as ConfigBuilder<State & { ssl: true }>;
   }
 
   // build() only available when all required fields are set
   build(this: ConfigBuilder<{ host: true; port: true; ssl: true }>): Config {
-    return this.config as Config;
+    return this.config as Config; // safe: the `this` type proves every field is set
   }
 }
 
@@ -241,6 +240,8 @@ function concat<A extends unknown[], B extends unknown[]>(
 
 ## Pattern Matching with Infer
 
+`any[]` and `any` inside `infer` patterns and generic parameter bounds are the accepted use of `any`: they match every signature without widening a value's type. Values stay `unknown`.
+
 ```typescript
 // Extract function pieces
 type FirstArg<F> = F extends (arg: infer A, ...args: any[]) => any ? A : never;
@@ -271,35 +272,31 @@ type Route = ParseRoute<"get /users/:id">;
 
 ## tsconfig Decision Tree
 
+Set `strict`, `module`, `moduleResolution`, `target`, and `types` explicitly. The defaults changed in TypeScript 6 and differ from older versions, so a config that relies on them behaves differently across toolchains.
+
 ### By project type
 
 ```
 What kind of project?
-├── Node.js application
-│   ├── module: "nodenext"
-│   ├── moduleResolution: "nodenext"
-│   └── target: "ES2022"
-├── Library (published to npm)
-│   ├── module: "nodenext"
-│   ├── moduleResolution: "nodenext"
-│   ├── declaration: true
-│   ├── declarationMap: true
-│   └── target: "ES2022"
-├── Bundled frontend app (Vite, webpack, Turbopack)
-│   ├── module: "esnext"
-│   ├── moduleResolution: "bundler"
-│   └── target: "ES2022"
-├── Native TS execution (Node 22.18+, Deno, Bun)
-│   ├── module: "nodenext"
-│   ├── moduleResolution: "nodenext"
-│   ├── erasableSyntaxOnly: true          (Node.js only)
-│   ├── rewriteRelativeImportExtensions: true
-│   └── verbatimModuleSyntax: true
+├── Node.js application or library (compiled by tsc)
+│   ├── module: "nodenext", moduleResolution: "nodenext"
+│   ├── library: declaration: true, declarationMap: true
+│   └── types: ["node"]
+├── Bundled app (Vite, webpack, Rspack, framework toolchain)
+│   ├── module: "esnext", moduleResolution: "bundler"
+│   ├── noEmit: true (the bundler emits)
+│   └── types: only the globals the app uses (e.g. "vite/client")
+├── Native TS execution (Node 22.18+ or 24, Deno, Bun)
+│   ├── module: "nodenext", moduleResolution: "nodenext", noEmit: true
+│   ├── erasableSyntaxOnly: true (Node only)
+│   ├── verbatimModuleSyntax: true
+│   └── `.ts` in relative imports: allowImportingTsExtensions with noEmit, or rewriteRelativeImportExtensions when tsc emits
 └── Monorepo package
-    ├── composite: true
-    ├── references: [{ path: "../other-pkg" }]
-    └── Same module/resolution as project type above
+    ├── composite: true, references: [{ "path": "../other-pkg" }]
+    └── same module and resolution as its project type above
 ```
+
+`target` = the oldest runtime you ship to (the lowest Node or browser baseline), not the newest ES version. It decides which syntax is lowered; library APIs are not polyfilled by `target` but by `lib` and runtime support.
 
 ### Always-on flags
 
@@ -327,7 +324,7 @@ Required for Node.js native type-stripping. Disallows TypeScript syntax that req
 - **Allowed:** type annotations, interfaces, `type` keyword, `as const`, `satisfies`, generics
 - **Workarounds:** Use `as const` objects instead of enums, regular class properties instead of parameter properties
 
-### `rewriteRelativeImportExtensions` (TS 5.8+)
+### `rewriteRelativeImportExtensions` (TS 5.7+)
 
 Allows writing `.ts` extensions in imports and having the compiler rewrite them to `.js` in output:
 ```typescript
@@ -339,32 +336,28 @@ Only rewrites relative imports (starts with `./` or `../`). Does not affect pack
 
 ---
 
-## TS 7 Go Rewrite and Migration
+## TypeScript 6 and 7
 
-TypeScript 7 is a ground-up rewrite in Go for 10x faster compilation.
+Status as of 2026-10: TypeScript 6.0 (released 2026-03-23) is the last release on the JavaScript-based compiler and the bridge release. TypeScript 7.0 (released 2026-07-08) is the native (Go) compiler, still invoked as `tsc`, with much faster builds. Check the project's `typescript` version before using anything here.
 
-### What changes
+Defaults in TypeScript 6 and 7 (older versions differ):
 
-| Aspect | TS 6 (current) | TS 7 |
-|--------|----------------|------|
-| **Language** | JavaScript (self-hosted) | Go (native binary) |
-| **Default strict** | `strict: false` | `strict: true` |
-| **Default module** | `module: "commonjs"` | `module: "esnext"` |
-| **Default target** | `target: "es5"` | `target: "es2025"` |
-| **Performance** | Baseline | ~10x faster type-checking and emit |
+| Option | Default |
+|--------|---------|
+| `strict` | `true` |
+| `module` | `esnext` |
+| `target` | a floating current ES version |
+| `types` | `[]` (no `@types/*` auto-inclusion: list `"node"` and others explicitly; `["*"]` restores the old behavior but costs build time) |
 
-### What's dropped in TS 7
+Deprecated in 6 (silenced there with `"ignoreDeprecations": "6.0"`) and unsupported in 7: `target: es5`, `downlevelIteration`, `moduleResolution: node10` and `classic`, `module: amd | umd | systemjs | none`, and `baseUrl` (use `paths` relative to the config, or package `exports`). Import attributes require the `with` keyword; `asserts` on imports is an error.
 
-- ES5 / ES3 targets (minimum ES2015)
-- AMD, UMD, SystemJS module formats
-- `baseUrl` for path resolution (use `paths` with explicit mappings instead)
-- Some rarely-used compiler APIs
+Migration:
 
-### Migration checklist
+1. Upgrade to 6 first, set the options explicitly, and fix its deprecation warnings.
+2. Add `types` entries the build needs; missing globals (`process`, `describe`) are the most common break.
+3. Replace `baseUrl` lookups with `paths` or workspace packages.
+4. Move to 7 when the toolchain allows. TypeScript 7.0 ships without a programmatic API (a new API is expected in 7.1), so tools that load the compiler as a library, typescript-eslint among them, can need the TypeScript 6 compatibility package (`@typescript/typescript6`, which provides a `tsc6` executable and the 6.0 API) beside it, for example through an npm alias. Check each tool's support before upgrading.
 
-1. Run TS 6 with `--strict` and fix all errors
-2. Replace `baseUrl`-based resolution with explicit `paths`
-3. Move away from AMD/UMD/SystemJS module formats
-4. Ensure `target` is ES2015 or higher
-5. Address all deprecation warnings in TS 6 output
-6. Test with TS 7 nightly builds before upgrading
+## Native TS Execution
+
+Node 22.18+ and 24 run `.ts` files directly by stripping types, with no flag (stable from 24.12 and 25.2); Deno and Bun run TypeScript natively. Type stripping does not transform syntax that needs code generation, hence `erasableSyntaxOnly`. Write `.ts` in relative import specifiers, keep type-only imports as `import type` (or `verbatimModuleSyntax`), and run `tsc --noEmit` for type checking: the runtimes do not check types.

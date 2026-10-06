@@ -2,10 +2,12 @@
 
 Scan a codebase for FSD violations. Produce a prioritized report with severity, file, line, and specific fix for each issue.
 
-Severity model:
+Severity model (defined here once; `SKILL.md` uses the same words):
 - **BLOCKING** — import rule violation, cross-slice reference (breaks isolation guarantees)
-- **CONCERN** — bypassed public API (fragile, breaks on refactor)
+- **CONCERN** — bypassed public API (fragile, breaks on refactor), domain logic in `shared/`
 - **SUGGESTION** — non-canonical segment, unclear placement, structural smell
+
+If the framework renames layers (for example `_app` and `_pages` in Next.js), substitute the renamed directories in the commands below. If Steiger or an ESLint boundary rule is configured, run it first and use the greps as a cross-check.
 
 ---
 
@@ -107,7 +109,7 @@ grep -rn "from.*['\"].*entities/[a-zA-Z-]*/[a-zA-Z][a-zA-Z-]*/[a-zA-Z]" src/ --i
 grep -rn "from.*['\"].*features/[a-zA-Z-]*/[a-zA-Z][a-zA-Z-]*/[a-zA-Z]" src/ --include="*.ts" --include="*.tsx" --include="*.js" --include="*.jsx" --include="*.vue" --include="*.svelte"
 ```
 
-Report each as **CONCERN**. Fix: enforce via linter rule (`import/no-internal-modules` or `@feature-sliced/eslint-config`), TypeScript paths, or bundler aliases.
+Report each as **CONCERN**. Fix: enforce via Steiger, a linter rule (`import/no-internal-modules`), TypeScript paths, or bundler aliases.
 
 ---
 

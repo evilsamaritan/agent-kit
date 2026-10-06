@@ -1,104 +1,93 @@
 # CI/CD Pipeline Patterns
 
+Vendor-neutral home for pipeline stages, caching, secrets, OIDC, and supply chain in CI. Platform syntax: [github-actions.md](github-actions.md), [gitlab-ci.md](gitlab-ci.md). Monorepos: [monorepo-ci.md](monorepo-ci.md).
+
 ## Contents
 
 - [Universal Pipeline Stages](#universal-pipeline-stages)
+- [Frozen Installs](#frozen-installs)
 - [Caching Strategies](#caching-strategies)
 - [Secrets Management in CI](#secrets-management-in-ci)
-- [Branch and Trigger Strategy](#branch-and-trigger-strategy)
-- [Monorepo Pipelines](#monorepo-pipelines)
-- [Container Registry Workflow](#container-registry-workflow)
-- [GitHub Actions Example](#github-actions-example)
-- [GitLab CI Example](#gitlab-ci-example)
 - [OIDC Workload Identity](#oidc-workload-identity)
-- [Supply Chain Security in CI](#supply-chain-security-in-ci)
+- [Branch and Trigger Strategy](#branch-and-trigger-strategy)
+- [Artifacts and Registry Workflow](#artifacts-and-registry-workflow)
+- [GitLab CI Example](#gitlab-ci-example)
+- [Supply Chain in CI](#supply-chain-in-ci)
 - [Pipeline Anti-Patterns](#pipeline-anti-patterns)
 
 ---
 
 ## Universal Pipeline Stages
 
-These stages apply regardless of CI platform. Adapt syntax to your tool.
-
 ```
 trigger (PR / push / tag)
-  |
-  v
-+------------------+
-| 1. Validate      |  lint, format check, type-check
-+------------------+
-  |
-  v
-+------------------+
-| 2. Test          |  unit tests, integration tests
-+------------------+
-  |
-  v
-+------------------+
-| 3. Build         |  compile, bundle, container image build
-+------------------+
-  |
-  v
-+------------------+
-| 4. Scan          |  dependency audit, image vulnerability scan, SBOM
-+------------------+
-  |
-  v
-+------------------+
-| 5. Push          |  push image to registry, upload artifacts
-+------------------+
-  |
-  v
-+------------------+
-| 6. Deploy        |  deploy to target environment
-+------------------+
-  |
-  v
-+------------------+
-| 7. Verify        |  health check, smoke test, rollback if failed
-+------------------+
+  → 1. Validate   lint, format, type-check
+  → 2. Test       unit, then integration
+  → 3. Build      compile, bundle, container image
+  → 4. Scan       dependency audit, image scan, SBOM
+  → 5. Publish    push immutable artifact to registry (main and tags only)
+  → 6. Deploy     gated stage or separate workflow triggered by the artifact
+  → 7. Verify     smoke test and health check; rollback on failure
 ```
 
-**Parallelization:** Stages 1 and 2 can run in parallel. Stage 3 depends on both passing. Stages 4 and 5 can overlap.
+Stages 1 and 2 can run in parallel; build needs both; scan and publish can overlap.
+
+**Stance.** CI builds, tests, scans, and publishes immutable, uniquely tagged artifacts on main. Deployment consumes that artifact (never rebuilds from source) as a gated stage of the pipeline or as a separate workflow triggered by the artifact. Strategy (rolling, canary, blue-green), rollback, and feature flags belong to `release-engineering`; the pipeline only triggers them and reports the result.
+
+---
+
+## Frozen Installs
+
+Install from the lockfile and fail when it is out of date, so the job never resolves new versions.
+
+| Manager | Command |
+|---------|---------|
+| npm | `npm ci` |
+| pnpm | `pnpm install --frozen-lockfile` |
+| yarn (Berry) | `yarn install --immutable` |
+| yarn (Classic) | `yarn install --frozen-lockfile` |
+| bun | `bun install --frozen-lockfile` |
+| pip | `pip install --require-hashes -r requirements.txt` (hash-pinned file) |
+| uv | `uv sync --locked` |
+| cargo | `cargo build --locked` |
+| go | `go build -mod=readonly` (default) |
+
+Order the validate stage cheap to expensive (lint, type-check, then tests, then build) and run the install once per job, restoring the download cache.
 
 ---
 
 ## Caching Strategies
 
-### Dependency Cache
+### Dependency cache
 
-Cache the package manager's install cache directory, keyed by lockfile hash.
+Cache the package manager's download cache (not `node_modules` or virtualenvs), keyed by the lockfile hash, with a prefix fallback.
 
-| Package Manager | Cache Path | Cache Key |
-|----------------|-----------|-----------|
-| npm | `~/.npm` | `hash(package-lock.json)` |
-| yarn | `~/.yarn/cache` | `hash(yarn.lock)` |
-| bun | `~/.bun/install/cache` | `hash(bun.lock)` |
-| pnpm | `~/.pnpm-store` | `hash(pnpm-lock.yaml)` |
-| pip | `~/.cache/pip` | `hash(requirements.txt)` |
-| cargo | `~/.cargo/registry` | `hash(Cargo.lock)` |
-| go | `~/go/pkg/mod` | `hash(go.sum)` |
+| Package manager | Cache path | Key input |
+|-----------------|-----------|-----------|
+| npm | `~/.npm` | `package-lock.json` |
+| yarn | `~/.yarn/cache` | `yarn.lock` |
+| pnpm | store path from `pnpm store path` | `pnpm-lock.yaml` |
+| bun | `~/.bun/install/cache` | `bun.lock` |
+| pip | `~/.cache/pip` | requirements or lock file |
+| cargo | `~/.cargo/registry` | `Cargo.lock` |
+| go | `~/go/pkg/mod` | `go.sum` |
 
-### Container Layer Cache
-
-Use registry-backed or CI-backed layer caching:
+### Container layer cache
 
 ```
-# BuildKit cache modes
---cache-from=type=registry,ref=registry.example.com/myapp:cache
---cache-to=type=registry,ref=registry.example.com/myapp:cache,mode=max
-
-# GitHub Actions specific
---cache-from=type=gha
---cache-to=type=gha,mode=max
+--cache-from=type=registry,ref=registry.example.com/myapp:buildcache
+--cache-to=type=registry,ref=registry.example.com/myapp:buildcache,mode=max
 ```
 
-`mode=max` caches all layers (including intermediate build stages), not just the final image.
+CI-backed caches (`type=gha`) are simpler but ephemeral and size-limited; registry caches persist across runners. `mode=max` includes intermediate stages. Dockerfile layer ordering: `docker`.
 
-### Cache Invalidation
+### Rules
 
-- **Dependency cache**: invalidated when lockfile changes. Falls back to restore key with OS prefix.
-- **Layer cache**: invalidated when any layer input changes. Order Dockerfile layers for maximum cache hits.
+- Key by lockfile hash, not branch name, so branches share caches; add a branch prefix only as a fallback tier.
+- Never share caches across OS, architecture, or runtime versions: put them in the key.
+- A restore is best-effort: a miss costs time, never correctness.
+- Never cache credentials. Restrict cache writes from untrusted (fork) builds.
+- Measure hit rate and investigate drops; do not set a fixed target.
 
 ---
 
@@ -106,282 +95,136 @@ Use registry-backed or CI-backed layer caching:
 
 | Rule | Implementation |
 |------|---------------|
-| Store secrets in CI platform's secret store | GitHub Secrets, GitLab CI Variables (masked), Jenkins Credentials |
-| Mask secrets in logs | Use CI platform's masking feature |
-| Use OIDC for cloud auth | Avoid long-lived credentials; use workload identity federation |
-| Rotate secrets regularly | Automate rotation, use short-lived tokens |
-| Scope secrets to environments | Production secrets only available in production deploy jobs |
-| Audit secret access | Review who can read/modify CI secrets |
+| Use the platform secret store | Platform secrets or variables, masked; protected where supported |
+| Prefer federation over stored keys | [OIDC](#oidc-workload-identity) for cloud and registry access |
+| Scope per environment | Production secrets only reach production deploy jobs |
+| Scope tokens per job | Least-privilege permissions on the job token |
+| Audit | Review who can read or change CI secrets and who can edit workflows |
 
-Never:
-- Hardcode secrets in pipeline YAML
-- Echo or print secrets in CI logs
-- Pass secrets as build args (visible in image history)
-- Commit secrets to git (even encrypted, unless using sealed-secrets or sops)
-
----
-
-## Branch and Trigger Strategy
-
-| Event | Pipeline | Deploy Target |
-|-------|----------|---------------|
-| Pull request | Validate + Test + Build (no push) | None (or preview environment) |
-| Push to main | Full pipeline | Staging |
-| Tag (semver) | Full pipeline | Production |
-| Manual trigger | Configurable | Any environment |
-
-**Concurrency:** Cancel in-progress runs when new commits push to the same branch. Serialize deploy jobs to prevent race conditions.
-
----
-
-## Monorepo Pipelines
-
-### Path-Based Triggers
-
-Only run pipeline steps for services with changed files:
-
-```
-# Trigger on changes to specific paths
-paths:
-  - apps/api/**
-  - packages/shared/**
-  - package-lock.json
-```
-
-### Workspace-Aware Commands
-
-Run commands scoped to affected workspaces:
-
-```bash
-# npm workspaces
-npm run --workspace=apps/api test
-
-# bun workspaces
-bun run --filter='apps/api' test
-```
-
-### Shared Pipeline Steps
-
-Extract reusable pipeline logic (build container, push to registry) into shared actions/templates. Each service invokes the shared step with service-specific parameters.
-
----
-
-## Container Registry Workflow
-
-### Tagging Strategy
-
-| Tag | Purpose | Example |
-|-----|---------|---------|
-| Git SHA (short) | Trace image to exact commit | `myapp:abc1234` |
-| Semver | Release versions | `myapp:1.2.3` |
-| Branch name | Development builds | `myapp:feature-x` |
-| `latest` | Development convenience only | Never in production |
-
-### Registry Options
-
-| Registry | Best For |
-|----------|----------|
-| GitHub Container Registry (GHCR) | GitHub-hosted projects |
-| Docker Hub | Open-source, public images |
-| AWS ECR | AWS deployments |
-| GCP Artifact Registry | GCP deployments |
-| Self-hosted (Harbor) | Air-gapped environments, full control |
-
----
-
-## GitHub Actions Example
-
-Representative example using universal stages. Adapt to your platform.
-
-```yaml
-name: CI/CD
-on:
-  push:
-    branches: [main]
-  pull_request:
-    branches: [main]
-
-concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
-
-jobs:
-  validate:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 22
-          cache: npm
-      - run: npm ci
-      - run: npm run lint
-      - run: npm run check-types
-
-  test:
-    runs-on: ubuntu-latest
-    needs: []  # runs in parallel with validate
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 22
-          cache: npm
-      - run: npm ci
-      - run: npm test
-
-  build-push:
-    runs-on: ubuntu-latest
-    needs: [validate, test]
-    if: github.ref == 'refs/heads/main'
-    permissions:
-      packages: write
-    steps:
-      - uses: actions/checkout@v4
-      - uses: docker/setup-buildx-action@v3
-      - uses: docker/login-action@v3
-        with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-      - uses: docker/build-push-action@v6
-        with:
-          push: true
-          tags: ghcr.io/${{ github.repository }}:${{ github.sha }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
-```
-
----
-
-## GitLab CI Example
-
-Same universal stages, GitLab syntax:
-
-```yaml
-stages:
-  - validate
-  - test
-  - build
-  - deploy
-
-variables:
-  npm_config_cache: "$CI_PROJECT_DIR/.npm"
-
-cache:
-  key: ${CI_COMMIT_REF_SLUG}
-  paths:
-    - .npm/
-    - node_modules/
-
-validate:
-  stage: validate
-  script:
-    - npm ci
-    - npm run lint
-    - npm run check-types
-
-test:
-  stage: test
-  script:
-    - npm ci
-    - npm test
-
-build:
-  stage: build
-  image: docker:latest
-  services:
-    - docker:dind
-  script:
-    - docker build -t $CI_REGISTRY_IMAGE:$CI_COMMIT_SHA .
-    - docker push $CI_REGISTRY_IMAGE:$CI_COMMIT_SHA
-  only:
-    - main
-```
+Never hardcode secrets in pipeline files, echo them, pass them as build args (visible in image history), or expose them to fork PRs. Runtime secret handling: `security`.
 
 ---
 
 ## OIDC Workload Identity
 
-Replace long-lived credentials with short-lived tokens tied to repo/branch identity.
+Replace long-lived credentials with short-lived tokens bound to repository, ref, and environment.
 
 ```
-CI job starts
-  |
-  v (request OIDC token)
-CI platform issues JWT (contains repo, branch, workflow info)
-  |
-  v (present JWT)
-Cloud provider validates JWT, issues short-lived credentials
-  |
-  v (use credentials)
-CI job accesses cloud resources (registry, deploy target, secrets)
+CI job requests OIDC token → CI platform issues a signed JWT (repo, ref, environment, workflow)
+  → job presents the JWT to the cloud provider or registry
+  → provider validates the issuer, audience, and subject claims, returns short-lived credentials
 ```
 
-| CI Platform | Cloud Provider | How |
-|-------------|---------------|-----|
-| GitHub Actions | AWS | `aws-actions/configure-aws-credentials` with OIDC |
-| GitHub Actions | GCP | `google-github-actions/auth` with workload identity |
-| GitHub Actions | Azure | `azure/login` with OIDC |
-| GitLab CI | AWS/GCP/Azure | CI/CD OIDC token via `CI_JOB_JWT_V2` |
+The trust policy decides the security: restrict the subject claim to the repository and the ref or environment allowed to deploy; a wildcard subject lets any workflow in the organisation assume the role. The audience must match what the provider expects.
 
-Benefits: no stored secrets to rotate, credentials scoped to specific repo/branch/workflow, audit trail of all access.
+| Platform | How the job gets a token |
+|----------|--------------------------|
+| GitHub Actions | `permissions: id-token: write`; provider actions request the token |
+| GitLab CI | `id_tokens:` keyword with an `aud`; the old `CI_JOB_JWT` variables are removed |
+
+Package registries with trusted publishing (npm, PyPI, crates.io) use the same mechanism: see `release-engineering`.
 
 ---
 
-## Supply Chain Security in CI
+## Branch and Trigger Strategy
 
-### SBOM Generation
+| Event | Pipeline | Publish / deploy |
+|-------|----------|------------------|
+| Pull request | Validate, test, build (no push) | None, or a preview environment |
+| Push to main | Full pipeline plus integration tests | Publish artifact; deploy to staging |
+| Tag (semver) or release workflow | Same artifact, promoted | Production through a gate |
+| Manual | Configurable | Any environment, with approval |
 
-Generate Software Bill of Materials for every build:
+Cancel superseded CI runs on the same ref. Serialize deploys per environment and never cancel one mid-flight.
 
-```bash
-# Generate SBOM from container image
-syft myimage:tag -o spdx-json > sbom.json
+---
 
-# Generate SBOM from source
-trivy fs --format spdx-json -o sbom.json .
+## Artifacts and Registry Workflow
 
-# Scan SBOM for known vulnerabilities
-grype sbom:sbom.json
+| Tag | Purpose |
+|-----|---------|
+| Git SHA | Trace an artifact to its commit; the immutable reference |
+| Semver | Release versions |
+| Branch name | Development builds only |
+| `latest` | Convenience only; never deployed |
+
+Deploy by digest. Registry choice follows the platform you deploy on; the pipeline needs a registry with immutable-tag or digest support, access control, and vulnerability scanning on push.
+
+---
+
+## GitLab CI Example
+
+Universal stages in GitLab syntax: `rules:` instead of `only:`, pinned images, a lockfile-keyed cache of the download directory only, and OIDC through `id_tokens`.
+
+```yaml
+stages: [validate, test, build]
+
+variables:
+  npm_config_cache: "$CI_PROJECT_DIR/.npm"
+
+default:
+  image: node:24-alpine           # example: current supported release, digest-pinned in production
+  cache:
+    key:
+      files: [package-lock.json]
+    paths: [.npm/]
+
+validate:
+  stage: validate
+  script: [npm ci, npm run lint, npm run check-types]
+
+test:
+  stage: test
+  script: [npm ci, npm test]
+
+build:
+  stage: build
+  image: docker:<version>
+  services:
+    - docker:<version>-dind
+  variables:
+    DOCKER_TLS_CERTDIR: "/certs"
+  id_tokens:
+    CLOUD_ID_TOKEN:
+      aud: https://cloud.example.com   # audience the provider expects
+  script:
+    - echo "$CI_REGISTRY_PASSWORD" | docker login -u "$CI_REGISTRY_USER" --password-stdin "$CI_REGISTRY"
+    - docker build -t "$CI_REGISTRY_IMAGE:$CI_COMMIT_SHA" .
+    - docker push "$CI_REGISTRY_IMAGE:$CI_COMMIT_SHA"
+    # a deploy job's cloud CLI exchanges $CLOUD_ID_TOKEN for short-lived credentials; no stored key
+  rules:
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
 ```
 
-### Image Signing
+For GitHub Actions the equivalent pipeline is in [github-actions.md](github-actions.md).
 
-Sign artifacts to verify provenance and integrity:
+---
 
-```bash
-# Keyless signing with Sigstore (uses OIDC identity)
-cosign sign --yes ghcr.io/org/app:v1.0.0
+## Supply Chain in CI
 
-# Verify signature before deploy
-cosign verify ghcr.io/org/app:v1.0.0 \
-  --certificate-identity=https://github.com/org/app/.github/workflows/ci.yml@refs/heads/main \
-  --certificate-oidc-issuer=https://token.actions.githubusercontent.com
-```
+Controls and policy are owned by `security`; image details by `docker`. The pipeline wires them in:
 
-### SLSA Provenance Levels
+- **SBOM and scan**: generate an SBOM for each build artifact (`syft`, `trivy`, or `docker buildx --sbom`) and scan it (`grype`, `trivy`) as a gate.
+- **Signing**: sign by digest, keyless where the platform supports OIDC (`cosign sign`); verify before deploy with the expected workflow identity and issuer.
+- **Provenance**: attach build provenance (GitHub artifact attestations, `--provenance=mode=max`).
+- **Scanning gates**: run SAST, dependency scanning, and secret scanning on every push, and DAST against a deployed review or staging environment; the pipeline fails on the severity threshold that `security` sets, and `security` owns triage and exceptions.
+- **Pinning**: pin actions, images, and tool versions; keep pins current with an update bot.
 
-| Level | Requirements | Effort |
-|-------|-------------|--------|
-| **SLSA 1** | Build process documented, provenance exists | Low (enable GitHub artifact attestations) |
-| **SLSA 2** | Hosted build, signed provenance | Medium (use OIDC + cosign) |
-| **SLSA 3** | Isolated build, non-falsifiable provenance | High (hermetic builds) |
-
-Start with Level 1-2 -- achievable in weeks with modern CI platforms.
+SLSA v1.0 build track, in short: **L1** provenance exists; **L2** built on a hosted build platform with signed provenance; **L3** the build runs on a hardened platform where runs are isolated and the provenance cannot be forged by the build's own steps (on GitHub, a reusable-workflow build that callers cannot alter). Start at L2; claim a level only after verifying the provenance and the isolation.
 
 ---
 
 ## Pipeline Anti-Patterns
 
-| Anti-Pattern | Problem | Fix |
+| Anti-pattern | Problem | Fix |
 |-------------|---------|-----|
-| No caching | Slow builds, wasted compute | Cache dependencies and layers |
-| `latest` tag only | Cannot trace image to commit | Use git SHA or semver tags |
-| Secrets in YAML | Visible to anyone with repo access | Use CI secret store |
-| Long-lived cloud credentials | Leaked key = full access | OIDC workload identity federation |
-| No concurrency control | Parallel deploys cause conflicts | Cancel or queue concurrent runs |
-| Monolithic pipeline | Slow feedback, all-or-nothing | Parallel stages, path filters |
-| No deploy gate | Broken code reaches production | Health check verification post-deploy |
-| Skipping lint/types on PR | Errors caught late | Run validation on every PR |
-| No SBOM or signing | Cannot verify what was deployed | SBOM generation + image signing in CI |
+| No caching | Slow builds | Cache dependencies and layers |
+| `latest` tag only | Cannot trace image to commit | SHA or semver tags; deploy by digest |
+| Secrets in YAML | Visible to anyone with repo access | Platform secret store or federation |
+| Long-lived cloud keys | A leaked key is lasting access | OIDC federation |
+| No concurrency control | Parallel deploys conflict | Cancel superseded CI runs; queue deploys |
+| Monolithic pipeline | Slow feedback, all-or-nothing | Parallel jobs, path or graph filters |
+| Rebuilding at deploy time | The deployed artifact was never tested | Deploy the CI-built digest |
+| No verify step after deploy | Broken release stays live | Smoke test and automatic rollback trigger |
+| Skipping validation on PRs | Errors caught late | Validate every PR |
+| No SBOM or signing | Cannot verify what was deployed | Generate, sign, verify |

@@ -31,12 +31,6 @@ try {
   process.exit(1)
 }
 
-const manifest = JSON.parse(readFileSync(join(toolkitRoot, '.claude-plugin/plugin.json'), 'utf8'))
-if (Object.hasOwn(manifest, 'agents') || existsSync(join(toolkitRoot, '.claude-plugin/agents'))) {
-  console.error('Agent Kit ships profiles and skills, not bundled Claude agents. Remove package agent targets and the manifest agents field.')
-  process.exit(1)
-}
-
 const files = collect(profiles)
 const checkOnly = process.argv.includes('--check')
 

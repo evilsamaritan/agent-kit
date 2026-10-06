@@ -1,234 +1,140 @@
 # Distributed and Browser Caching Patterns
 
-Cache stampede prevention, consistent hashing, multi-layer architecture, service workers, and client-side data caching.
+Cache stampede prevention, spreading keys across nodes, multi-layer caching, and client-side cache invalidation. Service-worker code lives in `web`.
 
 ## Contents
 
 - [Cache Stampede Prevention](#cache-stampede-prevention)
-- [Consistent Hashing](#consistent-hashing)
+- [Spreading Keys Across Nodes](#spreading-keys-across-nodes)
 - [Multi-Layer Caching](#multi-layer-caching)
-- [Service Worker Strategies](#service-worker-strategies)
-- [Client-Side Data Caching (SWR)](#client-side-data-caching-swr)
+- [Client-Side Cache Invalidation](#client-side-cache-invalidation)
 
 ---
 
 ## Cache Stampede Prevention
 
-When a popular key expires, many requests hit the DB simultaneously.
+When a popular key expires, many requests recompute it at once and hit the source together.
 
 | Solution | How | Trade-off |
 |----------|-----|-----------|
-| **Locking** | First request locks, others wait | Latency for waiters |
-| **Probabilistic Early Expiry** | Random early refresh before TTL | Slight extra cache traffic |
-| **Stale-While-Revalidate** | Serve stale, refresh async | Brief staleness |
-| **Pre-warming** | Refresh before expiry | Needs predictable patterns |
+| **Serve stale while revalidating** | Keep a soft expiry inside the value; after it passes, one caller refreshes while others get the old value | Brief staleness |
+| **Probabilistic early expiry (XFetch)** | Each reader refreshes early with a probability that rises near expiry | Slight extra recompute load |
+| **Per-key lock** | One caller recomputes; others wait briefly or serve stale | Waiters add latency |
+| **Pre-warming** | Refresh known hot keys before expiry or before a spike | Needs predictable access |
 
-### XFetch Algorithm (Probabilistic Early Expiry)
+### XFetch (probabilistic early expiry)
 
 ```python
-import random, math
+import math, random, time
 
 def xfetch(key, ttl, beta=1.0):
-    cached = redis.get(key)
-    if cached:
-        value, expiry, delta = cached
-        # Probabilistic early recompute
-        if time.now() - delta * beta * math.log(random.random()) >= expiry:
-            # Recompute early to prevent stampede
-            return recompute_and_cache(key, ttl)
-        return value
-    return recompute_and_cache(key, ttl)
+    entry = cache.get(key)               # stores (value, delta, expiry); delta = last recompute time in seconds
+    now = time.time()
+    if entry is not None:
+        value, delta, expiry = entry
+        if now - delta * beta * math.log(random.random()) < expiry:
+            return value                 # not chosen to refresh early
+    start = time.time()
+    value = recompute()
+    delta = time.time() - start
+    cache.set(key, (value, delta, now + ttl), ttl=ttl)
+    return value
 ```
 
-### Locking Pattern
+### Per-key lock with bounded wait
+
+Uses the canonical lock from [redis-patterns.md](redis-patterns.md#distributed-locking): random token, owner-checked release.
 
 ```python
-def get_with_lock(key, ttl=3600, lock_ttl=10):
-    value = redis.get(key)
+def get_with_lock(key, ttl=3600, lock_ttl=10, wait_s=1.0):
+    value = cache.get(key)
     if value is not None:
         return value
 
-    lock_key = f"lock:{key}"
-    if redis.set(lock_key, "1", nx=True, ex=lock_ttl):
-        # Won the lock -- compute and cache
+    token = acquire_lock(redis, f"lock:{key}", ttl=lock_ttl)   # returns a token or None
+    if token:
         try:
             value = compute_value()
-            redis.set(key, value, ex=ttl)
+            cache.set(key, value, ttl=ttl)
             return value
         finally:
-            redis.delete(lock_key)
-    else:
-        # Another request is computing -- wait and retry
-        time.sleep(0.1)
-        return redis.get(key) or get_with_lock(key, ttl, lock_ttl)
+            release_lock(redis, f"lock:{key}", token)          # deletes only if the token still matches
+
+    deadline = time.monotonic() + wait_s                        # bounded wait, no recursion
+    while time.monotonic() < deadline:
+        time.sleep(0.05)
+        value = cache.get(key)
+        if value is not None:
+            return value
+    return compute_value()          # or serve a stale copy / fail fast, per the endpoint's contract
 ```
 
 ---
 
-## Consistent Hashing
+## Spreading Keys Across Nodes
 
-Distribute cache keys across multiple Redis nodes so adding/removing nodes only remaps ~1/N keys:
-
-```
-Key "user:123" -> hash -> node 2
-Key "user:456" -> hash -> node 1
-Key "user:789" -> hash -> node 3
-
-Add node 4: only ~25% of keys remap (not 100%)
-```
-
-Use Redis Cluster (automatic) or client-side consistent hashing (manual).
-
-### Virtual Nodes
-
-Each physical node gets multiple positions on the hash ring (e.g., 150 virtual nodes per physical node) to ensure even distribution:
-
-```python
-import hashlib
-
-class ConsistentHash:
-    def __init__(self, nodes, vnodes=150):
-        self.ring = {}
-        self.sorted_keys = []
-        for node in nodes:
-            for i in range(vnodes):
-                key = hashlib.md5(f"{node}:{i}".encode()).hexdigest()
-                self.ring[key] = node
-                self.sorted_keys.append(key)
-        self.sorted_keys.sort()
-
-    def get_node(self, key):
-        hash_key = hashlib.md5(key.encode()).hexdigest()
-        for ring_key in self.sorted_keys:
-            if hash_key <= ring_key:
-                return self.ring[ring_key]
-        return self.ring[self.sorted_keys[0]]
-```
+Client-side consistent hashing (a hash ring with virtual nodes) spreads keys over independent cache nodes so that adding or removing a node remaps only about 1/N of the keys; client libraries provide it. Redis Cluster does not use a ring: it maps each key to one of 16384 fixed hash slots and moves whole slots between nodes ([redis-patterns.md](redis-patterns.md#clustering)).
 
 ---
 
 ## Multi-Layer Caching
 
-### Architecture
-
 ```
-Request -> L1 (in-memory, <1ms) -> L2 (Redis, ~1ms) -> L3 (CDN, ~10ms) -> Origin
+Request -> L1 (in-process) -> L2 (distributed cache) -> L3 (CDN edge, HTTP only) -> Origin
 ```
 
-| Layer | Technology | TTL | Size | Use For |
+| Layer | Example technology | Typical TTL | Size | Use for |
 |-------|-----------|-----|------|---------|
-| L1 | Process memory (Map, LRU) | 5-30s | Small (100MB) | Hot data, config |
-| L2 | Redis / Memcached | 1-60min | Medium (GB) | Session, API cache |
-| L3 | CDN (Cloudflare, Fastly) | 1-24hr | Large (TB) | Static, public API |
+| L1 | In-process map or LRU | Seconds | Small (per process) | Hot data, configuration |
+| L2 | Redis-compatible store, Memcached | Minutes | GBs | Shared API and object cache, sessions |
+| L3 | CDN | Minutes to days | Large | Static assets, public responses |
 
-**Invalidation cascades down:** invalidate L1 -> L2 -> L3. Use event-driven invalidation + TTL safety net.
+TTL ranges are starting points; set them from how stale each item may be.
 
-### Multi-Layer Lookup Implementation
+### Lookup
 
 ```python
 def get_cached(key):
-    # L1: In-process memory
-    value = local_cache.get(key)
+    value = local_cache.get(key)                 # L1
     if value is not None:
         return value
 
-    # L2: Redis
-    value = redis.get(key)
+    value = redis.get(key)                       # L2
     if value is not None:
-        local_cache.set(key, value, ttl=30)  # Backfill L1
+        local_cache.set(key, value, ttl=30)
         return value
 
-    # L3/Origin: Fetch from source
-    value = fetch_from_origin(key)
-    redis.set(key, value, ex=3600)           # Backfill L2
-    local_cache.set(key, value, ttl=30)      # Backfill L1
+    value = load_from_source(key)
+    redis.set(key, value, ex=3600)
+    local_cache.set(key, value, ttl=30)
     return value
 ```
 
----
+### Invalidation order
 
-## Service Worker Strategies
+```python
+def on_write(entity_id, data):
+    db.update(entity_id, data)                              # 1. commit to the source of truth
+    redis.delete(f"entity:{entity_id}")                     # 2. shared layer
+    redis.publish("cache:invalidate", f"entity:{entity_id}") # 3. every instance drops its L1 copy
+    if is_public(entity_id):
+        cdn.purge_by_tags([f"entity-{entity_id}"])          # 4. edge, only for public content
 
-| Strategy | How | Use When |
-|----------|-----|----------|
-| Cache First | Check cache, fallback to network | Static assets, fonts |
-| Network First | Try network, fallback to cache | API data that should be fresh |
-| Stale-While-Revalidate | Return cache, update in background | Balance of speed + freshness |
-| Cache Only | Only from cache | Offline-first, pre-cached |
-| Network Only | Only from network | Real-time data, auth |
-
-### Cache First Implementation
-
-```javascript
-self.addEventListener('fetch', (event) => {
-  event.respondWith(
-    caches.match(event.request).then((cached) => {
-      return cached || fetch(event.request).then((response) => {
-        const clone = response.clone();
-        caches.open('v1').then((cache) => cache.put(event.request, clone));
-        return response;
-      });
-    })
-  );
-});
+# every instance
+def on_invalidation(key):
+    local_cache.delete(key)
 ```
 
-### Stale-While-Revalidate Implementation
-
-```javascript
-self.addEventListener('fetch', (event) => {
-  event.respondWith(
-    caches.match(event.request).then((cached) => {
-      const fetchPromise = fetch(event.request).then((response) => {
-        caches.open('v1').then((cache) => cache.put(event.request, response.clone()));
-        return response;
-      });
-      return cached || fetchPromise;
-    })
-  );
-});
-```
+A reader that fetched from the source before step 1 can still write the old value back after step 2. Bound that window with short TTLs or remove it with versioned keys. Pub/sub delivery is fire-and-forget, so a disconnected instance keeps its L1 copy until TTL — keep L1 TTLs short.
 
 ---
 
-## Client-Side Data Caching (SWR)
+## Client-Side Cache Invalidation
 
-### React Query / TanStack Query
+Client query caches (TanStack Query, SWR, Apollo, and similar) hold server data keyed by a query key. The caching rules carry over:
 
-```javascript
-const { data, isLoading } = useQuery({
-  queryKey: ['user', userId],
-  queryFn: () => fetchUser(userId),
-  staleTime: 5 * 60 * 1000,        // Fresh for 5 minutes
-  gcTime: 30 * 60 * 1000,          // Keep in cache for 30 minutes
-  refetchOnWindowFocus: true,       // Refetch when tab becomes active
-});
-```
+- The query key includes every parameter that changes the result (ids, filters, locale, user).
+- After a mutation, invalidate or update every query whose result the mutation changes, including lists and counts.
+- Set a freshness window per query from how stale the data may be; refetch on focus or reconnect where staleness matters.
 
-### SWR (Vercel)
-
-```javascript
-const { data, error, isLoading } = useSWR(
-  `/api/users/${userId}`,
-  fetcher,
-  {
-    revalidateOnFocus: true,
-    revalidateOnReconnect: true,
-    dedupingInterval: 5000,         // Dedupe requests within 5s
-    refreshInterval: 60000,         // Poll every 60s
-  }
-);
-```
-
-### Cache Invalidation in React Query
-
-```javascript
-// After a mutation, invalidate related queries
-const mutation = useMutation({
-  mutationFn: updateUser,
-  onSuccess: () => {
-    queryClient.invalidateQueries({ queryKey: ['user', userId] });
-    queryClient.invalidateQueries({ queryKey: ['users'] }); // List too
-  },
-});
-```
+Data-fetching structure in the UI belongs to `frontend`; service-worker caches belong to `web`.

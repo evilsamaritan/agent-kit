@@ -6,6 +6,8 @@ user-invocable: true
 
 # Vue.js — Composition API & Ecosystem
 
+Determine the project's Vue version and meta-framework first (`package.json` or lockfile); several APIs below depend on the minor version. Version notes → [composition-patterns.md](references/composition-patterns.md#version-notes).
+
 ---
 
 ## Project Setup — Choosing Your Stack
@@ -19,14 +21,13 @@ What are you building?
 │
 ├── Need SSR or SSG for SEO?
 │   ├── Full-stack with server routes, auto-imports, file-based routing?
-│   │   └── Nuxt (most popular Vue meta-framework)
-│   ├── Static docs or marketing site?
-│   │   └── VitePress (Vite-powered, Markdown-first) or Nuxt Content
-│   └── Want Angular-style conventions in Vue?
-│       └── Analog.js (file-based routing, API routes, Angular-style DX)
+│   │   └── Nuxt (Vue meta-framework with server routes and SSR)
+│   └── Static docs or marketing site?
+│       └── VitePress (Vite-powered, Markdown-first) or Nuxt Content
 │
 ├── Need cross-platform (desktop/mobile)?
-│   └── Quasar (Material Design components + Electron + Capacitor + SSR)
+│   └── A cross-platform Vue framework (for example Quasar) — check that it
+│       fits the target platforms before adopting
 │
 └── Default → Vanilla Vue + Vite (add meta-framework only when needed)
 ```
@@ -145,6 +146,7 @@ Rules:
 - Accept refs or plain values as input (`toValue()` / `toRef()`)
 - Return plain object of refs (allows destructuring)
 - Side effects: register cleanup with `onScopeDispose()`
+- Async work: abort or ignore a stale response when inputs change or the scope is disposed (pattern in `composition-patterns.md`)
 
 ### Watchers
 
@@ -155,6 +157,8 @@ watchEffect(() => { /* auto-tracks deps */ })       // Immediate, auto-track
 watchPostEffect(() => { /* after DOM update */ })   // Post-flush timing
 ```
 
+Choose `watch` when the sources are explicit and you need old/new values or lazy start (`immediate: true` makes it run once at start). Choose `watchEffect` when every reactive read inside should be a dependency. They are not interchangeable: `watchEffect` tracks whatever the callback happens to read, including after refactors.
+
 ### Pinia Stores
 
 | Style | When to Use |
@@ -162,11 +166,13 @@ watchPostEffect(() => { /* after DOM update */ })   // Post-flush timing
 | **Setup store** (`defineStore('id', () => {...})`) | Complex logic, composable reuse, TypeScript inference |
 | **Option store** (`defineStore('id', { state, getters, actions })`) | Simple CRUD, team familiarity with Options API |
 
-Setup store is preferred for new code — it mirrors Composition API patterns. Pinia v3 dropped Vue 2 support and requires TypeScript 5+; no API changes — migration is a version bump.
+Setup store is preferred for new code — it mirrors Composition API patterns.
+
+**One writer.** A store owns its state and exposes actions that keep its invariants; components call actions instead of assigning store fields from many places. State that only one component uses stays in that component. Server data belongs in a data-fetching layer (`useFetch`/`useAsyncData` in Nuxt, or a server-state library), not copied into a store (`frontend`, `development`).
 
 ### Vue Router
 
-Vue Router 5 merges file-based routing (from unplugin-vue-router) into core. Typed routes and data loaders are built-in.
+Newer Vue Router releases fold file-based routing and typed routes (from unplugin-vue-router) into the core package; check the installed version before relying on them.
 
 ```ts
 // Lazy-loaded routes
@@ -183,11 +189,19 @@ router.beforeEach((to, from) => {
 
 ### Nuxt (when using Nuxt)
 
-Nuxt 4 introduced `app/` directory structure, improved data fetching with smarter caching and abort control, and Vue Router 5 integration. Key APIs: `useFetch()`, `useAsyncData()`, `useState()`, file-based routing, auto-imports, `server/api/` routes. See [nuxt-patterns.md](references/nuxt-patterns.md) for full details.
+Nuxt: file-based routing, auto-imports, server routes, `useFetch`/`useAsyncData`/`useState`. Directory layout and data-fetching cache rules by version → [nuxt-patterns.md](references/nuxt-patterns.md).
 
-### Vapor Mode (Experimental, Vue 3.6+)
+### Vapor Mode
 
-Compiler-driven rendering — no virtual DOM. Components compile to direct DOM operations. Opt-in per component (`vapor: true`). Same Composition API, dramatically smaller runtime (base bundle under 10 KB). Vapor and VDOM components can coexist in the same component tree. Performance comparable to Solid and Svelte 5 in benchmarks.
+Compiler-driven rendering without a virtual DOM, opted into per component on `<script setup>`:
+
+```vue
+<script setup vapor>
+// Composition API as usual
+</script>
+```
+
+Needs `<script setup>` (no Options API). Vapor and virtual-DOM components can coexist through an interop plugin. Not part of a stable release by default: confirm the release channel and read the status in [composition-patterns.md](references/composition-patterns.md#version-notes) before recommending it for production.
 
 ---
 
@@ -198,8 +212,8 @@ Compiler-driven rendering — no virtual DOM. Components compile to direct DOM o
 | Options API in new Vue 3 code | Misses Composition API benefits (reuse, TypeScript, tree-shaking) | Use `<script setup>` with Composition API |
 | Mutating props directly | One-way data flow violation, silent failures | Emit event, let parent update |
 | Making everything reactive | Unnecessary overhead, confusing reactivity tracking | Only wrap state that drives UI updates |
-| Pinia actions for trivial mutations | Boilerplate for simple state changes | Direct store state mutation for simple cases |
-| `watch` with `immediate: true` instead of `watchEffect` | More verbose, same behavior | Use `watchEffect` when auto-tracking is appropriate |
+| Components assigning store state from many places | Several writers, invariants enforced nowhere | Expose actions that keep the invariants; trivial local UI state stays in the component |
+| Server data copied into a store | Two caches that disagree | Let the data-fetching layer own it |
 | String template refs instead of `useTemplateRef()` | Ambiguous naming, not composable-friendly | Use `useTemplateRef('name')` (Vue 3.5+) |
 | `withDefaults(defineProps<T>(), {...})` for simple defaults | Verbose compared to reactive destructure | Use `const { x = default } = defineProps<T>()` (Vue 3.5+) |
 
@@ -208,15 +222,17 @@ Compiler-driven rendering — no virtual DOM. Components compile to direct DOM o
 ## Related Knowledge
 
 - **javascript** — Vue TypeScript integration, typed props, composable types
-- **html/css** — semantic markup, layout, CSS features used in SFC styles
+- **development** — one writer, explicit dependencies, async lifetime in composables
+- **html**, **css** — semantic markup, layout, CSS features used in SFC styles
 - **accessibility** — ARIA in Vue templates, keyboard handling
 - **web** — fetch API, service workers, browser APIs used alongside Vue
 - **feature-sliced-design** — Feature-Sliced Design for Vue project structure
-- **frontend** — cross-framework component, state, and performance patterns
+- **frontend** — state ownership, rendering strategy, UI verification
+- **auth**, **api-design** — server-side authorization and input validation for Nuxt server routes
 
 ## References
 
-- [composition-patterns.md](references/composition-patterns.md) — Composition API, composables, lifecycle, provide/inject, TypeScript integration (works with any Vue setup)
+- [composition-patterns.md](references/composition-patterns.md) — composables (including async), reactivity, lifecycle, provide/inject, TypeScript, testing, version notes (works with any Vue setup)
 - [nuxt-patterns.md](references/nuxt-patterns.md) — Nuxt data fetching, server routes, middleware, modules, deployment (load only when project uses Nuxt)
 
-For other meta-frameworks (Quasar, VitePress, Analog), consult their official documentation — the Composition API patterns from `composition-patterns.md` apply universally.
+For other meta-frameworks (VitePress, Quasar), consult their official documentation — the Composition API patterns from `composition-patterns.md` apply universally.

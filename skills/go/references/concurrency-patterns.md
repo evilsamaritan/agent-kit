@@ -1,6 +1,6 @@
 # Go Concurrency Patterns
 
-Deep-dive into goroutine lifecycle, channel patterns, and structured concurrency.
+Goroutine lifecycle, channel patterns, and structured concurrency. The ownership rule (async work has an owner that cancels it and releases what it holds on every path) is `development` rule 5; this file shows the Go idioms. Examples capture loop variables per iteration, which needs `go 1.22` or later in `go.mod`; features by version are in [go-versions.md](go-versions.md).
 
 ---
 
@@ -29,7 +29,7 @@ func worker(ctx context.Context, jobs <-chan Job) {
 
 ### Goroutine ownership
 
-The function that starts a goroutine is responsible for ensuring it stops. Return a cleanup function or use context cancellation.
+The function that starts a goroutine ensures it stops: return a cleanup function or tie it to a context.
 
 ```go
 func startPoller(ctx context.Context, interval time.Duration) (cancel func()) {
@@ -56,16 +56,14 @@ func startPoller(ctx context.Context, interval time.Duration) (cancel func()) {
 
 ### Fan-Out / Fan-In
 
-Multiple goroutines read from the same channel (fan-out), results merge into one channel (fan-in).
+Multiple goroutines read from the same channel (fan-out), results merge into one channel (fan-in). This is also the worker-pool shape: a fixed number of goroutines draining a job channel.
 
 ```go
 func fanOut(ctx context.Context, input <-chan Task, workers int) <-chan Result {
     results := make(chan Result)
     var wg sync.WaitGroup
     for i := 0; i < workers; i++ {
-        wg.Add(1)
-        go func() {
-            defer wg.Done()
+        wg.Go(func() { // Go 1.25+; before that: wg.Add(1) and go func() { defer wg.Done() ... }()
             for task := range input {
                 select {
                 case results <- process(task):
@@ -73,7 +71,7 @@ func fanOut(ctx context.Context, input <-chan Task, workers int) <-chan Result {
                     return
                 }
             }
-        }()
+        })
     }
     go func() {
         wg.Wait()
@@ -103,23 +101,6 @@ func stage(ctx context.Context, in <-chan int) <-chan int {
     return out
 }
 // Usage: result := stage3(ctx, stage2(ctx, stage1(ctx, input)))
-```
-
-### Semaphore (Bounded Concurrency)
-
-```go
-func processAll(ctx context.Context, items []Item, maxConcurrent int) error {
-    sem := make(chan struct{}, maxConcurrent)
-    g, ctx := errgroup.WithContext(ctx)
-    for _, item := range items {
-        sem <- struct{}{} // acquire
-        g.Go(func() error {
-            defer func() { <-sem }() // release
-            return process(ctx, item)
-        })
-    }
-    return g.Wait()
-}
 ```
 
 ### Or-Done Channel
@@ -154,6 +135,8 @@ func orDone(ctx context.Context, c <-chan int) <-chan int {
 ## errgroup Patterns
 
 ### With concurrency limit
+
+`SetLimit` is the default way to bound concurrency; `golang.org/x/sync/semaphore` is for weighted limits only.
 
 ```go
 g, ctx := errgroup.WithContext(ctx)
@@ -195,33 +178,6 @@ if err := g.Wait(); err != nil {
 
 ---
 
-## Worker Pool
-
-```go
-func workerPool(ctx context.Context, jobs <-chan Job, results chan<- Result, numWorkers int) {
-    var wg sync.WaitGroup
-    for i := 0; i < numWorkers; i++ {
-        wg.Add(1)
-        go func() {
-            defer wg.Done()
-            for job := range jobs {
-                select {
-                case <-ctx.Done():
-                    return
-                case results <- job.Process():
-                }
-            }
-        }()
-    }
-    go func() {
-        wg.Wait()
-        close(results)
-    }()
-}
-```
-
----
-
 ## sync Primitives
 
 | Primitive | Use case |
@@ -230,25 +186,23 @@ func workerPool(ctx context.Context, jobs <-chan Job, results chan<- Result, num
 | `sync.RWMutex` | Many readers, few writers |
 | `sync.Once` | One-time initialization |
 | `sync.OnceValue[T]` | Lazy init returning a value (Go 1.21+) |
-| `sync.WaitGroup` | Wait for N goroutines |
+| `sync.WaitGroup` | Wait for N goroutines (`wg.Go` in Go 1.25+) |
 | `sync.Pool` | Reuse temporary objects (reduce GC pressure) |
 | `sync.Map` | Concurrent map (specific use cases only) |
 | `atomic.*` | Lock-free counters, flags |
 
-**Rule:** Prefer channels for communication, mutexes for state protection. If unsure, use channels.
+**Rule:** Use a mutex to protect shared state; use channels to hand off ownership of data or work between goroutines.
 
 ---
 
 ## Testing Concurrency
 
+Run with `go test -race`. Bound waits with a context or `t.Context()` rather than sleeping, and test timers and goroutine interplay with `synctest.Test` (virtual time; see [go-versions.md](go-versions.md)).
+
 ```go
 func TestConcurrent(t *testing.T) {
-    t.Parallel() // run alongside other parallel tests
+    t.Parallel()
 
-    // Use -race flag to detect data races
-    // go test ./... -race
-
-    // Deadlock detection: set timeout
     ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
     defer cancel()
 

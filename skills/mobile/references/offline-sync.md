@@ -1,6 +1,6 @@
 # Offline-First Sync
 
-Depth for SKILL.md rule 4 and the conflict-policy decision tree. Server-side contracts (idempotency storage, change feeds, versioning) are designed with `api-design`; collaborative data types with `realtime`.
+Depth for SKILL.md rule 4 and the conflict-policy decision tree. Server-side contracts (change feeds, versioning) are designed with `api-design`; collaborative data types with `realtime`. The outbox pattern itself (transactional write plus relay) is in `architecture` ([integration-patterns.md](../../architecture/references/integration-patterns.md)); this reference covers the client side.
 
 ## Contents
 
@@ -68,6 +68,8 @@ In one local transaction:
 
 ## Idempotency
 
+The pattern (claim first, then process; keys derived from intent, never from time) is owned by [idempotency-patterns.md](../../message-queues/references/idempotency-patterns.md); the client rules:
+
 - Generate the key when the operation is created, not when it is sent; a retry after a crash must reuse it.
 - The server stores key → result for longer than the client's maximum retry age and returns the stored result on a repeat.
 - Prefer client-generated entity IDs (UUIDs). They remove temporary-ID remapping. If the server assigns IDs, keep a temporary → server ID map and rewrite dependent outbox entries when the create succeeds.
@@ -85,14 +87,16 @@ In one local transaction:
 | Outcome | Class | Action |
 |---|---|---|
 | No route, DNS failure | Offline | Wait for the connectivity trigger; do not burn attempts |
-| Timeout, 5xx, 429 | Transient | Backoff; honor `Retry-After` |
+| Timeout, connection reset, 502/503/504, 408, 429 | Transient | Backoff; honor `Retry-After` |
 | 401 | Auth | Refresh the token once and retry; if refresh fails, pause sync and ask the user to sign in |
 | 409, 412 | Conflict | Run the entity's conflict policy |
-| 400, 422, 413 | Permanent | Mark `failed`; show the error with an action (edit, discard) |
+| Other 4xx (400, 422, 413) | Permanent | Mark `failed`; show the error with an action (edit, discard) |
 | 403 | Permanent | Mark `failed`; usually a permission change on the server |
 | 404 on update or delete | Domain decision | Delete: treat as done. Update: conflict with a server-side delete |
 
-Backoff: `delay = min(cap, base × 2^attempt)`, then apply jitter (a random factor, e.g., 0.5–1.0, or full jitter between zero and the delay). Typical values: base of a few seconds, cap of 15–60 minutes, stop after a maximum attempt count or age (e.g., several days) and surface the failure.
+Retry policy (which errors, jitter, budgets, the idempotency precondition) is owned by `reliability`; the mobile mapping:
+
+Backoff with full jitter: `delay = random(0, min(cap, base × 2^attempt))`. Typical values: base of a few seconds, cap of 15–60 minutes, stop after a maximum attempt count or age (e.g., several days) and surface the failure.
 
 Platform job schedulers already apply backoff to retried jobs. Use one backoff loop — either the scheduler's or the engine's — not both nested.
 

@@ -1,390 +1,156 @@
-# Compliance Patterns — Implementation Deep Dive
+# Compliance Patterns
+
+Contracts each piece must meet, not production code. Language-neutral. Code practice (error handling, parameterized queries, ownership of async work) follows `development` and `security`; log redaction follows `observability`; database mechanics follow `database`. Retention periods below are labelled as examples: the real value is whatever the applicable law and contract require.
 
 ## Contents
 
-- [Audit Trail Architecture](#audit-trail-architecture)
-- [PII Detection and Masking](#pii-detection-and-masking)
-- [GDPR Data Export (Right of Access / Portability)](#gdpr-data-export-right-of-access--portability)
-- [Right to Erasure (GDPR Article 17)](#right-to-erasure-gdpr-article-17)
-- [Consent Management](#consent-management)
-- [Data Retention Policy Automation](#data-retention-policy-automation)
-- [SOC2 Evidence Collection](#soc2-evidence-collection)
+- [Audit trail](#audit-trail)
+- [Consent events](#consent-events)
+- [Data subject requests](#data-subject-requests)
+- [Erasure checklist](#erasure-checklist)
+- [Retention policy](#retention-policy)
+- [PII in logs and code](#pii-in-logs-and-code)
+- [SOC2 evidence](#soc2-evidence)
 
 ---
 
-## Audit Trail Architecture
+## Audit trail
 
-### Audit Log Schema
+### Event fields
+
+| Field | Notes |
+|-------|-------|
+| `event_id`, `timestamp` (UTC) | Unique ID and server-assigned time |
+| `actor_id`, `actor_type` | Pseudonymous ID (user, admin, system, API client); not name or email |
+| `action` | Create, read, update, delete, export, login, permission change, and so on |
+| `resource_type`, `resource_id` | What was acted on |
+| `changes` | Field names with old and new values only where needed; never secrets or raw PII |
+| `request_id` / `trace_id` | Correlation with logs and traces |
+| `source` | Service or client; network address only if it is justified against minimization |
+| `outcome` | Success, denied, failed |
+
+### Contract
+
+- **Append-only.** The application role can insert and select, not update or delete. Enforce in the store, not in application code.
+- **Retention is a separate, privileged job** with its own role, which is the only identity allowed to delete expired rows. The app connection that is denied DELETE must not be the one that runs retention.
+- **Keep personal data out of the immutable log.** Use pseudonymous IDs resolvable only via a table that supports erasure, or encrypt per-subject fields with a per-subject key that is destroyed on erasure.
+- **Tamper evidence:** hash chaining or write-once storage for high-assurance needs.
+- **Write failures are not silent.** A security-relevant action whose audit write failed is surfaced (fail the action or raise an alert), per the rule that errors are not swallowed.
+
+---
+
+## Consent events
+
+Store every decision as an append-only event; derive current state from the events. A single row per user and purpose loses history and cannot prove what was shown or accepted at a given time.
 
 ```sql
-CREATE TABLE audit_logs (
-  id            BIGSERIAL PRIMARY KEY,
-  timestamp     TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-  actor_id      TEXT NOT NULL,           -- who (user ID, system, API key)
-  actor_type    TEXT NOT NULL,           -- user, admin, system, api
-  action        TEXT NOT NULL,           -- create, read, update, delete
-  resource_type TEXT NOT NULL,           -- user, order, payment
-  resource_id   TEXT NOT NULL,           -- specific resource
-  changes       JSONB,                  -- { field: { old, new } }
-  ip_address    INET,
-  user_agent    TEXT,
-  request_id    TEXT,                   -- correlation ID
-  metadata      JSONB                  -- additional context
+-- Sketch. Subject is a user ID, or an anonymous visitor ID until login.
+CREATE TABLE consent_events (
+  event_id       UUID PRIMARY KEY,
+  subject_id     TEXT NOT NULL,        -- visitor ID before login, user ID after (link at login)
+  purpose        TEXT NOT NULL,        -- analytics, marketing, personalization
+  decision       TEXT NOT NULL,        -- granted | withdrawn
+  policy_version TEXT NOT NULL,        -- notice and wording version shown
+  source         TEXT NOT NULL,        -- banner, settings page, API, imported
+  occurred_at    TIMESTAMPTZ NOT NULL
 );
-
--- Indexes for common queries
-CREATE INDEX idx_audit_actor ON audit_logs (actor_id, timestamp DESC);
-CREATE INDEX idx_audit_resource ON audit_logs (resource_type, resource_id, timestamp DESC);
-CREATE INDEX idx_audit_action ON audit_logs (action, timestamp DESC);
-CREATE INDEX idx_audit_timestamp ON audit_logs (timestamp DESC);
-
--- CRITICAL: Make immutable
-REVOKE UPDATE, DELETE ON audit_logs FROM app_user;
-GRANT INSERT, SELECT ON audit_logs TO app_user;
+-- Current state per (subject_id, purpose) = the latest event.
 ```
 
-### Audit Logging Middleware
-
-```typescript
-interface AuditEntry {
-  actorId: string;
-  actorType: 'user' | 'admin' | 'system' | 'api';
-  action: 'create' | 'read' | 'update' | 'delete';
-  resourceType: string;
-  resourceId: string;
-  changes?: Record<string, { old: unknown; new: unknown }>;
-  metadata?: Record<string, unknown>;
-}
-
-class AuditLogger {
-  constructor(private db: Database) {}
-
-  async log(entry: AuditEntry, context: RequestContext) {
-    await this.db.auditLogs.create({
-      data: {
-        ...entry,
-        timestamp: new Date(),
-        ipAddress: context.ip,
-        userAgent: context.userAgent,
-        requestId: context.requestId,
-      },
-    });
-  }
-
-  // Helper for tracking entity changes
-  async logUpdate(
-    actor: { id: string; type: string },
-    resourceType: string,
-    resourceId: string,
-    oldData: Record<string, unknown>,
-    newData: Record<string, unknown>,
-    context: RequestContext
-  ) {
-    const changes: Record<string, { old: unknown; new: unknown }> = {};
-
-    for (const key of Object.keys(newData)) {
-      if (JSON.stringify(oldData[key]) !== JSON.stringify(newData[key])) {
-        changes[key] = { old: oldData[key], new: newData[key] };
-      }
-    }
-
-    if (Object.keys(changes).length === 0) return; // no changes
-
-    await this.log({
-      actorId: actor.id,
-      actorType: actor.type as AuditEntry['actorType'],
-      action: 'update',
-      resourceType,
-      resourceId,
-      changes: this.redactSensitiveFields(changes),
-    }, context);
-  }
-
-  private redactSensitiveFields(
-    changes: Record<string, { old: unknown; new: unknown }>
-  ) {
-    const sensitive = ['password', 'ssn', 'creditCard', 'token'];
-    const redacted = { ...changes };
-
-    for (const field of sensitive) {
-      if (redacted[field]) {
-        redacted[field] = { old: '[REDACTED]', new: '[REDACTED]' };
-      }
-    }
-
-    return redacted;
-  }
-}
-```
+Rules:
+- The anonymous visitor ID is the subject until login; link it to the user at login without discarding history.
+- **Client-side gating:** non-essential cookies, tags, and trackers load only after the stored decision allows them, and not at all before a decision. A server-side database check alone cannot stop a tracker from running in the browser.
+- Reject is as easy as accept; withdrawal is as easy as granting and takes effect immediately for new processing.
+- Do not store more than evidence needs: justify any IP address or user-agent retention against minimization, and prefer a hash or a truncated value.
+- Show the decision history in the subject access export.
 
 ---
 
-## PII Detection and Masking
+## Data subject requests
 
-### Log Masking Middleware
+1. **Verify identity** before disclosing or erasing anything. Use the existing authenticated session, or an equivalent check proportionate to the data.
+2. **Log the request** with receipt time; the response clock is one month (extendable by two for complex requests, with notice).
+3. **Fan out to every system** that holds the subject's data: primary databases, replicas, search indexes, analytics, email and messaging providers, file storage, backups, and processors.
+4. **Respond with evidence:** what was done in each system, or why not (legal exception).
 
-```typescript
-const PII_PATTERNS: Array<{ name: string; regex: RegExp; mask: string }> = [
-  { name: 'email', regex: /[\w.-]+@[\w.-]+\.\w+/g, mask: '[EMAIL]' },
-  { name: 'phone', regex: /\+?\d{1,3}[-.\s]?\(?\d{1,4}\)?[-.\s]?\d{1,4}[-.\s]?\d{1,9}/g, mask: '[PHONE]' },
-  { name: 'ssn', regex: /\d{3}-\d{2}-\d{4}/g, mask: '[SSN]' },
-  { name: 'credit_card', regex: /\d{4}[-\s]?\d{4}[-\s]?\d{4}[-\s]?\d{4}/g, mask: '[CARD]' },
-  { name: 'ip_v4', regex: /\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}/g, mask: '[IP]' },
-];
+### Access and portability export checklist
 
-function maskPII(text: string): string {
-  let masked = text;
-  for (const pattern of PII_PATTERNS) {
-    masked = masked.replace(pattern.regex, pattern.mask);
-  }
-  return masked;
-}
-
-// Logger wrapper
-function createSafeLogger(baseLogger: Logger): Logger {
-  return {
-    info: (msg: string, ...args: unknown[]) =>
-      baseLogger.info(maskPII(msg), ...args.map(a =>
-        typeof a === 'string' ? maskPII(a) : a
-      )),
-    error: (msg: string, ...args: unknown[]) =>
-      baseLogger.error(maskPII(msg), ...args.map(a =>
-        typeof a === 'string' ? maskPII(a) : a
-      )),
-    // ... other log levels
-  };
-}
-```
-
-### PII Detection in CI
-
-```yaml
-# .github/workflows/pii-scan.yml
-name: PII Scan
-on: pull_request
-
-jobs:
-  scan:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - name: Scan for hardcoded PII
-        run: |
-          # Check for email patterns in non-test files
-          ! grep -rn --include='*.ts' --include='*.js' \
-            --exclude-dir=test --exclude-dir=__tests__ \
-            -E '[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}' \
-            src/ || echo "WARNING: Possible hardcoded email found"
-
-          # Check for hardcoded secrets
-          ! grep -rn --include='*.ts' --include='*.js' \
-            -E '(password|secret|api_key|token)\s*[:=]\s*["\x27][^"\x27]{8,}' \
-            src/ || (echo "ERROR: Possible hardcoded secret" && exit 1)
-```
+- Data the person provided and data observed about them; derived data where required for portability.
+- Consent history and the processing purposes.
+- Machine-readable format (JSON or CSV), delivered through a secure channel.
+- Excludes other people's data and trade secrets; redact accordingly.
 
 ---
 
-## GDPR Data Export (Right of Access / Portability)
+## Erasure checklist
 
-```typescript
-async function exportUserData(userId: string): Promise<UserDataExport> {
-  const [user, orders, activities, consents, auditLogs] = await Promise.all([
-    db.users.findUnique({ where: { id: userId } }),
-    db.orders.findMany({ where: { userId } }),
-    db.activities.findMany({ where: { userId } }),
-    db.consents.findMany({ where: { userId } }),
-    db.auditLogs.findMany({
-      where: { actorId: userId, actorType: 'user' },
-      orderBy: { timestamp: 'desc' },
-      take: 1000,
-    }),
-  ]);
+Per request, track a status per system; never report completion on a request that has failures.
 
-  return {
-    exportedAt: new Date().toISOString(),
-    format: 'GDPR Article 15/20 Data Export',
-    personalData: {
-      name: user?.name,
-      email: user?.email,
-      phone: user?.phone,
-      createdAt: user?.createdAt,
-    },
-    orders: orders.map(o => ({
-      id: o.id, date: o.createdAt, total: o.totalCents, status: o.status,
-    })),
-    activityLog: activities.map(a => ({
-      action: a.action, timestamp: a.createdAt, details: a.metadata,
-    })),
-    consents: consents.map(c => ({
-      purpose: c.purpose, granted: c.granted, date: c.updatedAt,
-    })),
-    accessLog: auditLogs.map(l => ({
-      action: l.action, resource: l.resourceType, timestamp: l.timestamp,
-    })),
-  };
-}
+| Step | Contract |
+|------|----------|
+| Identity verified | Before anything is deleted |
+| Legal holds and retention duties checked | Tax, accounting, disputes, regulatory duties: **branch on the result**. Data under a hold is retained (restricted and minimized), not deleted, and only the non-held data is erased; the reason is recorded |
+| Primary store | Delete, or anonymize where records must remain for integrity or law (orders for tax) |
+| Derived and secondary stores | Search indexes, caches, analytics, data warehouse, ML features |
+| Third parties and processors | Deletion request sent; confirmation tracked; failures queued for retry with an owner and a deadline |
+| Files and media | Object storage, attachments |
+| Backups | Documented policy: expire on the normal cycle, and make sure restored data re-applies erasures |
+| Consent and request records | Keep what is needed as evidence, minimized |
+| Audit entry | Record that erasure happened, with the per-system outcome |
+
+Sketch of the state to keep:
+
 ```
+erasure_request { id, subject_id, received_at, identity_verified_at,
+                  holds: [...],
+                  systems: [ { name, status: pending|done|retained|failed, reason, last_attempt } ],
+                  completed_at (set only when no system is pending or failed) }
+```
+
+Failures from external deletions are surfaced and retried, not swallowed. "Requested" is not "deleted".
 
 ---
 
-## Right to Erasure (GDPR Article 17)
+## Retention policy
 
-```typescript
-async function deleteUserData(userId: string): Promise<DeletionReport> {
-  const report: DeletionReport = { userId, deletedAt: new Date(), sections: [] };
+A table, owned and reviewed, not constants in code.
 
-  // 1. Check for legal holds (tax records, active disputes)
-  const holds = await checkLegalHolds(userId);
-  if (holds.length > 0) {
-    // Cannot fully delete — anonymize instead
-    report.partialDeletion = true;
-    report.retainedReasons = holds;
-  }
+| Data set | Retention (example) | Basis for keeping | Owner | Action at expiry |
+|----------|--------------------|-------------------|-------|------------------|
+| Session and auth logs | Short (weeks) | Security | Platform | Delete |
+| Behavioral analytics | Months | Consent / legitimate interest | Product | Delete or aggregate |
+| Orders and invoices | Per applicable accounting and tax law | Legal obligation | Finance | Anonymize personal fields |
+| Audit logs | Per policy and regulation | Accountability / legal | Security | Delete via privileged job |
+| Temporary uploads | Days | Contract | Platform | Delete |
 
-  // 2. Delete or anonymize in each system
-  await db.$transaction(async (tx) => {
-    // Anonymize orders (must retain for tax/accounting)
-    await tx.orders.updateMany({
-      where: { userId },
-      data: { customerName: '[DELETED]', customerEmail: '[DELETED]' },
-    });
-    report.sections.push({ name: 'orders', action: 'anonymized' });
-
-    // Delete personal data
-    await tx.userProfiles.deleteMany({ where: { userId } });
-    report.sections.push({ name: 'profile', action: 'deleted' });
-
-    // Delete activities
-    await tx.activities.deleteMany({ where: { userId } });
-    report.sections.push({ name: 'activities', action: 'deleted' });
-
-    // Delete consents
-    await tx.consents.deleteMany({ where: { userId } });
-    report.sections.push({ name: 'consents', action: 'deleted' });
-
-    // Anonymize the user record (keep for referential integrity)
-    await tx.users.update({
-      where: { id: userId },
-      data: {
-        email: `deleted-${userId}@deleted.invalid`,
-        name: '[DELETED USER]',
-        phone: null,
-        deletedAt: new Date(),
-      },
-    });
-    report.sections.push({ name: 'user', action: 'anonymized' });
-  });
-
-  // 3. Delete from external systems
-  await Promise.allSettled([
-    deleteFromSearchIndex(userId),
-    deleteFromAnalytics(userId),
-    deleteFromEmailProvider(userId),
-    deleteFromFileStorage(userId),
-  ]);
-  report.sections.push({ name: 'external_systems', action: 'deletion_requested' });
-
-  // 4. Audit the deletion itself (audit logs survive deletion)
-  await auditLogger.log({
-    actorId: 'system',
-    actorType: 'system',
-    action: 'delete',
-    resourceType: 'user',
-    resourceId: userId,
-    metadata: { reason: 'gdpr_erasure_request', report },
-  });
-
-  return report;
-}
-```
+Rules:
+- Retention is expressed "per applicable law"; the numbers above are illustrative.
+- The retention job runs under its own privileged role, on a schedule, and logs what it removed (counts, not content).
+- Build the delete statement from an allowlist of table and column identifiers and bind values as parameters; never interpolate a policy string into SQL.
+- Backups and replicas expire on their own cycle; document it.
 
 ---
 
-## Consent Management
+## PII in logs and code
 
-### Consent Schema
-
-```sql
-CREATE TABLE user_consents (
-  id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  user_id     TEXT NOT NULL REFERENCES users(id),
-  purpose     TEXT NOT NULL,    -- 'analytics', 'marketing', 'personalization'
-  granted     BOOLEAN NOT NULL,
-  version     TEXT NOT NULL,    -- privacy policy version
-  ip_address  INET,
-  user_agent  TEXT,
-  granted_at  TIMESTAMPTZ,
-  revoked_at  TIMESTAMPTZ,
-  created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-  UNIQUE(user_id, purpose)
-);
-```
-
-### Cookie Consent API
-
-- **POST /api/consent**: Accept `{ purposes: { analytics: true, marketing: false } }`. Upsert each purpose into `user_consents` with current privacy policy version, IP, user agent. Set `grantedAt`/`revokedAt` timestamps accordingly.
-- **requireConsent middleware**: Check `user_consents` for the required purpose before tracking. Set `req.trackingAllowed` flag for downstream handlers.
+- Redaction of logs: the rule and logger setup are in `observability` (allowlist at the call site plus a final-stage scrubber).
+- Regex masking of free text is a safety net with false positives and negatives (phone-like digit runs, card numbers without a checksum test); it never replaces not logging the data.
+- Hardcoded secrets and PII in source: use a maintained secret scanner with push protection (`security`), not ad hoc grep.
 
 ---
 
-## Data Retention Policy Automation
+## SOC2 evidence
 
-```typescript
-interface RetentionPolicy {
-  table: string;
-  retentionDays: number;
-  dateColumn: string;
-  action: 'delete' | 'anonymize';
-  condition?: string; // additional WHERE clause
-}
+SOC2 is an attestation report from an independent auditor. Engineering supplies evidence for each period.
 
-const RETENTION_POLICIES: RetentionPolicy[] = [
-  { table: 'sessions', retentionDays: 30, dateColumn: 'created_at', action: 'delete' },
-  { table: 'activities', retentionDays: 90, dateColumn: 'created_at', action: 'delete' },
-  { table: 'audit_logs', retentionDays: 2555, dateColumn: 'timestamp', action: 'delete' }, // 7 years
-  { table: 'temp_uploads', retentionDays: 1, dateColumn: 'created_at', action: 'delete' },
-  {
-    table: 'orders',
-    retentionDays: 2555, // 7 years (tax requirement)
-    dateColumn: 'created_at',
-    action: 'anonymize',
-  },
-];
-
-// Run daily via cron job
-async function enforceRetentionPolicies() {
-  for (const policy of RETENTION_POLICIES) {
-    const cutoff = new Date();
-    cutoff.setDate(cutoff.getDate() - policy.retentionDays);
-
-    if (policy.action === 'delete') {
-      const result = await db.$executeRawUnsafe(
-        `DELETE FROM ${policy.table} WHERE ${policy.dateColumn} < $1 ${policy.condition ?? ''}`,
-        cutoff
-      );
-      console.log(`Retention: deleted ${result} rows from ${policy.table}`);
-    }
-    // Handle anonymize similarly
-  }
-}
-```
-
----
-
-## SOC2 Evidence Collection
-
-### Key Trust Services Criteria
-
-| Criteria | Category | Evidence Examples |
+| Criteria | Category | Evidence examples |
 |----------|----------|-------------------|
-| CC6.1 | Logical Access | Access control lists, RBAC configuration |
+| CC6.1 | Logical access | Access lists, role definitions |
 | CC6.2 | Credentials | Password policy, MFA enforcement rate |
-| CC6.3 | Access Removal | Offboarding automation, access review logs |
-| CC7.1 | Monitoring | Alert configurations, SIEM dashboards |
-| CC7.2 | Anomaly Detection | Intrusion detection logs, anomaly alerts |
-| CC8.1 | Change Management | PR review requirements, deploy approvals |
-| A1.2 | Availability | Uptime metrics, incident response procedures |
+| CC6.3 | Access removal | Offboarding automation, access review records |
+| CC7.1 | Monitoring | Alert configuration, monitoring dashboards |
+| CC7.2 | Anomaly detection | Intrusion and anomaly alerts, their handling |
+| CC8.1 | Change management | Review requirements, deploy approvals |
+| A1.2 | Availability | Uptime, incident response, recovery tests |
 
-### Automated Evidence Collection
-
-Collect for each reporting period: access controls (total users, MFA rate, access reviews), change management (deploy count, approval rate, PR review rate), incident response (incident count, MTTD, MTTR), and availability (uptime, SLO compliance). Automate via scheduled job that queries DB and monitoring APIs.
+Collect per period: access (users, MFA coverage, reviews), change management (deploy count, review rate), incidents (count, time to detect and mitigate), availability (uptime, SLO compliance). Automate collection from source systems so evidence is reproducible.

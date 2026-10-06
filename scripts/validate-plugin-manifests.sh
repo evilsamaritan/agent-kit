@@ -56,8 +56,6 @@ if jq -e 'has("agents") or has("sessionStart") or has("systemPrompt") or has("sy
   exit 1
 fi
 
-printf 'Plugin manifests OK: %s v%s\n' "$claude_name" "$claude_version"
-
 if jq -e 'has("agents")' "$claude_manifest" >/dev/null || [[ -e "$repo_root/.claude-plugin/agents" ]]; then
   printf 'Agent Kit must not bundle Claude agents.\n' >&2
   exit 1
@@ -66,3 +64,5 @@ if [[ $(jq -er '.skills' "$claude_manifest") != "./skills/" ]]; then
   printf 'Claude manifest must expose canonical ./skills/.\n' >&2
   exit 1
 fi
+
+printf 'Plugin manifests OK: %s v%s\n' "$claude_name" "$claude_version"

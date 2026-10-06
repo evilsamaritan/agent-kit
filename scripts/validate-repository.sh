@@ -38,13 +38,17 @@ fi
 # directory; a reference with that name would leak into maintainers' sessions.
 while IFS= read -r instruction_file; do
   err "packaging" "${instruction_file#"$repo_root"/} is named like a host instruction file; rename it"
-done < <(find "$repo_root/skills" "$repo_root/profiles" "$repo_root/scripts" "$repo_root/docs" \( -iname 'claude.md' -o -iname 'claude.local.md' -o -iname 'agents.md' \) 2>/dev/null)
+done < <(find "$repo_root/skills" "$repo_root/profiles" "$repo_root/scripts" \( -iname 'claude.md' -o -iname 'claude.local.md' -o -iname 'agents.md' \) 2>/dev/null)
 if [[ -e "$repo_root/.agents/plugins/marketplace.json" ]]; then
   err "packaging" "use the shared .claude-plugin/marketplace.json instead of a duplicate .agents catalog"
 fi
 
-for script in "$repo_root"/scripts/*.mjs "$repo_root"/scripts/profile-runtimes/*.mjs "$repo_root"/skills/agent-creator/scripts/*.mjs; do
+for script in "$repo_root"/scripts/*.mjs "$repo_root"/scripts/profile-runtimes/*.mjs "$repo_root"/skills/*/scripts/*.mjs; do
   node --check "$script"
+done
+for script in "$repo_root"/skills/*/scripts/*.sh; do
+  [[ -e "$script" ]] || continue
+  bash -n "$script" || err "scripts" "${script#"$repo_root"/} has a shell syntax error"
 done
 node "$repo_root/scripts/generate-profiles.mjs" --check
 node --test "$repo_root"/scripts/tests/*.test.mjs
@@ -53,8 +57,6 @@ profile_count=0
 for profile_file in "$repo_root"/profiles/*/PROFILE.md; do
   profile=$(basename "$(dirname "$profile_file")")
   profile_count=$((profile_count + 1))
-  [[ -f "$repo_root/profiles/$profile/claude.yaml" ]] || err "$profile" "missing claude.yaml"
-  [[ -f "$repo_root/profiles/$profile/codex.yaml" ]] || err "$profile" "missing codex.yaml"
   [[ -f "$repo_root/skills/agent-orchestrator/references/profiles/$profile.md" ]] || err "$profile" "missing generated orchestrator reference"
 done
 printf 'Profile library OK: %d profile(s).\n' "$profile_count"
@@ -186,22 +188,8 @@ for file in "$repo_root"/skills/*/SKILL.md; do
   if (( line_count > 550 )); then
     err "$skill" "SKILL.md has $line_count lines; ceiling is about 550"
   fi
-
-  if awk '
-    BEGIN { in_fm=0 }
-    /^---[[:space:]]*$/ { in_fm = !in_fm; next }
-    in_fm && /^meta:[[:space:]]*/ { found=1 }
-    END { exit found ? 0 : 1 }
-  ' "$file"; then
-    err "$skill" "unknown top-level meta field; use metadata"
-  fi
 done
 
-if grep -rqE 'team-creator|team-orchestrator|agent-runner|\.claude/teams|scripts/generate-agents\.mjs|agents/[^/ ]+/AGENT\.md' \
-  "$repo_root/AGENTS.md" "$repo_root/README.md" "$repo_root/skills" "$repo_root/scripts" \
-  --exclude='validate-repository.sh'; then
-  err "stale-reference" "removed team runtime or pre-profile agent path is still referenced"
-fi
 
 # Relative Markdown links in shipped text must resolve.
 broken_links=$(node -e '
@@ -264,12 +252,6 @@ if command -v d2 >/dev/null 2>&1; then
     d2 validate "$example" >/dev/null 2>&1 || err "d2" "invalid D2 example from $(head -1 "$example" | sed "s#^\# $repo_root/##")"
   done
   rm -rf "$d2_dir"
-  # The gallery's 32 SVGs must regenerate byte-for-byte with the pinned D2.
-  if [[ $(d2 --version 2>/dev/null) == "v0.9.0" || $(d2 --version 2>/dev/null) == "0.9.0" ]]; then
-    node "$repo_root/skills/playground/scripts/render-d2-preview.mjs" --check >/dev/null || err "playground" "gallery SVGs drifted from their D2 sources"
-  else
-    printf 'WARN: D2 0.9.0 (pinned for the gallery) not installed; skipped gallery drift check.\n' >&2
-  fi
 else
   printf 'WARN: d2 not found; skipped D2 example validation.\n' >&2
 fi

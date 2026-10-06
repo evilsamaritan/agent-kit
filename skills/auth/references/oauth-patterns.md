@@ -8,9 +8,11 @@ Practical patterns for implementing OAuth2 and OpenID Connect flows.
 - [Client Credentials Flow](#client-credentials-flow)
 - [Device Authorization Flow](#device-authorization-flow)
 - [OIDC Discovery and Configuration](#oidc-discovery-and-configuration)
-- [Provider Setup Patterns](#provider-setup-patterns)
-- [Token Exchange Patterns](#token-exchange-patterns)
+- [Callback Handling](#callback-handling)
+- [Refreshing Tokens in Browser Apps](#refreshing-tokens-in-browser-apps)
+- [DPoP](#dpop)
 - [Security Considerations](#security-considerations)
+- [Standards Status](#standards-status)
 
 ---
 
@@ -28,6 +30,7 @@ The recommended flow for SPAs, mobile apps, and any public client.
      redirect_uri=https://app.example.com/callback&
      scope=openid profile email&
      state=RANDOM_STATE&
+     nonce=RANDOM_NONCE&
      code_challenge=CODE_CHALLENGE&
      code_challenge_method=S256
 
@@ -53,7 +56,7 @@ The recommended flow for SPAs, mobile apps, and any public client.
 **Critical checks:**
 - Validate `state` matches what you sent (prevents CSRF)
 - Verify `id_token` signature, iss, aud, exp, nonce
-- Store tokens securely (httpOnly cookie or secure memory)
+- Store tokens server-side (BFF) or, for a SPA without a BFF, the access token in memory only
 
 ---
 
@@ -132,106 +135,61 @@ GET /.well-known/openid-configuration
 
 **Cache this document** (typically 24hr TTL). Fetch JWKS from `jwks_uri` and cache with rotation awareness.
 
----
-
-## Provider Setup Patterns
-
-### Auth0
-```
-Domain:     https://YOUR_TENANT.auth0.com
-Authorize:  https://YOUR_TENANT.auth0.com/authorize
-Token:      https://YOUR_TENANT.auth0.com/oauth/token
-JWKS:       https://YOUR_TENANT.auth0.com/.well-known/jwks.json
-Audience:   https://api.example.com (custom API identifier)
-```
-
-### Google
-```
-Discovery:  https://accounts.google.com/.well-known/openid-configuration
-Authorize:  https://accounts.google.com/o/oauth2/v2/auth
-Token:      https://oauth2.googleapis.com/token
-Scopes:     openid email profile
-```
-
-### GitHub (OAuth2, not OIDC)
-```
-Authorize:  https://github.com/login/oauth/authorize
-Token:      https://github.com/login/oauth/access_token
-User API:   https://api.github.com/user
-Note:       Not OIDC-compliant, no ID token, no discovery
-```
-
-### Keycloak (self-hosted)
-```
-Discovery:  https://keycloak.example.com/realms/REALM/.well-known/openid-configuration
-Authorize:  https://keycloak.example.com/realms/REALM/protocol/openid-connect/auth
-Token:      https://keycloak.example.com/realms/REALM/protocol/openid-connect/token
-```
+Read every endpoint (`authorization_endpoint`, `token_endpoint`, `jwks_uri`, `end_session_endpoint`) from the discovery document; never hard-code them per provider. Some providers implement plain OAuth 2.0 without OIDC (no ID token, no discovery): there, identity comes from a provider API call with the access token, and the stable key is the provider's numeric user id, not the email.
 
 ---
 
-## Token Exchange Patterns
+## Callback Handling
 
-### Silent Refresh (SPA)
 ```javascript
-// Hidden iframe approach (being deprecated by browsers)
-const iframe = document.createElement('iframe');
-iframe.src = `${authUrl}/authorize?prompt=none&...`;
-
-// Preferred: Refresh token rotation
-async function refreshTokens() {
-  const response = await fetch('/token', {
-    method: 'POST',
-    body: new URLSearchParams({
-      grant_type: 'refresh_token',
-      refresh_token: storedRefreshToken,
-      client_id: CLIENT_ID,
-    }),
-  });
-  const tokens = await response.json();
-  // Store new access_token AND new refresh_token
-  // Old refresh_token is now invalidated
-}
-```
-
-### Backend Token Exchange
-```javascript
-// Exchange authorization code (Node.js / Express callback)
+// Confidential client (server or BFF) — Express-style example
 app.get('/callback', async (req, res) => {
   const { code, state } = req.query;
+  const pending = req.session.oauth;                 // { state, nonce, codeVerifier, returnTo }
+  delete req.session.oauth;                          // single use
 
-  // 1. Validate state
-  if (state !== req.session.oauthState) {
-    return res.status(403).send('Invalid state');
+  if (!pending || typeof state !== 'string' || !constantTimeEqual(state, pending.state)) {
+    return res.status(400).send('Invalid login attempt');
   }
 
-  // 2. Exchange code for tokens
-  const tokenResponse = await fetch(`${ISSUER}/token`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-    body: new URLSearchParams({
-      grant_type: 'authorization_code',
-      code,
-      redirect_uri: REDIRECT_URI,
-      client_id: CLIENT_ID,
-      client_secret: CLIENT_SECRET,       // confidential client
-      code_verifier: req.session.codeVerifier, // if PKCE
-    }),
+  const tokens = await exchangeCode({                // token_endpoint from discovery
+    code, redirectUri: REDIRECT_URI, codeVerifier: pending.codeVerifier,
+    clientAuth: CLIENT_AUTH,                         // client secret, private_key_jwt, or mTLS
   });
 
-  const tokens = await tokenResponse.json();
+  const claims = await verifyIdToken(tokens.id_token, {
+    issuer: ISSUER, audience: CLIENT_ID, nonce: pending.nonce,   // signature, iss, aud, exp, nonce
+  });
 
-  // 3. Validate ID token (verify signature, iss, aud, exp, nonce)
-  const claims = await verifyIdToken(tokens.id_token);
-
-  // 4. Create session
-  req.session.userId = claims.sub;
-  req.session.accessToken = tokens.access_token;
-  req.session.refreshToken = tokens.refresh_token;
-
-  res.redirect('/dashboard');
+  await regenerateSession(req);                      // new session id: prevents session fixation
+  req.session.userKey = `${claims.iss}|${claims.sub}`;
+  req.session.tokens = { access: tokens.access_token, refresh: tokens.refresh_token };
+  res.redirect(safeReturnPath(pending.returnTo));    // only same-site relative paths
 });
 ```
+
+---
+
+## Refreshing Tokens in Browser Apps
+
+- **With a BFF (default):** the BFF refreshes server-side when the access token is near expiry; the browser only sees its session cookie. No refresh token or access token in JavaScript.
+- **SPA without a BFF (fallback):** the access token stays in memory; the refresh token is rotated on every use with reuse detection and should be sender-constrained (DPoP) where the authorization server supports it. It is never written to web storage. Hidden-iframe silent renew (`prompt=none`) depends on third-party cookies and fails in browsers that block them.
+
+---
+
+## DPoP
+
+Sender-constrains tokens (RFC 9449): the client holds a key pair and proves possession on each request.
+
+```
+Token request:  POST /token        + DPoP: <proof JWT: jti, htm, htu, iat, public key in header>
+API call:       GET /resource      + Authorization: DPoP <access token> + DPoP: <fresh proof with ath = hash(access token)>
+```
+
+- Fresh proof per request (unique `jti`), bound to method (`htm`) and URL (`htu`).
+- The server verifies the proof signature, checks `jti` replay within a window, `iat` freshness, and that the key thumbprint matches the token's `cnf.jkt`.
+- Servers may require a server-provided `nonce` in proofs; clients retry with the `DPoP-Nonce` they receive.
+- mTLS-bound tokens (RFC 8705) are the alternative for confidential clients that already use client certificates.
 
 ---
 
@@ -263,8 +221,21 @@ app.get('/callback', async (req, res) => {
 | Storage | XSS Safe | CSRF Safe | Recommendation |
 |---------|----------|-----------|----------------|
 | httpOnly cookie | Yes | No (need SameSite) | Best for web apps |
-| In-memory variable | Yes | Yes | Best for SPAs (lost on refresh) |
+| In-memory variable | Partly (XSS can still use it while the page runs) | Yes | SPA fallback for access tokens |
 | localStorage | No | Yes | Never for tokens |
 | sessionStorage | No | Yes | Never for tokens |
 
-Use httpOnly + Secure + SameSite=Lax cookies. For SPAs that need persistence across refreshes, use refresh token rotation with httpOnly cookie for the refresh token and in-memory for the access token.
+Default for browser apps: a BFF holding tokens server-side and an httpOnly + Secure + SameSite session cookie. Without a BFF: see [Refreshing Tokens in Browser Apps](#refreshing-tokens-in-browser-apps).
+
+### State and Nonce Comparison
+Compare `state` in constant time and delete it from the session after one use; verify `nonce` inside the validated ID token.
+
+---
+
+## Standards Status
+
+- **RFC 9700** (BCP 240, January 2025) — OAuth 2.0 Security Best Current Practice: resource owner password grant MUST NOT be used, implicit grant SHOULD NOT be used, PKCE required for public clients; the baseline for new work.
+- **OAuth 2.1** — an Internet-Draft, not an RFC (draft-ietf-oauth-v2-1, revision 16 in September 2026); it consolidates RFC 6749, PKCE, native and browser app guidance, RFC 9700, and bearer token usage. Many identity providers already enforce its requirements.
+- **FAPI 2.0** Security Profile (final, February 2025) — requires sender-constrained access tokens via mTLS or DPoP, PAR (authorization requests without it are rejected), and PKCE with `S256` for high-assurance APIs.
+- **FedCM** (browser-mediated federated sign-in) — experimental and implemented in Chromium-based browsers only (Chrome/Edge 108+); Firefox and Safari do not ship it. Use it as an enhancement where an IdP offers it; keep the redirect-based OIDC flow as the path that works everywhere.
+- **Naming:** Azure AD is now Microsoft Entra ID.

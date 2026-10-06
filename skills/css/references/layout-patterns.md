@@ -80,17 +80,22 @@
 }
 ```
 
-### Masonry (CSS Subgrid Approach)
+### Masonry
+
+Native CSS masonry (`display: grid-lanes`; earlier drafts used `grid-template-rows: masonry`) is not Baseline: Safari 26.4 is the only engine shipping it in the Baseline data. Default to a column-based layout that works everywhere:
 
 ```css
-/* Native CSS masonry — limited support, use with fallback */
 .masonry {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
-  grid-template-rows: masonry; /* Chrome 128+, Firefox 77+ behind flag */
-  gap: var(--space-m);
+  column-width: 250px;
+  column-gap: var(--space-m);
+}
+.masonry > * {
+  break-inside: avoid;
+  margin-block-end: var(--space-m);
 }
 ```
+
+Columns fill top to bottom, so DOM order differs from visual order across columns; use it only where reading order does not matter.
 
 ### Subgrid — Align Nested Grid Children
 

@@ -1,238 +1,170 @@
 ---
 name: networking
-description: "Design or review network infrastructure. Use for DNS, CDN, TLS/mTLS, load balancers, proxies, service mesh, and firewalls."
+description: "Design or review network infrastructure. Use for DNS, CDN edge, TLS and certificate lifecycle, mTLS, load balancers, reverse proxies, service mesh, and firewall or segmentation rules."
 user-invocable: true
 ---
 
-# Networking — Infrastructure Network Specialist
+# Networking
 
-## DNS Record Types
+Infrastructure transport: how traffic is named, encrypted, balanced, and segmented. Volatile facts (certificate lifetime limits, CA behavior, post-quantum rollout, controller status) are in [networking-patterns.md](references/networking-patterns.md#volatile-facts); check them before giving dates or limits.
 
-| Type | Purpose | Example |
-|------|---------|---------|
-| A | IPv4 address | `api.example.com -> 93.184.216.34` |
-| AAAA | IPv6 address | `api.example.com -> 2606:2800:220:1:...` |
-| CNAME | Alias to another name | `www -> api.example.com` (no CNAME at apex) |
-| MX | Mail server | `example.com -> mail.example.com` (priority 10) |
-| TXT | Verification, SPF, DKIM | `v=spf1 include:_spf.google.com ~all` |
-| SRV | Service location + port | `_sip._tcp.example.com -> sip.example.com:5060` |
-| CAA | Certificate authority restriction | `example.com CAA 0 issue "letsencrypt.org"` |
-| NS | Delegated nameserver | `example.com -> ns1.provider.com` |
-| HTTPS/SVCB | Service binding + parameters | `example.com HTTPS 1 . alpn="h3,h2" ech=...` |
+## Scope and boundaries
 
-**TTL guidance:** Low (60s) during migrations, moderate (300s) for dynamic services, high (3600s+) for stable records.
+**Owns:** DNS, CDN topology (edge, origin shield), TLS termination and certificate lifecycle, mTLS, load balancing, proxies, service mesh choice, firewalls and segmentation, zero-trust network model.
 
-**DNS security layers:**
-- DNSSEC — authenticates responses (prevents spoofing)
-- DoH (port 443) / DoT (port 853) — encrypts transport (prevents eavesdropping)
-- Use both together. DNSSEC validates; DoH/DoT encrypts.
+**Does not own:**
+- HTTP semantics, CORS, CSP, cookie and header mechanics, browser behavior → `web`
+- Cache-Control policy and invalidation → `caching`
+- Application security controls and audit → `security`
+- Cluster networking objects (NetworkPolicy, Ingress, Gateway API resources) → `kubernetes`
+- Container networking → `docker`
+- Retry, breaker, and timeout policy → `reliability`
 
----
+## Decision trees
 
-## CDN Patterns
-
-| Pattern | Description |
-|---------|-------------|
-| Edge caching | Cache static assets at PoPs close to users |
-| Origin shield | Intermediate cache between edge and origin — reduces origin load |
-| Cache invalidation | Purge by URL, tag, or prefix; prefer versioned URLs over purging |
-| Stale-while-revalidate | Serve stale content while fetching fresh in background |
-| Dynamic content | Cache-Control: no-store, or vary by cookie/header |
-
-**Cache-Control header cheat sheet:**
-```
-Static assets:    Cache-Control: public, max-age=31536000, immutable
-HTML pages:       Cache-Control: no-cache (revalidate every time)
-API responses:    Cache-Control: private, max-age=60
-Sensitive data:   Cache-Control: no-store
-```
-
----
-
-## TLS & Certificate Management
-
-**TLS 1.3 improvements:** 1-RTT handshake (vs 2-RTT in 1.2), removed weak ciphers, 0-RTT resumption (with replay risk).
-
-**Certificate chain:** Leaf cert -> Intermediate CA -> Root CA. Always serve the full chain (leaf + intermediates).
-
-**OCSP stapling:** Server fetches certificate status and includes it in TLS handshake — faster than client checking separately.
-
-**Encrypted Client Hello (ECH):** Encrypts the SNI field in TLS handshake via keys published in DNS HTTPS/SVCB records. Prevents network observers from seeing which hostname the client connects to. Requires HTTPS DNS record type with `ech` parameter.
-
-**Post-quantum readiness:** TLS 1.3 hybrid key exchange combines classical ECDHE with ML-KEM (FIPS 203). Adds ~1600 bytes to handshake and ~100us latency. Major cloud providers and CDNs are deploying hybrid PQ key exchange. Plan migration: inventory endpoints, test hybrid handshakes, monitor handshake sizes.
-
-### mTLS Pattern
+### Where does TLS end?
 
 ```
-Client                          Server
-  |--- ClientHello ------------->|
-  |<-- ServerHello + ServerCert --|
-  |--- ClientCert + Verify ----->|   <- Client also authenticates
-  |<-- Finished -----------------|
+Client-facing traffic
+├── Public service → terminate at the edge or load balancer with an automated public certificate
+│   └── Backend leg: re-encrypt to the backend (TLS, mTLS where the backend must identify the proxy)
+└── Internal service-to-service
+    ├── Need caller identity → mTLS with a private CA (see below)
+    └── Encryption only → TLS at library, sidecar, or node level
 ```
 
-Use mTLS for: service-to-service auth, zero-trust networks, API client authentication.
-
-### mTLS Automation Decision Tree
+### Which CA issues what?
 
 ```
-Need service-to-service mTLS?
-|
-+-> Running in Kubernetes/orchestrator?
-|   +-> Yes -> Use platform-native identity (SPIFFE/SPIRE, mesh-managed certs)
-|   +-> No  -> Use ACME-based CA with short-lived certs (hours/days, not months)
-|
-+-> Certificate lifecycle:
-    +-> Manual rotation -> Anti-pattern. Automate with cert manager or SPIFFE agent.
-    +-> Auto-rotation with short TTL -> Correct. Prefer re-issuance over CRL/OCSP revocation.
+Certificate for ...
+├── Public web endpoint → public CA via ACME, automated, short lifetime
+├── Client authentication or service-to-service mTLS → private CA only
+│   ├── Kubernetes / orchestrator → workload identity (SPIFFE/SPIRE, mesh CA, cloud-managed private CA)
+│   └── Otherwise → private CA with ACME or SPIFFE-style issuance, lifetime of hours to days
+└── Internal HTTPS tool → private CA, automated
 ```
 
-**SPIFFE/SPIRE pattern:** Workloads receive cryptographic identity (SVID) automatically. SPIRE agent on each node attests workloads via platform signals (K8s service accounts, AWS instance metadata). Short-lived X.509 certs rotate transparently. No secrets in code, no manual certificate management.
+Public CAs are removing the client-authentication usage from certificates; do not use public-CA certificates for client auth. Design for automated renewal: public certificate lifetimes keep shrinking (limits in the volatile reference), so any manual step eventually breaks.
 
----
+### Do I need a service mesh?
 
-## Load Balancing Algorithms
+```
+Many services, several teams, or several trust zones?
+├── No (a few services, one trust zone) → library or platform TLS; no mesh
+└── Yes
+    ├── Need L7 policy or routing (retries, traffic splitting, header routing, per-route authorization)?
+    │   ├── Yes → L7 data plane: sidecar, ambient with L7 waypoints, or proxyless (gRPC/xDS)
+    │   └── No (identity, encryption, L4 policy only)
+    │       └── CNI or node-level encryption and network policy, or an ambient mesh's L4 layer
+    └── Then pick the overhead profile: sidecars (full L7 per workload, most memory), ambient (per-node L4,
+        L7 opt-in), proxyless (library-level, language-limited)
+```
 
-| Algorithm | Best For | Trade-off |
+eBPF-based CNIs give kernel-level L3/L4 policy and visibility; L7 features still need a proxy, and mutual-authentication features in eBPF CNIs vary in maturity, so verify the specific product and version. Figures such as memory savings are product- and version-specific; take them from current benchmarks, not from this skill.
+
+### Load balancing
+
+| Algorithm | Best for | Trade-off |
 |-----------|----------|-----------|
-| Round-robin | Equal-capacity backends | Ignores load |
-| Weighted round-robin | Mixed-capacity backends | Manual weight tuning |
-| Least connections | Variable request duration | Requires connection tracking |
-| IP hash | Session affinity without cookies | Uneven if clients skew |
-| Consistent hashing | Distributed caches, minimal reshuffling | More complex to implement |
-| Random-two-choices | Large pools, good balance | Slightly higher latency |
+| Round-robin / weighted | Equal / mixed-capacity backends | Ignores load |
+| Least connections | Variable request duration | Needs connection tracking |
+| Consistent hashing | Caches, affinity, minimal reshuffle | Uneven load if keys skew |
+| Power of two choices | Large pools, good balance at low cost | Needs load signal |
+| IP hash | Affinity without cookies | Uneven behind NAT |
 
-Health checks: Active (periodic probe) vs passive (track failures). Use both. Remove unhealthy backends within 2-3 failed checks.
+Health checks: active (probe) plus passive (observed failures); eject after a few consecutive failures. What a health endpoint should check is `reliability` policy.
 
----
+## Reverse proxies, certificate renewal, and traffic switching
 
-## HTTP/2 vs HTTP/3
+- **Reverse proxy** (nginx, Caddy, Traefik, HAProxy, Envoy): terminates TLS, routes by host and path, sets timeouts and body limits, and forwards the client address in a trusted header only from known proxies. Pick by operating model (static config, automatic TLS, dynamic discovery); sample configs in [networking-patterns.md](references/networking-patterns.md#reverse-proxy-configuration).
+- **Renewal monitoring:** automate issuance, then monitor it. Alert on days until expiry of the certificate actually served (probe the endpoint, not the file) and on renewal failures, with a threshold well inside the renewal window.
+- **Traffic switching:** shift traffic by weight at the load balancer, gateway, or weighted DNS (DNS shifts lag by TTL and resolver caching). Keep the old target warm and drain connections before removing it. Rollout and rollback strategy: `release-engineering`.
 
-| Feature | HTTP/2 | HTTP/3 |
-|---------|--------|--------|
-| Transport | TCP + TLS 1.2+ | QUIC (UDP + TLS 1.3) |
-| Multiplexing | Yes (head-of-line blocking at TCP level) | Yes (no head-of-line blocking) |
-| Handshake | TCP + TLS = 2-3 RTT | QUIC = 1 RTT (0-RTT resumption) |
-| Connection migration | No (new connection on IP change) | Yes (connection ID survives IP change) |
-| Adoption | Universal | Majority of top websites, all major browsers + CDNs |
+## DNS essentials
 
-HTTP/3 is production-ready and widely deployed. CDNs enable it by default. Prioritize for mobile and high-latency networks. Enable via DNS HTTPS record with `alpn="h3,h2"` for protocol discovery.
+- Short TTL (60 s) before migrations and for failover records; longer (300 s to hours) for stable records. Lower the TTL ahead of the change, not during it.
+- No CNAME at the zone apex; use an alias-type record or the provider's flattening.
+- CAA restricts which CAs may issue for the domain.
+- HTTPS/SVCB records advertise protocols (`alpn`), addresses, and Encrypted Client Hello keys.
+- **DNSSEC** authenticates answers: the zone operator signs, resolvers validate. Use managed signing or an automated key policy; manual key handling is the same anti-pattern as manual certificate rotation.
+- **DoH/DoT** encrypt the client-to-resolver hop. That is a client or resolver decision, not something an authoritative operator deploys.
+- **Subdomain takeover** comes from dangling CNAMEs and unreleased cloud resources. Inventory records and remove them when the target resource is deleted.
 
----
+## TLS essentials
 
-## Service Mesh Decision Tree
+- TLS 1.3 preferred, 1.2 as the minimum. TLS 1.0/1.1 off.
+- Serve the full chain (leaf plus intermediates).
+- **Revocation:** the ecosystem is moving to short-lived certificates and CRLs. Use OCSP stapling only if your CA still publishes OCSP responders; a stapling directive against a CA that does not will log errors.
+- ECH hides the SNI using keys published in DNS; it needs DNS HTTPS records and server support.
+- Post-quantum: hybrid key exchange (classical plus ML-KEM) is being rolled out; inventory endpoints and test middleboxes against larger handshakes.
+- 0-RTT resumption has replay risk; allow it only for idempotent requests.
 
-```
-Need service-to-service security + observability?
-|
-+-> Need only mTLS + L4 policy?
-|   +-> Yes -> eBPF-based CNI (kernel-level, no proxy overhead)
-|   +-> No  -> Need L7 features (traffic splitting, retries, header routing)?
-|              +-> Yes -> Sidecar mesh OR ambient/sidecarless mesh
-|              +-> No  -> eBPF-based CNI is sufficient
-|
-+-> Concerned about resource overhead?
-    +-> High overhead tolerance -> Sidecar-based mesh (full L7 per pod)
-    +-> Low overhead required  -> Ambient mesh (per-node L4 + optional L7 waypoints)
-    +-> Minimal overhead       -> eBPF-based (kernel-level, no proxy)
-```
+## HTTP/2 and HTTP/3
 
-### Architecture Comparison
+HTTP/3 runs over QUIC on **UDP**. If you enable it: open UDP 443 in firewalls and security groups next to TCP 443, advertise it with `Alt-Svc` (the usual discovery path) and optionally the HTTPS DNS record, and keep HTTP/2 over TCP as the fallback because some networks block UDP. Prioritize HTTP/3 for mobile and high-latency clients.
 
-| Approach | How It Works | Trade-off |
-|----------|-------------|-----------|
-| Sidecar-based | Proxy per pod intercepts all traffic | Full L7 control, higher memory per pod |
-| Ambient / sidecarless | Per-node agent for L4 mTLS + optional L7 waypoint proxies | ~90% memory savings, gradual L7 opt-in |
-| eBPF-based | Kernel-level networking, no proxy | Lowest overhead, Linux kernel dependency |
+## CDN
 
-Key capabilities across all approaches: mTLS mesh, traffic splitting (canary), circuit breaking, distributed tracing, rate limiting.
+Topology patterns: edge caching, origin shield (an intermediate cache that reduces origin load), stale serving during revalidation, bypass for dynamic content. Purge and invalidation: `caching`. **Header policy (Cache-Control) is owned by `caching`**; header mechanics by `web`.
 
----
+## Zero-trust network model
 
-## Zero Trust Network Architecture
+Network location grants no implicit trust. This skill owns the model; `security` links here.
 
-**Core principle:** Never trust, always verify. Network location grants no implicit trust.
+1. **Identity** — every workload has a cryptographic identity, not a shared secret.
+2. **Authentication** — mTLS between services; verify at every hop.
+3. **Authorization** — policy per service pair, default deny.
+4. **Encryption** — all traffic encrypted in transit, including inside the network and from load balancer to backend.
+5. **Segmentation** — each service reaches only its declared dependencies.
 
-**Implementation layers:**
-1. **Identity** — Every workload gets a cryptographic identity (SPIFFE SVIDs, platform-managed certs). No shared secrets.
-2. **Authentication** — mTLS for every service-to-service call. Verify identity at every hop.
-3. **Authorization** — Policy-based access control per service pair. Default deny, explicit allow.
-4. **Encryption** — All traffic encrypted in transit. No plaintext within the network.
-5. **Microsegmentation** — Network policies restrict lateral movement. Each service can only reach its declared dependencies.
-
----
-
-## Firewall Rules
+## Firewall rules
 
 ```
-# Zero-trust model
-Default: DENY ALL inbound + outbound
-Allow: Only explicitly required flows
+Inbound: default deny. Allow only required flows.
+Outbound: default deny where flows can be enumerated (cloud security groups, Kubernetes
+          NetworkPolicy); otherwise allow by default and restrict at the network layer.
 
 # Security group pattern (cloud-agnostic)
-Ingress: Allow TCP 443 from 0.0.0.0/0        # HTTPS from internet
-Ingress: Allow TCP 80 from LB security group  # HTTP from load balancer only
-Egress:  Allow TCP 5432 to DB security group  # Database access only
-Egress:  Allow TCP 443 to 0.0.0.0/0           # HTTPS to external APIs
+Ingress: TCP 443 and UDP 443 from 0.0.0.0/0   # HTTPS, plus QUIC if HTTP/3 is enabled
+Ingress: TCP 8443 from LB security group       # backend TLS; plaintext only as a documented exception
+Egress:  TCP 5432 to DB security group
+Egress:  TCP 443 to 0.0.0.0/0                  # external APIs
 ```
 
-**Linux firewalls:** Prefer nftables over iptables for new deployments (default on modern distributions). nftables offers unified syntax, atomic rule updates, and better performance.
-
----
+On Linux hosts prefer nftables over iptables for new deployments. Test remote rule changes with a timed rollback to avoid locking yourself out. Sample ruleset: [networking-patterns.md](references/networking-patterns.md#firewall-patterns).
 
 ## Context Adaptation
 
-### DevOps
-- DNS record management, TTL strategy, DNSSEC + HTTPS/SVCB records
-- Load balancer setup, health checks, SSL termination
-- CDN configuration, cache rules, WAF integration
-- Reverse proxy configuration
-
-### Security
-- TLS 1.3 enforcement, cipher suite selection, certificate management
-- mTLS for service-to-service authentication, SPIFFE/SPIRE identity
-- Firewall rules, security groups, zero-trust network architecture
-- DDoS mitigation, WAF rules, rate limiting at network edge
-- Post-quantum TLS migration planning
-
-### SRE
-- Latency profiling (DNS resolution, TLS handshake, TTFB)
-- Service mesh observability (distributed tracing, golden signals)
-- Circuit breaking and retry budgets
-- Connection pool tuning, keep-alive configuration
-
----
+- **Platform work:** DNS and TTL strategy, load balancers and health checks, CDN edge rules, proxy configuration, certificate automation.
+- **Security work:** TLS configuration, mTLS and workload identity, segmentation, DDoS and rate limiting at the edge.
+- **Operations:** measure DNS, TLS handshake, and time to first byte separately; mesh telemetry feeds `observability`.
 
 ## Anti-Patterns
 
 | Anti-Pattern | Why It Fails | Correct Approach |
 |-------------|-------------|-----------------|
-| TLS 1.0/1.1 in production | Known vulnerabilities, compliance failures | TLS 1.3 (or 1.2 minimum) |
-| Wildcard DNS without DNSSEC | DNS spoofing, subdomain takeover | DNSSEC + CAA records |
-| No health checks on load balancer | Traffic routed to dead backends | Active + passive health checks |
-| Single point of failure | One LB/DNS failure takes down service | Redundant LBs, multi-provider DNS |
-| Hardcoded IPs | Fragile, breaks on infrastructure change | DNS names, service discovery |
-| Plaintext DNS without DoH/DoT | DNS queries visible to eavesdroppers | DoH or DoT + DNSSEC |
-| iptables on new Linux deployments | Legacy, fragmented syntax, no atomic updates | nftables (unified, atomic, performant) |
-| Manual certificate rotation | Human error, expired certs, outages | Automated cert management with short TTLs |
-| Network-perimeter-only security | Breached perimeter = full lateral access | Zero trust with mTLS + microsegmentation |
-| Sidecar mesh for L4-only needs | Unnecessary resource overhead for basic mTLS | eBPF-based CNI or ambient mesh |
-
----
+| TLS 1.0/1.1 enabled | Known weaknesses, audit failures | TLS 1.3, 1.2 minimum |
+| Dangling CNAME or unreleased cloud resource | Subdomain takeover | Inventory and remove records with the resource |
+| Public-CA certificates for client auth | Public CAs are dropping that usage | Private CA |
+| Manual certificate rotation or manual DNSSEC keys | Expiry outages | Automated issuance and renewal |
+| HTTP/3 enabled but UDP 443 blocked | Silent fallback, no benefit | Open UDP 443, keep TCP fallback |
+| No health checks on the load balancer | Traffic to dead backends | Active plus passive checks |
+| Single point of failure (one LB, one DNS provider) | One failure takes the service down | Redundancy at each layer |
+| Hardcoded IPs | Break on infrastructure change | DNS names, service discovery |
+| Plaintext from load balancer to backend as the default | Breaks the no-plaintext rule | Re-encrypt, or document the exception |
+| Perimeter-only security | Breach means lateral access | Zero trust: identity, mTLS, segmentation |
+| Mesh for a handful of services | Overhead without benefit | Library or platform TLS |
 
 ## Related Knowledge
 
-- **kubernetes** — Ingress controllers, NetworkPolicy, service mesh integration, cert-manager
-- **docker** — Container networking (bridge, host, overlay), port mapping, DNS resolution
-- **ci-cd** — Reverse proxy config, CI/CD network requirements
-- **security** — TLS hardening, zero-trust architecture, WAF, DDoS mitigation
-- **reliability** — Latency profiling, connection pool tuning, circuit breaking
-- **web** — HTTP protocol semantics, fetch API, CORS (boundary: web handles application-level HTTP; networking handles transport/infrastructure)
-
----
+- `web` — HTTP semantics, CORS, CSP, cookies, header mechanics
+- `caching` — Cache-Control and CDN cache policy
+- `security` — application controls; links here for zero trust
+- `kubernetes` — Ingress/Gateway API, NetworkPolicy, mesh integration, cert-manager
+- `docker` — container networking
+- `reliability` — retries, breakers, health-check policy
+- `ci-cd` — pipeline network requirements
 
 ## References
 
-- [networking-patterns.md](references/networking-patterns.md) — Detailed configuration examples for DNS zones, TLS setup, load balancers, CDN rules, service mesh config, and firewall patterns
-
-Load references when you need detailed configuration examples or protocol deep dives.
+- [networking-patterns.md](references/networking-patterns.md) — DNS zone, TLS and mTLS configs, load balancer configs, CDN topology, Gateway API and mesh examples, nftables sample, troubleshooting commands, volatile facts

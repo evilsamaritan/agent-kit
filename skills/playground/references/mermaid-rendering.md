@@ -22,7 +22,7 @@ For every diagram:
 - use subgraphs only for real containment, ownership, trust, or deployment scope;
 - keep status words explicit rather than encoding them only through color;
 - leave coordinates and connector routing to the layout engine;
-- prefer broadly supported flowchart, sequence, state, and ER syntax; verify newer diagram types in the actual renderer;
+- syntax choice and what to avoid are in `diagrams`; verify newer diagram types in the actual renderer;
 - keep the Mermaid text as the source. Never hand-edit generated SVG; re-render after a model, theme, or layout change.
 
 Flowchart nodes may carry one of six semantic classes when the category is part of the explanation: `external`, `system`, `interface`, `domain`, `data`, `risk`. The renderer maps them to the shared light/dark palette ([visual-system.md](visual-system.md#diagram-palette)); any other class name fails the check. Keep sequence, state, and ER diagrams neutral unless category color carries necessary meaning.
@@ -49,9 +49,9 @@ flowchart LR
   accTitle: Module boundary
   accDescr: The host creates the environment; modules depend on its ports.
   host[Host] -->|provides| ports[Environment ports]
-  game[Game module] -->|depends on| ports
+  orders[Order module] -->|depends on| ports
   class host system
-  class game domain
+  class orders domain
   </script>
   <div class="viz-mermaid__output" data-viz-mermaid-output></div>
 </div>
@@ -80,7 +80,7 @@ A hand-written compact projection is unfinished until it has been compared with 
 
 ## Dependencies and durability
 
-The provided renderer imports a pinned Mermaid build from a CDN, which suits connected local previews. For durable, offline, published, or production artifacts, vendor or bundle Mermaid through the consuming repository's build while keeping the same source and rendering contract. Essential content always has a textual equivalent, because network and renderer failure are valid states. When rendering tooling is unavailable, report syntax-only validation explicitly.
+The provided renderer imports a pinned Mermaid build from a CDN, which suits connected previews. Durable, offline, and published output follows [runtime-output.md](runtime-output.md#dependencies-and-content-security). Essential content always has a textual equivalent; without rendering tooling, report syntax-only validation explicitly.
 
 ## Failure modes
 

@@ -1,131 +1,150 @@
 ---
 name: security
-description: "Assess and harden application security. Use for OWASP risks, input/output trust, secrets, secure coding, supply chain, and AI/LLM tool threats."
+description: "Assess and harden application security. Use for security audits and threat models, OWASP risks, input/output trust, secrets, secure coding, supply chain, SAST/DAST triage, and AI/LLM tool threats."
 user-invocable: true
 ---
 
 # Application Security
 
-Secure coding, code-level threat patterns, and audit rubrics. Vendor-neutral. This skill carries **what to check for and why**; the *how to audit* workflow lives in the `reviewer` role-template.
+Code-level threats, audit rubric, and hardening. Vendor-neutral. This skill carries what to check for and why; the procedures are in [workflows/audit.md](workflows/audit.md) and [workflows/threat-model.md](workflows/threat-model.md).
 
 ## Scope and boundaries
 
-**This skill covers:**
-- OWASP Top 10 as an audit rubric
-- Input validation, output encoding, canonicalization
-- Injection classes: SQL, NoSQL, command, LDAP, template, prompt
-- AuthN/AuthZ code-level review (handoff to `auth` for protocol design)
+**Owns:**
+- Audit rubric (OWASP Top 10) and severity classification
+- Input validation, output encoding, injection classes
+- AuthN/AuthZ code-level review (protocol design → `auth`)
 - Secrets handling in code and config
-- Supply chain: dependency risk, lockfile integrity, SBOM, signing
-- AI/LLM-specific risks: prompt injection, data exfiltration, unsafe tool use
-- Secure defaults: cookies, CORS, CSP, headers
+- Supply chain risk, SAST/DAST selection and triage, SBOM and provenance policy
+- AI/LLM and agent threats
 
-**This skill does not cover:**
+**Does not own:**
 - Regulatory frameworks (GDPR, PCI, SOC2) → `compliance`
-- Auth protocol design (OAuth, OIDC, SAML) → `auth`
-- Network-level TLS, firewalls, mesh → `networking`
-- Container image hardening → `docker`
-- K8s RBAC / NetworkPolicy / Pod Security → `kubernetes`
+- Auth protocols (OAuth, OIDC, SAML) → `auth`
+- Network TLS, firewalls, mesh, zero-trust model → `networking`
+- Header, cookie, CORS, and CSP syntax and configuration → `web` (policy review stays here)
+- Webhook signing and verification → `api-design` (references/rest-patterns.md#webhooks)
+- Password hashing and credential storage → `auth` (references/credential-storage.md)
+- Pipeline wiring for scanners and CI secrets → `ci-cd`
+- Fuzzing and security regression tests → `testing`
+- Container image hardening → `docker`; cluster RBAC and policies → `kubernetes`
 - Payment-specific PCI flows → `payments`
+- In-module code practice (where to validate inside a trusted module) → `development`
 
-## Audit rubric — OWASP-aligned
+## Decision trees
 
-When auditing code, walk these categories. Each finding: location, severity, fix.
+### Which control for this input?
 
-1. **Broken access control** — missing authz checks, IDOR (Insecure Direct Object Reference), privilege escalation via hidden parameters.
-2. **Cryptographic failures** — weak algorithms (MD5, SHA-1 for integrity, DES), hardcoded keys, predictable IVs, plaintext secrets at rest.
-3. **Injection** — SQL/NoSQL/command/template/LDAP. Check every boundary between untrusted input and a query / shell / template.
-4. **Insecure design** — missing rate limits on abuse-prone endpoints, no lockout on repeated failed auth, trust boundaries not documented.
-5. **Security misconfiguration** — debug endpoints in prod, default passwords, verbose error pages, missing security headers.
-6. **Vulnerable components** — outdated dependencies with known CVEs, unmaintained packages.
-7. **Auth failures** — session fixation, missing CSRF, token in URL, predictable tokens, long session lifetime with no rotation.
-8. **Data integrity failures** — unsigned updates, deserialization of untrusted data, trust-on-first-use.
-9. **Logging/monitoring failures** — missing audit trail on security events, sensitive data in logs, no alerts on suspicious patterns.
-10. **SSRF** — server fetches URLs from user input without allowlist; internal metadata endpoints reachable.
+```
+Untrusted data flows into...
+├── a database query        → parameterized queries or typed builders
+├── a shell or process      → no shell; argument arrays; allowlist the command
+├── HTML in a browser       → context-specific output encoding, auto-escaping templates (CSP/headers → `web`)
+├── a file path             → canonicalize, resolve against an allowed root, reject escapes
+├── a URL the server fetches → allowlist hosts, block internal and metadata ranges, control redirects
+├── a deserializer          → data-only format, schema validation, no object-graph deserialization
+├── an LLM prompt or tool   → treat content as untrusted; deterministic authorization on actions (ai-security)
+└── a record owned by someone else → object-level authorization on every access, not only authentication
+```
+
+### What kind of review is this?
+
+```
+├── Reviewing existing code or a change   → audit workflow (rubric, severity)
+├── Designing a feature or system         → threat-model workflow, then controls above
+├── Alert from a scanner                  → triage: reachability, exploitability, impact; then fix or accept
+└── Suspected leak or incident            → revoke and rotate first; incident process in `reliability`
+```
+
+## Audit rubric
+
+OWASP Top 10:2025 is the rubric. The edition list, mapping from older numbering, and what to check per category are in [owasp-top10.md](references/owasp-top10.md) (the one file to update when OWASP revises the list). Each finding records location, severity, and fix.
 
 ## Input validation
 
-- **Validate at the boundary.** Untrusted input = anything from outside the process (HTTP body, query, headers, file contents, env vars set by user).
-- **Allowlist, not denylist.** Specify what's allowed; reject everything else. Denylists miss cases.
-- **Canonicalize before validating.** `../` in paths, mixed-case SQL keywords, Unicode normalization — all bypass naive filters.
-- **Validate shape, not type.** `email: string` is a type; `email: matches RFC 5322, max 254 chars` is a shape.
+- **Validate at trust boundaries.** A trust boundary is a change in who controls the data: a different owner, tenant, or privilege level (internet to service, tenant A to tenant B, third-party callback, uploaded file, model output). Internal hops between components under the same control are not boundaries; inside a module, rely on the checked contract (see `development`).
+- **Allowlist, not denylist.**
+- **Canonicalize before validating**: paths, encodings, Unicode normalization.
+- **Validate shape, not just type**: format, length, range, closed schema.
+- **Schema validation at each real boundary**, reject unknown fields or strip them.
 
 ## Output encoding
 
-- **Context-specific encoding.** HTML-escape for HTML, URL-escape for URLs, shell-escape for shell. A single "sanitize()" is a smell.
-- **Parameterized queries, always.** String concatenation into SQL is malpractice even if "the input is safe".
-- **Safe-by-default templates.** Templating engines should escape by default; opt in to raw output at the call site, not globally.
+- Context-specific encoding (HTML, URL, shell, SQL). One generic `sanitize()` is a smell.
+- Parameterized queries, always.
+- Auto-escaping templates; raw output opt-in at the call site.
 
 ## Secrets management
 
-- **Never commit secrets to a repo.** Even in `.env` or in test fixtures.
-- **Short-lived > long-lived.** Rotating tokens, workload identity, signed short-lived JWTs instead of static API keys.
-- **Scope-minimum.** A token that can do everything is a token that will be stolen and misused.
-- **Audit secret access.** Who / when / from where — logged centrally.
-- **Revoke on leak immediately.** Don't wait to "check if it matters".
+- Never commit secrets, including `.env` and test fixtures. Use secret scanning with push protection so a leak is blocked before it lands.
+- Short-lived over long-lived: workload identity, rotating tokens.
+- Least privilege per secret; log access centrally.
+- Revoke on leak immediately, then investigate.
+- Storage hierarchy, rotation, and detection signals: [security-patterns.md](references/security-patterns.md).
 
 ## Supply chain
 
-- **Lockfile committed** — `package-lock.json` / `pnpm-lock.yaml` / `go.sum` / `Cargo.lock`. Regenerate from a clean slate periodically.
-- **Dependency review on every PR.** New dep = review maintainer / activity / download trend / license. Not all packages deserve trust.
-- **SBOM generated at build time.** Know what shipped, per version.
-- **Signed artifacts.** Releases verified before deploy.
-- **Pin CI actions by SHA** — see `ci-cd`.
+Decide, in order:
+1. **Control install-time code execution.** Disable or allowlist install and lifecycle scripts unless a package needs them.
+2. **Delay adoption of very new releases** (a release-age cooldown) so malicious or broken versions are yanked before you pull them.
+3. **Prefer packages with provenance** (trusted publishing, signed attestations), maintained, with few transitive dependencies; watch for typosquatted names. Popularity signals are easy to game.
+4. **Lockfile committed, frozen installs in CI**; review lockfile diffs.
+5. **Scan for secrets before push** and in CI history.
+6. **Generate an SBOM and sign artifacts** at build; verify before deploy.
+
+Signing, verification, and admission snippet, SAST/DAST roles, server hardening, and policy as code: [security-patterns.md](references/security-patterns.md#supply-chain-security). Build-system and CI hardening (pinning actions, runner isolation, token scope) is in `ci-cd`.
+
+Scanner roles: **SAST** (static code analysis) finds code patterns early, with false positives to triage; **DAST** (running-app scanning) finds deployment and configuration issues; **dependency scanning** finds known CVEs. Triage by reachability and exploitability, not raw severity counts.
 
 ## AI / LLM security
 
-Threats that are specific to AI-backed systems:
+Rule: content from outside the trust boundary (user input, retrieved documents, web pages, tool output, model output) is untrusted data, never instructions, and an injection can succeed. Limit what a compromised context can reach rather than trying to filter it away. Threat list, containment design, and checks: [ai-security.md](references/ai-security.md).
 
-- **Prompt injection** — user input that hijacks the model's instructions. Treat model output as untrusted when it informs actions.
-- **Data exfiltration via tool use** — a compromised prompt asks the model to leak data by encoding it in a "harmless" tool call (image URL, search query).
-- **Unsafe tool exposure** — giving an LLM access to a tool that can delete, pay, or email without human gates on destructive actions.
-- **Retrieval poisoning** — malicious content in the knowledge base ends up in a retrieval-augmented context.
-- **Over-reliance on the model** — treating LLM output as authoritative for security decisions (e.g., "is this input safe?"). Use deterministic checks.
+## Secure defaults checklist
 
-Defences:
-- Isolate model output from tool-calling authority. Never let the user's text reach destructive tools without a verification layer.
-- Scope tools minimally. An LLM doesn't need `rm -rf`.
-- Log every tool call. Audit like a privileged operation.
+This skill owns the policy and the review (per-response CSP nonce, never on cacheable HTML; `object-src` and `frame-ancestors`; `Vary: Origin` on dynamic CORS; HSTS `includeSubDomains` and `preload` preconditions: [security-patterns.md](references/security-patterns.md#security-headers)). Syntax and configuration are in `web` (headers, cookies, CORS, CSP) and `networking` (TLS):
 
-## Secure defaults — checklist
+- HTTPS everywhere with HSTS
+- Session and auth cookies: `Secure`, `HttpOnly`, a `SameSite` policy
+- CSP without `unsafe-inline` / `unsafe-eval` scripts
+- CORS allowlist, never a wildcard with credentials
+- `nosniff`, a referrer policy, a permissions policy
 
-- HTTPS everywhere; redirect HTTP to HTTPS.
-- HSTS with `includeSubDomains` on the canonical domain.
-- Cookies: `Secure`, `HttpOnly`, `SameSite=Lax` (or `Strict`), path scoped.
-- CSP configured; not `unsafe-inline` / `unsafe-eval` in prod.
-- CORS allowlist, not `*` with credentials.
-- Security headers: `X-Content-Type-Options: nosniff`, `Referrer-Policy`, `Permissions-Policy`.
+## Context Adaptation
 
-## Context adaptation
+- **Reviewing:** run the audit workflow; output file:line findings with severity.
+- **Building:** apply the controls above early; retrofitting is expensive.
+- **Designing:** run the threat-model workflow at the decision phase: data classification, trust boundaries, attack surface.
+- **Operating:** secret rotation, log scrubbing (`observability`), and incident handling (`reliability`, with an extra notification track for security events).
 
-**As reviewer (auditing):** this is your primary skill. Walk the OWASP rubric; output file:line findings with severity.
+## Anti-Patterns
 
-**As implementer (building):** apply secure defaults early. Retrofitting security is expensive; baking it in is cheap.
-
-**As architect (designing):** threat model at the decision phase. Data classification, trust boundaries, and attack surface are architectural concerns.
-
-**As operator (running):** secrets rotation, log scrubbing, incident response for security events are operational tasks. Security incidents follow the `reliability` incident playbook with an extra notification track.
-
-## Anti-patterns
-
-- **"We'll add security later."** Retrofitting means painful migrations and years of legacy gaps.
-- **Custom crypto.** Writing AES in application code, rolling own hash, custom JWT parsing. Use vetted libraries.
-- **"Our users are trusted."** All inputs are untrusted until proven otherwise. Internal doesn't mean safe.
-- **Security by obscurity** — hiding an admin endpoint at `/hidden-admin-xyz`. It will be found.
-- **Alert fatigue on vulnerability scans.** 200 medium-severity CVEs = no one reads them = the critical one is missed.
-- **Dependency pinning without review.** Locking to a specific version that has a known CVE because "it works".
+- **"We'll add security later."**
+- **Custom crypto**: own AES, own hash, own token parsing. Use vetted libraries.
+- **"Our users are trusted."** Untrusted until validated at a real boundary.
+- **Security by obscurity.**
+- **Scanner alert fatigue**: hundreds of unranked medium findings hide the critical one.
+- **Pinning to a vulnerable version** because "it works".
+- **Using an LLM or other probabilistic check as the security control** for authorization or input safety.
 
 ## Related Knowledge
 
-- `auth` — authentication and authorization protocols
-- `compliance` — regulatory frameworks (GDPR, SOC2, PCI)
-- `networking` — TLS, mTLS, DNS, firewalls
-- `docker` — container image hardening
-- `kubernetes` — cluster-level RBAC, NetworkPolicy
-- `payments` — PCI-specific flows
-- `ci-cd` — supply chain in CI
+- `auth` — authentication and authorization protocols, credential storage
+- `api-design` — webhook signing and verification
+- `web` — headers, cookies, CORS, CSP
+- `networking` — TLS, mTLS, segmentation, zero trust
+- `compliance` — regulatory frameworks
+- `architecture` — threat model at design time
+- `file-storage` — upload threats: serving untrusted files (separate origin, `nosniff`, attachment for SVG/HTML), see file-storage/references/serving-untrusted-files.md)
+- `ci-cd` — supply chain in pipelines, scanner wiring
+- `testing` — fuzzing and security regression tests
+- `development` — in-module validation and error handling practice
+- `docker`, `kubernetes`, `payments` — domain-specific hardening
 
 ## References
 
-- [security-patterns.md](references/security-patterns.md) — code-level patterns and anti-patterns
-- [ai-security.md](references/ai-security.md) — AI/LLM threats and defences
+- [owasp-top10.md](references/owasp-top10.md) — OWASP Top 10:2025 rubric, mapping from 2021
+- [security-patterns.md](references/security-patterns.md) — severity classification, secrets, authorization review, validation patterns, rate limiting
+- [ai-security.md](references/ai-security.md) — LLM and agent threats, containment, RAG, data protection
+- [workflows/audit.md](workflows/audit.md) — audit procedure and report format
+- [workflows/threat-model.md](workflows/threat-model.md) — threat-modelling procedure

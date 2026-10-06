@@ -3,10 +3,10 @@
 ## Contents
 
 - [Proptest: Advanced Strategies](#proptest-advanced-strategies)
-- [Kani: Formal Verification](#kani-formal-verification)
-- [Bolero: Unified Fuzzing + Verification](#bolero-unified-fuzzing--verification)
+- [When to Reach for Formal Tools](#when-to-reach-for-formal-tools)
 - [Insta: Advanced Snapshot Patterns](#insta-advanced-snapshot-patterns)
 - [Test Doubles: No Mocking Framework Needed](#test-doubles-no-mocking-framework-needed)
+- [Test Review Checklist](#test-review-checklist)
 
 Advanced testing techniques for Rust.
 
@@ -44,7 +44,8 @@ fn arb_json() -> impl Strategy<Value = serde_json::Value> {
     let leaf = prop_oneof![
         Just(serde_json::Value::Null),
         any::<bool>().prop_map(serde_json::Value::Bool),
-        any::<f64>().prop_map(|f| serde_json::Value::Number(f.into())),
+        // JSON has no NaN or infinity: from_f64 is fallible, so keep only finite values
+        any::<f64>().prop_filter_map("finite", |f| serde_json::Number::from_f64(f).map(serde_json::Value::Number)),
         "[a-z]{0,10}".prop_map(serde_json::Value::String),
     ];
 
@@ -111,90 +112,30 @@ impl ReferenceStateMachine for RefModel {
 
 ---
 
-## Kani: Formal Verification
+## When to Reach for Formal Tools
 
-Kani proves properties for **all** inputs within bounded domains.  
-Install: `cargo install --locked kani-verifier && cargo kani setup`
+Property tests and fuzzing cover most invariants. Add the heavier tools only where the cost is justified:
+
+- **Kani** (bounded model checking) proves a property for all inputs within bounds. Use it for small, pure, safety-critical functions and for `unsafe` code whose soundness argument is local. It does not verify threads, loops need `#[kani::unwind(N)]`, and large bounds are slow.
+- **Bolero** runs one harness as a fuzz target, a property test, and a Kani proof, which suits a parser that must never panic.
 
 ```rust
 #[cfg(kani)]
-mod verification {
-    use super::*;
+#[kani::proof]
+fn push_pop_roundtrip() {
+    let value: u64 = kani::any(); // symbolic: every u64
+    let mut stack = Stack::new();
+    stack.push(value);
+    assert_eq!(stack.pop(), Some(value));
+}
 
-    // Prove: push then pop returns the original value (for all inputs)
-    #[kani::proof]
-    fn push_pop_roundtrip() {
-        let value: u64 = kani::any(); // symbolic — all possible u64 values
-        let mut stack = Stack::new();
-        stack.push(value);
-        let popped = stack.pop();
-        assert_eq!(popped, Some(value));
-    }
-
-    // Prove: no integer overflow in add (bounded)
-    #[kani::proof]
-    #[kani::unwind(10)]  // unroll loops up to 10 times
-    fn addition_no_overflow() {
-        let a: u32 = kani::any();
-        let b: u32 = kani::any();
-        kani::assume(a <= u32::MAX / 2);
-        kani::assume(b <= u32::MAX / 2);
-        let result = a.checked_add(b);
-        assert!(result.is_some());
-    }
-
-    // Prove: memory safety of unsafe code
-    #[kani::proof]
-    fn unsafe_ptr_access_safe() {
-        let data: [u8; 16] = kani::any();
-        let idx: usize = kani::any();
-        kani::assume(idx < 16);
-        let ptr = data.as_ptr();
-        // SAFETY: idx < 16 = data.len(), proven by kani::assume above
-        let val = unsafe { *ptr.add(idx) };
-        // Kani verifies no out-of-bounds access
-        let _ = val;
-    }
+#[test]
+fn parser_never_panics() {
+    bolero::check!().with_type::<Vec<u8>>().for_each(|input| {
+        let _ = parse_message(input); // an Err is fine, a panic is not
+    });
 }
 ```
-
-Run: `cargo kani` or `cargo kani --harness push_pop_roundtrip`
-
-Kani limitations: no thread verification, loops need `#[kani::unwind(N)]`, slow for large bounds.
-
----
-
-## Bolero: Unified Fuzzing + Verification
-
-Bolero runs the same harness through libfuzzer, AFL, and Kani:
-
-```rust
-#[test]
-fn fuzz_parser() {
-    bolero::check!()
-        .with_type::<Vec<u8>>()
-        .for_each(|input| {
-            // Should never panic on any input
-            let _ = parse_message(input);
-        });
-}
-
-// With structured inputs
-#[test]
-fn fuzz_order_processing() {
-    bolero::check!()
-        .with_type::<(OrderId, Vec<OrderItem>)>()
-        .for_each(|(id, items)| {
-            let mut order = Order::new(id);
-            for item in items {
-                let _ = order.add_item(item); // may return error, must not panic
-            }
-        });
-}
-```
-
-Run as fuzz: `cargo bolero fuzz fuzz_parser`  
-Run as Kani: `cargo bolero kani fuzz_parser`
 
 ---
 
@@ -248,16 +189,14 @@ fn deterministic_snapshot() {
 Prefer **fake implementations** (in-memory adapters) over mock frameworks:
 
 ```rust
-// Fake — a real implementation that's fast and deterministic
+// Fake — a real implementation that's fast and deterministic.
+// Clone shares the inner Arc, so the test keeps a handle to inspect what the app sent.
+#[derive(Clone, Default)]
 pub struct FakeEmailService {
     sent: Arc<Mutex<Vec<Email>>>,
 }
 
 impl FakeEmailService {
-    pub fn new() -> Self {
-        Self { sent: Arc::new(Mutex::new(Vec::new())) }
-    }
-    
     // Test helper to inspect what was sent
     pub fn sent_emails(&self) -> Vec<Email> {
         self.sent.lock().unwrap().clone()
@@ -274,11 +213,11 @@ impl EmailService for FakeEmailService {
 // In tests:
 #[tokio::test]
 async fn registration_sends_confirmation_email() {
-    let email_svc = Arc::new(FakeEmailService::new());
-    let app = App::new(InMemoryUserRepo::new(), email_svc.clone(), ...);
-    
+    let email_svc = FakeEmailService::default();
+    let app = App::new(InMemoryUserRepo::default(), email_svc.clone());
+
     app.register("user@example.com", "password").await.unwrap();
-    
+
     let emails = email_svc.sent_emails();
     assert_eq!(emails.len(), 1);
     assert!(emails[0].subject.contains("Confirm"));
@@ -293,25 +232,14 @@ Advantages over mock frameworks:
 
 ---
 
-## Test Completion Checklist
+## Test Review Checklist
 
-Tests are done when:
-
-- [ ] Every public function has at least one test
-- [ ] Every error variant is triggered by at least one test
-- [ ] At least one proptest for every non-trivial invariant
-- [ ] Snapshot tests for all complex serialization outputs
-- [ ] All tests pass with `cargo nextest run --workspace`
-- [ ] All doctests pass with `cargo test --doc`
-- [ ] Async tests use `#[tokio::test]`
-- [ ] No test uses `sleep` to wait for async operations — use proper synchronization
-- [ ] No test has `#[ignore]` without a linked issue
-- [ ] Use `#[expect(clippy::some_lint)]` instead of `#[allow(...)]` when suppressing lints in tests
-- [ ] `cargo nextest run` completes in reasonable time (< 30s for unit, < 2min for integration)
-
-### Test quality checks
-
-- [ ] Tests use real types, not just string/int literals everywhere
-- [ ] Happy path tested
-- [ ] Boundary conditions tested (empty inputs, max values, zero)
-- [ ] `.unwrap()` OK in test asserts, but use `?` in test helper functions
+- [ ] Public behavior and every error variant are exercised by at least one test
+- [ ] Non-trivial invariants have a property test
+- [ ] Complex serialized output has a snapshot test
+- [ ] Unit and integration tests run with `cargo nextest run` or `cargo test`; doctests run with `cargo test --doc`
+- [ ] Async tests use the runtime's test attribute, and wait on synchronization (a channel, a notify), not `sleep`
+- [ ] No `#[ignore]` without a linked reason
+- [ ] Lint suppressions in tests use `#[expect(...)]` rather than `#[allow(...)]`
+- [ ] Boundary conditions are covered: empty input, maximum values, zero
+- [ ] `.unwrap()` is fine in test assertions; use `?` in test helper functions

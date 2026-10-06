@@ -170,7 +170,7 @@ Define signals for:
 - resource and cost limits;
 - rollout version and compatibility errors.
 
-Provide health behavior, graceful shutdown, backup/restore, recovery, and manual intervention paths appropriate to the system. Logs alone are not an operational model.
+Provide health behavior, graceful shutdown, backup/restore, recovery, and manual intervention paths appropriate to the system. Logs alone are not an operational model. Probe and shutdown semantics belong to `reliability`, their implementation to `backend`.
 
 ## Evolution
 

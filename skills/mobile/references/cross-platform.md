@@ -2,7 +2,7 @@
 
 How the SKILL.md patterns map onto shared-code frameworks. These are not tutorials: each section names where a framework puts the lifecycle signal, the owner scope, saved state, background work, and secure storage — and where it leaves a gap you must fill with native code. Language depth: `javascript` (React Native), `kotlin` (KMP); component patterns: `react`.
 
-> **Volatile.** Framework architectures, plugin ecosystems, and store rules on over-the-air updates change often. Library names are examples, not endorsements; items marked *(verify)* need a check against current framework and store documentation.
+> **Volatile.** Framework architectures, plugin ecosystems, and store rules on over-the-air updates change often. Library names are examples, not endorsements; check version-specific behavior against current framework and store documentation.
 
 ## Contents
 
@@ -47,7 +47,7 @@ Regardless of framework, budget platform code (or vetted plugins) for:
 | Lifecycle signal | `AppState` (`active`, `background`, `inactive` on iOS) | `AppLifecycleListener` / `AppLifecycleState` (`resumed`, `inactive`, `hidden`, `paused`, `detached`) | Platform lifecycle; multiplatform `Lifecycle` artifacts for shared code |
 | Screen owner scope | Component effects with cleanup; `AbortController` for requests | `State.dispose`, state-management scopes (auto-dispose providers, bloc `close`) | Multiplatform `ViewModel` + `viewModelScope` |
 | "Owner still alive" after await | Effect cleanup flag or aborted signal | `if (!context.mounted) return;` | Structured cancellation of the scope |
-| Saved state across process death | Not automatic; persist route and IDs yourself | Restoration framework (`RestorationMixin`, `restorationScopeId`) | Android: `SavedStateHandle`; iOS: wire it per platform *(verify)* |
+| Saved state across process death | Not automatic; persist route and IDs yourself | Restoration framework (`RestorationMixin`, `restorationScopeId`) | Android: `SavedStateHandle`; iOS: wire it per platform |
 | Background work | Native module or a library over WorkManager / `BGTaskScheduler` | A plugin over WorkManager / `BGTaskScheduler` running a Dart entry point | Shared job logic, platform schedulers via `expect`/`actual` or interfaces |
 | Local database | SQLite-based libraries | SQLite-based libraries (e.g., drift) | SQLDelight or Room (multiplatform) |
 | Secure storage | Keychain/Keystore wrapper library | Keychain/Keystore wrapper plugin | `expect`/`actual` over Keychain/Keystore |
@@ -58,7 +58,7 @@ Regardless of framework, budget platform code (or vetted plugins) for:
 **Lifecycle and scope**
 - `AppState` reports foreground and background; JS timers and the JS thread are suspended with the app on iOS. Do not rely on a JS callback firing before termination.
 - Owner scopes are components and their effects: cancel in the effect cleanup (`AbortController.abort()`, unsubscribe). Server-state libraries (e.g., TanStack Query) handle request cancellation and online/offline status when wired to the platform's network state.
-- The New Architecture (Fabric renderer, Turbo Native Modules, JSI) is the default in current releases; native modules written for the old bridge need migration *(verify)*.
+- The New Architecture (Fabric renderer, Turbo Native Modules, JSI) is the only runtime (since RN 0.82); modules written for the old bridge run through an interop layer or must be migrated.
 
 **Process death and restoration**
 - JS state dies with the process. On Android, the common `react-native-screens` setup passes `null` to `super.onCreate` in the main activity, so the app restarts from its root after process death.
@@ -75,7 +75,7 @@ Regardless of framework, budget platform code (or vetted plugins) for:
 - Strings in the JS bundle are trivially readable.
 
 **Releases**
-- Over-the-air JS updates must match the installed native binary (runtime-version or fingerprint policy) and stay within store rules on downloaded code *(verify)*. Some hosted OTA services have been retired; confirm the provider's status.
+- Over-the-air JS updates must match the installed native binary (runtime-version or fingerprint policy) and stay within store rules on downloaded code (App Review Guideline 2.5.2 on iOS). Some hosted OTA services have been retired: Microsoft App Center, including its hosted CodePush, closed on March 31, 2025, leaving only a self-hosted CodePush server; confirm any provider's status.
 - Upload native symbols and the JS source maps (including Hermes bytecode maps) for readable crash stacks.
 
 ## Flutter
@@ -87,7 +87,7 @@ Regardless of framework, budget platform code (or vetted plugins) for:
 
 **Process death and restoration**
 - Opt in with `restorationScopeId` on the app widget; use `RestorationMixin` with restorable properties (`RestorableTextEditingController`, `RestorableInt`) and `Navigator.restorablePush` or a router with restoration support.
-- iOS restoration requires configuration in the iOS runner *(verify)*; test both platforms separately.
+- iOS restoration needs extra setup in Xcode (see the Flutter `RestorationManager` documentation, section on state restoration on iOS); test both platforms separately.
 - Restorable data is for UI and screen state; drafts and outbox entries belong in the database.
 
 **Background work and push**
@@ -96,7 +96,7 @@ Regardless of framework, budget platform code (or vetted plugins) for:
 
 **Storage, links, accessibility**
 - `shared_preferences` is plaintext; use a Keychain/Keystore-backed plugin for secrets.
-- Decide whether Flutter's built-in deep-link handling or a link plugin owns incoming links — not both *(verify the flag for disabling built-in handling)*.
+- Decide whether Flutter's built-in deep-link handling or a link plugin owns incoming links — not both. Opt out of the built-in handler with `flutter_deeplinking_enabled` set to false in `AndroidManifest.xml` or `FlutterDeepLinkingEnabled` set to false in `Info.plist`.
 - Widgets, not platform controls, render the UI: verify screen-reader semantics (`Semantics`), text scaling (`MediaQuery.textScalerOf`), and platform text-input behavior explicitly.
 
 **Releases**
@@ -118,7 +118,7 @@ Regardless of framework, budget platform code (or vetted plugins) for:
 
 **Compose Multiplatform on iOS**
 - It renders its own UI. Verify VoiceOver semantics, text input and IME behavior, scroll physics, and interop with UIKit/SwiftUI views on real devices.
-- Do not assume Android saved-state semantics on iOS: test that saveable state and navigation actually survive a background termination in your version *(verify)*.
+- Do not assume Android saved-state semantics on iOS: test that saveable state and navigation actually survive a background termination in the framework version you ship.
 
 ## Web-view hybrids
 

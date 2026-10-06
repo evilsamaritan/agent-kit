@@ -6,13 +6,21 @@ user-invocable: true
 
 # Kotlin
 
-Idiomatic Kotlin patterns, coroutines, multiplatform, Gradle KTS. Kotlin 2.3+ / K2 compiler.
+Idiomatic Kotlin: null safety, sealed types, coroutines and Flow, multiplatform, Gradle Kotlin DSL.
 
----
+**Determine the project's Kotlin version first** (the Kotlin plugin version in the version catalog or build files, and the Gradle and Android Gradle plugin versions beside it). Use language features only up to that version; version-dependent features are listed in [language-patterns.md](references/language-patterns.md#version-dependent-features).
 
 ## Core Mental Model
 
 Kotlin favors **exhaustive type hierarchies** over stringly-typed logic, **structured concurrency** over fire-and-forget threads, and **delegation** over inheritance. Every pattern below follows from these principles.
+
+## Hard rules
+
+- No `!!` outside tests and proven invariants; use `?.`, `?:`, `requireNotNull`, or `checkNotNull` with a message.
+- Values from Java are platform types: declare the nullability you expect at the boundary instead of letting `String!` flow inward.
+- Never catch `CancellationException` without rethrowing it, and prefer catching specific exceptions over `Exception` or `Throwable`. The standard `runCatching` catches cancellation too, so avoid it around suspending calls.
+- Every coroutine has an owner scope; no `GlobalScope`.
+- Pick the type by what is produced: `suspend` for one value, `Flow` for a stream over time, `Sequence` for lazy synchronous iteration.
 
 ---
 
@@ -33,9 +41,9 @@ class UserService(private val scope: CoroutineScope) {
 | Dispatcher | Use for | Thread pool |
 |------------|---------|-------------|
 | `Dispatchers.Default` | CPU-intensive work | Shared, core count |
-| `Dispatchers.IO` | Blocking I/O | Elastic, up to 64 |
+| `Dispatchers.IO` | Blocking I/O | Elastic; 64 threads by default, or the core count if larger |
 | `Dispatchers.Main` | UI updates | Main/UI thread |
-| `Dispatchers.Unconfined` | Testing only | Resumes in caller's thread |
+| `Dispatchers.Unconfined` | Rarely; test dispatchers use it | Resumes in the caller's thread; not for general code |
 
 **SupervisorJob** — child failure does not cancel siblings. Use for independent parallel tasks.
 
@@ -76,20 +84,6 @@ Use sealed hierarchies for closed sets: state machines, result types, navigation
 
 ---
 
-## Guard Conditions in `when` (Stable, Kotlin 2.2+)
-
-```kotlin
-fun handle(response: Response) = when (response) {
-    is Response.Success -> process(response.data)
-    is Response.Error if response.code in 400..499 -> handleClientError(response)
-    is Response.Error -> handleServerError(response)
-}
-```
-
-Add `if` clauses to `when` branches — avoids nested `when`/`if` blocks.
-
----
-
 ## Scope Functions
 
 | Function | Object ref | Return | Use when |
@@ -117,7 +111,7 @@ Data classes: structural equality, `copy`, destructuring. Value classes: zero-ov
 
 ---
 
-## Context Parameters (Beta, Kotlin 2.2+)
+## Context Parameters
 
 ```kotlin
 context(logger: Logger, metrics: Metrics)
@@ -127,37 +121,58 @@ fun handle(request: Request) {
 }
 ```
 
-Replace deprecated context receivers — require a name, explicit reference. Enable: `-Xcontext-parameters`. Context receivers removal planned ~Kotlin 2.4.
+Context parameters are stable from Kotlin 2.4 (explicit context arguments and callable references are not part of that stabilization); earlier versions need the `-Xcontext-parameters` compiler option. They replace context receivers, an older experimental feature. A context parameter is named and referenced explicitly. Use them for ambient dependencies that pass through many call layers (a logger, a transaction, a clock), not as a substitute for constructor injection (`development`).
 
 ---
 
 ## KMP (Kotlin Multiplatform)
 
-`commonMain/` (pure Kotlin) + platform source sets (`androidMain/`, `iosMain/`, `jvmMain/`). Use `expect`/`actual` for platform APIs; prefer interfaces + DI over expect/actual where possible.
+`commonMain/` (pure Kotlin) plus platform source sets (`androidMain/`, `iosMain/`, `jvmMain/`).
 
-**Compose Multiplatform** — iOS stable since 1.8.0. Share UI across Android, iOS, desktop, web.
-**Swift Export** — direct Kotlin-to-Swift translation, bypassing Objective-C interop layer.
+```
+Platform-specific behavior needed in common code?
+├── A capability with several possible implementations → an interface in commonMain, implementations per platform, wired by dependency injection
+└── A tiny platform primitive with exactly one implementation per target (a clock, UUID, file path) → expect/actual
+```
+
+Platform and UI-sharing status (Compose Multiplatform, Swift export) changes between releases: check the release notes of the project's Kotlin version. Android and iOS app concerns are in `mobile`.
 
 ---
 
-## Gradle KTS
+## Gradle Kotlin DSL
 
-```kotlin
-// Version catalogs (libs.versions.toml) — single source of truth
+```
+Which Kotlin plugin does the module apply?
+├── JVM library or service → org.jetbrains.kotlin.jvm
+├── Multiplatform → org.jetbrains.kotlin.multiplatform
+└── Android → Android Gradle plugin 9.0 and later have built-in Kotlin support and do not need the `org.jetbrains.kotlin.android` plugin; older AGP versions apply it; see `mobile`
+```
+
+Use the version catalog as the single source of versions, and use the versions the project's catalog already declares.
+
+```toml
+# gradle/libs.versions.toml
 [versions]
-kotlin = "2.3.0"
-coroutines = "1.10.1"
+kotlin = "<project's Kotlin version>"
+coroutines = "<project's coroutines version>"
 
 [libraries]
-kotlinx-coroutines = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-core", version.ref = "coroutines" }
+kotlinx-coroutines-core = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-core", version.ref = "coroutines" }
 
-// Convention plugins — shared build logic
-// buildSrc/src/main/kotlin/kotlin-library.gradle.kts
-plugins {
-    kotlin("jvm")
-}
-kotlin { jvmToolchain(21) }
+[plugins]
+kotlin-jvm = { id = "org.jetbrains.kotlin.jvm", version.ref = "kotlin" }
 ```
+
+```kotlin
+// build.gradle.kts
+plugins { alias(libs.plugins.kotlin.jvm) }
+
+dependencies { implementation(libs.kotlinx.coroutines.core) }
+
+kotlin { jvmToolchain(21) } // the JDK the project targets
+```
+
+Share build logic as convention plugins in an included build (`build-logic`), not in `buildSrc`: Gradle documents that any change in `buildSrc` makes the entire build out-of-date, while a change in an included build only invalidates the projects that use its products. Configure compiler flags with `compilerOptions {}`.
 
 ---
 
@@ -168,15 +183,11 @@ kotlin { jvmToolchain(21) }
 3. **Mutable shared state in coroutines** — use `Mutex`, `StateFlow`, or `Channel` instead
 4. **Over-nesting scope functions** — `x.let { it.also { it.run { } } }` is unreadable; extract functions
 5. **Stringly-typed states** — model states as sealed types; compiler enforces exhaustive handling
-6. **`actor {}` coroutine builder** — deprecated; use `Channel` + `launch` pattern instead
-7. **Context receivers** — deprecated in favor of context parameters (Kotlin 2.2+); migrate with IntelliJ quick-fix
-8. **`kotlinOptions {}` in Gradle** — removed in Kotlin 2.2+; use `compilerOptions {}` instead
-
----
-
-## Context Adaptation
-
-**Backend:** coroutine scopes tied to request lifecycle, Flow for reactive pipelines/SSE, sealed classes for error hierarchies. **DevOps:** Gradle KTS convention plugins, version catalogs, KMP CI targets.
+6. **`actor {}` coroutine builder** — annotated `@ObsoleteCoroutinesApi`; a `Channel` plus `launch` owns state without it
+7. **Context receivers** — replaced by context parameters; migrate with the IDE assisted support
+8. **`kotlinOptions {}` in Gradle** — replaced by `compilerOptions {}`
+9. **`runCatching` around suspending calls** — it catches `CancellationException`; catch specific exceptions or rethrow
+10. **`!!` for convenience** — hides a null that a contract should have excluded
 
 ---
 
@@ -185,9 +196,10 @@ kotlin { jvmToolchain(21) }
 - **development** — code practice these idioms express: variant families, ownership, explicit dependencies
 - **backend** — service wiring, middleware, lifecycle when building Kotlin backend services
 - **database** — Exposed/Ktorm ORM patterns, connection pooling
-- **testing** — testing coroutines, Turbine for Flow testing
+- **testing** — test strategy; coroutine and Flow testing examples are in the coroutine reference
+- **mobile** — Android and iOS app lifecycle, Android Gradle plugin details
 
 ## References
 
-- `references/coroutine-patterns.md` — structured concurrency, error handling, testing, Flow operators
-- `references/language-patterns.md` — DSL builders, delegation, contracts, scope functions, idiomatic Kotlin
+- [coroutine-patterns.md](references/coroutine-patterns.md) — structured concurrency, error handling, cancellation, Flow operators, testing
+- [language-patterns.md](references/language-patterns.md) — DSL builders, delegation, contracts, scope functions, sealed state machines, version-dependent features

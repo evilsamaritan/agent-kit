@@ -1,15 +1,32 @@
-# OpenAPI 3.1 Patterns
+# OpenAPI Patterns
 
-Schema design patterns, components, discriminators, webhooks, and SDK generation.
+Schema design patterns, components, discriminators, webhooks, and SDK generation. Read the `openapi:` field of the project's spec first and write for that version; tooling support for the newest minor version lags.
 
 ## Contents
 
+- [Versions: 3.0, 3.1, 3.2](#versions-30-31-32) — what changes between them
 - [Minimal OpenAPI 3.1 Spec](#minimal-openapi-31-spec) — starter template
 - [Components Organization](#components-organization) — reusable schemas, parameters, responses
 - [Discriminators (Polymorphism)](#discriminators-polymorphism) — oneOf with discriminator
 - [Webhooks (OpenAPI 3.1)](#webhooks-openapi-31) — webhook event definitions
 - [Security Schemes](#security-schemes) — Bearer, API key, OAuth2
 - [SDK Generation](#sdk-generation) — openapi-generator commands, SDK-friendly tips
+
+---
+
+## Versions: 3.0, 3.1, 3.2
+
+3.2 is the newest minor version (3.2.0 published September 2025, with patch releases since); 3.1 has the widest generator and validator support. Check the specification index at spec.openapis.org for the current patch release.
+
+| Topic | 3.0 | 3.1 | 3.2 |
+|-------|-----|-----|-----|
+| Schema dialect | OpenAPI subset of JSON Schema | Full JSON Schema 2020-12 | Same as 3.1 |
+| Nullable | `nullable: true` | `type: [string, "null"]` — `nullable` is not valid | Same as 3.1 |
+| Examples in schemas | `example` | `examples` (array) | Same as 3.1 |
+| Top-level `webhooks` | No | Yes | Yes |
+| Additions | — | — | `QUERY` method, `querystring` parameter location, hierarchical tags, sequential/streaming media types (`itemSchema` for SSE, JSON Lines), OAuth device authorization flow |
+
+Upgrading 3.0 → 3.1 is a schema migration (nullable, `exclusiveMinimum` as a number, `examples`); 3.1 → 3.2 is additive.
 
 ---
 
@@ -146,11 +163,9 @@ components:
       required: [hasMore]
       properties:
         nextCursor:
-          type: string
-          nullable: true
+          type: [string, "null"]
         prevCursor:
-          type: string
-          nullable: true
+          type: [string, "null"]
         hasMore:
           type: boolean
         limit:
@@ -217,16 +232,20 @@ components:
         application/problem+json:
           schema:
             $ref: "#/components/schemas/ValidationProblemDetail"
+```
 
-    # Error schemas
-  schemas:
+### Error Schemas
+
+These entries belong in the same `components.schemas` map as the entities above (one `schemas` key per document).
+
+```yaml
     ProblemDetail:
       type: object
       required: [type, title, status]
       properties:
         type:
           type: string
-          format: uri
+          format: uri-reference
         title:
           type: string
         status:
@@ -235,7 +254,7 @@ components:
           type: string
         instance:
           type: string
-          format: uri
+          format: uri-reference
 
     ValidationProblemDetail:
       allOf:
@@ -327,6 +346,8 @@ components:
         data:
           type: object
 ```
+
+The event-type set grows over time: document that receivers must acknowledge and ignore types they do not handle. Signing and delivery rules: [rest-patterns.md](rest-patterns.md#webhooks).
 
 ---
 

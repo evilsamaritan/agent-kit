@@ -5,6 +5,7 @@ Use this workflow to build a feature, fix a bug, refactor, or migrate code. Each
 ## Contents
 
 - [1. Read the request and the code](#1-read-the-request-and-the-code)
+- [Fix: reproduce before changing](#fix-reproduce-before-changing)
 - [2. Name owners, families, and assumptions](#2-name-owners-families-and-assumptions)
 - [3. Choose the response](#3-choose-the-response)
 - [4. Implement](#4-implement)
@@ -22,9 +23,21 @@ Pick the mode:
 | Mode | Trigger | Output |
 |---|---|---|
 | Build | new behavior | code and tests at the owner |
-| Fix | a defect with a reproduction or trace | the cause corrected at its owner, a regression check, a note on siblings |
+| Fix | a defect report, failing check, or trace | a reproduction, the cause corrected at its owner, a regression check, a note on siblings |
 | Refactor | structure changes, behavior does not | the diff plus evidence that behavior is identical |
 | Migrate | a contract or dependency changes upstream | reversible steps with breaking points marked |
+
+### Fix: reproduce before changing
+
+A fix without a reproduction is a guess. Before editing:
+
+1. **Reproduce reliably.** Turn the report into a command, test, or script that fails the same way every run. For an intermittent failure, find what varies — timing, order, data, environment — and pin it until the failure is deterministic or its rate is measured.
+2. **Minimize.** Remove input, steps, and configuration until each remaining part is needed for the failure.
+3. **Bisect when the cause is unknown.** By commit when it used to work, by input or configuration when it never did. Instrument (logs, assertions, a debugger) at the boundary where correct state first becomes wrong.
+4. **State a falsifiable hypothesis** — "the cache is read before the owner writes it" — and the observation that would disprove it. Test it before changing code.
+5. **Turn the reproduction into the regression check** at the owner of the corrected behavior; it fails before the fix and passes after.
+
+If the failure cannot be reproduced, report what was tried and the evidence gathered; do not ship a speculative fix as a confirmed one.
 
 ## 2. Name owners, families, and assumptions
 

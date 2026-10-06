@@ -16,14 +16,14 @@
 
 ## Knowledge delivery
 
-- A custom agent inherits the parent's skill catalog. A role file can only disable skills (Codex 0.157+ keeps `[[skills.config]]` entries with `enabled = false`), so generated targets write no `skills.config`.
+- A custom agent inherits the parent's skill catalog. A role file can only disable skills (`[[skills.config]]` entries with `enabled = false`), so generated targets write no `skills.config`.
 - `developer_instructions` names each selected skill by catalog name: plugin skills are `agent-kit:<skill>`, `.agents/skills/` project skills keep their name, other project skills use a project-relative path. The child reads the `SKILL.md` from the location the catalog lists.
 
 ## Model, effort, and sandbox
 
 - Omitted `model` and `model_reasoning_effort` inherit from the parent session. A spawn request or `[agents]` defaults may select a model; a model selected without an effort uses that model's default effort.
-- When spawning a child, Codex reapplies the parent turn's live sandbox and approval overrides. Codex 0.157+ ignores `sandbox_mode` in a role file altogether (roles may not control it), so the generated value only documents intent; the parent session's sandbox applies.
-- `agents.max_concurrent_threads_per_session` bounds parallel children.
+- When spawning a child, Codex reapplies the parent turn's live sandbox and approval overrides. Codex's source strips `sandbox_mode` (and `approval_policy`, `mcp_servers`, `model_provider`, and a few other keys) from a role file's projected layer, so the generated value only documents intent and the parent session's sandbox applies. The public subagent docs still list `sandbox_mode` among the keys a custom agent file may carry; the source is authoritative here (`codex-rs/core/src/agent/role_tests.rs`, test `apply_role_cannot_expand_parent_authority`: "role must not control {key}", checked at tag `rust-v0.159.2`; the same file shows `skills.config` with `enabled` flags is honored).
+- `agents.max_concurrent_threads_per_session` bounds parallel children (`agents.max_threads` is its legacy alias). Built-in agents are `default`, `worker`, and `explorer`.
 
 ## Spawn and coordinate
 
@@ -31,4 +31,4 @@ Use the client's subagent controls to spawn, steer, wait for, and collect childr
 
 ## Fallback
 
-Spawn a generic child with the brief from `--brief NAME`, the concrete task, and explicit model and effort when the client permits overrides. The fallback inherits the parent sandbox and tools; do not claim it enforces the generated `sandbox_mode`.
+Spawn a generic child with the brief from `--brief NAME --runtime codex` (configured agents only; otherwise the selected profile reference plus the exact skill ids), the concrete task, and explicit model and effort when the client permits overrides. The fallback inherits the parent sandbox and tools; do not claim it enforces the generated `sandbox_mode`.

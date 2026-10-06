@@ -35,11 +35,11 @@ A different engine changes geometry, not the model. Check support for clusters, 
 
 ```bash
 dot -Tsvg docs/diagrams/module-dependencies.dot -o docs/diagrams/module-dependencies.light.svg
-dot -Tsvg -Gbgcolor=transparent -Nfontcolor=white -Ecolor=gray70 -Ncolor=gray70 docs/diagrams/module-dependencies.dot -o docs/diagrams/module-dependencies.dark.svg
+dot -Tsvg -Gbgcolor=transparent -Gfontcolor=white -Nfontcolor=white -Efontcolor=white -Ecolor=gray70 -Ncolor=gray70 docs/diagrams/module-dependencies.dot -o docs/diagrams/module-dependencies.dark.svg
 dot -Tsvg -Grankdir=TB docs/diagrams/module-dependencies.dot -o docs/diagrams/module-dependencies.compact.svg
 ```
 
-`-G`, `-N`, and `-E` set graph, node, and edge defaults; attributes written in the source override them. Compare node identities and labels after any variant.
+`-G`, `-N`, and `-E` set graph, node, and edge attributes. They override initial attribute statements in the source (those before any node, edge, or subgraph), such as `rankdir=LR;`; attributes set on an individual node or edge still apply. Compare node identities and labels after any variant.
 
 Do not deliver an unreadable whole-repository graph because the compiler can draw it. Start from the relevant subgraph; very large graphs need an interactive viewer through `playground`.
 

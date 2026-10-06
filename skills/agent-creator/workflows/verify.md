@@ -21,7 +21,7 @@ Use checklist sections applicable to the target profile, runtime, or project. Re
 
 ## Step 4: Verify the profile library
 
-1. Read `PROFILE.md`, `claude.yaml`, and `codex.yaml` for each target profile.
+1. Read `PROFILE.md` and any overlay files (`claude.yaml`, `codex.yaml`, `kimi.yaml`) for each target profile.
 2. Run `node scripts/generate-profiles.mjs --check`.
 3. Confirm every declared role has one exact body section and every default skill exists.
 4. Confirm the generated catalog and orchestrator references match their profiles; no package agent registry exists.

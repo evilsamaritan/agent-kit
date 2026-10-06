@@ -1,12 +1,13 @@
 # Object Storage Providers
 
-Short-list of object storage providers mapped to the use-case decisions taught in SKILL.md. Use this when you need concrete names; pick the pattern first.
+Short-list of object storage providers mapped to the use-case decisions taught in SKILL.md. Use this when you need concrete names; pick the pattern first. Provider features, maintenance status, licenses, and prices change — verify before choosing.
 
 ## Contents
 
 - [Provider Comparison](#provider-comparison)
 - [Use-Case Shortlist](#use-case-shortlist)
 - [Notes on Egress and Pricing](#notes-on-egress-and-pricing)
+- [Malware Scanning Options](#malware-scanning-options)
 - [Compliance and Data Residency](#compliance-and-data-residency)
 
 ---
@@ -20,7 +21,7 @@ Short-list of object storage providers mapped to the use-case decisions taught i
 | Azure Blob Storage | Hyperscaler native | No (AzCopy/Blob API) | Paid | Entra ID integration, Functions triggers, hot/cool/archive tiers | Not S3-compatible out of the box |
 | Cloudflare R2 | Edge object store | Yes | Zero | Zero egress, Workers integration, built-in CDN | Newer, smaller tooling ecosystem |
 | Backblaze B2 | Independent | Yes | Low / free via CF partners | Cheapest storage, simple pricing | Fewer integrations, single region class |
-| MinIO | Self-hosted | Yes | Your infra | On-prem S3 API, K8s-native, air-gap deployments | You run it — ops overhead, durability is on you |
+| Self-hosted S3-compatible (Ceph RGW, Garage, SeaweedFS, MinIO AIStor) | Self-hosted | Yes (coverage varies) | Your infra | On-prem, air-gapped, data sovereignty | You run it; durability is on you. The MinIO community repository was archived in April 2026 (source-only, AGPLv3); the commercial edition is AIStor. Check each project's maintenance status, edition, and license before choosing |
 | Tigris | Multi-region object store | Yes | Low | Globally replicated S3 API, edge-close writes | Newer; fewer native integrations |
 
 ---
@@ -31,7 +32,7 @@ Short-list of object storage providers mapped to the use-case decisions taught i
 |---|---|
 | Lowest-latency reads in one cloud | AWS S3, GCS, Azure Blob (match the cloud of compute) |
 | Multi-cloud / avoid egress fees | Cloudflare R2, Backblaze B2 (often paired with Cloudflare CDN) |
-| Self-hosted / on-prem | MinIO, Ceph RGW |
+| Self-hosted / on-prem | Ceph RGW, Garage, SeaweedFS, or a commercially supported S3-compatible product |
 | Archival / cold | S3 Glacier, GCS Archive, Azure Archive |
 | CDN-integrated | Cloudflare R2 (Workers + CDN), or AWS S3 + CloudFront, or GCS + Cloud CDN |
 | Compliance-bound region | Hyperscaler local region (AWS, Azure, GCP) with BAA/DPA; sovereign-cloud partners |
@@ -40,8 +41,8 @@ Short-list of object storage providers mapped to the use-case decisions taught i
 
 ## Notes on Egress and Pricing
 
-- Egress cost often dominates total spend for read-heavy workloads. If > ~10% of stored bytes leave the cloud monthly, model zero-egress providers first.
-- Lifecycle rules (hot → IA → cold → archive) can cut storage cost 70%+ on aging data, but retrieval fees on cold tiers can be painful for unexpected re-reads.
+- Egress cost often dominates total spend for read-heavy workloads; model it from expected monthly bytes served, and compare zero-egress providers when a large share of stored bytes leaves the cloud.
+- Lifecycle tiering cuts storage cost on aging data, but cold tiers add retrieval fees, minimum storage durations, and retrieval delays. Model costs with current price sheets; figures in blog posts go stale.
 - Multipart upload abort rules are critical — orphaned parts accumulate and bill indefinitely.
 
 ---
@@ -51,4 +52,17 @@ Short-list of object storage providers mapped to the use-case decisions taught i
 - Hyperscalers publish BAA, HIPAA, SOC 2, ISO 27001 attestations per region.
 - Independent providers (R2, B2) publish narrower scopes — check your compliance framework before choosing.
 - For EU/UK data sovereignty, confirm the bucket region is in-country and that the provider offers a signed DPA.
-- Self-hosted (MinIO) shifts compliance burden fully to you — you own encryption at rest, audit logs, key rotation.
+- Self-hosted storage shifts compliance burden fully to you — encryption at rest, audit logs, key rotation.
+
+---
+
+## Malware Scanning Options
+
+Availability varies by region.
+
+| Platform | Option |
+|---|---|
+| AWS S3 | GuardDuty Malware Protection for S3 (scans new objects, tags results) |
+| Azure Blob Storage | Microsoft Defender for Storage, on-upload malware scanning |
+| Google Cloud Storage | No native malware scanner; event-triggered antivirus (for example ClamAV on Cloud Run triggered by object finalize events) or a partner product. Sensitive Data Protection (formerly Cloud DLP) classifies sensitive data and does not detect malware |
+| Any provider, self-hosted | ClamAV daemon fed by upload events, scanning streamed objects |

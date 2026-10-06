@@ -1,6 +1,6 @@
 # SRE Review Checklists
 
-Detailed checklists for Phase 2 analysis. Use these to systematically evaluate each reliability domain.
+Checklists for reviewing each reliability domain. Rules and rationale are in SKILL.md.
 
 ## Contents
 
@@ -17,18 +17,20 @@ Detailed checklists for Phase 2 analysis. Use these to systematically evaluate e
 ## Health Checks
 
 - [ ] Liveness check exists: "process is running and not deadlocked"
-- [ ] Readiness check exists: "can accept work" (dependencies connected, warmed up)
+- [ ] Readiness check exists: can this instance serve now (warmed up, local resources ready); dependency checks only where deliberately chosen
 - [ ] Startup probe exists for services with slow initialization
-- [ ] Health check endpoints are lightweight (no expensive queries or external calls)
-- [ ] Health checks reflect actual dependency state (not just returning 200)
-- [ ] Unhealthy state triggers an alert, not just a log line
-- [ ] Health checks are used by orchestrator/load balancer for routing decisions
-- [ ] Health check responses include version, uptime, and dependency status
+- [ ] Liveness checks the process only; no dependency calls
+- [ ] Readiness reflects local ability to serve; critical dependencies are checked deliberately, with degraded behaviour defined
+- [ ] A shared-dependency outage does not make every instance unready
+- [ ] Probe endpoints are lightweight (no expensive queries)
+- [ ] Probe detail (version, dependency status) is limited to internal callers
+- [ ] Unready or restarting instances raise a symptom alert, not just a log line
 
 ## Graceful Shutdown
 
 - [ ] SIGTERM handler registered in every service
-- [ ] New work intake stopped first (deregister from LB, stop consuming, reject requests)
+- [ ] Readiness fails first and deregistration propagation is waited out before new work is refused
+- [ ] New work intake then stopped (stop consuming, close listener)
 - [ ] In-flight operations are drained before closing resources
 - [ ] State is flushed (offsets committed, buffers flushed, DB writes completed)
 - [ ] Resources are released (connections closed, pools drained, servers stopped)
@@ -38,34 +40,16 @@ Detailed checklists for Phase 2 analysis. Use these to systematically evaluate e
 
 ## Observability
 
-**Structured Logging**
-- [ ] All logs are structured (JSON in production)
-- [ ] Every log entry has: timestamp, level, service name, message
-- [ ] Correlation IDs thread through request lifecycle
-- [ ] No sensitive data in logs (API keys, secrets, PII, credentials)
-- [ ] Log levels are appropriate (not everything is INFO or DEBUG)
-- [ ] Errors include stack trace and context (what was the operation, what were the inputs)
-- [ ] Human-readable format available for local development
+Review telemetry against `observability` (signals, correlation IDs, bounded metric labels, sampling, redaction). This skill only asks: can an on-call engineer answer "what is broken and for whom" from the SLIs?
 
-**Metrics**
-- [ ] Golden signals instrumented: latency, traffic, errors, saturation
-- [ ] Application-specific metrics defined (business KPIs)
-- [ ] Metric labels/dimensions are bounded (no unbounded cardinality from user IDs or URLs)
-- [ ] Histograms used for latency (not averages)
-- [ ] Resource metrics collected: CPU, memory, disk, network, connection pool usage
-
-**Distributed Tracing**
-- [ ] Trace context propagated across service boundaries
-- [ ] Spans created for significant operations (DB queries, external calls, message processing)
-- [ ] Span attributes include relevant context (operation type, result, error info)
-- [ ] Sampling strategy defined (100% for errors, percentage for normal traffic)
-- [ ] Trace IDs correlate with log entries
+---
 
 ## Error Handling and Resilience
 
-- [ ] Errors classified: retryable vs fatal
-- [ ] Retries use exponential backoff with jitter
-- [ ] Retry count is bounded (max attempts)
+- [ ] Errors classified: transient vs permanent
+- [ ] Retries only on idempotent operations or those with an idempotency key
+- [ ] Retries use exponential backoff with jitter, bounded attempts, and a budget or a single retry layer
+- [ ] Deadlines propagate down the call chain
 - [ ] Circuit breaker protects calls to unreliable dependencies
 - [ ] Timeouts set on every external call (HTTP, DB, message queue, gRPC)
 - [ ] Bulkheads isolate failure domains (one failing dependency doesn't cascade)
@@ -89,7 +73,7 @@ Detailed checklists for Phase 2 analysis. Use these to systematically evaluate e
 - [ ] SLO targets set with stakeholder agreement
 - [ ] Error budget calculated and tracked
 - [ ] Alerts based on SLO burn rate (not raw thresholds)
-- [ ] Multi-window alerts to catch both fast burns and slow burns
+- [ ] Multi-window, multi-burn-rate alerts catch both fast and slow burns
 - [ ] Alert severity maps to response urgency (page vs ticket vs log)
 - [ ] Alerts are actionable (clear what to do, link to runbook)
 - [ ] No alert fatigue (low noise, high signal)
@@ -104,3 +88,4 @@ Detailed checklists for Phase 2 analysis. Use these to systematically evaluate e
 - [ ] Communication channels defined (where to post status updates)
 - [ ] Rollback procedure documented and tested
 - [ ] Game day exercises planned or conducted
+- [ ] Backups restored successfully within the RTO, tested on a schedule (see recovery.md)

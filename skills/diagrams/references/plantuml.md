@@ -34,14 +34,14 @@ Ready --> Active : commit
 
 ## Local compilation
 
-Use the project's installed PlantUML (JAR or package) and its version's flags:
+Use the project's installed PlantUML (JAR or package) and its version's flags. Current releases document GNU-style options (`--svg`, `--pipe`); the older single-dash forms (`-tsvg`) are kept for a transition period but are no longer documented:
 
 ```bash
-java -jar tools/plantuml.jar -tsvg docs/diagrams/scene-activation.puml
-java -jar tools/plantuml.jar -tsvg -pipe < docs/diagrams/scene-activation.puml > docs/diagrams/scene-activation.light.svg
+java -jar tools/plantuml.jar --svg docs/diagrams/scene-activation.puml
+java -jar tools/plantuml.jar --svg --pipe < docs/diagrams/scene-activation.puml > docs/diagrams/scene-activation.light.svg
 ```
 
-Check the exit status and look at the output: PlantUML renders syntax errors as an image. Some diagram types need Graphviz; others use internal layout engines. Install only what the selected view needs.
+Check the exit status (200 means some diagrams had syntax errors) and look at the output: by default PlantUML still renders syntax errors as an image, and `--no-error-image` turns that off. Some diagram types need Graphviz; others use internal layout engines. Install only what the selected view needs.
 
 Generate the dark variant from the same `.puml` through shared skin parameters or a theme selected per build target. Compile locally; do not send architecture source to a public PlantUML server to avoid installing the tool.
 

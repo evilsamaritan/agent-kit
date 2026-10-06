@@ -6,10 +6,7 @@ Determine which skill to verify:
 
 - **User specified a name** → use it
 - **User said "this skill" in a skill directory** → detect from cwd
-- **Ambiguous** → List available skills, use `AskUserQuestion`:
-  ```bash
-  ls skills/
-  ```
+- **Ambiguous** → list the skills in the skill directory and ask the user which one
 
 ## Step 2: Load Verification Checklist
 
@@ -17,16 +14,15 @@ Read `references/verification-checklist.md` from skill base directory.
 
 ## Step 3: Read and Parse Skill
 
-Always read from `skills/<name>/` — this is the source of truth exposed by both plugin packages.
+Read from the skill's own directory: `skills/<name>/` in the kit, the host's project skill directory elsewhere.
 
 Collect all data needed for checks:
 
-1. **Read SKILL.md** — `skills/<name>/SKILL.md` (full content)
+1. **Read SKILL.md** (full content)
 2. **Parse frontmatter** — extract name, description, allowed-tools, etc.
 3. **Count lines** — SKILL.md line count (excluding frontmatter)
-4. **List workflows/** — glob for files in `skills/<name>/workflows/`
-5. **List references/** — glob for files in `skills/<name>/references/`
-6. **Check packaging** — verify the canonical file exists and the plugin manifests expose `skills/`
+4. **List workflows/** and **references/**
+5. **Kit only: check packaging** — the Claude, Codex, and Kimi manifests expose `skills/`
 
 ## Step 4: Select Checks for the Scope
 
@@ -62,12 +58,12 @@ For a new skill or an explicitly requested full audit, use all checklist categor
 - Detect duplicate content between SKILL.md and sub-files
 - Flag thin wrappers
 
-**Category E: Deployment (1 check)**
-- Verify the canonical skill is included by the Claude and Codex plugin packages
+**Category E: Deployment (1 check, kit only)**
+- Verify the skill is exposed by the Claude, Codex, and Kimi plugin packages
 
 ## Step 5: Generate Report
 
-Use a compact findings report for focused changes. The complete table below is available for an explicitly scoped full audit.
+Default to a compact report: the failing checks with ID, severity, and fix, plus a one-line summary. In the kit, cite the repository validator for mechanical checks instead of re-deriving them. Use the full table below only for an explicitly requested full audit.
 
 ```markdown
 ## Skill Verification Report: <skill-name>
@@ -97,16 +93,15 @@ Use a compact findings report for focused changes. The complete table below is a
 2. [C1] Remove filler phrase on line N...
 ```
 
-**Rules:**
-- ALL checks go into the Results table — one row per check, no grouping by category
-- Order: A1-A12, B1-B13, B15, C1-C14, D1-D7, E1
+**Full-audit rules:**
+- One row per check, in order A1-A12, B1-B13, B15, C1-C14, D1-D7, E1
 - PASS checks: short description (3-8 words)
 - FAIL checks: describe what's wrong
 - N/A checks (e.g. C5 for skills without `## Commands`): mark as PASS with "N/A" in description
 
 ## Step 6: Apply Fixes When Authorized
 
-Apply all edits to `skills/<skill-name>/`, the shared plugin source.
+Apply edits in the skill's own directory.
 
 - **Review/verify only:** report failures; do not mutate files.
 - **Fix/improve/actualize:** apply safe in-scope local fixes and re-verify.

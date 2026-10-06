@@ -1,6 +1,6 @@
-# WCAG 2.2 Checklist
+# WCAG 2.2 High-Frequency Criteria
 
-Organized by principle (POUR). Focus on AA criteria — the legal and practical standard.
+Organized by principle (POUR). This is not the full list of A and AA criteria: it covers the ones that fail most often in audits, with code where code helps. For a formal conformance claim, walk the complete WCAG 2.2 Level A and AA success criteria from the W3C specification.
 
 ## Contents
 
@@ -28,7 +28,17 @@ Organized by principle (POUR). Focus on AA criteria — the legal and practical 
 <!-- Complex image — long description -->
 <img src="org-chart.png" alt="Organization chart" aria-describedby="org-desc" />
 <div id="org-desc" class="sr-only">CEO reports to board. Three VPs report to CEO...</div>
+```
 
+```css
+/* Visually hidden, still exposed to assistive technology. Never use display:none or visibility:hidden for this. */
+.sr-only {
+  position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
+  overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border-width: 0;
+}
+```
+
+```html
 <!-- Icon button — accessible name from aria-label -->
 <button aria-label="Close dialog"><svg>...</svg></button>
 
@@ -39,10 +49,11 @@ Organized by principle (POUR). Focus on AA criteria — the legal and practical 
 
 ### 1.2 Time-based Media
 
-- **1.2.1 Audio/Video (prerecorded) (A)** — provide captions for video, transcript for audio
-- **1.2.2 Captions (A)** — synchronized captions for all prerecorded audio content in video
-- **1.2.3 Audio Description (A)** — describe visual content not conveyed by audio track
-- **1.2.5 Audio Description (AA)** — audio description for all prerecorded video
+- **1.2.1 Audio-only and Video-only, prerecorded (A)** — transcript for audio-only; transcript or audio track for video-only
+- **1.2.2 Captions, prerecorded (A)** — synchronized captions for prerecorded video with audio
+- **1.2.3 Audio Description or Media Alternative, prerecorded (A)** — describe visual content not conveyed by the audio track, or provide a full text alternative
+- **1.2.4 Captions, live (AA)** — captions for live audio in synchronized media
+- **1.2.5 Audio Description, prerecorded (AA)** — audio description for all prerecorded video
 
 ### 1.3 Adaptable
 
@@ -64,6 +75,8 @@ Organized by principle (POUR). Focus on AA criteria — the legal and practical 
   <h2>Section</h2>
     <h3>Subsection</h3>
 ```
+
+**1.3.4 Orientation (AA)** — do not lock the display to portrait or landscape unless essential
 
 **1.3.5 Identify Input Purpose (AA)**
 
@@ -87,7 +100,11 @@ Organized by principle (POUR). Focus on AA criteria — the legal and practical 
 <span class="error"><svg aria-hidden="true">...</svg> Error: email is required</span>
 ```
 
+**1.4.2 Audio Control (A)** — audio that plays automatically for more than 3 seconds needs a pause, stop, or independent volume control
+
 **1.4.3 Contrast (Minimum) (AA)** — 4.5:1 normal text, 3:1 large text
+
+**1.4.5 Images of Text (AA)** — use real text, not images of text, unless essential (logos)
 
 **1.4.4 Resize Text (AA)** — content usable at 200% zoom, no horizontal scrolling
 
@@ -113,14 +130,13 @@ Organized by principle (POUR). Focus on AA criteria — the legal and practical 
 
 **2.1.2 No Keyboard Trap (A)** — user can Tab away from every component
 
-```html
-<!-- Modal — trap focus but allow Escape to close -->
-<dialog>
-  <!-- Focus cycles within dialog -->
-  <!-- Escape closes dialog -->
-  <!-- Focus returns to trigger on close -->
-</dialog>
-```
+Modal dialogs: focus stays inside while open, Escape closes, focus returns to the trigger on close. Use `<dialog>` with `showModal()`; see [aria-patterns.md](aria-patterns.md#dialog-modal).
+
+### 2.2 Enough Time and 2.3 Seizures
+
+- **2.2.1 Timing Adjustable (A)** — time limits can be turned off, adjusted, or extended (this includes auto-dismissing toasts that carry information)
+- **2.2.2 Pause, Stop, Hide (A)** — moving, blinking, or auto-updating content that lasts over 5 seconds can be paused
+- **2.3.1 Three Flashes or Below Threshold (A)** — nothing flashes more than three times per second
 
 ### 2.4 Navigable
 
@@ -146,6 +162,8 @@ Organized by principle (POUR). Focus on AA criteria — the legal and practical 
 
 **2.4.3 Focus Order (A)** — logical tab order matches visual order
 
+**2.4.5 Multiple Ways (AA)** — more than one way to locate a page (navigation plus search, sitemap, or links)
+
 **2.4.6 Headings and Labels (AA)** — headings and labels describe purpose
 
 **2.4.7 Focus Visible (AA)** — keyboard focus indicator is visible
@@ -167,9 +185,17 @@ Organized by principle (POUR). Focus on AA criteria — the legal and practical 
 
 ### 2.5 Input Modalities
 
+**2.5.1 Pointer Gestures (A)** — multipoint or path-based gestures (pinch, swipe) have a single-pointer alternative
+
+**2.5.2 Pointer Cancellation (A)** — trigger actions on pointer up, not down, so a press can be aborted
+
+**2.5.3 Label in Name (A)** — the accessible name contains the visible label text. The usual failure is an `aria-label` that differs from the visible text, which breaks voice control
+
+**2.5.4 Motion Actuation (A)** — shake or tilt actions have a control alternative and can be disabled
+
 **2.5.7 Dragging Movements (AA) [NEW in 2.2]** — provide non-dragging alternative (buttons to reorder)
 
-**2.5.8 Target Size (Minimum) (AA) [NEW in 2.2]** — interactive targets at least 24x24 CSS pixels (44x44 recommended)
+**2.5.8 Target Size (Minimum) (AA) [NEW in 2.2]** — interactive targets at least 24x24 CSS pixels (AA minimum, with spacing exceptions); 44x44 is a recommendation (the AAA criterion 2.5.5)
 
 ---
 
@@ -194,6 +220,10 @@ Organized by principle (POUR). Focus on AA criteria — the legal and practical 
 **3.2.1 On Focus (A)** — no context change on focus (no auto-submit, no navigation)
 
 **3.2.2 On Input (A)** — no unexpected context change on input unless user is warned
+
+**3.2.3 Consistent Navigation (AA)** — repeated navigation keeps the same relative order across pages
+
+**3.2.4 Consistent Identification (AA)** — components with the same function have the same label and icon everywhere
 
 **3.2.6 Consistent Help (A) [NEW in 2.2]** — if help mechanisms (contact info, chat, FAQ links) appear on multiple pages, they must be in the same relative order
 
@@ -236,8 +266,10 @@ Organized by principle (POUR). Focus on AA criteria — the legal and practical 
 <!-- Search results count announced automatically -->
 <div role="status" aria-live="polite">42 results found</div>
 
-<!-- Toast notification -->
-<div role="alert">Item saved successfully</div>
+<!-- Success toast — polite status, not an alert -->
+<div role="status">Item saved successfully</div>
+
+<!-- Use role="alert" only for urgent, time-critical errors -->
 ```
 
 ---

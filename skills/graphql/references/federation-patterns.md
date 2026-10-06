@@ -1,6 +1,6 @@
 # Federation Patterns
 
-Subgraph design, entity resolution, migration patterns, and production architecture. Examples use Apollo Federation v2 directives — the most widely adopted federation implementation. Alternative routers (Cosmo, Grafbase) support the same directive syntax.
+Subgraph design, entity resolution, migration patterns, and production architecture. Examples use Apollo Federation v2 directives as the worked example; several other routers implement the same directive syntax. Check the project's router and subgraph library versions before copying configuration.
 
 ---
 
@@ -73,6 +73,8 @@ type CreateUserPayload {
 ```graphql
 extend schema @link(url: "https://specs.apollo.dev/federation/v2.5",
   import: ["@key", "@external", "@requires"])
+
+# Money, DateTime, OrderItem, and OrderConnection are defined in this subgraph (omitted here)
 
 type Query {
   order(id: ID!): Order
@@ -178,49 +180,37 @@ Tells the router: "When you fetch this Review, I can also give you the author's 
 ### Reference Resolver Pattern
 
 ```typescript
-// Users subgraph — resolve User entity by key
+// Users subgraph — resolve a User entity from its key fields
 const resolvers = {
   User: {
     __resolveReference(ref: { id: string }, ctx) {
-      // ref contains only the @key fields
-      return ctx.dataSources.users.findById(ref.id)
-    },
-  },
-}
-
-// Batch resolution (performance critical)
-const resolvers = {
-  User: {
-    __resolveReference: async (refs, ctx) => {
-      // refs is an array when using batch entity resolution
-      const ids = refs.map(ref => ref.id)
-      const users = await ctx.dataSources.users.findByIds(ids)
-      // Return in same order as refs
-      return refs.map(ref => users.find(u => u.id === ref.id))
+      // ref contains only the @key fields; called once per representation
+      return ctx.loaders.user.load(ref.id)   // batched by the per-request loader below
     },
   },
 }
 ```
 
-### DataLoader in Federation
+The portable way to batch entity resolution is a per-request loader behind the per-entity resolver. Some subgraph libraries also accept a list-based reference resolver; use it only if the project's library documents it.
+
+### Per-Request Loader for Entities
 
 ```typescript
-// Per-request DataLoader for entity resolution
 function createContext({ req }) {
   return {
-    dataSources: {
-      users: new UsersDataSource(),
-    },
+    viewer: authenticate(req),
     loaders: {
-      user: new DataLoader(async (ids: string[]) => {
-        const users = await db.users.findMany({ where: { id: { in: ids } } })
-        const userMap = new Map(users.map(u => [u.id, u]))
-        return ids.map(id => userMap.get(id) || null)
+      user: new DataLoader(async (ids: readonly string[]) => {
+        const users = await db.users.findMany({ where: { id: { in: [...ids] } } })
+        const byId = new Map(users.map(u => [u.id, u]))
+        return ids.map(id => byId.get(id) ?? null)
       }),
     },
   }
 }
 ```
+
+Entity resolution is an access path: apply the same authorization as the subgraph's own root fields.
 
 ---
 
@@ -265,14 +255,16 @@ headers:
           named: "authorization"
 
 cors:
-  allow_any_origin: false
-  origins:
-    - https://app.example.com
+  policies:
+    - origins:
+        - https://app.example.com
 
 limits:
-  max_depth: 15
-  max_height: 200
-  max_aliases: 30
+  router:
+    max_depth: 15
+    max_height: 200
+    max_aliases: 30
+    max_root_fields: 20
 
 traffic_shaping:
   all:
@@ -287,6 +279,7 @@ telemetry:
   exporters:
     tracing:
       otlp:
+        enabled: true
         endpoint: http://otel-collector:4317
 ```
 

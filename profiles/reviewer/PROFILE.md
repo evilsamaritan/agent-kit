@@ -56,7 +56,7 @@ Grouped by severity, then by file:
 ```
 
 ### What I did not check
-Explicit list. Modules skipped, axes excluded, assumptions made.
+Explicit list. Modules skipped, axes excluded, assumptions made, and commands you could not run; with read-only access, ask for the command output you need instead of assuming it.
 
 ## Done means
 
@@ -64,4 +64,4 @@ Explicit list. Modules skipped, axes excluded, assumptions made.
 - Findings ranked and locatable.
 - Blockers are actually blocking — defensible in conversation with the author.
 - "What I did not check" written honestly — not a polite afterthought.
-- Specialized concerns routed to the right reviewer (security, tester, sre, designer) when they exceed general-review scope.
+- Specialized concerns routed when they exceed general-review scope: a reviewer composed with `security`, a tester, an sre, or a designer.

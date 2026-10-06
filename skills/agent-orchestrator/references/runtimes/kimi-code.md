@@ -1,6 +1,6 @@
 # Kimi Code CLI
 
-Sourced from the Kimi Code CLI documentation (plugins, agents, skills, tools pages) and the CLI 0.29.0 help, October 2026. Re-check field names against the installed version before relying on a detail.
+Sourced from the Kimi Code CLI documentation (plugins, agents, skills, tools, and command-reference pages), checked October 2026 against Kimi Code 2.1.x. Re-check field names against the installed version before relying on a detail.
 
 ## Contents
 
@@ -19,18 +19,18 @@ Sourced from the Kimi Code CLI documentation (plugins, agents, skills, tools pag
 ## Knowledge delivery
 
 - Skills are found in the plugin, in project `.kimi-code/skills/` and `.agents/skills/`, in user directories, and in `extra_skill_dirs`; project skills take priority over user ones. Users invoke one with `/skill:<name>`; the model loads one by its `description` and `whenToUse`.
-- Kimi reads `name`, `description`, `when_to_use`, `disable-model-invocation`, and `arguments`, and ignores Claude-only fields. Dynamic shell context (`` !`cmd` ``) is not supported. `$ARGUMENTS` and `$N` are substituted.
-- A custom sub-agent has no preload field. Kimi does not namespace plugin skills and its `Skill` tool looks up bare names, with project skills ahead of user, extra, and plugin ones. Generated bodies list each selected skill by bare name to load with `Skill`, include `${skills}` for the skill index (it adds install locations at run time), and include `${agents_md}` for project instructions.
+- Kimi documents `name`, `description`, `type`, `whenToUse` (aliases `when-to-use` and `when_to_use`), `disableModelInvocation`, and `arguments`, and ignores other fields, Claude-only ones included. Dynamic shell context (`` !`cmd` ``) is not documented; do not rely on it. `$ARGUMENTS`, `$0`/`$1` positional arguments, and `$<name>` named arguments are substituted. The `Skill` tool calls only skills of `type = "inline"`.
+- A custom sub-agent has no preload field. Kimi documents plugin skills as registered under the plugin namespace (for example `/skill:<plugin>:<skill>`) and ranks them below project and user skills; how the `Skill` tool resolves a bare name for a namespaced plugin skill is not documented. Generated bodies list each selected skill by bare name to load with `Skill`, include `${skills}` for the skill index (it adds the loadable names and install locations at run time), and include `${agents_md}` for project instructions. When a bare name does not resolve, use the name the `${skills}` index shows, or install the library through `extra_skill_dirs`.
 
 ## Custom agents
 
 - Generated targets live in `.kimi-code/agents/<name>.md`, which outranks user, extra, and plugin agents. Agent Kit does not also write `.agents/agents/`.
 - The Markdown body replaces the whole system prompt of a delegated agent. That is why generated bodies restore project context and require a self-contained final message.
-- Kimi substitutes `${base_prompt}`, `${skills}`, `${agents_md}`, `${cwd}`, `${cwd_listing}`, `${os}`, `${shell}`, `${now}`, `${plugin_sections}`, and `${additional_dirs_info}` in agent bodies; other `${...}` text stays verbatim. The renderer refuses profile text that would be substituted.
+- Kimi substitutes a fixed set of `${...}` template variables in agent bodies (the renderer keeps the list in `KIMI_TEMPLATE_VARIABLES`, `scripts/profile-runtimes/kimi.mjs`); other `${...}` text stays verbatim. The renderer refuses profile text that would be substituted.
 - Frontmatter has `name`, `description`, `whenToUse`, `tools`, `disallowedTools`, `subagents`, and `override`. There is no model or effort field: the composition's effort is not applied, and a model is chosen per `Agent` call only when a subagent model pool is configured.
-- `tools` is always an explicit allowlist derived from access; omitting it would grant every tool. An allowlist is not a filesystem sandbox, and sub-agents inherit the main agent's permission rules.
+- `tools` is always an explicit allowlist derived from access; omitting it (or a lone `*`) grants every tool, and `tools: []` disables all. `tools` and `disallowedTools` shape the tools shown to the model and are checked again before execution, but they are not a filesystem sandbox; sub-agents inherit the main agent's permission rules.
 - The built-in agents `coder`, `explore`, and `plan` cannot be replaced without `override: true`, which Agent Kit never writes; the materializer rejects those names for Kimi targets.
-- CLI 0.29.0 marks `--agent` and `--agent-file` as v2-engine only. If custom agents are not available in the user's engine, use the fallback.
+- `--agent` and `--agent-file` choose which agent drives a new session; they apply only when starting a session (not with `--session` or `--continue`) and are mutually exclusive. Delegation through `Agent` is separate; if the client's `Agent` cannot select project agents, use the fallback.
 
 ## Delegation tools
 
@@ -40,4 +40,4 @@ Sourced from the Kimi Code CLI documentation (plugins, agents, skills, tools pag
 
 ## Fallback
 
-When a project agent is missing or stale, call `Agent` with `subagent_type: coder` (or `explore` for read-only research) and the brief from `materialize-agents.mjs --brief NAME` plus the bounded assignment. Of the built-in types, `explore` is documented as read-only.
+When a project agent is missing or stale, call `Agent` with `subagent_type: coder` (or `explore` for read-only research) plus the bounded assignment and either the brief from `materialize-agents.mjs --brief NAME --runtime kimi` (configured agents only) or the selected profile reference with the exact skill names. Of the built-in types, `explore` is documented as read-only.

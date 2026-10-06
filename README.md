@@ -8,7 +8,7 @@ Agent Kit is a reusable library of software-engineering skills, profession profi
 Agent Kit library                  Project source                    Native runtime
 skills/                            .agent-kit/agents.json            .claude/agents/*.md
 profiles/                 +        selected profiles + skills  →     .codex/agents/*.toml
-role templates                                                     .kimi-code/agents/*.md
+                                                                     .kimi-code/agents/*.md
 ```
 
 - A **profile** is a reusable profession such as developer, tester, or reviewer.
@@ -23,14 +23,13 @@ The same project composition generates Claude and Codex agents, and Kimi Code ag
 ```text
 profiles/<name>/
 ├── PROFILE.md                    # portable profession behavior
-├── claude.yaml                   # Claude defaults
-├── codex.yaml                    # Codex defaults
-└── kimi.yaml                     # optional Kimi defaults
+└── claude.yaml, codex.yaml, kimi.yaml   # optional runtime overlays
 
 skills/<name>/                    # shared knowledge and meta skills
 skills/agent-creator/             # project materialization + profile maintenance
 skills/agent-orchestrator/        # native task-time composition
 
+.claude-plugin/plugin.json        # Claude Code plugin manifest
 .claude-plugin/marketplace.json   # shared repository marketplace catalog
 .codex-plugin/plugin.json         # Codex plugin manifest
 .kimi-plugin/plugin.json          # Kimi Code plugin manifest
@@ -71,7 +70,7 @@ Installing the plugin exposes skills and profile recipes. It does not register p
 
 ## Upgrading from 3.x
 
-4.0 removes the bundled Claude agents, replaces the `frontend`/`backend` profiles with `developer`, renames the `visualization` skill to `playground`, and stops pinning models in profiles. Follow the upgrade notes in [CHANGELOG.md](CHANGELOG.md#upgrading-to-40), or ask `agent-creator` to migrate the project: it rewrites `.agent-kit/agents.json` for the new profiles and skills, and `materialize-agents.mjs --dry-run` shows what each agent gains or loses.
+4.0 removes the bundled Claude agents, replaces the `frontend`/`backend` profiles with `developer`, renames the `visualization` skill to `playground`, and stops pinning models in profiles. In the 4.0 release candidates the `security` profile became the `reviewer` profile with the `security` skill, and the Claude-only `hook-creator` and `update-config` skills were removed. Follow the upgrade notes in [CHANGELOG.md](CHANGELOG.md#upgrading-to-40), or ask `agent-creator` to migrate the project: it rewrites `.agent-kit/agents.json` for the new profiles and skills, and `materialize-agents.mjs --dry-run` shows what each agent gains or loses.
 
 ## Configure agents for a project
 
@@ -134,17 +133,13 @@ Ask `agent-orchestrator` for the outcome rather than spelling out runtime mechan
 Implement OAuth login. Choose the team, split the work, and use the native workflow for this runtime.
 ```
 
-The orchestrator discovers the project's materialized agents, chooses the minimum useful composition, assigns non-overlapping work, and delegates through Claude or Codex directly. If a client cannot apply named custom-agent config, it passes the same profile and skill composition to a generic native subagent as a capability-gated fallback. It does not create a proprietary `team.json` or agent runtime.
+The orchestrator discovers the project's materialized agents, chooses the minimum useful composition, assigns non-overlapping work, and delegates through Claude Code, Codex, or Kimi Code directly. If a client cannot apply named custom-agent config, it passes the same profile and skill composition to a generic native subagent as a capability-gated fallback. It does not create a proprietary `team.json` or agent runtime.
 
 ## Create and share skills
 
-Use `skill-creator` or ask “create a skill for X”. Skills live once under `skills/<name>/` and are exposed by both plugin manifests.
+Use `skill-creator` or ask “create a skill for X”. Skills live once under `skills/<name>/` and are exposed by all three plugin manifests.
 
-Individual skills can also be installed with:
-
-```bash
-npx skills add agent-kit/<skill-name>
-```
+Individual skills can also be installed with `npx skills add evilsamaritan/agent-kit --skill <skill-name>`. A standalone skill loses links to its siblings; `agent-creator` and `agent-orchestrator` need the full plugin.
 
 Claude targets preload library skills by qualified id (`agent-kit:<skill>`), which Claude Code resolves exactly and skips with a debug-log warning when the plugin is missing. Creating the first native agent directory may require restarting the host session.
 
@@ -165,7 +160,7 @@ Role templates under `skills/agent-creator/templates/` describe reusable behavio
 bash scripts/validate-repository.sh
 ```
 
-The validator checks plugin manifests, skill metadata, profile canon, generated package drift, unit tests for settings resolution and runtime formats, and a temporary project materialization for native Claude and Codex targets, including freshness cases.
+The validator checks plugin manifests, skill metadata, profile canon, generated package drift, unit tests for settings resolution and runtime formats, and a temporary project materialization for native Claude, Codex, and Kimi targets, including freshness cases.
 
 ## License
 

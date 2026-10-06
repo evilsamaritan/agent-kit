@@ -1,150 +1,112 @@
-# Profiling Patterns & Operational Performance
+# Profiling, Benchmarking, and Load Testing Method
 
-Covers the review protocol, modern observability tooling, and capacity planning.
+How to produce trustworthy performance evidence. The review protocol is in [../workflows/review.md](../workflows/review.md). Always-on production profiling infrastructure (agents, pipelines, trace correlation) is owned by `observability`.
 
 ## Contents
 
-- [Review Protocol](#review-protocol)
-- [Modern Observability](#modern-observability)
-- [Capacity Planning](#capacity-planning)
-- [New Project Setup](#new-project-setup)
+- [Profile types](#profile-types)
+- [Reading a flame graph](#reading-a-flame-graph)
+- [Benchmarking](#benchmarking)
+- [Load testing](#load-testing)
+- [Noise control](#noise-control)
+- [Capacity planning](#capacity-planning)
+- [Tool selection](#tool-selection)
+- [Tools by runtime](#tools-by-runtime)
 
 ---
 
-## Review Protocol
+## Profile types
 
-### Phase 1: Discovery
+Pick the type that matches the symptom.
 
-Before analyzing anything, map the system.
+| Profile | Question it answers | Use when |
+|---------|---------------------|----------|
+| CPU (on-CPU sampling) | Which code burns CPU? | CPU high, throughput capped |
+| Wall-clock | Where does elapsed time go, on CPU or not? | Latency high, CPU low |
+| Off-CPU | What is the thread waiting for (I/O, locks, scheduler)? | Threads blocked, low CPU |
+| Allocation / heap | Who allocates, what is retained? | Memory growth, GC pressure, leaks |
+| Lock / mutex contention | Which locks serialize work? | Throughput flat as cores grow |
 
-1. **Identify the runtime** — language, runtime version, framework
-2. **Identify the infrastructure** — databases, message queues, caches, load balancers, CDNs
-3. **Map the data flow** — ingress to egress with every hop annotated
-4. **Classify hot paths** — what runs per-request, per-second, per-minute, on-demand
-5. **Identify SLOs** — what latency/throughput targets exist (or should exist)
+Profiling with a sampling profiler is cheap enough for production at a low sampling rate; instrumenting profilers distort short functions. Profile with release-like build settings and realistic data, or the hotspots will differ.
 
-### Phase 2: Bottleneck Analysis
+## Reading a flame graph
 
-Work through each layer. Load `references/bottleneck-checklist.md` for the full checklist.
+- Width is the share of samples (time), not elapsed order. The x-axis is not a timeline.
+- Look for wide frames near the top (self time) and wide plateaus: that is where time is spent. Narrow, tall stacks are just deep call chains.
+- Compare two profiles (before and after, good and bad) with a differential view instead of eyeballing.
+- Check for missing or merged frames: inlining, missing symbols or frame pointers, and runtime frames can hide or misattribute cost.
+- Sampling is statistical: a function with a handful of samples is noise.
+- Work top-down from the widest application frame; ignore wide frames you cannot change unless you can avoid calling them.
 
-| Layer | Key Questions |
-|-------|--------------|
-| **Compute** | Blocking the event loop / main thread? CPU-bound work on the critical path? Thread pool / goroutine / async task saturation? |
-| **Memory** | Unbounded growth? GC pressure? Large allocations in hot paths? Missing object pooling? |
-| **I/O & Network** | Connection pooling configured? Keep-alive enabled? DNS cached? TLS session reuse? Timeouts set? |
-| **Database** | Indexes on query columns? N+1 patterns? Connection pool sized correctly? Query plans use index scans? |
-| **Message Queues** | Producer batching configured? Consumer parallelism matches partition count? Backpressure handled? |
-| **Caching** | Cache hit ratio measured? Eviction policy appropriate? Cache stampede protection? TTL aligned with data freshness needs? |
+## Benchmarking
 
-### Phase 3: Report
+- **Warm up.** Runtimes with JIT, caches, connection pools, and lazy loading need warm-up before measurement; measure cold start separately.
+- **Run many iterations** and report the distribution (median and spread), not one run or only the mean.
+- **Compare against noise.** Repeat the baseline several times; a change smaller than run-to-run variance is not a result. Use the benchmark tool's statistical comparison where it has one.
+- **Defeat the optimizer in micro-benchmarks:** make sure the result is used, inputs are not constant-folded, and the work is not eliminated.
+- **Use realistic inputs and sizes.** A micro-benchmark on tiny data hides cache and allocation effects. Confirm any micro-level win with an end-to-end measurement.
+- **One variable at a time**, same machine, same build mode.
 
-Produce a structured assessment. Adapt sections to what is relevant.
+## Load testing
 
-```
-## Performance Assessment
+1. **State the question:** capacity limit, regression check, soak behavior, spike behavior.
+2. **Model the workload:** request mix, data distribution, payload sizes, think time, and ramp, from production data where possible.
+3. **Choose the arrival model.**
+   - *Closed model* (fixed number of virtual users, each waits for its response): under overload the generator slows down with the system and under-records latency. This is coordinated omission.
+   - *Open model* (requests arrive at a target rate regardless of responses): matches independent real users. Measure latency from the intended send time.
+4. **Warm up, then measure steady state.** Drop the ramp from the numbers.
+5. **Record latency as a histogram** (for example HDR-style) and compute percentiles from it. Never average percentiles across runs or instances and never report only the mean; merge histograms instead.
+6. **Make sure the generator is not the bottleneck:** watch its CPU, network, and connection limits; use several generators if needed.
+7. **Watch the system under test,** not just client-side latency: saturation of each resource, queue depth, error rate, GC, pool wait.
+8. **Test types:** baseline (expected load), stress (find the knee and the failure mode), soak (hours; leaks and drift), spike (sudden surge and recovery).
+9. **Use a production-like environment and data volume.** An empty database or a single instance lies.
 
-### Summary
-[2-3 sentences: overall posture, critical bottleneck, risk level]
+## Noise control
 
-### Data Flow Diagram
-[ASCII diagram with latency annotations at each hop]
+- Pin or record: build, runtime flags, instance type, data set, and load shape.
+- Avoid noisy neighbors: dedicated or quiet hosts, stable CPU frequency, no other jobs.
+- Repeat runs and interleave A/B runs to cancel drift over time.
+- Keep timing sources, logging, and metrics overhead the same in both arms.
+- If results disagree between runs, find the source of variance before drawing conclusions.
 
-### Hot Path Analysis
-| Path | Frequency | Operations | Est. Latency | Bottleneck |
-|------|----------|-----------|-------------|-----------|
-
-### Findings
-| # | Area | Severity | Finding | Location | Recommendation |
-|---|------|----------|---------|----------|----------------|
-
-### Optimization Opportunities
-| # | Area | Current | Optimized | Effort | Impact |
-|---|------|---------|-----------|--------|--------|
-
-### Recommendations
-1. [Priority order — highest impact, lowest effort first]
-```
-
----
-
-## Modern Observability
-
-### Continuous Profiling
-
-Always-on, low-overhead profiling in production (< 1% CPU overhead). Flame graphs aggregated over time reveal chronic bottlenecks that load tests miss.
+## Capacity planning
 
 ```
-When to use continuous profiling:
-├── Performance regression detected but load test cannot reproduce → continuous profiling shows production-specific patterns
-├── Cost optimization needed → identify which code paths consume the most CPU/memory in production
-├── Intermittent slowdowns → aggregate flame graphs across time windows to find chronic hotspots
-└── Multi-tenant variance → compare profiles between tenants to find outlier behavior
+1. Measure current load (requests/sec, CPU, memory, I/O) and its trend
+2. Find the resource that saturates first, and the load at which it does (the knee of the latency curve)
+3. Decide headroom: peak load, failure of one failure domain, and growth lead time
+4. Choose: scale vertically, horizontally, or reduce waste (a profile-driven fix)
 ```
 
-Continuous profiling integrates with OpenTelemetry via the OTel Profiling protocol, enabling correlation of profiles with traces and metrics in a single pipeline.
+Track for each resource: utilization, saturation (queue depth, wait), and errors, plus traffic trend.
 
-| Approach | Instrumentation | Best For |
-|----------|----------------|----------|
-| Agent-based (push model) | Language SDK in application | Per-language CPU, allocation, lock profiling |
-| eBPF-based (pull model) | Kernel-level, zero app changes | Platform-wide, polyglot environments |
-| IDE-integrated | Development-time profiling | Local optimization loops |
-
-### eBPF Observability
-
-Kernel-level tracing without application changes. Use when you need to see what the runtime cannot tell you. eBPF shifts profiling responsibility from application teams to platform teams.
-
-| Use Case | Tool |
-|----------|------|
-| TCP latency, retransmits | `tcplife`, `tcpretrans` (bcc) |
-| Disk I/O latency | `biolatency`, `biosnoop` (bcc) |
-| DNS resolution time | `gethostlatency` (bcc) |
-| Off-CPU analysis | `offcputime` (bcc), `perf sched` |
-| General tracing | `bpftrace` one-liners |
-| GPU profiling | eGPU (extending eBPF to GPU workloads) |
-
----
-
-## Capacity Planning
+## Tool selection
 
 ```
-Capacity model:
-  1. Measure current load (requests/sec, CPU%, memory, I/O)
-  2. Identify the saturating resource (first to hit limit)
-  3. Model growth: when does saturating resource hit 80%?
-  4. Plan: scale vertically (bigger), horizontally (more), or optimize (less waste)
-
-Key metrics to track:
-  - Utilization: what % of capacity is in use
-  - Saturation: is work queuing (queue depth > 0)
-  - Errors: is the system rejecting work
-  - Traffic: request rate trend over time (USE + RED methods)
+Need to profile or load test. What constrains you?
+├── Production, cannot modify the app, polyglot hosts → system-wide sampling profiler (kernel-level)
+├── Need allocations or locks for one runtime → that runtime's built-in or agent profiler
+├── Need trace-level attribution across services → distributed tracing first (see `observability`)
+├── Development loop → IDE or CLI profiler on a release-like build
+├── Load: scriptable and CI-friendly → code-based load tool with open-model support
+├── Load: very large scale → distributed generators
+└── Load: needs browser behavior → browser-driven load or synthetic tests
 ```
 
----
+Check that a load tool supports an open arrival model and histogram output before relying on its percentiles.
 
-## New Project Setup
+## Tools by runtime
 
-When setting up performance infrastructure from scratch:
+Volatile: tool names and flags change between versions. Verify against the project's runtime version.
 
-```
-Profiling tool selection:
-├── Need vendor-neutral telemetry? → OpenTelemetry-based pipeline
-├── Kubernetes-native, zero instrumentation? → eBPF-based profiler
-├── Deep runtime profiling (allocations, locks)? → Language-specific agent
-└── Development-time only? → IDE-integrated or CLI profiler
+| Runtime | Common profiling tools |
+|---------|------------------------|
+| Node.js | built-in inspector, `--cpu-prof` and `--heap-prof`, `0x` |
+| JVM | JFR, async-profiler, GC logs |
+| Go | `pprof`, `runtime/trace` |
+| Rust | `perf`, `cargo flamegraph`, `tokio-console`, `heaptrack` |
+| Python | `cProfile`, `py-spy`, `memray`, `tracemalloc` |
+| .NET | `dotnet-trace`, `dotnet-counters`, PerfView |
+| Linux, any process | `perf`, bcc and `bpftrace` tools (disk, TCP, off-CPU) |
 
-Load testing tool selection:
-├── Need scriptable, CI-friendly tests? → Code-based load testing tool
-├── Need distributed load generation? → Cloud-based load testing service
-├── Simple HTTP benchmarking? → CLI benchmarking tool (wrk, hey, ab)
-└── Need to simulate browser behavior? → Browser-based load testing
-
-Metrics pipeline selection:
-├── Vendor-neutral, portable? → OpenTelemetry Collector + backend of choice
-├── Single-vendor simplicity? → Commercial APM with built-in metrics
-└── Self-hosted, open source? → Time-series DB + visualization layer
-```
-
-Establish baseline metrics before optimizing. You cannot improve what you do not measure.
-
-Use framework-native benchmarking for hot path micro-benchmarks (e.g., `cargo bench`, `go test -bench`, `vitest bench`).
+Framework-native benchmarks for hot-path micro-benchmarks: `cargo bench`, `go test -bench`, and the test framework's benchmark mode elsewhere.

@@ -1,172 +1,137 @@
 ---
 name: documentation
-description: "Write or review technical text. Use for Markdown plans, architecture docs, tutorials, READMEs, ADRs, references, runbooks, changelogs, and onboarding."
+description: "Write or review technical documents: pick the document type, structure it for its reader, keep it true. Use for READMEs, tutorials, how-tos, references, Markdown plans, onboarding guides, documenting an agreed design, ADR placement, changelog wording, and docs-as-code. Do NOT use for deciding architecture (architecture) or API contracts (api-design)."
 user-invocable: true
 ---
 
 # Technical Documentation
 
-Patterns for writing and auditing technical documentation. Vendor-neutral. This skill carries **what format fits what purpose**; the *how to write for a reader* workflow lives in the `writer` role-template.
+Choose the document type, write it for one reader and one task, and keep it true as the code changes. Vendor-neutral. Neighbouring skills own the content of several document kinds; this skill owns their form, placement, and writing quality.
 
 ## Scope and boundaries
 
 **This skill covers:**
-- Diátaxis framework — four doc modes and when to use each
-- README conventions by project type (library, service, monorepo, CLI)
-- ADR (Architecture Decision Record) format
-- Runbook and playbook structure (for on-call)
-- Changelog discipline — Keep a Changelog conventions
-- .env.example completeness audit
-- API reference doc patterns (handoff to `api-design` for schemas)
-- Onboarding guide structure
+- Document type selection (Diátaxis modes plus plans, READMEs, onboarding)
+- Writing for the reader — structure, wording, examples that run
+- README conventions by project type
+- Placement, linking, and lifecycle of ADRs and other repository docs
+- Changelog wording quality
+- Configuration documentation (`.env.example`, config files, flags)
 - Docs-as-code practices
-- AI-readable docs (llms.txt, tool-use docs)
 
-**This skill does not cover:**
-- API schema / OpenAPI / GraphQL design → `api-design`
-- Semver / release notes cadence → `release-engineering`
-- Accessibility-specific doc conventions → `accessibility`
-- SEO for public docs → `seo`
+**Owned elsewhere — point there:**
 
-## Diátaxis — four doc modes
+| Content | Owner |
+|---|---|
+| Whether to record a decision, its technical content, the ADR template | `architecture` ([adr-template.md](../architecture/references/adr-template.md)) |
+| API schemas, OpenAPI, GraphQL | `api-design`, `graphql` |
+| How changelog entries are produced (changesets, generated notes), versioning (wording quality of changelog entries and migration guides stays in documentation) | `release-engineering` |
+| Runbook template tied to alerts | `observability` ([alerting-patterns.md](../observability/references/alerting-patterns.md#runbook-structure)); incident practice in `reliability` |
+| `llms.txt` and public-docs findability | `seo` |
+| Descriptions of LLM-callable tools and skills | `skill-creator` |
+| Diagram notation and source | `diagrams` |
+| Accessibility of the published docs | `accessibility` |
 
-Every technical document fits one of four shapes. Mixing shapes in one doc makes it serve none well.
+## Decision tree — which document
 
-| mode | reader | purpose | shape |
-|------|--------|---------|-------|
-| **Tutorial** | new learner | learning by doing | step-by-step, guaranteed-working, no branching |
-| **How-to** | user with a specific goal | solve a named problem | goal-oriented, assumes context, lists steps |
-| **Reference** | user looking something up | exact lookup | terse, complete, skim-optimized (tables, lists) |
-| **Explanation** | user building understanding | clarify why and how | prose, diagrams, tradeoffs, rationale |
+```text
+Who reads it, and what are they doing?
+├─ learning, new to the system ............ Tutorial: one guaranteed path, no branches
+├─ has a goal, knows the basics ........... How-to: goal in the title, steps, assumes context
+├─ looking up an exact fact ................ Reference: complete, terse, generated where possible
+├─ building understanding of why ......... Explanation: prose, trade-offs, diagrams
+├─ deciding or executing upcoming work ... Plan: goal, scope, steps with owners and checks, open questions
+├─ arriving at the repository ............ README: by project type (below)
+├─ joining the team or codebase .......... Onboarding: a tutorial to the first change, then links to how-tos and references
+├─ recording a consequential decision .... ADR: content from `architecture`; placement below
+├─ on call for an alert .................. Runbook: template in `observability`; lives next to the alert config
+└─ upgrading between versions ............ Changelog entry or migration guide (how-to)
+```
 
-**Rule:** name the mode of every document you write. If you can't, split the document.
+**Rule:** name the type of every document you write. If you cannot, the document mixes types; split it.
+
+## Writing for the reader
+
+1. **Name the reader and the task** before writing. Everything that does not serve that task moves elsewhere or goes.
+2. **Lead with the answer.** The first paragraph states what the reader gets or must do; background follows.
+3. **One term, one meaning.** Use the project's and the industry's terms; define a new one once.
+4. **Examples run.** Commands and code copy-paste into working results, except for marked secrets.
+5. **State defaults and assumptions** explicitly; never imply them.
+6. **Plain voice.** No marketing adjectives ("seamless", "powerful"); say what it does.
 
 ## README conventions — by project type
 
-### Library
-1. What it does — one sentence.
-2. Install + basic usage (runnable snippet).
-3. Links to API reference, migration guides, repo.
-4. License, maintainer, support channel.
+| Type | Contents, in order |
+|---|---|
+| Library | what it does (one sentence); install and a runnable snippet; links to reference, migration guides; license and support |
+| Service | what it serves; run locally and run tests; architecture pointer (ADR or diagram); deploy, monitor, debug; on-call link |
+| Monorepo | packages with one line each; workspace bootstrap; conventions (branching, commits, CI); per-package READMEs for depth |
+| CLI tool | what it does; install and one example; command reference generated from `--help`; configuration (env vars, files) |
 
-### Service
-1. What it serves — one sentence.
-2. Quick-start for a contributor (run locally, run tests).
-3. Architecture overview (pointer to ADR or diagram).
-4. Ops: how to deploy, monitor, debug.
-5. On-call / oncall link.
+## ADR placement
 
-### Monorepo
-1. What's in it — list packages with one-line each.
-2. Workspace setup (bootstrap command).
-3. Conventions (branching, commits, CI).
-4. Per-package README for depth.
+Keep ADRs where the project already keeps them. When none exists, use a `docs/adr/` directory beside the system they govern, one record per file, numbered as in the template (`ADR-NNN`). Never delete a record: when superseded, update its status and link both ways. Technical content, scope, and template: `architecture`.
 
-### CLI tool
-1. What it does.
-2. Install + one example.
-3. Full command reference (autogenerated from `--help`).
-4. Configuration (env vars, config files).
+## Changelog wording
 
-## ADR (Architecture Decision Record)
+`release-engineering` decides how entries are produced — changesets, generated release notes, or a maintained file. Whatever the source, entries and migration guides meet these rules:
 
-Format: Title, Status, Context, Decision, Consequences. One decision per record. Store under `docs/adr/` as `NNNN-<slug>.md`. Never delete; when superseded, update status and link forward.
+- **Describe the user-visible effect**, not the commit: "Fixed crash when a list has exactly 100 items", not `fix: off-by-one`.
+- **Flag breaking changes prominently** with the migration step, not inside a generic "Changed" list.
+- **Never rewrite released sections**; corrections go into a new entry.
+- **Link the change** (PR or issue) so a reader can find the detail.
 
-See canonical template: [architecture/references/adr-template.md](../architecture/references/adr-template.md).
+## Configuration documentation
 
-## Runbook structure
+A complete `.env.example` or config reference:
+- lists **every** setting the app reads, grouped (database, cache, auth, external services);
+- gives each a one-line purpose, required or optional, default, and an example value;
+- marks secrets with a placeholder — never a real value;
+- matches runtime: if the app fails without `FOO`, `FOO` is documented.
 
-For every paging alert, there should be a runbook that answers:
-
-1. **What is this alert?** Plain language + what signal triggered it.
-2. **What is the user impact?** If any.
-3. **Immediate mitigations** — first thing to try, second thing, third.
-4. **Diagnosis** — logs to check, dashboards to open, queries to run.
-5. **Escalation** — when to page the next tier, what info they'll need.
-6. **Post-resolution** — monitor for N minutes, file ticket, etc.
-
-Keep runbooks next to the alert config, not in a separate wiki that falls out of sync.
-
-## Changelog discipline
-
-Follow Keep a Changelog conventions:
-
-```
-## [Unreleased]
-### Added
-### Changed
-### Deprecated
-### Removed
-### Fixed
-### Security
-```
-
-Rules:
-- **Written for humans.** Not `fix: off-by-one in loop` — "Fixed crash when list is exactly 100 items".
-- **Released versions never edited.** Append, don't rewrite history.
-- **Linked to commits/PRs** at the bottom of each entry.
-- **Breaking changes flagged prominently.** Not hidden in the middle of "Changed".
-
-## .env.example audit
-
-A complete `.env.example`:
-- Lists **every** env var the app reads.
-- Documents each with a one-line comment: purpose + example value.
-- Flags secrets with `<REPLACE_ME>` or similar — never real values.
-- Groups related vars (DB, cache, auth, external APIs).
-- Matches real runtime — if the app crashes on missing `FOO`, `FOO` is in the example.
-
-## AI-readable docs
-
-### llms.txt
-- Plain-text / markdown summary at `/llms.txt` and `/llms-full.txt` that describes the site for LLMs.
-- Top-level: purpose, main sections, primary URLs.
-- Full: long-form content suitable for retrieval.
-
-### Tool-use descriptions
-- When writing descriptions for LLM-callable tools, write **trigger phrases** — the exact phrasing a user might say.
-- Include negative triggers ("do NOT use for…") to reduce over-triggering.
-- Keep descriptions under ~1000 characters; longer descriptions get truncated in practice.
+Field table and config-file patterns: [patterns.md](references/patterns.md#configuration-documentation-patterns).
 
 ## Docs-as-code
 
-- Docs live in the repo, next to the code they describe.
-- Docs are reviewed in PRs alongside the code change.
-- Build fails if docs break (dead links, missing anchors, broken examples).
-- Docs site rebuilt on every merge; searchable; versioned.
+- Docs live in the repository, next to the code they describe, and change in the same PR as that code.
+- CI checks links, anchors, and runnable examples; a broken doc fails the build.
+- Reference docs are generated from the source of truth (schema, doc comments, `--help`) instead of copied.
+- Published docs are rebuilt on merge, searchable, and versioned with the code.
 
 ## Context adaptation
 
-**As writer (the profession agent):** this is your home skill. Pair with the `writer` role-template for behavioral guidance.
+**As writer:** pick the type from the decision tree, apply the writing rules, check every example runs.
 
-**As implementer (shipping a feature):** docs are part of "done". At minimum: README update, changelog entry, .env.example update if needed.
+**As implementer (shipping a feature):** docs are part of "done": README or how-to update, a changelog entry in the project's format, configuration docs when a setting changes.
 
-**As reviewer (auditing docs):** check mode purity (no mixed tutorial/reference), freshness (dates in examples, versions), runnable examples, completeness of .env.example.
+**As reviewer:** check type purity (no tutorial that stops for reference tables), that examples run, that docs changed with the code, and that configuration docs match runtime.
 
-**As architect (documenting decisions):** `architecture` owns whether to record the decision, its technical content, and rationale; this skill owns repository-wide ADR conventions, placement, linking, and lifecycle. Record consequential choices whose context or trade-offs would otherwise be lost.
+**As architect:** `architecture` decides what is recorded and why; this skill places, links, and maintains it.
 
-**As operator (producing runbooks):** every alert gets a runbook before it goes to paging. No runbook → don't page.
+**As operator:** a paging alert needs a runbook before it pages; template in `observability`.
 
 ## Anti-patterns
 
 - **Aspirational documentation** — describing the system as it should be, not as it is.
-- **README novella** — 500-line README with everything. Split by audience.
-- **Updated-in-code, not in docs** — config option renamed in code but old name still in the README.
-- **No "last updated" date** — reader can't tell if the doc is current.
-- **Code examples that don't run** — a doc is broken if its code block doesn't copy-paste into working code.
-- **Tutorial with branching paths** — "if on macOS do X, else Y". That's two tutorials.
-- **Docs of docs** — meta-documentation about where to find docs, with no actual information.
-- **Marketing voice in technical docs** — "seamless", "elegant", "powerful". State what it does, skip the adjectives.
+- **README novella** — a 500-line README with everything. Split by reader and type.
+- **Updated in code, not in docs** — a renamed option still documented under the old name. Fix: docs change in the same PR; stale docs are caught by review and by link and example checks, not by a hand-edited date.
+- **Code examples that don't run** — a doc is broken if its code block does not copy-paste into working code.
+- **Tutorial with branching paths** — "on macOS do X, else Y" is two tutorials.
+- **Docs of docs** — pages about where documentation lives, with no information of their own.
+- **Copied reference** — hand-copied parameters or endpoints that drift from the source; generate or link instead.
 
 ## Related Knowledge
 
-- `diagrams` — notation choice, diagram source, and compilation for diagrams inside documents; this skill decides where the diagram goes and what the surrounding text says
-- `playground` — a separate explorable or themed web page built from the document and its diagram sources
-- `api-design` — API reference docs describe contracts defined here
-- `release-engineering` — changelog timing and versioning ties to release cadence
-- `seo` — public docs need findability
-- `accessibility` — docs themselves must be accessible (alt text, heading structure, color contrast)
+- `architecture` — decision content, ADR template, and the design an architecture doc describes
+- `diagrams` — notation, source, and compilation for diagrams inside documents; this skill decides where the diagram goes and what the surrounding text says
+- `playground` — a separate explorable web page built from the document and its diagram sources
+- `api-design` — API reference docs describe contracts defined there
+- `release-engineering` — changelog production, versioning, release notes cadence
+- `observability`, `reliability` — runbooks, alerts, incident practice
+- `seo` — findability of public docs, `llms.txt`
+- `skill-creator` — descriptions and triggers for skills and LLM-callable tools
+- `accessibility` — accessible published docs (alt text, heading structure, contrast)
 
 ## References
 
-- [patterns.md](references/patterns.md) — Diátaxis, README conventions, ADR format, runbook structure, audit checklists
+- [patterns.md](references/patterns.md) — documentation patterns and anti-patterns tables, configuration documentation (env vars, flags, config files), docs that machines and AI tools read well

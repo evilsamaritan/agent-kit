@@ -87,26 +87,14 @@ Keep identities, terminology, scope, and relative placement stable across them. 
 
 ## Drawing views directly
 
-Draw the selected views in the design document as diagram-as-code, text, or a host-native diagram. The `diagrams` skill owns notation choice, source conventions, and compilation; follow the project's diagram language (Mermaid, D2, or another) and use a specialized notation only for a capability the view needs.
-
-- Use stable IDs and label every relationship with its intent and direction.
-- Arrange the diagram so arrows follow one dominant direction; a view whose arrows must cross repeatedly is usually two views.
-- Do not force non-topological content into a graph language. Containment-only ownership, timelines, comparison matrices, and quantitative charts need a table, a text tree, or their own renderer.
-- Put a one-sentence takeaway next to each diagram. Do not replace the diagram with prose.
-- When a view will be handed to `playground`, that skill documents optional semantic categories for presentation. Categories are presentation metadata, not architecture; relationship labels and directions stay authoritative.
+Draw the selected views in the design document as diagram-as-code, text, or a host-native diagram. The `diagrams` skill owns notation choice, drawing rules ([core rules](../../diagrams/SKILL.md#core-rules)), and the text around a diagram ([source-contract.md](../../diagrams/references/source-contract.md#context-around-a-diagram)). Content that is not topological — containment-only ownership, timelines, comparison matrices — goes in a table or text tree. When a view will be handed to `playground`, presentation categories stay metadata; relationship labels and directions remain authoritative.
 
 ## View contract
 
-Every architecture view states:
+Beyond what `diagrams` requires next to every diagram (question, scope, status, takeaway), an architecture view states:
 
-- the question it answers and its audience;
-- scope and abstraction level;
-- current, target, or transition status;
-- element names, types, and short responsibilities;
-- relationship direction and intent;
-- relevant boundary or authority semantics;
+- relevant boundary or authority semantics: who owns which state, where trust changes;
 - which content is repository evidence, inference, proposal, or unknown;
-- a one-sentence takeaway;
 - its priority: primary, supporting, or appendix.
 
 ## Handoff to the playground skill

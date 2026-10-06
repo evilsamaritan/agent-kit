@@ -12,7 +12,7 @@
 
 ## Purpose
 
-`.agent-kit/agents.json` is a portable build recipe, not an agent runtime. It records which reusable profession profiles and knowledge skills a project wants. The materializer compiles it into native Claude and Codex files.
+`.agent-kit/agents.json` is a portable build recipe, not an agent runtime. It records which reusable profession profiles and knowledge skills a project wants. The materializer compiles it into native Claude, Codex, and (opt-in) Kimi Code files.
 
 ## Schema
 
@@ -86,6 +86,9 @@ Generated files carry an Agent Kit marker and `agent-kit-metadata` with a finger
 | `--check` | Fail on missing, changed, or orphaned targets; passes exactly when regeneration would write nothing |
 | `--check --agent NAME` | Freshness of one selected agent before delegating to it |
 | `--prune` | Delete generated targets no longer configured |
+| `--brief NAME --runtime HOST` | Print a generic-subagent brief for one configured agent, with project skills resolved the way HOST discovers them; writes nothing |
+
+`--agent` and `--brief` resolve skills only for the selected agent, so another agent's broken composition does not block them; a full run still validates every agent.
 
 A target generated before 4.0 has no metadata; its baseline is reported as unknown and compared by its parsed settings and body.
 

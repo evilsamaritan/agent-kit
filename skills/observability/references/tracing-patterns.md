@@ -2,6 +2,8 @@
 
 OpenTelemetry SDK setup, span attributes, sampling, context propagation, collector deployment, and instrumentation patterns.
 
+Check the project's SDK major version and semantic-convention version before copying any snippet here. Setup APIs and attribute names changed between majors. Code blocks are sketches: they omit imports, error handling, and application types.
+
 ## Contents
 
 - [OpenTelemetry SDK Setup](#opentelemetry-sdk-setup)
@@ -11,6 +13,7 @@ OpenTelemetry SDK setup, span attributes, sampling, context propagation, collect
 - [Collector Deployment](#collector-deployment)
 - [Instrumentation Patterns](#instrumentation-patterns)
 - [Debugging Traces](#debugging-traces)
+- [Volatile Status](#volatile-status)
 
 ---
 
@@ -24,7 +27,7 @@ const { OTLPTraceExporter } = require('@opentelemetry/exporter-trace-otlp-http')
 const { OTLPMetricExporter } = require('@opentelemetry/exporter-metrics-otlp-http');
 const { PeriodicExportingMetricReader } = require('@opentelemetry/sdk-metrics');
 const { getNodeAutoInstrumentations } = require('@opentelemetry/auto-instrumentations-node');
-const { Resource } = require('@opentelemetry/resources');
+const { resourceFromAttributes } = require('@opentelemetry/resources');  // JS SDK 2.x; 1.x used `new Resource(...)`
 
 const sdk = new NodeSDK({
   traceExporter: new OTLPTraceExporter({
@@ -37,10 +40,10 @@ const sdk = new NodeSDK({
     exportIntervalMillis: 30000,
   }),
   instrumentations: [getNodeAutoInstrumentations()],
-  resource: new Resource({
+  resource: resourceFromAttributes({
     'service.name': 'order-service',
     'service.version': '1.2.0',
-    'deployment.environment': 'production',
+    'deployment.environment.name': 'production',
   }),
 });
 
@@ -68,7 +71,7 @@ from opentelemetry.instrumentation.sqlalchemy import SQLAlchemyInstrumentor
 resource = Resource.create({
     "service.name": "order-service",
     "service.version": "1.2.0",
-    "deployment.environment": "production",
+    "deployment.environment.name": "production",
 })
 
 provider = TracerProvider(resource=resource)
@@ -92,13 +95,13 @@ SQLAlchemyInstrumentor().instrument(engine=db_engine)
 The pattern is the same across all runtimes:
 
 1. Create an OTLP exporter pointing to `otel-collector:4317` (gRPC) or `:4318` (HTTP)
-2. Create a `Resource` with `service.name`, `service.version`, `deployment.environment`
+2. Create a `Resource` with `service.name`, `service.version`, `deployment.environment.name`
 3. Initialize a `TracerProvider` with batch span processor and sampler
 4. Set as the global tracer provider
 5. Call `shutdown()` on exit to flush pending spans
 
 **Go:** `go.opentelemetry.io/otel` + `otlptracegrpc` exporter + `sdktrace.NewTracerProvider`
-**Java (Spring Boot):** Set `otel.exporter.otlp.endpoint` and `management.tracing.sampling.probability` in `application.yml`; add `opentelemetry-api` + `micrometer-tracing-bridge-otel` dependencies
+**Java (Spring Boot):** use one stack, not both. Either the OpenTelemetry Java agent or starter, configured with `otel.*` properties, or Spring Boot's Micrometer Tracing with its OTLP export support, whose endpoint and sampling property names depend on the project's Boot version (check that version's docs).
 
 ---
 
@@ -106,11 +109,13 @@ The pattern is the same across all runtimes:
 
 ### Wrapping Business Logic
 
+Sketch: `items`, `check_inventory`, and `parent_span_context` stand for application code.
+
 ```python
 tracer = trace.get_tracer("order-service")
 
 @tracer.start_as_current_span("process_order")
-def process_order(order_id, amount):
+def process_order(order_id, amount, items, parent_span_context):
     span = trace.get_current_span()
 
     # Add business context as attributes
@@ -122,20 +127,13 @@ def process_order(order_id, amount):
         child.set_attribute("product.count", len(items))
         inventory = check_inventory(items)
 
-    # Add event (point-in-time annotation)
-    span.add_event("payment_initiated", {
-        "payment.provider": "stripe",
-        "payment.amount": amount,
-    })
+    # Link to a related trace (for example the span that triggered this work)
+    span.add_link(trace.Link(parent_span_context, attributes={"relationship": "triggered_by"}))
 
-    # Link to related traces
-    span.add_link(trace.Link(
-        related_trace_context,
-        attributes={"relationship": "triggered_by"},
-    ))
-
-    return result
+    return inventory
 ```
+
+Point-in-time annotations (`span.add_event(...)`) still work but are being replaced by log-based events; see [Volatile Status](#volatile-status).
 
 ### Span Attribute Conventions
 
@@ -144,15 +142,15 @@ def process_order(order_id, amount):
 "http.request.method": "POST",          # was http.method
 "url.full": "https://api.example.com/orders",  # was http.url
 "http.response.status_code": 200,       # was http.status_code
-"http.request.body.size": 1234,
+"http.request.body.size": 1234,         # development status, not yet stable
 
-# Database
-"db.system": "postgresql",
-"db.name": "orders_db",
-"db.operation": "SELECT",
-"db.statement": "SELECT * FROM orders WHERE id = $1",  # Sanitized!
+# Database (stable database conventions; older names in parentheses)
+"db.system.name": "postgresql",          # was db.system
+"db.namespace": "orders_db",             # was db.name
+"db.operation.name": "SELECT",           # was db.operation
+"db.query.text": "SELECT * FROM orders WHERE id = $1",  # was db.statement; parameterized or sanitized only
 
-# Messaging
+# Messaging (development status: names can still change)
 "messaging.system": "kafka",
 "messaging.destination.name": "orders",  # was messaging.destination
 "messaging.operation.type": "publish",   # was messaging.operation
@@ -166,20 +164,25 @@ def process_order(order_id, amount):
 
 ### Error Recording
 
+Intent: record the failure, set span status `ERROR`, and make sure an error log carrying the same `trace_id` exists. Leave status unset on success unless you need to override an earlier error.
+
 ```python
+from opentelemetry.trace import StatusCode
+
 try:
     result = process_payment(order)
-    span.set_status(StatusCode.OK)
 except PaymentDeclinedError as e:
     span.set_status(StatusCode.ERROR, "Payment declined")
-    span.record_exception(e)
     span.set_attribute("payment.decline_reason", e.reason)
+    span.record_exception(e)   # see caveat below
     raise
 except Exception as e:
     span.set_status(StatusCode.ERROR, str(e))
     span.record_exception(e)
     raise
 ```
+
+Caveat: `record_exception` and `add_event` are being deprecated in favor of emitting exceptions and events through the Logs API, correlated with the active span. They work today; what the SDK does with them depends on its version and opt-in settings. Check the SDK before choosing.
 
 ---
 
@@ -192,8 +195,7 @@ except Exception as e:
 # requests, httpx, aiohttp auto-inject traceparent header
 
 # Manual propagation
-from opentelemetry.propagators import inject, extract
-from opentelemetry import context
+from opentelemetry.propagate import inject, extract
 
 # Inject into outgoing request headers
 headers = {}
@@ -210,7 +212,7 @@ with tracer.start_as_current_span("handle_request", context=ctx):
 
 ```python
 # Producer: inject trace context into message headers
-from opentelemetry.propagators import inject
+from opentelemetry.propagate import inject
 
 carrier = {}
 inject(carrier)
@@ -222,7 +224,7 @@ producer.send(
 )
 
 # Consumer: extract trace context from message headers
-from opentelemetry.propagators import extract
+from opentelemetry.propagate import extract
 
 carrier = {k: v.decode() for k, v in message.headers}
 ctx = extract(carrier)
@@ -254,41 +256,70 @@ tenant_id = baggage.get_baggage("tenant.id")    # "t123"
 
 ### OpenTelemetry Collector Tail Sampling
 
+Tail sampling decides after the trace has been collected, so every span of a trace must reach the same collector instance. With more than one gateway replica, put a load-balancing tier in front that routes by trace ID, then run tail sampling behind it. Without that, each replica sees part of a trace and makes wrong decisions. `decision_wait` and `num_traces` bound the memory cost. Policies are evaluated independently and a trace is kept if any policy matches (OR), so a broad probabilistic policy adds to, not filters, the error and latency policies.
+
+Tier 1: load-balancing collectors (route by trace ID).
+
 ```yaml
-# otel-collector-config.yaml
+receivers:
+  otlp:
+    protocols:
+      grpc: { endpoint: "0.0.0.0:4317" }
+
+exporters:
+  loadbalancing:
+    routing_key: traceID
+    protocol:
+      otlp: { tls: { insecure: true } }   # use real TLS outside local development
+    resolver:
+      dns: { hostname: otel-gateway-headless }
+
+service:
+  pipelines:
+    traces:
+      receivers: [otlp]
+      exporters: [loadbalancing]
+```
+
+Tier 2: sampling gateways (the replicas behind the headless service).
+
+```yaml
+receivers:
+  otlp:
+    protocols:
+      grpc: { endpoint: "0.0.0.0:4317" }
+
 processors:
   tail_sampling:
     decision_wait: 10s
     num_traces: 100000
     policies:
-      # Always keep errors
       - name: errors
         type: status_code
         status_code: { status_codes: [ERROR] }
-
-      # Always keep slow traces (> 2 seconds)
       - name: slow-traces
         type: latency
         latency: { threshold_ms: 2000 }
-
-      # Sample 10% of normal traces
       - name: normal-traffic
         type: probabilistic
         probabilistic: { sampling_percentage: 10 }
-
-      # Always keep traces from critical services
       - name: critical-services
         type: string_attribute
         string_attribute:
           key: service.name
           values: [payment-service, auth-service]
+  batch: {}
+
+exporters:
+  otlp/backend:
+    endpoint: "your-backend:4317"
 
 service:
   pipelines:
     traces:
       receivers: [otlp]
       processors: [tail_sampling, batch]
-      exporters: [otlp/jaeger]
+      exporters: [otlp/backend]
 ```
 
 ---
@@ -302,9 +333,9 @@ service:
 | **Agent** | Sidecar / DaemonSet alongside app | Local buffering, low-latency export, per-node processing |
 | **Gateway** | Standalone service | Centralized sampling, cross-service tail sampling, data enrichment |
 
-**Recommendation:** Agent mode for collection + gateway for tail sampling and routing. Never export directly from application to backend.
+**Recommendation:** Agent mode for collection plus a gateway for tail sampling and routing, for anything beyond a single service or local development.
 
-### Collector Config (Minimal)
+### Collector Config (Minimal, single replica)
 
 ```yaml
 receivers:
@@ -342,11 +373,10 @@ Instrument at service boundaries and meaningful business operations. Auto-instru
 # Manual span around DB queries (when auto-instrumentation isn't available)
 def query_with_tracing(sql, params):
     with tracer.start_as_current_span("db.query", kind=SpanKind.CLIENT) as span:
-        span.set_attribute("db.system", "postgresql")
-        span.set_attribute("db.statement", sanitize_sql(sql))
-        span.set_attribute("db.operation", sql.split()[0].upper())
+        span.set_attribute("db.system.name", "postgresql")
+        span.set_attribute("db.query.text", sanitize_sql(sql))
+        span.set_attribute("db.operation.name", sql.split()[0].upper())
         result = db.execute(sql, params)
-        span.set_attribute("db.rows_affected", result.rowcount)
         return result
 ```
 
@@ -372,3 +402,14 @@ def query_with_tracing(sql, params):
 4. Check sampling: temporarily set to AlwaysOn
 5. Inspect collector logs: look for export errors
 6. Check backend: verify traces appear in Jaeger/Tempo/vendor UI
+
+---
+
+## Volatile Status
+
+Checked October 2026 against opentelemetry.io (status page, semantic conventions, project blog). Re-check before relying on it.
+
+- **Signals:** the tracing, metrics, and logs specifications are stable (metrics SDK parts are mixed), and language SDK maturity differs by signal, so check the project's SDK on the OpenTelemetry status page. Profiles entered public alpha on 26 March 2026: the project says the signal should not be used for critical production workloads, production-ready backends have not emerged, and most language SDKs have no profiles support. Use a vendor-neutral continuous-profiling agent in production now and treat OTel profiles as an emerging option. Profile samples can already carry `trace_id` and `span_id` for profile-to-trace correlation; adopt it when the signal stabilizes.
+- **Span events:** the Span Event API (`Span.AddEvent`, `Span.RecordException`) is being deprecated in favor of events emitted as logs through the Logs API and correlated with the active span. Existing span-event data and views keep working. New code should prefer the Logs API where the project's SDK supports it.
+- **Semantic conventions:** HTTP (`http.request.method`, `url.full`, `http.response.status_code`) and database client conventions (`db.system.name`, `db.namespace`, `db.operation.name`, `db.query.text`) are stable. Messaging conventions and `http.request.body.size` are still in development. `deployment.environment` was renamed `deployment.environment.name` (stable). Instrumentation libraries may emit old or new names depending on version and the `OTEL_SEMCONV_STABILITY_OPT_IN` setting.
+- **JS SDK:** 2.x (first released February 2025) constructs resources with `resourceFromAttributes`; 1.x used `new Resource`.

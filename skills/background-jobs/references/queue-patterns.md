@@ -1,12 +1,28 @@
 # Queue Patterns — Framework-Specific Deep Dive
 
+Library setup, retries, concurrency, and monitoring. Rate limiting, debounce, and delays live in [scheduling-patterns.md](scheduling-patterns.md). Check the library version in the project; APIs and editions (open source vs paid tiers) change.
+
 ## Contents
 
+- [Product Examples](#product-examples)
 - [BullMQ (Node.js/TypeScript)](#bullmq-nodejstypescript) — Setup, retry, concurrency, rate limiting, flows, monitoring
 - [Celery (Python)](#celery-python) — Setup, retry, concurrency, canvas (chains/groups), monitoring
 - [Sidekiq (Ruby)](#sidekiq-ruby) — Setup, concurrency, batches, monitoring
 - [Temporal (Polyglot)](#temporal-polyglot-workflow-orchestration) — When to use, workflow/activity pattern, saga, monitoring
 - [Job Design Patterns](#job-design-patterns-framework-agnostic) — Idempotency, DLQ handling, batch processing, graceful shutdown
+
+---
+
+## Product Examples
+
+Examples, not recommendations; verify maintenance status and license.
+
+| Category | Examples |
+|---|---|
+| Queue library | BullMQ (Node.js, Redis), Celery (Python), Sidekiq (Ruby), RQ / Dramatiq (Python), Oban (Elixir, PostgreSQL), River (Go, PostgreSQL), Hangfire (.NET) |
+| Database-backed queue | Oban, River, Solid Queue, pg-boss, Graphile Worker — jobs in the primary database, enqueued in the business transaction |
+| Durable workflow engine | Temporal, Restate, Inngest, DBOS, cloud step-function services |
+| Managed cloud queue + functions | Amazon SQS + Lambda, Google Cloud Tasks + Cloud Run, Azure Queue Storage or Service Bus + Functions |
 
 ---
 
@@ -52,36 +68,30 @@ await emailQueue.add('send', { to: 'user@example.com' }, {
   removeOnFail: { age: 604800 },     // keep 7d
 });
 
-// Custom backoff with jitter
+// Custom full-jitter backoff: delay = random(0, min(cap, base * 2^attempt)); policy in `reliability`
 const worker = new Worker('email', processor, {
   connection,
   settings: {
     backoffStrategy: (attemptsMade) => {
       const base = 1000;
       const maxDelay = 30_000;
-      const exponential = base * Math.pow(2, attemptsMade);
-      const jitter = Math.random() * 1000;
-      return Math.min(exponential + jitter, maxDelay);
+      return Math.random() * Math.min(maxDelay, base * Math.pow(2, attemptsMade));
     },
   },
 });
 ```
 
-### Concurrency and Rate Limiting
+### Concurrency
 
 ```typescript
-// Per-worker concurrency
 const worker = new Worker('tasks', processor, {
   connection,
-  concurrency: 10,                          // 10 concurrent jobs per worker
-  limiter: { max: 50, duration: 60_000 },   // 50 jobs/min across this worker
-});
-
-// Group-based rate limiting (per tenant, per user, etc.)
-await queue.add('api-call', data, {
-  group: { id: tenantId, limit: { max: 10, duration: 1000 } },
+  concurrency: 10,                          // concurrent jobs per worker process
+  limiter: { max: 50, duration: 60_000 },   // queue-wide rate limit, shared by all workers
 });
 ```
+
+Per-tenant limits: [scheduling-patterns.md](scheduling-patterns.md#rate-limited-processing).
 
 ### Job Flows (DAGs)
 
@@ -94,7 +104,7 @@ await flow.add({
   queueName: 'orders',
   data: { orderId: '123' },
   children: [
-    { name: 'charge-payment', queueName: 'payments', data: { orderId: '123', amount: 99.99 } },
+    { name: 'charge-payment', queueName: 'payments', data: { orderId: '123' } },   // ids, not amounts
     { name: 'reserve-inventory', queueName: 'inventory', data: { orderId: '123', items: ['SKU-001'] } },
   ],
 });
@@ -141,6 +151,9 @@ app.conf.update(
     task_acks_late=True,             # ack after completion (at-least-once)
     worker_prefetch_multiplier=1,    # fair scheduling
     task_reject_on_worker_lost=True, # re-queue if worker dies mid-task
+    # Redis/SQS brokers: an unacked task is redelivered after the visibility timeout
+    # (Redis default 1 hour). Keep it above the longest task runtime and the longest ETA/countdown.
+    broker_transport_options={'visibility_timeout': 6 * 3600},
 )
 
 @app.task(bind=True, max_retries=5, default_retry_delay=60)
@@ -157,8 +170,9 @@ def send_email(self, to, template):
 # Per-task retry with exponential backoff
 @app.task(bind=True, max_retries=5, autoretry_for=(TransientError,),
           retry_backoff=True, retry_backoff_max=600, retry_jitter=True)
-def call_api(self, endpoint, payload):
-    return requests.post(endpoint, json=payload).json()
+def call_api(self, endpoint, payload, idempotency_key):
+    # Retries are safe only because the key, derived from the job's intent, makes the call idempotent.
+    return requests.post(endpoint, json=payload, headers={"Idempotency-Key": idempotency_key}, timeout=10).json()
 
 # Manual retry with custom countdown
 @app.task(bind=True, max_retries=3)
@@ -171,15 +185,12 @@ def process_payment(self, order_id):
         send_to_dlq(order_id)  # no retry for bad input
 ```
 
-### Concurrency and Rate Limiting
+### Concurrency and Routing
+
+Task-level `rate_limit` applies per worker process, not globally; see [scheduling-patterns.md](scheduling-patterns.md#rate-limited-processing).
 
 ```python
-# Rate limit at task level
-@app.task(rate_limit='10/m')  # 10 per minute per worker
-def send_sms(phone, message):
-    sms_gateway.send(phone, message)
-
-# Route rate-limited tasks to dedicated queue for global limiting
+# Route task types to dedicated queues, each with its own worker pool
 app.conf.task_routes = {
     'tasks.send_sms': {'queue': 'sms'},
     'tasks.generate_report': {'queue': 'reports'},
@@ -218,7 +229,7 @@ group(send_email.s(addr) for addr in addresses).apply_async()
 
 ### Monitoring
 
-**Dashboard:** Flower (OSS web UI with Prometheus metrics). Key metrics: `celery_worker_tasks_active`, `celery_task_runtime_seconds`. Programmatic: `app.control.inspect().active()`, `.reserved()`, `.stats()`.
+**Dashboard:** Flower (OSS web UI with Prometheus metrics). Flower's Prometheus metrics include `flower_task_runtime_seconds` and `flower_worker_number_of_currently_executing_tasks`. Programmatic: `app.control.inspect().active()`, `.reserved()`, `.stats()`.
 
 ---
 
@@ -229,9 +240,9 @@ group(send_email.s(addr) for addr in addresses).apply_async()
 ### Setup
 
 ```ruby
-# app/workers/email_worker.rb
-class EmailWorker
-  include Sidekiq::Worker
+# app/sidekiq/email_job.rb
+class EmailJob
+  include Sidekiq::Job
   sidekiq_options queue: :high, retry: 5, dead: true
 
   sidekiq_retry_in do |count, exception|
@@ -240,13 +251,13 @@ class EmailWorker
 
   def perform(user_id, template)
     user = User.find(user_id)
-    Mailer.send(user.email, template)
+    UserMailer.with(user: user).deliver_template(template)
   end
 end
 
-# Enqueue
-EmailWorker.perform_async(user.id, 'welcome')
-EmailWorker.perform_in(1.hour, user.id, 'reminder')
+# Enqueue (after the creating transaction commits)
+EmailJob.perform_async(user.id, 'welcome')
+EmailJob.perform_in(1.hour, user.id, 'reminder')
 ```
 
 ### Concurrency and Rate Limiting
@@ -260,9 +271,9 @@ EmailWorker.perform_in(1.hour, user.id, 'reminder')
   - [low, 1]
 ```
 
-**Sidekiq 7 Capsules** isolate concurrency per queue: `config.capsule("pdf") { |cap| cap.concurrency = 1; cap.queues = %w[pdf] }`. Enterprise adds `Sidekiq::Limiter.concurrent` for rate limiting.
+**Capsules** (Sidekiq 7+) isolate concurrency per queue: `config.capsule("pdf") { |cap| cap.concurrency = 1; cap.queues = %w[pdf] }`. Rate limiters are an Enterprise feature.
 
-### Batches (Sidekiq Pro)
+### Batches (Sidekiq Pro, paid tier)
 
 ```ruby
 batch = Sidekiq::Batch.new
@@ -270,11 +281,12 @@ batch.on(:success, BatchCallback, 'report_id' => report.id)
 batch.jobs do
   data_chunks.each { |chunk| ProcessChunk.perform_async(chunk.id) }
 end
+# Callback fires when every job in the batch has succeeded
 ```
 
 ### Monitoring
 
-Built-in web UI: `mount Sidekiq::Web => '/sidekiq'` (add Rack::Auth::Basic). Metrics: processed/failed counts, queue sizes, retry/dead set size. Enterprise adds Prometheus exporter.
+Built-in web UI: `mount Sidekiq::Web => '/sidekiq'` (add Rack::Auth::Basic). Metrics: processed/failed counts, queue sizes, retry/dead set size. Sidekiq Enterprise adds historical metrics.
 
 ---
 
@@ -340,6 +352,8 @@ await client.workflow.start(orderWorkflow, {
 
 ### Saga Pattern (Compensation)
 
+When a saga is the right design is an `architecture` decision; this is how a workflow engine expresses one. Compensations are activities too, so they must be idempotent.
+
 ```typescript
 export async function orderSaga(orderId: string): Promise<void> {
   const compensations: (() => Promise<void>)[] = [];
@@ -365,7 +379,7 @@ export async function orderSaga(orderId: string): Promise<void> {
 
 - **Temporal Web UI:** Built-in workflow history, search by workflow ID/type, view event history
 - **Metrics:** Temporal server and SDK export Prometheus metrics
-- **Key metrics:** `workflow_task_schedule_to_start_latency`, `activity_task_schedule_to_start_latency`, `workflow_failed`, `workflow_completed`
+- **Key metrics:** `workflow_task_schedule_to_start_latency`, `activity_schedule_to_start_latency`, `workflow_failed`, `workflow_completed` (exported with a `temporal_` prefix)
 
 ---
 
@@ -374,20 +388,19 @@ export async function orderSaga(orderId: string): Promise<void> {
 ### Idempotency Key
 
 ```typescript
-// Include idempotency key in job data
-await queue.add('charge', {
-  orderId: 'order-123',
-  idempotencyKey: 'charge-order-123-v1',
-  amount: 99.99,
-});
+// Key derived from intent, not from time or attempt
+await queue.add('charge', { orderId: 'order-123', idempotencyKey: 'charge:order-123' });
 
-// Worker checks before processing
 async function processCharge(job) {
-  const existing = await db.charges.findByKey(job.data.idempotencyKey);
-  if (existing) return existing; // already processed
-  // ... process charge
+  // Claim first (unique insert), then work; on conflict return the stored result.
+  // External call carries the same key so the provider deduplicates retries.
+  return claimAndRun(job.data.idempotencyKey, () =>
+    payments.charge({ orderId: job.data.orderId }, { idempotencyKey: job.data.idempotencyKey }),
+  );
 }
 ```
+
+`claimAndRun` follows the claim-first pattern in [idempotency-patterns.md](../../message-queues/references/idempotency-patterns.md); a check-then-process lookup lets two concurrent attempts both run.
 
 ### Dead Letter Queue Handling
 
@@ -399,4 +412,4 @@ Group items into batches (100-500 per batch) instead of one job per item. Track 
 
 ### Graceful Shutdown
 
-On `SIGTERM`/`SIGINT`: call `worker.close()` (finish current jobs, stop accepting new), then `process.exit(0)`. Shutdown timeout must be less than orchestrator's kill grace period (e.g., 25s if Kubernetes gives 30s SIGTERM-to-SIGKILL window).
+On `SIGTERM`/`SIGINT`: call `worker.close()` (stop taking jobs, let running ones finish), then exit. The drain timeout stays below the platform's kill grace period; jobs cut off mid-run are retried, so they must be idempotent. Shutdown mechanics in general: `backend`.

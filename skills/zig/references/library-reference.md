@@ -1,152 +1,43 @@
-# Zig Library Reference
+# Zig Dependencies and Standard Library
 
-Ecosystem overview, standard library highlights, and popular packages.
+Package lists and project showcases go stale faster than they help. This file covers how to choose a dependency and where the standard library moves most.
 
----
+## Contents
 
-## Standard Library Highlights
+- [Choosing a dependency](#choosing-a-dependency)
+- [Standard library areas that move most](#standard-library-areas-that-move-most)
+- [Standard library first](#standard-library-first)
 
-| Module | Purpose |
-|--------|---------|
-| `std.mem` | Memory operations, allocator interface, slices |
-| `std.fs` | Filesystem operations |
-| `std.net` | TCP/UDP networking, address parsing |
-| `std.http` | HTTP client and server |
-| `std.json` | JSON parsing and serialization |
-| `std.fmt` | String formatting |
-| `std.log` | Scoped logging with levels |
-| `std.testing` | Test framework, allocator with leak detection |
-| `std.heap` | Allocator implementations (GPA, Arena, page) |
-| `std.Thread` | OS threads, thread pool |
-| `std.crypto` | Cryptographic primitives |
-| `std.compress` | zlib, gzip, zstd, lz4 |
-| `std.hash` | Hash functions (wyhash, crc32, xxhash) |
-| `std.math` | Math operations with overflow checking |
-| `std.os` | OS-specific APIs |
-| `std.meta` | Type reflection, comptime utilities |
-| `std.StaticStringMap` | Comptime perfect-hash string map |
-| `std.ArrayList` | Dynamic array |
-| `std.HashMap` | Hash map |
-| `std.BoundedArray` | Fixed-capacity array (no allocation) |
+## Choosing a dependency
 
----
-
-## Popular Third-Party Packages
-
-### Web / HTTP
-
-| Package | Purpose |
-|---------|---------|
-| `zap` | High-performance HTTP server (based on facil.io) |
-| `httpz` | HTTP server framework |
-| `zhp` | Zero-allocation HTTP server |
-| `jetzig` | Full web framework (routing, templates, ORM) |
-
-### Serialization
-
-| Package | Purpose |
-|---------|---------|
-| `std.json` (stdlib) | JSON parsing/serialization |
-| `zig-msgpack` | MessagePack |
-| `zig-protobuf` | Protocol Buffers |
-| `zig-toml` | TOML parser |
-| `zig-yaml` | YAML parser |
-
-### Database
-
-| Package | Purpose |
-|---------|---------|
-| SQLite via `@cImport` | SQLite (zero-overhead C interop) |
-| `pg.zig` | PostgreSQL client |
-| `lmdb-zig` | LMDB bindings |
-
-### Networking
-
-| Package | Purpose |
-|---------|---------|
-| `std.net` (stdlib) | TCP/UDP |
-| `std.http` (stdlib) | HTTP client/server |
-| `zig-tls` | TLS implementation |
-| `websocket.zig` | WebSocket client/server |
-
-### Game Development / Graphics
-
-| Package | Purpose |
-|---------|---------|
-| `raylib-zig` | Raylib bindings |
-| `mach` | Game engine / GPU framework |
-| `zig-opengl` | OpenGL bindings |
-| `SDL.zig` | SDL2 bindings |
-
-### Embedded / OS
-
-| Package | Purpose |
-|---------|---------|
-| `microzig` | Embedded development framework |
-| `dtb-parser` | Device tree blob parser |
-
----
-
-## C Libraries via @cImport
-
-Zig can use any C library directly. Common examples:
-
-```zig
-// SQLite
-const c = @cImport(@cInclude("sqlite3.h"));
-
-// OpenSSL
-const c = @cImport({
-    @cInclude("openssl/ssl.h");
-    @cInclude("openssl/err.h");
-});
-
-// POSIX
-const c = @cImport(@cInclude("unistd.h"));
+```
+Does the standard library cover it? → use std
+Is it a C library with a stable ABI? → link it and import its header (see build-system.md); a Zig wrapper is optional
+Otherwise, a Zig package:
+├── Does its build.zig.zon declare a minimum_zig_version at or below the project's? If not, skip it.
+├── Does it install with `zig fetch --save <url>`? Hand-copied sources drift.
+├── Was it released or updated since the project's Zig version shipped? A package last touched two releases ago probably does not compile.
+├── Does it take an allocator (and, from 0.16, an Io) from the caller rather than creating its own?
+└── Can the project vendor or replace it in a day? If not, read its tests first.
 ```
 
-Link in build.zig:
-```zig
-exe.linkSystemLibrary("sqlite3");
-exe.linkLibC();
-```
+Pin by commit or tagged release, never by branch. Re-run the full build after every Zig upgrade: a dependency pinned to an old release is the usual blocker.
 
----
+## Standard library areas that move most
 
-## Notable Zig Projects
+Read the release notes of the project's version before writing against these:
 
-| Project | What it is |
-|---------|-----------|
-| **Bun** | JavaScript runtime (Zig + JavaScriptCore) |
-| **TigerBeetle** | Financial transactions database |
-| **Mach** | Game engine |
-| **River** | Reverse proxy / load balancer |
-| **Ghostty** | Terminal emulator |
+| Area | What changes |
+|------|--------------|
+| I/O: files, networking, process, time, randomness | 0.15 made readers and writers concrete; 0.16 threads an `std.Io` instance through blocking calls |
+| Containers: `ArrayList`, hash maps, bit sets | Allocator-passing style, renamed types and methods |
+| Allocators | Names and constructors of the checked general-purpose allocator |
+| Formatting | Specifiers and the `format` method signature |
+| Reflection: `@typeInfo`, `std.meta`, `@Type` replacements | Field-info shape and builtin names |
+| Build API: `std.Build`, step helpers, translate-c | Module-centred configuration, step helper names |
 
-These demonstrate Zig's strengths: C interop, performance, cross-compilation.
+Details: [version-notes.md](version-notes.md).
 
----
+## Standard library first
 
-## Adding Dependencies
-
-```zig
-// 1. Add to build.zig.zon
-.dependencies = .{
-    .zap = .{
-        .url = "https://github.com/zigzap/zap/archive/refs/tags/v0.2.0.tar.gz",
-        .hash = "1220...", // zig build will tell you the hash
-    },
-},
-
-// 2. Use in build.zig
-const zap = b.dependency("zap", .{
-    .target = target,
-    .optimize = optimize,
-});
-exe.root_module.addImport("zap", zap.module("zap"));
-
-// 3. Import in code
-const zap = @import("zap");
-```
-
-Fetch hash: run `zig build` — it will error with the correct hash to paste.
+Reach for `std` before a package for: JSON (`std.json`), hashing and crypto (`std.hash`, `std.crypto`), compression (`std.compress`), logging (`std.log`), string and slice operations (`std.mem`), math with overflow checks (`std.math`), and lookup tables built at compile time (`std.StaticStringMap`). Use `std.testing` for tests and `std.testing.allocator` to catch leaks.

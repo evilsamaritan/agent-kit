@@ -6,265 +6,125 @@ user-invocable: true
 
 # Zig
 
-Systems programming with explicit control. Zig 0.14+, comptime metaprogramming, manual memory management with allocator interface, zero hidden control flow.
+Systems programming with explicit control: manual memory through an allocator interface, comptime instead of macros, error unions instead of errno, no hidden control flow.
+
+**Determine the Zig version first.** Run `zig version` and read `minimum_zig_version` in `build.zig.zon`. The standard library and the build API break in every minor release, so write only what that version supports. Per-version API changes are in [version-notes.md](references/version-notes.md); this file holds only what stays true across versions.
 
 **Hard rules:**
-- No hidden allocations — every allocation goes through an explicit `Allocator`
+- No hidden allocations — every allocation goes through an explicit `Allocator` that the caller passes in
 - No hidden control flow — no operator overloading, no exceptions, no hidden function calls
-- Always `defer`/`errdefer` for resource cleanup — never rely on callers
-- Never ignore errors — handle or explicitly discard with `_ = expr`
-- Prefer slices (`[]T`) over pointers (`[*]T`) — slices carry length
-- No undefined behavior — Zig safety checks are on by default (disable only in ReleaseFast)
+- `defer`/`errdefer` at the point of acquisition — never rely on callers to clean up
+- Never ignore errors — handle them, or discard with `_ = expr` plus a comment saying why
+- Prefer slices (`[]T`) over many-item pointers (`[*]T`) — slices carry length
+- Illegal behavior is trapped only in `Debug` and `ReleaseSafe`; `ReleaseFast` and `ReleaseSmall` remove the checks, so code must be correct without them
 
----
+## Mental model
 
-## Core Mental Model
-
-Zig is **C with better tools**, not "Rust without the borrow checker". It gives you the same low-level control as C but with: explicit allocators instead of malloc, comptime instead of macros/preprocessor, error unions instead of errno, and safety checks instead of undefined behavior.
-
-**No runtime.** No garbage collector, no async runtime, no hidden allocations. What you write is what executes. This makes Zig ideal for embedded, OS kernels, game engines, and performance-critical code that needs to interop with C.
-
----
+Zig is C with better tools, not Rust without the borrow checker. There is no runtime, garbage collector, or hidden allocation: what you write is what executes. Ownership is by convention — the allocator that allocated frees, and the type's `deinit` documents who owns what. That suits embedded, kernels, game engines, and code that talks to C.
 
 ## Allocators
 
-The defining feature of Zig. Every allocation is explicit and goes through an `Allocator` interface.
+Functions that allocate take an `Allocator` parameter. Containers store no allocator in current versions: pass it to each call that may allocate.
 
 ```zig
-// Functions that allocate take an allocator parameter
-fn parseJson(allocator: std.mem.Allocator, input: []const u8) !JsonValue {
-    var list = std.ArrayList(u8).init(allocator);
-    defer list.deinit();
-    // ...
+fn splitLines(gpa: std.mem.Allocator, input: []const u8) ![][]const u8 {
+    var lines: std.ArrayList([]const u8) = .empty;
+    errdefer lines.deinit(gpa);
+    var it = std.mem.splitScalar(u8, input, '\n');
+    while (it.next()) |line| try lines.append(gpa, line);
+    return lines.toOwnedSlice(gpa);
 }
 ```
 
-### Allocator Decision Tree
+### Which allocator
 
 ```
-Which allocator?
-├── Short-lived, bulk deallocate → ArenaAllocator (free everything at once)
-├── Fixed-size buffer, no heap → FixedBufferAllocator (stack or static buffer)
-├── General purpose, debug → GeneralPurposeAllocator (leak detection, double-free detection)
-├── Performance-critical, production → c_allocator or page_allocator
-├── Testing → testing.allocator (detects leaks, reports in test failure)
-└── Composing allocators → wrap inner allocator (logging, tracking, pooling)
+├── Scoped bulk work (request, parse, frame) → ArenaAllocator over a backing allocator; free everything at once
+├── No heap allowed → FixedBufferAllocator over a stack or static buffer
+├── Debug builds → the leak- and misuse-detecting general-purpose allocator (name varies by version)
+├── Program edge → the allocator the entry point provides (0.16+); otherwise the release multithreaded allocator, or c_allocator when linking libc (names by version in [version-notes.md](references/version-notes.md))
+├── Tests → std.testing.allocator (fails the test on a leak)
+└── page_allocator → a backing allocator for the others, not for small allocations
 ```
 
-| Allocator | Heap? | Leak detection | Use case |
-|-----------|-------|---------------|----------|
-| `GeneralPurposeAllocator` | Yes | Yes (debug) | Development, debugging |
-| `ArenaAllocator` | Yes | No (bulk free) | Request handling, parsing, frame-based |
-| `FixedBufferAllocator` | No | N/A | Embedded, stack-constrained |
-| `page_allocator` | Yes | No | Large allocations, backing for arenas |
-| `c_allocator` | Yes | No | C interop, production performance |
-| `testing.allocator` | Yes | Yes | Unit tests |
+Pick the allocator at the program edge (`main` or the test) and pass it down; library code never chooses one. An allocation and its free use the same allocator. Allocation inside a hot loop is a design smell: pre-size, reuse a buffer, or use an arena reset per iteration.
 
-**Pattern:** Arena for request-scoped work, GPA for development, c_allocator/page_allocator for production.
+## Errors
 
----
+A function returns an error union (`!T`): a result or an error from an error set. Recoverable failures are errors; programmer mistakes are asserts or `unreachable`.
 
-## Error Handling
+| Form | Meaning |
+|------|---------|
+| `try expr` | Propagate the error, unwrap on success |
+| `expr catch \|err\| ...` | Handle it here |
+| `catch unreachable` | Assert it cannot happen — traps in safe modes, undefined behavior otherwise; only for proven invariants |
+| `defer` | Run on every scope exit |
+| `errdefer` | Run only when the scope exits with an error |
+| `orelse` / `if (opt) \|v\|` | Default for, or unwrap, an optional |
 
-Zig uses **error unions** (`!T`) — a value is either a result or an error. No exceptions, no panics for recoverable errors.
+`errdefer` pairs each acquisition with its undo while the function can still fail:
 
 ```zig
-fn readFile(path: []const u8) ![]u8 {
-    const file = std.fs.cwd().openFile(path, .{}) catch |err| {
-        return err;  // or: return error.FileNotFound;
-    };
-    defer file.close();
-    return file.readToEndAlloc(allocator, max_size);
-}
+const Conn = struct {
+    buffer: []u8,
+    handle: Handle,
 
-// try = shorthand for catch |err| return err
-fn process() !void {
-    const data = try readFile("config.json");
-    defer allocator.free(data);
-    // ...
-}
+    fn init(gpa: std.mem.Allocator) !Conn {
+        const buffer = try gpa.alloc(u8, 1024);
+        errdefer gpa.free(buffer);
+        const handle = try openHandle();
+        errdefer closeHandle(handle);
+        try handshake(handle); // fails: both errdefers run, in reverse order
+        return .{ .buffer = buffer, .handle = handle };
+    }
+};
 ```
 
-| Keyword | Purpose |
-|---------|---------|
-| `try expr` | Propagate error if expr is error, unwrap if success |
-| `catch \|err\| ...` | Handle error explicitly |
-| `catch unreachable` | Assert no error (safety-checked, panics in debug) |
-| `errdefer` | Run cleanup ONLY if function returns an error |
-| `defer` | Run cleanup unconditionally on scope exit |
-| `if (expr) \|value\|` | Unwrap optional |
-| `orelse` | Provide default for optional |
-
-**errdefer** — the critical pattern for resource safety:
-
-```zig
-fn init(allocator: Allocator) !Self {
-    const buffer = try allocator.alloc(u8, 1024);
-    errdefer allocator.free(buffer);  // free ONLY if init fails
-
-    const handle = try openHandle();
-    errdefer closeHandle(handle);     // close ONLY if init fails
-
-    return Self{ .buffer = buffer, .handle = handle };
-}
-```
-
----
+Prefer a named error set for public functions so callers can switch exhaustively; inferred sets (`!T`) are fine inside a module.
 
 ## Comptime
 
-Zig's metaprogramming system. Code runs at compile time — no macros, no preprocessor, no code generation.
+Code that runs at compile time replaces macros and templates. Types are values: a function that takes `comptime T: type` is generic, and one that returns `type` builds a new type.
 
-```zig
-// Generic via comptime type parameter
-fn max(comptime T: type, a: T, b: T) T {
-    return if (a > b) a else b;
-}
+- `comptime` parameters make functions generic; `@typeInfo(T)` reflects on any type; `inline for` unrolls over comptime-known items.
+- `@compileError` turns a violated assumption into a build failure with a message.
+- `@embedFile` embeds a file as a constant; `std.StaticStringMap` builds a lookup table at comptime.
 
-// Comptime string formatting
-fn fieldName(comptime prefix: []const u8, comptime name: []const u8) []const u8 {
-    return prefix ++ "_" ++ name;
-}
+If you would write a macro in C, write comptime in Zig. Patterns, and the reflection API shape that changed in 0.17, are in [comptime-patterns.md](references/comptime-patterns.md).
 
-// Type reflection
-fn hasField(comptime T: type, comptime name: []const u8) bool {
-    const fields = std.meta.fields(T);
-    for (fields) |f| {
-        if (std.mem.eql(u8, f.name, name)) return true;
-    }
-    return false;
-}
-```
+## Build system
 
-**Key comptime patterns:**
-- `comptime` parameters make functions generic (no templates, no monomorphization syntax)
-- `@typeInfo(T)` — reflect on any type at compile time
-- `inline for` — unroll loops at comptime
-- `@embedFile` — embed file contents as compile-time constant
-- `comptime var` — mutable variable that must resolve at compile time
+`build.zig` is a Zig program that describes a graph of steps. Its shape stays the same across versions:
 
-**Rule:** If you'd use a macro in C, use comptime in Zig. If you'd use a template in C++, use comptime type parameters.
+1. Read `target` and `optimize` from `standardTargetOptions` and `standardOptimizeOption`.
+2. Create a module with those, and a compile step from it (executable, library, or test).
+3. `installArtifact` for the install step; a named `test` step that runs the test compile step.
+4. Link C libraries and add imports on the module, not on the compile step.
 
----
+Optimize mode is a property of each module, so a debug-friendly tool and a release library can coexist in one build. Dependencies live in `build.zig.zon` (package name as an enum literal, a required `fingerprint`, `minimum_zig_version`); add them with `zig fetch --save <url>` rather than writing hashes by hand. A complete current example, the dependency flow, and C translation by version are in [build-system.md](references/build-system.md).
 
-## Build System
+Cross-compiling is built in: `zig build -Dtarget=aarch64-linux-musl`, `-Dtarget=x86_64-windows-gnu`, `-Dtarget=wasm32-wasi`. `zig cc` is a drop-in C compiler using the same toolchain.
 
-`build.zig` is Zig code — the build system is a Zig program, not a declarative file.
+## C interop
 
-```zig
-// build.zig
-const std = @import("std");
-
-pub fn build(b: *std.Build) void {
-    const target = b.standardTargetOptions(.{});
-    const optimize = b.standardOptimizeOption(.{});
-
-    const exe = b.addExecutable(.{
-        .name = "myapp",
-        .root_source_file = b.path("src/main.zig"),
-        .target = target,
-        .optimize = optimize,
-    });
-    b.installArtifact(exe);
-
-    // Link C library
-    exe.linkSystemLibrary("sqlite3");
-    exe.linkLibC();
-
-    // Tests
-    const tests = b.addTest(.{
-        .root_source_file = b.path("src/main.zig"),
-        .target = target,
-    });
-    const run_tests = b.addRunArtifact(tests);
-    const test_step = b.step("test", "Run unit tests");
-    test_step.dependOn(&run_tests.step);
-}
-```
-
-### Package Management (build.zig.zon)
-
-```zig
-// build.zig.zon
-.{
-    .name = "myproject",
-    .version = "0.1.0",
-    .dependencies = .{
-        .zap = .{
-            .url = "https://github.com/zigzap/zap/archive/v0.2.0.tar.gz",
-            .hash = "...",
-        },
-    },
-}
-```
-
-**Cross-compilation** — Zig's killer feature. Cross-compile to any target from any host:
-
-```bash
-zig build -Dtarget=aarch64-linux-musl          # ARM Linux static binary
-zig build -Dtarget=x86_64-windows-gnu          # Windows from Linux/macOS
-zig build -Dtarget=wasm32-wasi                  # WebAssembly
-```
-
----
-
-## C Interop
-
-Zig can directly import and use C headers — no bindings, no FFI layer.
-
-```zig
-const c = @cImport({
-    @cInclude("sqlite3.h");
-});
-
-fn openDb(path: [*:0]const u8) !*c.sqlite3 {
-    var db: ?*c.sqlite3 = null;
-    if (c.sqlite3_open(path, &db) != c.SQLITE_OK) {
-        return error.SqliteOpenFailed;
-    }
-    return db.?;
-}
-```
-
-**Zig as C compiler** — use `zig cc` as a drop-in replacement for `cc`/`gcc`:
-```bash
-zig cc -o program program.c -lm       # compile C with Zig's toolchain
-```
-
----
+Zig reads C headers directly and calls C without a binding layer. How a header is imported depends on the version: `@cImport` in older releases, a build-system translate step or an external translate-c package in newer ones. Check the version, then follow [build-system.md](references/build-system.md). Whatever the import path, convert C types at the boundary: `[*:0]const u8` for C strings, `?*T` for nullable pointers, and wrap each C resource in a Zig type with `init`/`deinit`.
 
 ## Testing
 
-Built-in. No framework needed.
+`test` blocks live next to the code and run with `zig build test` (or `zig test file.zig` for one file). Use `std.testing.allocator` so leaks fail the test, and `try testing.expect...` for assertions.
 
 ```zig
-const std = @import("std");
-const testing = std.testing;
-
-test "addition" {
-    try testing.expectEqual(@as(u32, 4), 2 + 2);
-}
-
-test "string contains" {
-    try testing.expect(std.mem.indexOf(u8, "hello world", "world") != null);
-}
-
-test "allocation" {
-    // testing.allocator detects leaks
-    var list = std.ArrayList(u8).init(testing.allocator);
-    defer list.deinit();
-    try list.append(42);
-    try testing.expectEqual(@as(usize, 1), list.items.len);
+test "splitLines returns every line" {
+    const lines = try splitLines(std.testing.allocator, "a\nb");
+    defer std.testing.allocator.free(lines);
+    try std.testing.expectEqual(@as(usize, 2), lines.len);
+    try std.testing.expectEqualStrings("b", lines[1]);
 }
 ```
 
-Run with `zig build test` or `zig test src/main.zig`.
+## Tagged unions
 
----
-
-## Tagged Unions
-
-Zig's most powerful type — like Rust enums but with comptime reflection.
+`union(enum)` carries a payload per variant, and a `switch` over it is exhaustive.
 
 ```zig
 const Token = union(enum) {
@@ -283,51 +143,46 @@ const Token = union(enum) {
 };
 ```
 
-**Switch on tagged unions is exhaustive** — the compiler enforces handling all variants. List the remaining tags instead of `else`, so a new variant forces a decision at every switch.
+Use tagged unions for closed sets: tokens, protocol messages, states. List the remaining tags instead of `else`, so a new member forces a decision at each switch. An open family (providers, importers, backends) is a struct of function pointers, or a vtable interface, that each member fills in and registers once; consumers call it instead of switching (`development`).
 
----
+## Optimization modes
 
-## Optimization Modes
+| Mode | Safety checks | Use |
+|------|---------------|-----|
+| `Debug` | On | Development (default) |
+| `ReleaseSafe` | On | Production default |
+| `ReleaseFast` | Off | Benchmarked hot paths where the speed is proven needed |
+| `ReleaseSmall` | Off | Binary size: embedded, WASM |
 
-| Mode | Safety | Speed | Use |
-|------|--------|-------|-----|
-| `Debug` | Full | Slow | Development (default) |
-| `ReleaseSafe` | Full | Fast | Production (recommended) |
-| `ReleaseFast` | Off | Fastest | Performance-critical hot paths |
-| `ReleaseSmall` | Off | Small binary | Embedded, WASM |
+Zig 0.17 renamed the enum tags to `debug`, `safe`, `fast`, `small` (`std.lang.Optimize`); the names above remain as deprecated aliases and `-Doptimize=ReleaseSafe` is still accepted ([version-notes.md](references/version-notes.md)).
 
-**Rule:** Default to `ReleaseSafe` for production. Only use `ReleaseFast` for benchmarked hot paths.
+## Anti-patterns
 
----
-
-## Anti-Patterns
-
-| # | Anti-Pattern | Problem | Fix |
-|---|-------------|---------|-----|
-| 1 | Ignoring errors with `_ =` silently | Hides bugs | Handle error or add comment explaining why ignored |
-| 2 | Using `c_allocator` in tests | No leak detection | Use `testing.allocator` in tests |
-| 3 | Not using `errdefer` | Resource leaks on error paths | `errdefer` for every resource acquired before a failable operation |
-| 4 | Raw pointers when slices work | No bounds checking, no length | Prefer `[]T` slices over `[*]T` pointers |
-| 5 | `@intCast` without validation | Runtime panic on overflow | Validate range before cast, or use `std.math.cast` |
-| 6 | Global state | Untestable, thread-unsafe | Pass state explicitly as parameters |
-| 7 | `catch unreachable` in non-proven code | Debug panic, release UB (in ReleaseFast) | Use `catch` with proper error handling |
-| 8 | Allocating in hot loops | GC-like performance issues | Pre-allocate, use arena per frame |
-| 9 | Mixing allocators for alloc/free | Undefined behavior | Same allocator for alloc and free |
-| 10 | Not `defer`-ing close/deinit | Resource leaks | Immediately `defer` after acquiring resource |
-
----
+| # | Anti-pattern | Problem | Fix |
+|---|--------------|---------|-----|
+| 1 | `_ =` on an error with no reason | Hides bugs | Handle it, or comment why it is safe to drop |
+| 2 | `c_allocator` or `page_allocator` in tests | No leak detection | `std.testing.allocator` |
+| 3 | Acquiring without `errdefer` | Leaks on error paths | One `errdefer` per resource acquired before a failable step |
+| 4 | Many-item pointers where a slice works | No length, no bounds checks | `[]T` |
+| 5 | `@intCast` without validation | Illegal behavior in unsafe modes | Check the range first, or use `std.math.cast` |
+| 6 | Mutable global state | Untestable, thread-unsafe | Pass state and dependencies explicitly (`development`) |
+| 7 | `catch unreachable` on unproven errors | Traps in safe modes, undefined behavior in `ReleaseFast` | Handle the error |
+| 8 | Allocation inside a hot loop | Slow, fragments memory | Pre-size, reuse a buffer, or reset an arena per iteration |
+| 9 | Freeing with a different allocator than allocated | Undefined behavior | Same allocator for alloc and free |
+| 10 | Resource acquired without an immediate `defer` | Leaks on early return | `defer` on the next line |
+| 11 | Copying API usage from old examples | Does not compile on the project's version | Check [version-notes.md](references/version-notes.md) |
 
 ## Related Knowledge
 
-- **development** — code practice these idioms express: variant families, ownership, explicit dependencies
-- **backend** — HTTP servers (zap, httpz), service patterns
-- **database** — SQLite via @cImport, custom storage engines
-- **docker** — minimal static binaries, scratch containers
-- **rust** — comparison: Zig = explicit simplicity, Rust = compiler-enforced safety
+- **development** — the code practice these idioms express: variant families, ownership, explicit dependencies
+- **backend** — service structure for HTTP servers and workers written in Zig
+- **database** — storage design when embedding SQLite or building a storage engine
+- **docker** — minimal static binaries and scratch images
+- **rust** — comparison: Zig is explicit simplicity, Rust is compiler-enforced safety
 
 ## References
 
-Load on demand for detailed patterns:
-
-- `references/comptime-patterns.md` — type reflection, generic data structures, compile-time validation, serialization
-- `references/library-reference.md` — ecosystem overview, popular packages, C library interop recipes
+- [version-notes.md](references/version-notes.md) — API changes by release, to read before writing std or build code
+- [build-system.md](references/build-system.md) — `build.zig` and `build.zig.zon` example, dependencies, C translation by version
+- [comptime-patterns.md](references/comptime-patterns.md) — type generation, reflection, compile-time validation, interfaces
+- [library-reference.md](references/library-reference.md) — vetting a dependency, stdlib areas that move most

@@ -1,4 +1,4 @@
-# agent-kit v4.0.0-rc.3
+# agent-kit v4.0.0-rc.4
 
 ## Purpose
 
@@ -12,9 +12,9 @@ Profession **profiles** are the stable base entity. A project agent is assembled
 - **Knowledge skills** — domain expertise. Vendor-neutral (`database`, `caching`) or technology-specific (`react`, `rust`). Discovered by compatible runtimes or preloaded into Claude Code agents via `skills:` frontmatter.
 - **Code practice** — `development` owns how code is written in any stack: SOLID and the other principles, ownership, variant families, dependencies, async lifetime, errors, refactoring. `architecture` owns boundaries between modules and systems. Zone skills (`frontend`, `backend`, `mobile`, `gamedev`, …) own their environment and point to `development` instead of restating it; language skills show how a language expresses it.
 
-**Meta skills** — create and manage the rest (`agent-creator`, `agent-orchestrator`, `skill-creator`, hooks, project init).
+**Meta skills** — create and manage the rest: `agent-creator`, `agent-orchestrator`, `skill-creator`, `init`.
 
-**Base profession profiles:** `architect`, `developer`, `devops`, `sre`, `security`, `tester`, `designer`, `reviewer`, `writer`.
+**Base profession profiles:** `architect`, `developer`, `devops`, `sre`, `tester`, `designer`, `reviewer`, `writer`. A security review is the `reviewer` profile composed with the `security` skill.
 
 ## Rules
 
@@ -42,7 +42,7 @@ Profession **profiles** are the stable base entity. A project agent is assembled
 
 | Directory | Purpose |
 |-----------|---------|
-| `profiles/<name>/` | Profession canon — `PROFILE.md` (core + body), `claude.yaml`, `codex.yaml` |
+| `profiles/<name>/` | Profession canon — `PROFILE.md` (core + body) and optional `claude.yaml`, `codex.yaml`, `kimi.yaml` overlays |
 | `skills/agent-orchestrator/references/profiles/` | Generated profession references; no bundled runtime agents |
 | `skills/agent-creator/scripts/materialize-agents.mjs` | Project composition → native Claude/Codex agents |
 | `skills/agent-orchestrator/` | Chooses and runs agents through host-native delegation |
@@ -56,7 +56,7 @@ Profession **profiles** are the stable base entity. A project agent is assembled
 
 ## Skills are flat
 
-No `category:` field, no subdirectories. Meta skills are identified by function (names ending in `-creator`, `agent-orchestrator`, or `init`). Everything else is knowledge.
+No `category:` field, no subdirectories. The meta skills are `agent-creator`, `agent-orchestrator`, `skill-creator`, and `init`: they create or manage profiles, project agents, skills, orchestration, or project setup. Everything else is knowledge.
 
 ## Skill Standard
 
@@ -68,52 +68,9 @@ No `category:` field, no subdirectories. Meta skills are identified by function 
 - Agents can preload any combination of skills via `skills:` field.
 - Volatile content (dates, prices, enforcement trends) belongs in references/, not core SKILL.md.
 
-### Structure Templates by Class
+### Classes and structure
 
-**Broad knowledge skill:**
-```
-## Scope and boundaries
-## Decision tree
-## Core rules / patterns
-## Context Adaptation
-## Anti-Patterns
-## Related Knowledge
-## References
-```
-
-**Specialized / language / framework skill:**
-```
-## Core concepts / Mental model
-## Decision points
-## Hard rules
-## Anti-Patterns
-## Related Knowledge / Sibling boundaries
-## References
-```
-
-**Regulatory skill:**
-```
-## Scope and boundaries
-## Decision tree
-## Core rules / patterns
-## Context Adaptation
-## Anti-Patterns
-## Related Knowledge
-## References
-```
-Note: Evergreen principles in SKILL.md, volatile data (dates, fines, enforcement trends) in references/.
-
-**Meta skill:**
-```
-## Purpose            # Optional — only if it adds context beyond description
-## Critical rules
-## Flow selection
-## Quick reference
-## Validation         # Optional — include for producer meta-skills (write files/configs), skip for routers/dispatchers that delegate
-## References
-```
-
-Meta sub-types: **Producer** (writes files — `skill-creator`, `agent-creator`, `update-config`, `hook-creator`) includes Validation. **Router / dispatcher** (delegates — `init`, `agent-orchestrator`) may skip Validation.
+`skill-creator` holds the one detailed copy of the classes (broad, specialized, regulatory, meta) and their section skeletons: the Classes table in its SKILL.md and `references/skill-template.md`. Every knowledge skill states its scope near the top and ends with Anti-patterns → Related Knowledge → References; regulatory skills keep dates, fines, and enforcement in references. Meta producers (`skill-creator`, `agent-creator`) include Validation; routers (`init`, `agent-orchestrator`) may skip it.
 
 ## Role-template standard (special asset — NOT a skill)
 
@@ -155,10 +112,13 @@ Context window is a shared resource. Every token competes with the user's actual
 
 ### Frontmatter (Level 1 — always loaded)
 
+Every host reads `name` and `description`; the other fields are host extensions (mostly Claude Code). Codex and Kimi Code ignore what they do not support, so a skill must work from `name`, `description`, and its body alone. Per-host details: `skills/skill-creator/references/best-practices.md`.
+
 ```yaml
 ---
-name: skill-name                    # Required. Lowercase + hyphens, max 64 chars, matches directory.
-description: Verb phrase. Use when trigger phrases.  # Required. Single line; soft target 80-500 chars, hard cap 1024.
+name: skill-name                    # Required, every host. Lowercase + hyphens, max 64 chars, matches directory.
+description: Verb phrase. Use when trigger phrases.  # Required, every host. Single line; soft target 80-500 chars, hard cap 1024.
+# Host extensions below (Claude Code unless noted):
 when_to_use: Extra Claude routing examples.          # Optional Claude Code extension; description stays portable.
 allowed-tools: Read, Bash(script *) # Optional one-turn permission grant, NOT a tool restriction. Keep narrow.
 disallowed-tools: Write, Edit       # Optional one-turn restriction in Claude Code.
@@ -197,12 +157,12 @@ A reusable profile is a directory under `profiles/`, split into a runtime-neutra
 ```
 profiles/<name>/
 ├── PROFILE.md      # core frontmatter + body (role-template adaptation + persona)
-├── claude.yaml     # Claude Code overlay
-├── codex.yaml      # Codex overlay
+├── claude.yaml     # optional Claude Code overlay
+├── codex.yaml      # optional Codex overlay
 └── kimi.yaml       # optional Kimi Code overlay
 ```
 
-A field belongs to the core when every runtime reads it the same way, and to an overlay when the vocabularies diverge or only one runtime has the concept.
+A field belongs to the core when every runtime reads it the same way, and to an overlay when the vocabularies diverge or only one runtime has the concept. Create an overlay file only when it sets something; a missing overlay means runtime defaults.
 
 ### Core frontmatter — `PROFILE.md`
 
@@ -228,7 +188,7 @@ Overlay files use flat `key: value` lines and inline arrays; YAML overlays and J
 
 Profiles pin no model. An omitted model inherits the host choice (Claude: parent session or `CLAUDE_CODE_SUBAGENT_MODEL`; Codex: parent thread). A project sets `claude.model` or `codex.model` when it needs a specific alias or ID. Model names are checked for syntax only — availability belongs to the host, so no closed list of IDs lives in the library.
 
-### Claude overlay — `claude.yaml`
+### Claude overlay — `claude.yaml` (optional)
 
 ```yaml
 color: cyan                         # red, blue, green, yellow, purple, orange, pink, cyan.
@@ -238,7 +198,7 @@ maxTurns: 20                        # Max agentic turns.
 
 Also accepted: `model` (alias, full ID, or `inherit`), `effort`, `disallowedTools`, `memory`, `background`, `isolation`. Add only fields rendered and validated for native project agents; project settings, hooks, MCP servers, and permission mode stay outside the profile overlay.
 
-### Codex overlay — `codex.yaml`
+### Codex overlay — `codex.yaml` (optional)
 
 ```yaml
 effort: ultra                       # Optional. Codex-only levels; `ultra` is rejected in the core.
@@ -262,8 +222,8 @@ Generated targets name library skills by host identifier (`agent-kit:<skill>` fo
 
 The body lives in `PROFILE.md` below the frontmatter and is assembled by `agent-creator`:
 
-1. **Adapted role-template(s)** — `skills/agent-creator/templates/{role}.md` rewritten for the domain, one `## Role — {role}` section per declared role.
-2. **Persona** — "You are a [profession] who [specialization]" — domain focus specific to this agent.
+1. **Persona** — "You are a [profession] who [specialization]" — domain focus specific to this agent.
+2. **Adapted role-template(s)** — `skills/agent-creator/templates/{role}.md` rewritten for the domain, one `## Role — {role}` section per declared role.
 3. **Skill pointers** — which preloaded skills serve which part of the work.
 4. **Working with others** — scope, handoffs, exemplars, review.
 5. **Output format + Done criteria** — concrete deliverables.
@@ -293,5 +253,4 @@ Use `agent-creator`: describe what you need ("create agents for this project", "
 - [skill-creator](skills/skill-creator/) — authoring knowledge and meta skills
 - [agent-creator](skills/agent-creator/) — configuring project agents and maintaining profiles
 - [agent-orchestrator](skills/agent-orchestrator/) — composing task teams through native runtime mechanisms
-- [hook-creator](skills/hook-creator/) — lifecycle hooks
 - [init](skills/init/) — project bootstrap router

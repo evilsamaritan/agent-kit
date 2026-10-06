@@ -9,6 +9,7 @@
 - [Sealed Hierarchies](#sealed-hierarchies)
 - [Extension Functions](#extension-functions)
 - [Idiomatic Kotlin](#idiomatic-kotlin)
+- [Version-dependent features](#version-dependent-features)
 
 ---
 
@@ -157,7 +158,7 @@ fun requireNotEmpty(value: String?): String {
 
 // callsInPlace — lambda executes exactly once
 @OptIn(ExperimentalContracts::class)
-inline fun <T> measureTime(block: () -> T): Pair<T, Long> {
+inline fun <T> timed(block: () -> T): Pair<T, Long> {
     contract {
         callsInPlace(block, InvocationKind.EXACTLY_ONCE)
     }
@@ -168,7 +169,7 @@ inline fun <T> measureTime(block: () -> T): Pair<T, Long> {
 
 // Enables val initialization in lambda
 val value: String
-measureTime {
+timed {
     value = computeExpensiveString()  // OK — compiler knows block runs exactly once
 }
 ```
@@ -228,7 +229,7 @@ val user = createUser(params)
 // State machine with sealed interfaces
 sealed interface ConnectionState {
     data object Disconnected : ConnectionState
-    data object Connecting : ConnectionState
+    data class Connecting(val retryCount: Int = 0) : ConnectionState
     data class Connected(val session: Session) : ConnectionState
     data class Error(val cause: Throwable, val retryCount: Int) : ConnectionState
 }
@@ -243,15 +244,15 @@ sealed interface Event {
 
 // State transitions — `when` as an expression over sealed types is exhaustive in both
 // dimensions. Ignored events are listed, not hidden behind `else`, so a new Event
-// forces a decision in every state.
+// forces a decision in every state. retryCount is carried through each attempt.
 fun ConnectionState.transition(event: Event): ConnectionState = when (this) {
     is ConnectionState.Disconnected -> when (event) {
-        Event.Connect -> ConnectionState.Connecting
+        Event.Connect -> ConnectionState.Connecting()
         is Event.Connected, is Event.Failed, Event.Disconnect, Event.Retry -> this
     }
     is ConnectionState.Connecting -> when (event) {
         is Event.Connected -> ConnectionState.Connected(event.session)
-        is Event.Failed -> ConnectionState.Error(event.cause, retryCount = 0)
+        is Event.Failed -> ConnectionState.Error(event.cause, retryCount)
         Event.Connect, Event.Disconnect, Event.Retry -> this
     }
     is ConnectionState.Connected -> when (event) {
@@ -260,7 +261,7 @@ fun ConnectionState.transition(event: Event): ConnectionState = when (this) {
         Event.Connect, is Event.Connected, Event.Retry -> this
     }
     is ConnectionState.Error -> when (event) {
-        Event.Retry -> if (retryCount < 3) ConnectionState.Connecting else this
+        Event.Retry -> if (retryCount < 3) ConnectionState.Connecting(retryCount + 1) else this
         Event.Disconnect -> ConnectionState.Disconnected
         Event.Connect, is Event.Connected, is Event.Failed -> this
     }
@@ -301,8 +302,7 @@ fun String.toSlug(): String =
         .trim('-')
 
 // Extension on nullable type
-fun String?.orEmpty(): String = this ?: ""
-fun <T> List<T>?.orEmpty(): List<T> = this ?: emptyList()
+fun String?.orDash(): String = this?.takeIf { it.isNotBlank() } ?: "-"
 
 // Extension properties
 val String.wordCount: Int
@@ -357,7 +357,27 @@ fun transfer(amount: Int, from: Account, to: Account) {
 File("data.txt").bufferedReader().use { reader ->
     reader.lineSequence().forEach { process(it) }
 }
+```
 
-// Sealed + when for exhaustive pattern matching
-// Always prefer when expression over if-else chains for 3+ branches
+---
+
+## Version-dependent features
+
+Check the project's Kotlin version before using these.
+
+| Feature | Availability |
+|---------|--------------|
+| Guard conditions in `when` (`is Error if code in 400..499 ->`) | Stable from 2.2; avoids nested `when`/`if` inside a branch |
+| Context parameters | Stable from 2.4, except explicit context arguments and callable references (the `-Xcontext-parameters` option on earlier versions); replace context receivers |
+| Explicit backing fields (`val items: List<String>` with `field = mutableListOf()`) | Introduced in 2.3, stable from 2.4 |
+| K1 compiler and `-language-version=1.9` | Not supported from 2.4; K2 only |
+| `kotlinOptions {}` in Gradle | Deprecated since 2.0.0; use `compilerOptions {}` |
+| Compose Multiplatform on iOS, Swift export | Status moves each release; read the notes for the project's version |
+
+```kotlin
+fun handle(response: Response) = when (response) {
+    is Response.Success -> process(response.data)
+    is Response.Error if response.code in 400..499 -> handleClientError(response)
+    is Response.Error -> handleServerError(response)
+}
 ```

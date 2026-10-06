@@ -14,14 +14,14 @@ import {
 } from './shared.mjs'
 
 // Kimi Code built-in tool names. Agent/AgentSwarm stay out: the parent coordinates.
-export const KIMI_TOOLS_BY_ACCESS = {
+const KIMI_TOOLS_BY_ACCESS = {
   'read-only': ['Read', 'Grep', 'Glob', 'ReadMediaFile', 'WebSearch', 'FetchURL', 'Skill'],
   edits: ['Read', 'Grep', 'Glob', 'ReadMediaFile', 'WebSearch', 'FetchURL', 'Skill', 'Edit', 'Write'],
   full: ['Read', 'Grep', 'Glob', 'ReadMediaFile', 'WebSearch', 'FetchURL', 'Skill', 'Edit', 'Write', 'Bash', 'TaskList', 'TaskOutput', 'TaskStop', 'WaitFor'],
 }
 // Template variables Kimi substitutes in an agent body (0.29.0 and later docs);
 // unknown ${...} stays verbatim.
-export const KIMI_TEMPLATE_VARIABLES = ['base_prompt', 'skills', 'skills_section', 'agents_md', 'cwd', 'cwd_listing', 'os', 'windows_notes', 'shell', 'now', 'role_additional', 'plugin_sections', 'additional_dirs_info', 'additional_dirs_section']
+const KIMI_TEMPLATE_VARIABLES = ['base_prompt', 'skills', 'skills_section', 'agents_md', 'cwd', 'cwd_listing', 'os', 'windows_notes', 'shell', 'now', 'role_additional', 'plugin_sections', 'additional_dirs_info', 'additional_dirs_section']
 const TEMPLATE = new RegExp(`\\$\\{(${KIMI_TEMPLATE_VARIABLES.join('|')})\\}`, 'g')
 
 const SOURCES_INTRO = 'Load these selected knowledge skills when relevant before acting with the Skill tool, by the exact quoted name; load linked references only as needed. The skill index below lists where each one is installed.'

@@ -1,225 +1,149 @@
-# Reconnection, Presence, and Binary Protocols
+# Replay, Presence, and Binary Formats
 
-Exponential backoff with jitter, state reconciliation, presence systems, and binary protocol selection.
+The replay contract behind reconnection, presence that reports offline correctly, and binary message formats. Backoff and close-code rules are in SKILL.md.
 
 ## Contents
 
-- [Exponential Backoff with Jitter](#exponential-backoff-with-jitter)
-- [State Reconciliation on Reconnect](#state-reconciliation-on-reconnect)
-- [Presence Systems](#presence-systems)
-- [Binary Protocol Details](#binary-protocol-details)
+- [Replay Contract](#replay-contract)
+- [Server: Durable Per-Stream Log](#server-durable-per-stream-log)
+- [Client: Positions and Resync](#client-positions-and-resync)
+- [Presence](#presence)
+- [Binary Formats](#binary-formats)
 
 ---
 
-## Exponential Backoff with Jitter
+## Replay Contract
+
+- A **stream** is the unit of ordering: one room, document, or user feed. Each event in it has a monotonically increasing `seq` (and a globally unique `id` for deduplication).
+- On (re)subscribe the client sends `after: <last seq it applied>` for that stream.
+- The server answers with one of:
+  - the events after that position, then live events;
+  - `resync_required` when the position is unknown, older than retention, or from another stream epoch — the client reloads a snapshot over HTTP and resubscribes from the snapshot's position.
+- **Subscribe first, then replay.** Register for live events, buffer them, read the backlog, then flush the buffer skipping anything with `seq` already sent. Replaying first and subscribing after loses events published in between.
+
+---
+
+## Server: Durable Per-Stream Log
 
 ```javascript
-class ReconnectingSocket {
-  constructor(url, options = {}) {
-    this.url = url;
-    this.baseDelay = options.baseDelay || 1000;
-    this.maxDelay = options.maxDelay || 30000;
-    this.attempt = 0;
+// Shared storage (a table, a stream with retention, or a log service) — not per-process memory
+async function append(stream, event) {
+  const seq = await db.one(
+    `INSERT INTO stream_events (stream, seq, id, type, payload)
+     VALUES ($1, COALESCE((SELECT max(seq) FROM stream_events WHERE stream = $1), 0) + 1, $2, $3, $4)
+     RETURNING seq`, [stream, event.id, event.type, event.payload]);
+  return { ...event, stream, seq };
+}
+// Concurrent appends to one stream need a single writer per stream, a per-stream lock,
+// or a log that assigns positions (e.g. a stream entry id); the subquery above alone races.
+
+async function subscribe(conn, stream, after) {
+  let buffer = [];
+  const live = bus.subscribe(stream, (e) => buffer ? buffer.push(e) : send(conn, e));   // 1. subscribe first
+
+  const oldest = await db.oneOrNone('SELECT min(seq) AS seq FROM stream_events WHERE stream = $1', [stream]);
+  if (after != null && (oldest?.seq == null ? after > 0 : after < oldest.seq - 1)) {
+    live.unsubscribe();
+    return send(conn, { type: 'resync_required', stream });                            // gap: do not guess
   }
 
-  connect() {
-    this.ws = new WebSocket(this.url);
+  const backlog = after == null ? [] :
+    await db.many('SELECT * FROM stream_events WHERE stream = $1 AND seq > $2 ORDER BY seq', [stream, after]);
+  let last = after ?? 0;
+  for (const e of backlog) { send(conn, e); last = e.seq; }                             // 2. replay
 
-    this.ws.onopen = () => {
-      this.attempt = 0;            // Reset on success
-      this.reconcileState();       // Sync missed data
-    };
+  for (const e of buffer.splice(0)) if (e.seq > last) { send(conn, e); last = e.seq; }  // 3. flush, dedupe
+  buffer = null;                                                                         // live from here
+  conn.onClose(() => live.unsubscribe());
+}
+```
 
-    this.ws.onclose = (event) => {
-      if (event.code === 1008) return;  // Policy violation -- don't retry
-      this.scheduleReconnect();
-    };
-  }
+Retention (minutes to days) is a product decision; anything older returns `resync_required`.
 
-  scheduleReconnect() {
-    const delay = Math.min(
-      this.baseDelay * Math.pow(2, this.attempt),
-      this.maxDelay
-    );
-    const jitter = delay * (0.5 + Math.random() * 0.5);
-    this.attempt++;
-    setTimeout(() => this.connect(), jitter);
-  }
+---
 
-  reconcileState() {
-    // Send last known event ID / timestamp to server
-    // Server sends missed events since that point
-    this.ws.send(JSON.stringify({
-      type: 'sync',
-      lastEventId: this.lastEventId,
-    }));
+## Client: Positions and Resync
+
+```javascript
+// Positions are per stream and per account; in-memory or session-scoped storage
+const positions = new Map();   // stream -> last applied seq
+
+function onEvent(e) {
+  const last = positions.get(e.stream) ?? 0;
+  if (e.seq <= last) return;                                  // duplicate
+  if (e.seq > last + 1) return requestResync(e.stream);       // gap detected client-side
+  apply(e);
+  positions.set(e.stream, e.seq);
+}
+
+async function requestResync(stream) {
+  const snapshot = await api.get(`/streams/${stream}/snapshot`);    // returns state + seq
+  replaceState(stream, snapshot.state);
+  positions.set(stream, snapshot.seq);
+  ws.send(JSON.stringify({ type: 'join', room: stream, after: snapshot.seq }));
+}
+
+// on server message { type: 'resync_required', stream } → requestResync(stream)
+```
+
+If positions are persisted (to survive reloads), key them by account and stream and clear them on sign-out.
+
+---
+
+## Presence
+
+```
+connect    → add connectionId to presence:{userId} (set), refresh TTL; if set size went 0→1, publish online
+heartbeat  → refresh TTL of the connection entry
+disconnect → remove connectionId; if set size went 1→0, publish offline (after a short grace period)
+crash      → no disconnect runs: a sweeper (or expiry notifications) removes expired connection entries
+             and publishes offline when a user's set becomes empty
+```
+
+```javascript
+// Connection entries with their own expiry, counted per user
+async function heartbeat(userId, connectionId) {
+  await redis.zadd(`presence:${userId}`, Date.now() + 60_000, connectionId);   // score = expiry time
+}
+
+async function sweep() {                                                        // runs every few seconds on one worker
+  for (const userId of await presenceIndex.members()) {
+    await redis.zremrangebyscore(`presence:${userId}`, 0, Date.now());
+    if (await redis.zcard(`presence:${userId}`) === 0) {
+      await presenceIndex.remove(userId);
+      await bus.publish('presence', { userId, status: 'offline' });
+    }
   }
 }
 ```
 
-### Backoff Timing Reference
-
-| Attempt | Base Delay | With Jitter (range) |
-|---------|-----------|---------------------|
-| 0 | 1s | 0.5s - 1s |
-| 1 | 2s | 1s - 2s |
-| 2 | 4s | 2s - 4s |
-| 3 | 8s | 4s - 8s |
-| 4 | 16s | 8s - 16s |
-| 5+ | 30s (max) | 15s - 30s |
-
-### Key Principles
-
-- **Always add jitter** -- prevents thundering herd when server recovers
-- **Reset attempt counter on successful connection** -- not on connect attempt
-- **Respect close codes** -- don't retry on 1008 (policy violation)
-- **Reconcile state on reconnect** -- send last event ID, get missed events
-- **Cap maximum delay** -- 30s is typical; longer frustrates users
+- Count connections per user; a user with two tabs is online until both close.
+- Publish presence only to users allowed to see it (contacts, room members), not globally.
+- Presence is ephemeral: never persist it as user state; "last seen" is a separate, rate-limited write.
 
 ---
 
-## State Reconciliation on Reconnect
+## Binary Formats
 
-### Server-Side Event Store
+Measure first: compare message size and parse time on real payloads before switching from JSON. Compression (permessage-deflate) is often enough for size; it costs CPU and memory per connection.
 
-```javascript
-// Store recent events per channel/user for replay
-class EventStore {
-  constructor(maxAge = 5 * 60 * 1000) { // 5 minutes
-    this.events = new Map();
-    this.maxAge = maxAge;
-  }
-
-  add(channel, event) {
-    if (!this.events.has(channel)) this.events.set(channel, []);
-    this.events.get(channel).push({
-      ...event,
-      timestamp: Date.now(),
-    });
-    this.cleanup(channel);
-  }
-
-  getSince(channel, lastEventId) {
-    const events = this.events.get(channel) || [];
-    const idx = events.findIndex(e => e.id === lastEventId);
-    return idx === -1 ? events : events.slice(idx + 1);
-  }
-
-  cleanup(channel) {
-    const cutoff = Date.now() - this.maxAge;
-    const events = this.events.get(channel) || [];
-    this.events.set(channel, events.filter(e => e.timestamp > cutoff));
-  }
-}
-```
-
-### Client-Side Sync Protocol
-
-```javascript
-ws.onopen = () => {
-  // Step 1: request missed events
-  ws.send(JSON.stringify({
-    type: 'sync',
-    lastEventId: localStorage.getItem('lastEventId'),
-    channels: getSubscribedChannels(),
-  }));
-};
-
-ws.onmessage = (event) => {
-  const msg = JSON.parse(event.data);
-
-  if (msg.type === 'sync-response') {
-    // Step 2: apply missed events in order
-    msg.events.forEach(applyEvent);
-  }
-
-  // Step 3: track last event ID
-  if (msg.id) {
-    localStorage.setItem('lastEventId', msg.id);
-  }
-};
-```
-
----
-
-## Presence Systems
-
-### Heartbeat-Based Presence
-
-```
-1. Client connects -> server adds to presence set with TTL
-2. Client sends heartbeat every 30s -> server refreshes TTL
-3. If TTL expires (no heartbeat for 60s) -> user marked offline
-4. On status change -> broadcast to relevant subscribers
-```
-
-### Redis-Backed Implementation
-
-```javascript
-async function updatePresence(userId, status) {
-  const key = `presence:${userId}`;
-  await redis.hset(key, { status, lastSeen: Date.now() });
-  await redis.expire(key, 60);          // 60s TTL
-  await redis.publish('presence-changes', JSON.stringify({ userId, status }));
-}
-
-async function getPresence(userIds) {
-  const pipeline = redis.pipeline();
-  userIds.forEach(id => pipeline.hgetall(`presence:${id}`));
-  const results = await pipeline.exec();
-  return userIds.map((id, i) => ({
-    userId: id,
-    status: results[i][1]?.status || 'offline',
-    lastSeen: results[i][1]?.lastSeen,
-  }));
-}
-```
-
-### Presence Event Flow
-
-```javascript
-// Server: handle presence
-ws.on('message', (data) => {
-  const msg = JSON.parse(data);
-  if (msg.type === 'heartbeat') {
-    updatePresence(ws.userId, msg.status || 'online');
-  }
-});
-
-ws.on('close', () => {
-  // Don't immediately mark offline -- wait for TTL
-  // This handles brief disconnections gracefully
-});
-
-// Subscribe to presence changes
-redisSub.subscribe('presence-changes');
-redisSub.on('message', (channel, message) => {
-  const change = JSON.parse(message);
-  // Broadcast to users who care about this person's status
-  broadcastToFriends(change.userId, {
-    type: 'presence',
-    userId: change.userId,
-    status: change.status,
-  });
-});
-```
-
----
-
-## Binary Protocol Details
-
-### Protocol Buffers over WebSocket
+| Format | Schema | Typical fit |
+|--------|--------|-------------|
+| Protocol Buffers | Required (`.proto`) | Typed, evolving messages across languages |
+| MessagePack | None | Drop-in replacement for JSON shapes |
+| CBOR | None (optional CDDL) | Constrained devices, standards that mandate it |
+| FlatBuffers | Required | Zero-copy reads of large state (games) |
 
 ```protobuf
-// message.proto
 syntax = "proto3";
 
-message WSMessage {
-  string type = 1;
-  oneof payload {
-    ChatMessage chat = 2;
-    PresenceUpdate presence = 3;
-    CursorPosition cursor = 4;
+message Envelope {
+  string id = 1;
+  string stream = 2;
+  uint64 seq = 3;
+  oneof body {
+    ChatMessage chat = 10;
+    CursorPosition cursor = 11;
   }
 }
 
@@ -227,48 +151,7 @@ message CursorPosition {
   string user_id = 1;
   float x = 2;
   float y = 3;
-  int64 timestamp = 4;
 }
 ```
 
-```javascript
-// Server: handle binary frames
-ws.on('message', (data, isBinary) => {
-  if (isBinary) {
-    const msg = WSMessage.decode(new Uint8Array(data));
-    handleProtobufMessage(ws, msg);
-  } else {
-    const msg = JSON.parse(data);
-    handleJsonMessage(ws, msg);
-  }
-});
-
-// Send binary
-const encoded = WSMessage.encode({ type: 'cursor', cursor: { x: 100, y: 200 } }).finish();
-ws.send(encoded);
-```
-
-### MessagePack Example
-
-```javascript
-import { encode, decode } from '@msgpack/msgpack';
-
-// Send
-ws.send(encode({ type: 'cursor', x: 100, y: 200 }));
-
-// Receive
-ws.onmessage = (event) => {
-  const data = decode(new Uint8Array(event.data));
-  handleMessage(data);
-};
-```
-
-### Protocol Selection Guide
-
-| Factor | Protocol Buffers | MessagePack | CBOR | FlatBuffers |
-|--------|-----------------|-------------|------|-------------|
-| Schema required | Yes (.proto) | No | No | Yes (.fbs) |
-| Size reduction vs JSON | ~60-80% | ~20-40% | ~20-40% | ~60-80% |
-| Parse speed | Fast (compiled) | Fast | Fast | Zero-copy |
-| Cross-language | Excellent | Good | Good | Good |
-| Best for | High-throughput APIs | Drop-in JSON replacement | IoT/constrained | Game state, 60fps updates |
+Receivers handle an unset `oneof` (a newer sender's message type) by ignoring it, the binary equivalent of ignoring unknown `type` values. Schema evolution rules: `api-design` → [rpc-patterns.md](../../api-design/references/rpc-patterns.md#protobuf-evolution).

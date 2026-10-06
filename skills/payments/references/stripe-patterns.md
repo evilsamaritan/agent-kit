@@ -1,53 +1,61 @@
-# Stripe Patterns — Integration Deep Dive
+# Stripe Patterns — Worked Provider Example
+
+Provider-specific code for the patterns in SKILL.md and payment-patterns.md.
+
+**Versions.** Stripe field names and event payloads depend on the account's or request's API version. The code below targets API versions from `2025-03-31.basil` onward (Invoice `payment_intent`, `charge`, and `paid` removed in favour of `invoice.payments`; `invoice.subscription` moved to `invoice.parent.subscription_details.subscription`; `confirmation_secret` added). Before copying, read the version pinned in the project (SDK constructor or `Stripe-Version` header) and the webhook endpoint's version, and check the changelog for fields used here. Since `2024-09-30.acacia`, Stripe ships a monthly API version without breaking changes and, twice a year, a named major release whose first version may break; monthly versions stay in the named line.
 
 ## Contents
 
-- [Payment Element Setup](#payment-element-setup-recommended) — server PaymentIntent, client Payment Element
-- [Webhook Handler](#webhook-handler) — Express implementation, signature verification
-- [Subscription Setup](#subscription-setup) — trial, plan change with proration, dunning
-- [Testing](#testing) — test cards, webhook testing, integration test pattern
+- [Client Setup](#client-setup)
+- [One-Time Payment](#one-time-payment)
+- [Webhook Endpoint](#webhook-endpoint)
+- [Subscriptions](#subscriptions)
+- [Testing](#testing)
 
-## Payment Element Setup (Recommended)
+---
 
-### Server: Create PaymentIntent
+## Client Setup
 
 ```typescript
 import Stripe from 'stripe';
 
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
+// Pin the API version explicitly and upgrade it deliberately (SDK major + webhook endpoint version together)
+export const stripe = new Stripe(config.stripe.secretKey, {
+  apiVersion: config.stripe.apiVersion,   // e.g. a "YYYY-MM-DD.name" string recorded in config
+  maxNetworkRetries: 2,                   // SDK retries reuse the same idempotency key
+  timeout: 10_000,
+});
+```
 
-// POST /api/checkout
-async function createCheckout(req: Request) {
-  const { orderId, items } = req.body;
+---
 
-  // Calculate price SERVER-SIDE (never trust client)
-  const amount = await calculateOrderTotal(items);
+## One-Time Payment
 
-  // Find or create customer
-  const customer = await getOrCreateStripeCustomer(req.user);
+### Server: create the PaymentIntent
 
-  const paymentIntent = await stripe.paymentIntents.create({
-    amount, // in cents
-    currency: 'usd',
-    customer: customer.id,
-    metadata: { orderId, userId: req.user.id },
+```typescript
+// POST /api/orders/:orderId/payment
+async function startPayment(orderId: string, viewer: User) {
+  const order = await orders.getForViewer(viewer, orderId);       // price computed server-side, stored on the order
+  const attempt = await orders.currentPaymentAttempt(order.id);   // increments only when the customer starts over
+
+  const pi = await stripe.paymentIntents.create({
+    amount: Number(toProviderMinor(order.total)),                 // provider-boundary conversion
+    currency: order.total.currency.toLowerCase(),
+    customer: await customers.stripeIdFor(viewer),
     automatic_payment_methods: { enabled: true },
+    metadata: { orderId: order.id },
   }, {
-    idempotencyKey: `checkout-${orderId}`,
+    idempotencyKey: `pay:${order.id}:${attempt}`,
   });
 
-  return { clientSecret: paymentIntent.client_secret };
+  return { clientSecret: pi.client_secret };
 }
 ```
 
 ### Client: Payment Element
 
 ```tsx
-import { loadStripe } from '@stripe/stripe-js';
-import { Elements, PaymentElement, useStripe, useElements } from '@stripe/react-stripe-js';
-
-const stripePromise = loadStripe(process.env.NEXT_PUBLIC_STRIPE_KEY!);
-
 function CheckoutForm() {
   const stripe = useStripe();
   const elements = useElements();
@@ -57,204 +65,154 @@ function CheckoutForm() {
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!stripe || !elements) return;
-
     setProcessing(true);
-    setError(null);
-
-    const { error: submitError } = await stripe.confirmPayment({
+    const { error } = await stripe.confirmPayment({
       elements,
-      confirmParams: {
-        return_url: `${window.location.origin}/checkout/complete`,
-      },
+      confirmParams: { return_url: `${window.location.origin}/checkout/complete` },
     });
-
-    if (submitError) {
-      setError(submitError.message ?? 'Payment failed');
-      setProcessing(false);
-    }
-    // If successful, user is redirected to return_url
+    if (error) { setError(error.message ?? 'Payment failed'); setProcessing(false); }
+    // On success the browser goes to return_url; that page shows status but does not fulfil.
   }
 
   return (
     <form onSubmit={handleSubmit}>
       <PaymentElement />
-      <button disabled={!stripe || processing}>
-        {processing ? 'Processing...' : 'Pay now'}
-      </button>
-      {error && <div className="error">{error}</div>}
+      <button disabled={!stripe || processing}>{processing ? 'Processing…' : 'Pay'}</button>
+      {error && <div role="alert">{error}</div>}
     </form>
   );
 }
-
-function CheckoutPage({ clientSecret }: { clientSecret: string }) {
-  return (
-    <Elements stripe={stripePromise} options={{ clientSecret }}>
-      <CheckoutForm />
-    </Elements>
-  );
-}
 ```
 
 ---
 
-## Webhook Handler
-
-### Express Implementation
+## Webhook Endpoint
 
 ```typescript
-import express from 'express';
-
-const app = express();
-
-// CRITICAL: Use raw body for webhook verification
-app.post('/webhooks/stripe',
-  express.raw({ type: 'application/json' }),
-  async (req, res) => {
-    const sig = req.headers['stripe-signature'] as string;
-
-    let event: Stripe.Event;
-    try {
-      event = stripe.webhooks.constructEvent(
-        req.body,
-        sig,
-        process.env.STRIPE_WEBHOOK_SECRET!
-      );
-    } catch (err) {
-      console.error('Webhook signature verification failed');
-      return res.status(400).send('Invalid signature');
-    }
-
-    // Idempotent processing — check if already handled
-    const handled = await db.webhookEvents.findUnique({
-      where: { stripeEventId: event.id },
-    });
-    if (handled) return res.json({ received: true });
-
-    try {
-      await processWebhookEvent(event);
-
-      // Mark as handled
-      await db.webhookEvents.create({
-        data: { stripeEventId: event.id, type: event.type, processedAt: new Date() },
-      });
-    } catch (err) {
-      console.error('Webhook processing failed:', err);
-      return res.status(500).send('Processing failed'); // Stripe will retry
-    }
-
-    res.json({ received: true });
+app.post('/webhooks/stripe', express.raw({ type: 'application/json' }), async (req, res) => {
+  let event: Stripe.Event;
+  try {
+    // verifies the Stripe-Signature header over the raw body, including the timestamp tolerance
+    event = stripe.webhooks.constructEvent(req.body, req.headers['stripe-signature'] as string, config.stripe.webhookSecret);
+  } catch {
+    return res.status(400).send('Invalid signature');
   }
-);
 
-async function processWebhookEvent(event: Stripe.Event) {
+  // The claim and the job commit together: a duplicate delivery can only be acknowledged
+  // when the first one's job exists (transactional job table or outbox, not a separate queue call).
+  await db.transaction(async (tx) => {
+    const claimed = await tx.query(
+      `INSERT INTO payment_events (provider, event_id, type, payload, received_at)
+       VALUES ('stripe', $1, $2, $3, now()) ON CONFLICT (provider, event_id) DO NOTHING RETURNING id`,
+      [event.id, event.type, req.body]);
+    if (claimed.rowCount === 0) return;                         // duplicate delivery
+    await tx.jobs.enqueue('stripe-event', { id: claimed.rows[0].id });
+  });
+  res.sendStatus(200);
+});
+
+// Worker
+async function processStripeEvent(event: Stripe.Event) {
   switch (event.type) {
     case 'payment_intent.succeeded': {
-      const pi = event.data.object as Stripe.PaymentIntent;
-      await fulfillOrder(pi.metadata.orderId, pi.id);
-      break;
+      const pi = event.data.object;
+      return onPaymentSucceeded({ kind: 'payment_succeeded', ref: { provider: 'stripe', id: pi.id },
+        orderId: pi.metadata.orderId, amount: fromProviderMinor(pi.amount_received, pi.currency) });
     }
     case 'payment_intent.payment_failed': {
-      const pi = event.data.object as Stripe.PaymentIntent;
-      await notifyPaymentFailed(pi.metadata.orderId, pi.last_payment_error?.message);
-      break;
+      const pi = event.data.object;
+      return onPaymentFailed(pi.metadata.orderId, pi.last_payment_error?.code);
     }
-    case 'invoice.payment_succeeded': {
-      const invoice = event.data.object as Stripe.Invoice;
-      await extendSubscriptionAccess(invoice.subscription as string);
-      await sendReceipt(invoice);
-      break;
-    }
-    case 'invoice.payment_failed': {
-      const invoice = event.data.object as Stripe.Invoice;
-      await startDunning(invoice.subscription as string, invoice.id);
-      break;
-    }
+    case 'invoice.paid':
+    case 'invoice.payment_failed':
+    case 'customer.subscription.updated':
     case 'customer.subscription.deleted': {
-      const sub = event.data.object as Stripe.Subscription;
-      await revokeAccess(sub.metadata.userId);
-      await sendCancellationEmail(sub.metadata.userId);
-      break;
+      const subscriptionId = subscriptionIdOf(event.data.object);
+      if (subscriptionId) return syncSubscription(subscriptionId);    // re-read current state; events arrive out of order
+      return;
     }
+    default:
+      log.info({ type: event.type, id: event.id }, 'stripe event ignored');  // subscribed but not handled
   }
+}
+
+function subscriptionIdOf(obj: Stripe.Invoice | Stripe.Subscription): string | null {
+  if (obj.object === 'subscription') return obj.id;
+  const ref = obj.parent?.type === 'subscription_details'
+    ? obj.parent.subscription_details?.subscription             // basil+: replaces invoice.subscription
+    : null;
+  return typeof ref === 'string' ? ref : ref?.id ?? null;
 }
 ```
 
+To read the PaymentIntent behind an invoice (basil+), expand `payments` on the invoice and use `invoice.payments.data[i].payment.payment_intent`; `invoice.payment_intent` no longer exists.
+
 ---
 
-## Subscription Setup
+## Subscriptions
 
-### Create Subscription with Trial
+### Create, with or without a trial
 
 ```typescript
-async function createSubscription(
-  customerId: string,
-  priceId: string,
-  trialDays: number = 14
-) {
-  const subscription = await stripe.subscriptions.create({
+async function createSubscription(userId: string, customerId: string, priceId: string, requestId: string, trialDays?: number) {
+  const sub = await stripe.subscriptions.create({
     customer: customerId,
     items: [{ price: priceId }],
-    trial_period_days: trialDays,
-    payment_behavior: 'default_incomplete', // require payment method
-    payment_settings: {
-      save_default_payment_method: 'on_subscription',
-    },
-    expand: ['latest_invoice.payment_intent'],
-    metadata: { userId: 'user-123' },
+    ...(trialDays ? { trial_period_days: trialDays } : {}),
+    payment_behavior: 'default_incomplete',
+    payment_settings: { save_default_payment_method: 'on_subscription' },
+    expand: ['latest_invoice.confirmation_secret', 'pending_setup_intent'],
+    metadata: { userId },
   }, {
-    idempotencyKey: `sub-${customerId}-${priceId}`,
+    idempotencyKey: `subscribe:${requestId}`,                  // the client's subscribe request id
   });
 
-  const invoice = subscription.latest_invoice as Stripe.Invoice;
-  const pi = invoice.payment_intent as Stripe.PaymentIntent;
+  // No trial: the first invoice needs payment → confirm with the invoice's confirmation secret.
+  // Trial: the first invoice is zero → collect the method with the pending SetupIntent instead.
+  const invoice = sub.latest_invoice as Stripe.Invoice | null;
+  const setupIntent = sub.pending_setup_intent as Stripe.SetupIntent | null;
+  const clientSecret = invoice?.confirmation_secret?.client_secret ?? setupIntent?.client_secret ?? null;
+  if (!clientSecret) throw new Error(`Subscription ${sub.id} has neither a payment nor a setup to confirm`);
 
   return {
-    subscriptionId: subscription.id,
-    clientSecret: pi.client_secret, // for Payment Element
-    status: subscription.status,
+    subscriptionId: sub.id,
+    clientSecret,
+    confirm: invoice?.confirmation_secret ? 'payment' : 'setup',   // client calls confirmPayment or confirmSetup
   };
 }
 ```
 
-### Plan Change with Proration
+### Plan change
 
 ```typescript
-async function changePlan(subscriptionId: string, newPriceId: string) {
-  const subscription = await stripe.subscriptions.retrieve(subscriptionId);
-
-  await stripe.subscriptions.update(subscriptionId, {
-    items: [{
-      id: subscription.items.data[0].id,
-      price: newPriceId,
-    }],
-    proration_behavior: 'create_prorations', // credit unused time
+async function changePlan(change: { id: string; subscriptionId: string; newPriceId: string }) {
+  const sub = await stripe.subscriptions.retrieve(change.subscriptionId);
+  await stripe.subscriptions.update(change.subscriptionId, {
+    items: [{ id: sub.items.data[0].id, price: change.newPriceId }],
+    proration_behavior: 'create_prorations',
   }, {
-    idempotencyKey: `plan-change-${subscriptionId}-${newPriceId}-${Date.now()}`,
+    idempotencyKey: `plan-change:${change.id}`,     // stored change request id; same on every retry
   });
 }
 ```
 
-### Dunning (Failed Payment Recovery)
+### Failed renewals
+
+Configure Smart Retries (or a custom retry schedule) and the customer emails in the Billing settings, plus what happens after the last retry (cancel, mark unpaid, or leave past due). Your code only reacts:
 
 ```typescript
-async function startDunning(subscriptionId: string, invoiceId: string) {
-  const subscription = await stripe.subscriptions.retrieve(subscriptionId);
-  const userId = subscription.metadata.userId;
+async function syncSubscription(subscriptionId: string) {
+  const sub = await stripe.subscriptions.retrieve(subscriptionId);
+  await access.set(sub.metadata.userId, accessFor(sub.status));
+}
 
-  // Attempt 1: Immediate notification
-  await sendEmail(userId, 'payment-failed', {
-    updatePaymentUrl: `${APP_URL}/billing/update-payment`,
-    retryDate: addDays(new Date(), 3),
-  });
-
-  // Schedule follow-ups via background jobs
-  await dunningQueue.add('retry-notification', {
-    subscriptionId, userId, attempt: 2,
-  }, { delay: 3 * 24 * 60 * 60 * 1000 }); // 3 days
-
-  await dunningQueue.add('final-warning', {
-    subscriptionId, userId, attempt: 3,
-  }, { delay: 7 * 24 * 60 * 60 * 1000 }); // 7 days
+function accessFor(status: Stripe.Subscription.Status): Access {
+  switch (status) {
+    case 'active': case 'trialing': return 'full';
+    case 'past_due':                return 'grace';
+    case 'incomplete': case 'incomplete_expired':
+    case 'unpaid': case 'canceled': case 'paused': return 'none';
+  }
 }
 ```
 
@@ -262,48 +220,19 @@ async function startDunning(subscriptionId: string, invoiceId: string) {
 
 ## Testing
 
-### Stripe Test Cards
-
-| Card Number | Scenario |
+| Card number | Scenario |
 |-------------|----------|
-| 4242 4242 4242 4242 | Successful payment |
-| 4000 0000 0000 3220 | 3D Secure required |
-| 4000 0000 0000 9995 | Declined (insufficient funds) |
-| 4000 0000 0000 0341 | Attached but fails on charge |
-
-### Webhook Testing
+| 4242 4242 4242 4242 | Succeeds |
+| 4000 0025 0000 3155 | Requires authentication (3DS) on session, and off session until set up |
+| 4000 0000 0000 9995 | Declined: insufficient funds |
+| 4000 0000 0000 0341 | Attaches, then fails when charged |
 
 ```bash
-# Local development — forward webhooks to localhost
-stripe listen --forward-to localhost:3000/webhooks/stripe
-
-# Trigger test events
+stripe listen --forward-to localhost:3000/webhooks/stripe   # local forwarding with a test signing secret
 stripe trigger payment_intent.succeeded
-stripe trigger customer.subscription.created
 stripe trigger invoice.payment_failed
 ```
 
-### Integration Test Pattern
-
-```typescript
-describe('checkout flow', () => {
-  it('creates payment intent and handles webhook', async () => {
-    // 1. Create checkout
-    const { body } = await request(app)
-      .post('/api/checkout')
-      .send({ orderId: 'test-order', items: [{ id: 'item-1', qty: 1 }] });
-
-    expect(body.clientSecret).toBeDefined();
-
-    // 2. Simulate webhook (in test, skip signature verification)
-    const event = createTestEvent('payment_intent.succeeded', {
-      metadata: { orderId: 'test-order' },
-    });
-    await processWebhookEvent(event);
-
-    // 3. Verify order fulfilled
-    const order = await db.orders.findUnique({ where: { id: 'test-order' } });
-    expect(order.status).toBe('fulfilled');
-  });
-});
-```
+- Test the webhook path with signed test events (the CLI, or the SDK's test-header helper), not by calling the worker directly with unsigned objects.
+- Test clocks simulate subscription renewals, trials, and retries without waiting.
+- Scenario cards come from the provider's testing page; take new scenarios from there rather than guessing numbers.

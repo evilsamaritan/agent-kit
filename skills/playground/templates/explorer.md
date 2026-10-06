@@ -26,13 +26,31 @@ Before building, write one line of job and takeaway for every candidate view, th
 
 More than three primary views needs an explicitly requested reference. Navigation organizes justified detail; it does not compress an oversized model.
 
-## Inputs from an architecture owner
+## Page pattern
 
-Use the handoff form from the `architecture` skill (architecture-views, "Handoff to the playground skill"): per view the question, audience, scope, status, entities, relationships, canonical diagram source, compact projection, and textual equivalent. Keep the diagram source and its language.
+A document-like explorer, not a slide deck, on the explorer shell ([shell-components.md](../references/shell-components.md)): persistent section navigation, document status and scope, the current section's title and takeaway, a diagram / text-and-contracts switch when both help, one focused visual canvas, and a boundary note, legend, or evidence footer. Sections follow the reader's model (overview, ownership, structure, contracts, lifecycles, failure behavior), not a page count, and the page stays freely navigable.
+
+The first viewport shows location, status, takeaway, and the primary visual; rationale, contracts, and evidence go into detail levels, not an introduction wall. Each section has a stable identifier and deep link, a type label (`Component graph`, `Lifecycle`, `Contract`), a precise title, a one-sentence takeaway, one primary visual or structured text view, and only the legend or caveat that section needs. Keep nouns identical across navigation, titles, diagram nodes, details, and data. Tabs are for complementary representations of the same scope, never for chapters, sequential steps, or views readers must compare side by side.
+
+## View model
+
+Keep content in one structured model and render every projection from it, so names and facts are never copied by hand. When an architecture owner supplies a view contract (the handoff in the `architecture` skill, architecture-views, "Handoff to the playground skill"), use its fields unchanged and keep its diagram source and language:
+
+```text
+views          id, question, audience, scope/level, status/priority, takeaway
+entities       id, name, type, responsibility, boundary or authority, evidence status
+relationships  source, kind, target, label, status, order or cardinality
+```
+
+Other sources (a codebase, a document set) map onto the same three lists.
 
 ## Interaction
 
 Section navigation with deep links; `Diagram` / `Text and API` tabs only for complementary representations of the same scope; current/target toggles over one model; search or filters when entities are numerous.
+
+## Review
+
+For annotating a document or a diff, keep the source as the main column with an annotation rail: inline comments anchored to a line or element, accept/reject per item, a count of open items, and an export that lists each comment with its anchor. Code and diffs follow [code-views.md](../references/code-views.md).
 
 ## Deliver
 

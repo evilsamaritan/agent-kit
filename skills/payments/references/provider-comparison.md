@@ -1,70 +1,66 @@
 # Payment Provider Comparison
 
-Detailed vendor short-lists for specific business needs. Use this as a lookup after picking a payment path in SKILL.md.
+Provider short-lists after a payment path is chosen in SKILL.md. Names are examples, not endorsements; providers change products, coverage, and ownership often, so confirm current capabilities and terms with the provider before recommending one.
 
 ## Contents
 
-- [Provider Selection Decision Tree](#provider-selection-decision-tree)
-- [Provider Comparison Matrix](#provider-comparison-matrix)
-- [Pattern-to-Provider Shortlist](#pattern-to-provider-shortlist)
-- [Notes on Regional Coverage](#notes-on-regional-coverage)
+- [Selection Decision Tree](#selection-decision-tree)
+- [Durable Differences](#durable-differences)
+- [Path-to-Provider Short-List](#path-to-provider-short-list)
+- [Regional Notes](#regional-notes)
 
 ---
 
-## Provider Selection Decision Tree
-
-This tree branches by business profile, not by paths. Use it only after you have picked a payment path in SKILL.md and need a named short-list.
+## Selection Decision Tree
 
 ```
-What are you building?
-├── SaaS / digital products (need tax + compliance handled)?
-│   ├── Want zero tax/compliance burden? → Merchant of Record (Paddle, LemonSqueezy)
-│   │   MoR = they are the seller of record, handle VAT/GST/sales tax globally
-│   └── Want full control + own merchant account? → Stripe / Adyen
-├── Marketplace / platform with payouts to sellers?
-│   ├── US + simple → Stripe Connect
-│   └── Global + complex → Adyen for Platforms / Stripe Connect
-├── Enterprise / high-volume / multi-region?
-│   └── Adyen (interchange++, 250+ methods, unified online+POS)
-├── In-person / retail POS?
-│   ├── SMB / US-focused → Square
-│   └── Enterprise / global → Adyen
-├── Consumer checkout trust matters most?
-│   └── PayPal / Braintree (highest consumer recognition)
-└── Cross-border / multi-currency priority?
-    └── Adyen or Airwallex
+Do you want to be the seller of record (register for and remit sales tax/VAT yourself)?
+├── no → merchant-of-record provider
+└── yes → What dominates the business?
+    ├── Payouts to third parties (marketplace, platform) → provider with connected accounts and KYC onboarding
+    ├── Online + in-person in one ledger → provider with unified online and terminal acceptance
+    ├── Many countries and local methods → global acquirer, or a regional provider per market behind your own module
+    ├── Consumer wallet recognition at checkout → add a wallet provider's button alongside cards
+    └── Otherwise → a developer-focused card processor with hosted fields and native billing
 ```
 
 ---
 
-## Provider Comparison Matrix
+## Durable Differences
 
-| Factor | Stripe | Adyen | Braintree | Square | Paddle/LS |
-|--------|--------|-------|-----------|--------|-----------|
-| **Model** | Gateway | Gateway | Gateway | Gateway | MoR |
-| **Best for** | Startups, SaaS | Enterprise, global | PayPal ecosystem | SMB, POS | SaaS, no tax ops |
-| **Tax handling** | Add-on (Stripe Tax) | Partial | No | No | Included |
-| **POS** | Terminal | Unified | Limited | Core strength | No |
+| Dimension | Options | Why it matters |
+|-----------|---------|----------------|
+| Seller of record | Gateway/processor (you are the merchant) vs merchant of record (provider is) | Tax registration, refunds policy, chargeback handling, margins |
+| Pricing model | Blended rate vs interchange-plus | Cost predictability vs lower cost at volume |
+| Acquiring | Own acquiring licence vs partner acquirers | Authorization rates, settlement control |
+| Coverage | Global vs regional | Local methods and local acquiring raise acceptance |
+| Channels | Online only vs unified online + terminals | One customer and one ledger across channels |
+| Billing | Native subscriptions and invoicing vs bring-your-own billing system | Who owns retries, proration, tax lines |
 
 ---
 
-## Pattern-to-Provider Shortlist
+## Path-to-Provider Short-List
 
-| Payment path (from SKILL.md) | Typical short-list |
+Examples only.
+
+| Payment path | Typical short-list |
 |---|---|
-| One-time card checkout, global | Stripe, Adyen, Braintree |
-| Subscriptions | Stripe Billing, Chargebee (on top of Stripe/Adyen), Adyen |
+| One-time card checkout | Stripe, Adyen, Braintree, Checkout.com |
+| Recurring billing | Provider-native billing (Stripe Billing, Adyen), or a billing system on top (Chargebee, Recurly) |
 | Marketplace / payouts | Stripe Connect, Adyen for Platforms |
-| Regional (LATAM / APAC / India) | Local: MercadoPago (LATAM), Razorpay (India), Airwallex (APAC) |
-| SaaS MoR | Paddle, LemonSqueezy |
-| Crypto / stablecoins | Coinbase Commerce, BitPay, Circle |
+| Merchant of record | Paddle, FastSpring |
+| LATAM | Mercado Pago, dLocal, EBANX |
+| India | Razorpay, PayU, Cashfree |
+| APAC multi-market | Adyen, Airwallex, local wallets via aggregators |
+| In-person SMB | Square, Stripe Terminal, SumUp |
+| Stablecoin acceptance | Provider add-ons or specialised crypto gateways; check licensing per market |
 
 ---
 
-## Notes on Regional Coverage
+## Regional Notes
 
-- **EU/UK** — Any major gateway works; ensure PSD2/SCA exemption flags are wired correctly.
-- **US** — Card networks dominate; ACH/FedNow for B2B and recurring.
-- **LATAM** — Local methods (Boleto, OXXO, Pix) matter more than card acceptance; use local aggregators.
-- **India** — UPI + RuPay are primary; RBI rules (mandatory 3DS, tokenization) require an India-native PSP.
-- **APAC** — Fragmented; multi-method coverage (Alipay, WeChat Pay, GrabPay, local banks) is the deciding factor.
+- **EEA/UK** — any major gateway works; wire SCA exemptions and merchant-initiated flags correctly.
+- **US** — cards dominate; ACH for B2B and recurring; instant rails through bank or fintech partners.
+- **LATAM** — local methods (Pix, Boleto, OXXO) and installments matter more than card acceptance alone.
+- **India** — UPI is primary; card-on-file tokenization and authentication rules favour India-licensed providers.
+- **APAC** — fragmented; wallet and bank-method coverage per market is the deciding factor.

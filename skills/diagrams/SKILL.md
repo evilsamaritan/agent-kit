@@ -16,7 +16,7 @@ A diagram is a second way to state a model: its entities, relationships, order, 
 | The document around the diagram: reader, structure, prose, links | `documentation` |
 | View, notation, source text, semantic fidelity, compiler commands, Markdown placement | **this skill** |
 | A separate web artifact: themes, responsive projections, navigation, interactivity, browser rendering | `playground` |
-| Quantities, distributions, trends | a chart, not a graph language |
+| Quantities, distributions, trends | a chart, not a graph language: chart choice → `design`; an interactive chart page → `playground` |
 
 Every skill can draw a small diagram for its own work using this skill's conventions. Drawing does not require a document, an architect, or a web artifact, and none of them requires a diagram.
 
@@ -70,7 +70,7 @@ Mermaid and D2 are both reasonable primary languages; no language is a global de
 |---|---|---|---|
 | Mermaid | flowchart, sequence, state, ER; hosts that render fenced blocks natively | `mmdc -i view.mmd -o view.svg` | [mermaid.md](references/mermaid.md) |
 | D2 | architecture, containment, dependencies, process, sequence, SQL tables | `d2 --layout=elk view.d2 view.svg` | [d2.md](references/d2.md) |
-| PlantUML | detailed UML: activation, fragments, composite states, multiplicities | `java -jar plantuml.jar -tsvg view.puml` | [plantuml.md](references/plantuml.md) |
+| PlantUML | detailed UML: activation, fragments, composite states, multiplicities | `java -jar plantuml.jar --svg view.puml` | [plantuml.md](references/plantuml.md) |
 | Graphviz / DOT | extracted graphs; explicit layout algorithm | `dot -Tsvg view.dot -o view.svg` | [graphviz.md](references/graphviz.md) |
 
 The language, the layout engine, and the delivery path are three separate choices. A different engine can remove crossings without changing the model; a different language cannot fix a model problem.

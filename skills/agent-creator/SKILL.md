@@ -11,10 +11,10 @@ argument-hint: "[create|update|delete|sync|verify] [agent or profile]"
 ## Critical rules
 
 - A **profile** is the reusable profession stored by Agent Kit. A **project agent** is a configured instance of a profile rendered into a host runtime's native format.
-- In a consuming project, edit only `.agent-kit/agents.json`, then run the materializer. Never hand-copy or hand-edit generated `.claude/agents/*.md` or `.codex/agents/*.toml` files.
+- In a consuming project, edit only `.agent-kit/agents.json`, then run the materializer. Never hand-copy or hand-edit generated `.claude/agents/*.md`, `.codex/agents/*.toml`, or `.kimi-code/agents/*.md` files.
 - In the Agent Kit repository, edit profile sources only under `profiles/<name>/`, then run `scripts/generate-profiles.mjs`. Never edit generated orchestrator profile references. The package contains no registered profession agents.
-- Skills are the agent's exact project knowledge composition when `skills` is present in `.agent-kit/agents.json`. If omitted, the profile defaults apply. A profile's `requires` skills are always added (`developer` and `reviewer` carry `development`).
-- Use native runtime targets: Claude Markdown custom agents and Codex TOML custom agents. Do not create a shared pseudo-runtime, wrapper agent, or proprietary execution protocol.
+- Skills are the agent's exact project knowledge composition when `skills` is present in `.agent-kit/agents.json`. If omitted, the profile defaults apply. A profile's `requires` skills are always added (for example `developer` → development, `architect` → architecture; the catalog's Required column lists all).
+- Use native runtime targets: Claude Markdown, Codex TOML, and Kimi Markdown custom agents. Do not create a shared pseudo-runtime, wrapper agent, or proprietary execution protocol.
 - Preserve non-generated runtime files. The materializer refuses to overwrite them and prunes only files carrying the Agent Kit generated marker.
 - Leave ignore files and host plugin settings alone: whether generated agents are committed is the project's choice, not Agent Kit's.
 - Default to Claude and Codex project targets so the project can switch runtimes; add Kimi Code when the project uses it. Narrow `runtimes` only when the user explicitly wants one host.
@@ -59,21 +59,21 @@ Read [references/profile-catalog.md](../agent-orchestrator/references/profile-ca
 
 Choose the smallest exact set the project agent routinely needs. Start from profile defaults, then replace them when the stack calls for a different composition.
 
-Use [project-agent-recipes.md](references/project-agent-recipes.md) for starting knowledge and responsibility descriptions. Names express ownership, not a stack concatenation. One developer can serve several domains; separate instances only for actual boundaries. Explicit skills replace defaults.
+Use [project-agent-recipes.md](references/project-agent-recipes.md), the single source of compositions, for starting knowledge and responsibility descriptions. Names express ownership, not a stack concatenation. One developer can serve several domains; separate instances only for actual boundaries. Explicit skills replace defaults.
 
 Do not preload every possibly related skill. Other installed skills remain discoverable on demand.
 
-For a non-persistent assignment, `materialize-agents.mjs --brief <name>` produces the same profile behavior and selected source paths without writing runtime files. The host must support authorized delegation; the brief cannot enforce missing API controls.
+`materialize-agents.mjs --brief <name> --runtime <host>` prints a generic-subagent brief for an agent already configured in `.agent-kit/agents.json` whose native target is stale or cannot be selected; it writes nothing. With no configured agent, pass the profile reference from `agent-orchestrator/references/profiles/` plus the exact skill ids to a generic subagent. A brief cannot enforce tool, sandbox, or model controls the host's spawn API lacks.
 
 ## Access
 
-| access | Claude default tools | Codex sandbox default |
+| access | Claude default tools | Codex `sandbox_mode` (intent) |
 |--------|----------------------|-----------------------|
 | `read-only` | read/search/web/skills | `read-only` |
 | `edits` | read + file edits | `workspace-write` |
 | `full` | read + edits + shell | `workspace-write` |
 
-The current runtime session can impose stricter policy or override a child default. `access` is the intended default, not a way to bypass the host.
+The current runtime session can impose stricter policy or override a child default. Codex's source ignores `sandbox_mode` in a custom-agent file, so a Codex child runs under the parent session's sandbox (see the orchestrator's Codex runtime reference). `access` is the intended default, not a way to bypass the host.
 
 ## Materializer
 

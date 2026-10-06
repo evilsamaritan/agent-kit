@@ -36,7 +36,7 @@ The compiler should fail when a member is missing:
 
 When consumers keep branching on kinds, restrict the comparison to the modules that may name members:
 
-- **ESLint or oxlint:** `no-restricted-syntax` with a selector for comparisons against the kind property, enabled everywhere and disabled by an override for the registration and codec directories.
+- **ESLint:** `no-restricted-syntax` with a selector for comparisons against the kind property, enabled everywhere and disabled by an override for the registration and codec directories. oxlint does not implement this rule; there, use a custom rule or the scanning test below.
 - **Other ecosystems:** a custom lint rule, or a test that scans source files for the pattern outside allowed paths and fails with the file and line.
 
 Keep the allowed paths explicit and short. A growing allow list means the rule is wrong or the structure drifted.
