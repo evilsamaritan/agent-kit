@@ -5,15 +5,15 @@ description: "Design or review game code. Use for game loop, frame budget, gamep
 
 # Game Development
 
-A game is a simulation that a renderer draws. The engine, language, or platform does not move the rules: TypeScript drawing to a browser canvas is still gameplay code when it decides who takes damage. This skill applies the ownership and extension analysis of `architecture` to games and adds what is specific to them: time, frames, scenes, assets, saves, determinism, and netcode.
+A game is a simulation that a renderer draws. The engine, language, or platform does not move the rules: a C# component, a GDScript node, or a script drawing to a browser canvas is still gameplay code when it decides who takes damage. This skill applies the practice of `development` to games and adds what is specific to them: time, frames, scenes, assets, saves, determinism, and netcode. Code sketches are TypeScript-flavored pseudo-code; the shapes are the same as C# classes, C++ structs, or GDScript classes, and [engines.md](references/engines.md) maps them onto engines.
 
 **Rules:**
 
 1. The simulation owns rules and state. Presentation projects state to visual parameters. The renderer draws them. Input and UI send intents; the simulation decides consequences.
 2. Step the simulation at a fixed rate from an accumulator and interpolate rendering whenever motion, physics, networking, or replays affect outcomes.
 3. Give every invariant one write path. Read APIs return snapshots or read-only views, never internal mutable references.
-4. Prepare a new scene off to the side, commit it in one short step, and keep the previous scene when preparation fails. Reset loading flags in `finally`.
-5. After every `await`, check that the owning session or scene is still alive before any effect.
+4. Prepare a new scene off to the side, commit it in one short step, and keep the previous scene when preparation fails. Reset loading flags on every exit path (`finally`, `defer`, a destructor or RAII guard).
+5. After every suspension point (`await`, a coroutine `yield`, a callback), check that the owning session or scene is still alive before any effect.
 6. Save the model, not render state — versioned, migrated, and written atomically.
 7. Keep wall-clock reads and unseeded randomness out of the simulation.
 8. Test the simulation headless, presentation as a pure mapping, and the renderer separately.
@@ -26,10 +26,11 @@ A game is a simulation that a renderer draws. The engine, language, or platform 
 
 | Need | Route |
 |---|---|
-| General boundaries, ownership, extension analysis, refactor proportion | `architecture` — this skill applies it, does not restate it |
+| Code practice: ownership, variant families, explicit dependencies, async lifetime, refactoring | `development` — this skill applies it to games, does not restate it |
+| Module and service boundaries, system design | `architecture` |
 | Profiling method, flame graphs, memory leak hunting | `performance` |
 | WebSocket, WebTransport, or WebRTC connections, reconnection, relay scaling | `realtime` |
-| TypeScript types, modules, workers, event loop | `javascript` |
+| Language idioms: C#, C++, GDScript, TypeScript, Rust | the matching language skill where the kit has one (`javascript`, `rust`, …) |
 | Test strategy, property-testing tools, flaky tests | `testing` |
 | Menus and HUD built with a web UI framework | `frontend` plus its framework skill — they still send intents |
 | Accounts, matchmaking, leaderboards, store backends | `backend`, `database`, `auth`, `payments` |
@@ -161,28 +162,32 @@ Depth: [model-presentation-renderer.md](references/model-presentation-renderer.m
 
 ### State ownership
 
-- Give each invariant one write path: the operation that changes a fact also updates every index derived from it.
+`development` gives every invariant one writer; in a running game that means:
+
+- The operation that changes a fact also updates every index derived from it.
 
 ```ts
 class Inventory {
-  #slots: (ItemId | null)[] = []
-  #slotOf = new Map<ItemId, number>()        // derived index, written only by add/remove
-  add(item: ItemId): AddResult { /* writes #slots and #slotOf together */ }
-  slots(): readonly (ItemId | null)[] { return [...this.#slots] }   // a copy, never the field
+  private slots: (ItemId | null)[] = []
+  private slotOf = new Map<ItemId, number>()   // derived index, written only by add/remove
+  add(item: ItemId): AddResult { /* writes slots and slotOf together */ }
+  view(): readonly (ItemId | null)[] { return [...this.slots] }   // a copy, never the field
 }
 ```
 
-- Treat `readonly` as shallow. `ReadonlyArray<Unit>` still hands out mutable `Unit` objects; return copies, frozen snapshots, ids plus query functions, or view types read-only all the way down.
+- Read-only views must be read-only all the way down. A read-only list of mutable units (`ReadonlyArray<Unit>`, `IReadOnlyList<Unit>`, a `const` array of pointers) still hands out mutable units; return copies, snapshots, ids plus query functions, or view types that are read-only throughout.
 - Rebuild derived indexes (spatial hash, team lists, parent links) on load from saved source facts instead of saving both.
 - Keep data definitions (stat tables, prefab templates) read-only at runtime; per-instance state lives in the simulation.
 
 ### Variation and extension
 
-- **Closed protocol** — a fixed set of wire messages, save record versions, input command types, or match phases changed together by one owner: an exhaustive `switch` over a discriminated union at the protocol owner (decoder, phase machine) is correct and clearest.
-- **Open family** — enemy behaviors, abilities, items, game modes that keep growing: each variant owns its rules, presentation mapping, and save codec, registered once at the composition root.
-- **Numbers only** — variants that differ only in values are data definitions run by one algorithm.
+`development` decides whether a family is open or closed and where variant knowledge lives. In games the families usually fall like this:
 
-Trace one concrete extension before approving a structure:
+- **Closed protocols** — wire messages, save record versions, input command types, match phases: exhaustive dispatch at the protocol owner (decoder, phase machine).
+- **Open families** — entity kinds, enemy behaviors, abilities, items, traps, game modes: each kind owns its rules, presentation mapping, and save codec, registered once at the composition root.
+- **Numbers only** — a stronger orc, another goblin variant: data definitions run by one algorithm.
+
+A level or save format that lists today's kinds closes the format, not the family. Expected touches per change, the game form of the extension trace:
 
 | Change | Expected touches | Structure is wrong if it also touches |
 |---|---|---|
@@ -191,7 +196,7 @@ Trace one concrete extension before approving a structure:
 | New capability (freezable) | the capability's rules and storage, visual mapping, codec, the kinds that opt in | every kind, or the renderer |
 | New visual asset for existing state | the asset, the presentation mapping | simulation |
 
-This table is the game-specific shape of the extension test in `architecture`.
+Run the trace from `development` before approving a structure; a consumer outside this table is a finding.
 
 ### Scene and resource lifecycle
 
@@ -220,9 +225,11 @@ async function changeScene(id: SceneId) {
 
 - Whoever holds the candidate disposes it; ownership moves exactly once, at commit.
 - Disposal releases asset leases, GPU resources (textures, buffers, render targets), listeners, timers, and pooled objects owned by the scene.
-- Reset every loading flag, spinner, and input lock in `finally`.
+- Reset every loading flag, spinner, and input lock on every exit path (`finally`, `defer`, a destructor or RAII guard).
 
 ### Async work after await
+
+`development` ties async work to an owner; in a game the owners are the session, the match, and the scene.
 
 ```ts
 async function save(session: Session) {
@@ -252,7 +259,7 @@ Depth for this and the previous section: [scene-and-asset-lifecycle.md](referenc
 
 - Load from manifests that list each scene's dependencies, so preparation knows the full set before commit.
 - Hold assets through leases: `const atlas = await assets.acquire("orc.atlas")`, then `atlas.release()` when the scene disposes. The cache unloads at zero references, optionally after a grace period that avoids reload thrash between adjacent scenes.
-- Deduplicate in-flight loads: two requests for one asset share one promise.
+- Deduplicate in-flight loads: two requests for one asset share one in-flight load.
 - Set budgets per target (memory, texture size, download size, draw calls) and check them with asset reports.
 - Stream large worlds by region with hysteresis: the load radius is larger than the unload radius.
 - Hot reload assets and data definitions in development only; keep entity ids stable and re-project presentation.
@@ -306,21 +313,22 @@ test("burning stops at water", () => {
 
 - **Game policy in the renderer** — the renderer or engine adapter branches on game kinds or stages: `if (unit.kind === "boss" && stage === 3) mesh.scale.set(2, 2, 2)`. Symptom: every new kind or stage edits rendering code, and visuals drift from rules. Fix: presentation maps state to visual parameters through per-kind data; the renderer applies parameters by id.
 - **UI decides consequences** — a click handler subtracts gold and spawns the unit. Symptom: rules duplicated across UI, AI, and network paths; replays miss UI-made changes. Fix: the handler submits an intent; the simulation validates and applies it.
-- **Getters return internal mutable state** — `get units() { return this.#units }`, or `readonly Unit[]` holding mutable units. Symptom: state changes with no writer in the stack trace; derived indexes go stale. Fix: return a snapshot, a deep read-only view, or ids plus queries; mutate only through commands.
+- **Getters return internal mutable state** — a getter returns the internal list itself, or a read-only list that holds mutable units. Symptom: state changes with no writer in the stack trace; derived indexes go stale. Fix: return a snapshot, a deep read-only view, or ids plus queries; mutate only through commands.
 - **Activation outside try** — `const scene = await prepare(id); activate(scene); loading = false`. Symptom: one failed load leaves the game on the loading screen, the half-built candidate leaks GPU memory, and the previous scene is already torn down. Fix: prepare, commit in one short step, dispose the uncommitted candidate and reset flags in `finally`.
 - **Effects after await on a disposed session** — Symptom: a "Saved" toast or victory sound on the main menu; an event from the old match reaches the new one. Fix: capture state before the await, check lifetime or generation after it, then run effects.
 - **Scattered variant knowledge** — one item kind lives as a case in the save switch, the presentation switch, the tooltip switch, and the session. Symptom: adding a kind needs synchronized edits across unrelated files, and a missed case corrupts saves. Fix: the variant owns its rules, mapping, and codec, registered once. A closed protocol's single exhaustive decoder is not this.
 - **God session file** — one `GameSession` holds turns, saves, audio, UI, and networking. Size is a signal, not a verdict: trace one independent change (a new enemy kind, a new save field). If it touches unrelated parts of the file, or every variant edits it, split along the owners the trace reveals; if changes stay local and cohesive, leave it.
 - **Frame-dependent physics** — `velocity *= 0.98` per frame, or collisions stepped with variable delta. Symptom: jumps go higher at 144 Hz, projectiles tunnel through walls at 20 FPS, outcomes differ by machine. Fix: fixed simulation step with render interpolation.
-- **Wall clock in the simulation** — `Date.now()` cooldowns, `Math.random()` in rules. Symptom: pause does not pause cooldowns, replays and lockstep desync, tests flake. Fix: tick-based time and the simulation's seeded RNG.
+- **Wall clock in the simulation** — cooldowns read from the system clock (`Date.now()`, `Time.time`, `Time.get_ticks_msec()`), unseeded random numbers (`Math.random()`, `Random.Range`) in rules. Symptom: pause does not pause cooldowns, replays and lockstep desync, tests flake. Fix: tick-based time and the simulation's seeded RNG.
 - **Saving render state** — saves hold node transforms or animation frames. Symptom: changing a model or rig breaks old saves. Fix: save model state; presentation rebuilds visuals on load.
 
 ## Related Knowledge
 
-- `architecture` — boundaries, ownership, extension and change analysis; this skill applies them to games
+- `development` — ownership, variant families, async lifetime, and change practice; this skill applies them to games
+- `architecture` — module and service boundaries for game backends and tools
 - `performance` — profiling, frame-time investigation, memory leaks, budgets on target hardware
 - `realtime` — transport selection, connection lifecycle, reconnection, relay scaling beneath netcode
-- `javascript` — read-only and union types, workers, and the event loop for web games
+- language skills (`javascript`, `rust`, …) — idioms of the language the game is written in; `javascript` also covers workers and the event loop for web games
 - `testing` — test strategy, property-based and golden tests, flake diagnosis
 - `mobile` — app lifecycle, backgrounding, process death, and restoration on phones and tablets
 - `backend` — game services: matchmaking, leaderboards, accounts

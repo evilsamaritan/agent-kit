@@ -72,7 +72,7 @@ fun <T> render(state: UiState<T>) = when (state) {
 }
 ```
 
-Use sealed hierarchies for: state machines, result types, navigation events, API responses, error categories.
+Use sealed hierarchies for closed sets: state machines, result types, navigation events, API responses, error categories; `when` used as an expression, without `else`, makes a new subtype a compile error. An open family — providers, channels, plugins — is an interface each member implements, registered once; consumers call it instead of `when (x) { is A -> … }` (`development`).
 
 ---
 
@@ -182,7 +182,8 @@ kotlin { jvmToolchain(21) }
 
 ## Related Knowledge
 
-- **backend** — service patterns, DI, middleware when building Kotlin backend services
+- **development** — code practice these idioms express: variant families, ownership, explicit dependencies
+- **backend** — service wiring, middleware, lifecycle when building Kotlin backend services
 - **database** — Exposed/Ktorm ORM patterns, connection pooling
 - **testing** — testing coroutines, Turbine for Flow testing
 

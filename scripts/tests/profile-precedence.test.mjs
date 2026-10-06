@@ -1,12 +1,14 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
 import { fileURLToPath } from 'node:url'
-import { composeAgent, loadProfiles, renderTarget } from '../profile-lib.mjs'
+import { composeAgent, composeSkills, loadProfiles, renderAgentBrief, renderTarget } from '../profile-lib.mjs'
 
 const root = fileURLToPath(new URL('../../', import.meta.url))
 const profiles = loadProfiles(root)
 const architect = profiles.find((item) => item.name === 'architect')
 const security = profiles.find((item) => item.name === 'security')
+const developer = profiles.find((item) => item.name === 'developer')
+const reviewer = profiles.find((item) => item.name === 'reviewer')
 const toolsLine = (content) => content.split('\n').find((line) => line.startsWith('tools: '))
 
 test('project read-only replaces write-capable library tools in every runtime', () => {
@@ -41,9 +43,35 @@ test('Claude keeps read-only honest when memory would grant Write/Edit', () => {
   assert.throws(() => composeAgent(security, { access: 'read-only', claude: { memory: 'project' } }), /memory/)
 })
 
-test('Claude receives the resolved source without depending on bare-name discovery', () => {
+test('Claude preloads library skills by qualified id, never by a bare name another plugin could match', () => {
   const agent = composeAgent(security, { skills: ['security'] })
-  const target = renderTarget('claude', agent, [{ name: 'security', path: '/installed/agent-kit/skills/security/SKILL.md' }])
-  assert.match(target, /^skills: \["security"\]$/m)
-  assert.match(target, /security: "\/installed\/agent-kit\/skills\/security\/SKILL.md"/)
+  const target = renderTarget('claude', agent)
+  assert.match(target, /^skills: \["agent-kit:security"\]$/m)
+  assert.match(target, /^- security: "agent-kit:security"$/m)
+})
+
+test('required skills stay first when a project replaces the skill list', () => {
+  assert.deepEqual(composeAgent(developer, { skills: ['gamedev', 'javascript'] }).skills, ['development', 'gamedev', 'javascript'])
+  assert.deepEqual(composeAgent(developer, { skills: ['javascript', 'development'] }).skills, ['development', 'javascript'])
+  assert.deepEqual(composeAgent(developer, { skills: [] }).skills, ['development'])
+  assert.deepEqual(composeAgent(reviewer).skills, reviewer.front.skills)
+})
+
+test('profiles without required skills keep the project list exactly', () => {
+  const plain = { front: { skills: ['a', 'b'] } }
+  assert.deepEqual(composeSkills(plain), ['a', 'b'])
+  assert.deepEqual(composeSkills(plain, { skills: ['c'] }), ['c'])
+  assert.deepEqual(composeSkills({ front: { skills: ['a'], requires: ['a'] } }, { skills: ['c', 'c'] }), ['a', 'c'])
+})
+
+test('generated targets preload required skills', () => {
+  const target = renderTarget('claude', composeAgent(developer, { skills: ['rust'] }))
+  assert.match(target, /^skills: \["agent-kit:development", "agent-kit:rust"\]$/m)
+})
+
+test('named target and ephemeral brief share the selected profession body', () => {
+  const agent = composeAgent(developer, { name: 'frontend-developer', skills: ['frontend'] })
+  assert(renderTarget('claude', agent).includes(developer.body.trimEnd()))
+  assert(renderAgentBrief(agent, [{ name: 'frontend', path: '/installed/frontend/SKILL.md' }]).includes(developer.body.trimEnd()))
+  assert.match(renderAgentBrief(agent), /does not enforce native tool/)
 })

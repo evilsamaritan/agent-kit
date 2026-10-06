@@ -51,3 +51,5 @@ Report:
 - selected profiles and exact skills;
 - validation commands and outcomes;
 - preserved user-owned agents.
+
+Leave ignore files alone: whether generated agents are committed is the project's choice.

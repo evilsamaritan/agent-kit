@@ -1,17 +1,19 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
 import { fileURLToPath } from 'node:url'
-import { composeAgent, inputFingerprint, loadProfiles, renderTarget, runtimeRegistry } from '../profile-lib.mjs'
+import { readFileSync } from 'node:fs'
+import { composeAgent, compositionFingerprint, loadProfiles, renderTarget, runtimeRegistry } from '../profile-lib.mjs'
 import { parseFlatYaml } from '../profile-format.mjs'
-import { compareTargets } from '../profile-runtimes/shared.mjs'
+import { PLUGIN_NAME, compareTargets, skillLocator } from '../profile-runtimes/shared.mjs'
 
-const profiles = loadProfiles(fileURLToPath(new URL('../../', import.meta.url)))
+const root = fileURLToPath(new URL('../../', import.meta.url))
+const profiles = loadProfiles(root)
 const reviewer = profiles.find((p) => p.name === 'reviewer')
 const claude = runtimeRegistry.get('claude')
 const codex = runtimeRegistry.get('codex')
 const kimi = runtimeRegistry.get('kimi')
 const source = (path) => [{ name: 'architecture', path }]
-const provenance = { kit: '4.0.0-alpha.4', inputs: 'abc' }
+const provenance = { inputs: 'abc' }
 
 test('library profiles pin no model; both runtimes inherit by omission', () => {
   for (const profile of profiles) {
@@ -38,27 +40,69 @@ test('YAML overlays and JSON project overrides normalize to the same types', () 
   claude.validate(overlay, 'test')
 })
 
-test('Codex skills.config points at SKILL.md', () => {
-  const target = renderTarget('codex', composeAgent(reviewer, { skills: ['architecture'] }), source('/kit/skills/architecture/SKILL.md'))
-  assert.match(target, /\[\[skills\.config\]\]\npath = "\/kit\/skills\/architecture\/SKILL.md"\nenabled = true/)
+test('Codex targets carry no skills.config: role files may only disable skills', () => {
+  const target = renderTarget('codex', composeAgent(reviewer, { skills: ['architecture'] }))
+  assert.doesNotMatch(target, /skills\.config/)
+  assert.match(target, /- architecture: \\"agent-kit:architecture\\"/)
+})
+
+test('every manifest names the plugin whose skill namespace targets use', () => {
+  for (const manifest of ['.claude-plugin/plugin.json', '.codex-plugin/plugin.json', '.kimi-plugin/plugin.json']) {
+    assert.equal(JSON.parse(readFileSync(`${root}${manifest}`, 'utf8')).name, PLUGIN_NAME, manifest)
+  }
+})
+
+test('locators: library skills by host identifier, discovered project skills by name, others by project path', () => {
+  const library = { name: 'architecture', project: false }
+  assert.equal(skillLocator(claude, library), 'agent-kit:architecture')
+  assert.equal(skillLocator(codex, library), 'agent-kit:architecture')
+  assert.equal(skillLocator(kimi, library), 'architecture')
+  const project = (directory) => ({ name: 'rules', project: true, directory, relative: `${directory}/rules/SKILL.md` })
+  assert.equal(skillLocator(claude, project('.claude/skills')), 'rules')
+  assert.equal(skillLocator(claude, project('.agents/skills')), '.agents/skills/rules/SKILL.md')
+  assert.equal(skillLocator(codex, project('.agents/skills')), 'rules')
+  assert.equal(skillLocator(codex, project('skills')), 'skills/rules/SKILL.md')
+  assert.equal(skillLocator(kimi, project('.kimi-code/skills')), 'rules')
 })
 
 for (const runtime of [claude, codex, kimi]) {
-  test(`${runtime.id}: diff separates path refresh, provenance, and behavior changes`, () => {
+  test(`${runtime.id}: rendering names skills by identifier, never by a path on this machine`, () => {
+    const agent = composeAgent(reviewer, { skills: ['architecture', 'rules', 'notes'] })
+    const sources = [
+      { name: 'architecture', path: skillLocator(runtime, { name: 'architecture', project: false }) },
+      { name: 'rules', path: skillLocator(runtime, { name: 'rules', project: true, directory: '.agents/skills', relative: '.agents/skills/rules/SKILL.md' }) },
+      { name: 'notes', path: 'skills/notes/SKILL.md' },
+    ]
+    const target = renderTarget(runtime.id, agent, sources, '.agent-kit/agents.json profile reviewer', { inputs: compositionFingerprint(agent, runtime.id, sources) })
+    assert.doesNotMatch(target, /"\/|\\"\/|~\/|\d+\.\d+\.\d+/)
+    assert.deepEqual(runtime.parse(target).skills, ['architecture', 'rules', 'notes'])
+    if (runtime === claude) assert.match(target, /^skills: \["agent-kit:architecture"\]$/m, 'path-only project skills are not preloaded by a guessable name')
+  })
+
+
+  test(`${runtime.id}: diff separates source, provenance, and behavior changes`, () => {
     const agent = composeAgent(reviewer, { skills: ['architecture'] })
-    const base = runtime.parse(renderTarget(runtime.id, agent, source('/a/3.4.1/skills/architecture/SKILL.md'), 'x', provenance))
-    const moved = runtime.parse(renderTarget(runtime.id, agent, source('/a/4.0.0/skills/architecture/SKILL.md'), 'x', provenance))
-    assert.equal(compareTargets(base, moved).kind, 'paths')
-    const bumped = runtime.parse(renderTarget(runtime.id, agent, source('/a/3.4.1/skills/architecture/SKILL.md'), 'x', { ...provenance, kit: '4.0.0' }))
-    assert.equal(compareTargets(base, bumped).kind, 'provenance')
-    const changed = runtime.parse(renderTarget(runtime.id, { ...agent, body: `${agent.body}\nNew duty.` }, source('/a/3.4.1/skills/architecture/SKILL.md'), 'x', provenance))
+    const library = source(runtime.librarySkill('architecture'))
+    const base = runtime.parse(renderTarget(runtime.id, agent, library, 'x', provenance))
+    assert.equal(compareTargets(base, base).kind, 'none')
+    const relocated = runtime.parse(renderTarget(runtime.id, agent, source('.agents/skills/architecture/SKILL.md'), 'x', provenance))
+    const moved = compareTargets(base, relocated)
+    assert.equal(moved.kind, 'sources')
+    assert.match(moved.changes.join('\n'), /source for architecture: .* → \.agents\/skills\/architecture\/SKILL\.md/)
+    const legacy = runtime.parse(renderTarget(runtime.id, agent, source('/a/4.0.0-rc.1/skills/architecture/SKILL.md'), 'x', { kit: '4.0.0-rc.1', inputs: 'abc' }))
+    const upgrade = compareTargets(legacy, base)
+    assert.equal(upgrade.kind, 'sources')
+    assert.match(upgrade.changes.join('\n'), /kit version 4\.0\.0-rc\.1 no longer recorded/)
+    const refingerprinted = runtime.parse(renderTarget(runtime.id, agent, library, 'x', { inputs: 'def' }))
+    assert.equal(compareTargets(base, refingerprinted).kind, 'provenance')
+    const changed = runtime.parse(renderTarget(runtime.id, { ...agent, body: `${agent.body}\nNew duty.` }, library, 'x', provenance))
     const result = compareTargets(base, changed)
     assert.equal(result.kind, 'semantic')
     assert.match(result.changes.join('\n'), /profile behavior changed/)
-    const narrowed = runtime.parse(renderTarget(runtime.id, composeAgent(reviewer, { skills: ['architecture'], access: 'full' }), source('/a/3.4.1/skills/architecture/SKILL.md'), 'x', provenance))
+    const narrowed = runtime.parse(renderTarget(runtime.id, composeAgent(reviewer, { skills: ['architecture'], access: 'full' }), library, 'x', provenance))
     assert.equal(compareTargets(base, narrowed).kind, 'semantic')
     if (runtime !== kimi) {
-      const pinned = runtime.parse(renderTarget(runtime.id, composeAgent(reviewer, { skills: ['architecture'], [runtime.id]: { model: 'opus' } }), source('/a/3.4.1/skills/architecture/SKILL.md'), 'x', provenance))
+      const pinned = runtime.parse(renderTarget(runtime.id, composeAgent(reviewer, { skills: ['architecture'], [runtime.id]: { model: 'opus' } }), library, 'x', provenance))
       assert.match(compareTargets(base, pinned).changes.join('\n'), /model: \(inherit\/default\) → opus/)
     }
   })
@@ -77,20 +121,24 @@ test('3.4.1-format targets parse as an unknown baseline with their old settings'
   assert.equal(codexParsed.settings.model, 'gpt-5.6-sol')
 })
 
-test('input fingerprint ignores machine paths and tracks profile or recipe changes', () => {
-  const spec = { name: 'reviewer', profile: 'reviewer' }
-  assert.equal(inputFingerprint(reviewer, spec, 'claude'), inputFingerprint(reviewer, { ...spec }, 'claude'))
-  assert.notEqual(inputFingerprint(reviewer, spec, 'claude'), inputFingerprint(reviewer, { ...spec, effort: 'low' }, 'claude'))
-  assert.notEqual(inputFingerprint(reviewer, spec, 'claude'), inputFingerprint({ ...reviewer, body: `${reviewer.body}x` }, spec, 'claude'))
+test('composition fingerprint follows the resolved agent, not raw inputs or other runtimes', () => {
+  const spec = { name: 'reviewer', profile: 'reviewer', skills: ['architecture'] }
+  const print = (profile, recipe, runtime = 'claude') => compositionFingerprint(composeAgent(profile, recipe), runtime, source('agent-kit:architecture'))
+  assert.equal(print(reviewer, spec), print(reviewer, { ...spec }))
+  assert.equal(print({ ...reviewer, front: { ...reviewer.front, skills: ['security'] } }, spec), print(reviewer, spec), 'replaced library defaults do not churn an explicit composition')
+  assert.equal(print(reviewer, { ...spec, codex: { effort: 'high' }, runtimes: ['claude', 'codex'] }), print(reviewer, spec), 'another runtime\'s override is not an input')
+  assert.notEqual(print(reviewer, { ...spec, effort: 'low' }), print(reviewer, spec))
+  assert.notEqual(print({ ...reviewer, body: `${reviewer.body}x` }, spec), print(reviewer, spec))
+  assert.notEqual(compositionFingerprint(composeAgent(reviewer, spec), 'claude', source('.agents/skills/architecture/SKILL.md')), print(reviewer, spec))
 })
 
 test('Kimi target: explicit allowlist by access, context restored on purpose, no model or effort fields', () => {
-  const readOnly = renderTarget('kimi', composeAgent(reviewer), source('/kit/skills/architecture/SKILL.md'))
+  const readOnly = renderTarget('kimi', composeAgent(reviewer))
   const tools = readOnly.split('\n').find((line) => line.startsWith('tools: '))
   assert.doesNotMatch(tools, /"(?:Edit|Write|Bash|Agent|AgentSwarm)"/)
   assert.match(tools, /"Read"/)
   assert.doesNotMatch(readOnly, /^(model|effort):/m)
-  for (const part of ['${agents_md}', '${skills}', '## Handoff', 'architecture: "/kit/skills/architecture/SKILL.md"']) assert(readOnly.includes(part), part)
+  for (const part of ['${agents_md}', '${skills}', '## Handoff', 'development: "development"', 'Skill tool']) assert(readOnly.includes(part), part)
   const full = renderTarget('kimi', composeAgent(reviewer, { access: 'full' }))
   assert.match(full, /"Bash"/)
   assert.doesNotMatch(full, /"Agent"/)

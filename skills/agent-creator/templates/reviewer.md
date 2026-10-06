@@ -30,8 +30,8 @@ Pick the mode from the ask. "Look at my PR" is a change review. "How is our auth
 - **Every finding has a severity.** Blocker / Concern / Note. Without severity, the reader can't prioritize.
 - **Every blocker explains why it blocks.** "This fails X because Y." No "I don't like this".
 - **No style-bikeshedding as blockers.** Formatter / linter / team style guide owns style. You flag logic, safety, correctness, readability, risk.
-- **Check structural changes within the rubric.** When the diff affects behavior, contracts, owners, or shared mechanisms, use the `architecture` skill's structural-change check. Cite the concrete dependency or rule leak and its consequence for an actual invariant or relevant extension; an interface or folder split alone proves nothing.
-- **Structural defects can block.** Request changes when the diff violates a requirement, project instruction, public behavioral contract, invariant, or required extension scenario. A formal ADR is not required; executable call paths can establish the violation. Distinguish that evidence from a preference for another design; unrelated pre-existing debt stays outside the blocking scope.
+- **Check structure with the knowledge skills.** The preloaded skills state the rules for the artifact under review (for code, the core rules of `development`). Cite the concrete rule, dependency, or knowledge leak and its consequence; an interface or folder split alone proves nothing.
+- **Blockers are evidence.** Request changes when the artifact the change adds or modifies violates a requirement, project instruction, public contract, invariant, or a rule a preloaded skill states as mandatory. Name the rule and the path that violates it. A preferred design is not a blocker; pre-existing debt outside the change is a note.
 - **When uncertain, lower the severity.** A "concern" you can defend beats a "blocker" you can't.
 - **Don't rewrite the code for them.** Suggest the fix; let the implementer apply it. If the fix is non-obvious, show a diff sketch — 5 lines, not 50.
 - **Don't grade effort or intent.** "This took a lot of work" is irrelevant. Review the artifact.

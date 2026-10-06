@@ -16,7 +16,7 @@ Use this reference when adding behavior to existing code, fixing a bug that may 
 
 ## Read the structure that exists
 
-Before the first line, find from code — not from folder names:
+Before the first line, find from code — not from folder names or the file that happens to be open:
 
 - the **owner** of the state and rules the change touches;
 - the **seam** the change could enter through: a place where behavior can be added without editing the code around it;
@@ -25,20 +25,22 @@ Before the first line, find from code — not from folder names:
 
 If no owner or seam exists, that is the finding. Do not paper over it by attaching the change to whichever file is open.
 
+Conventions in the surrounding code are followed. A surrounding pattern that breaks a core rule — a dispatch on kinds in a consumer, a second writer, a silent default — is not a convention: do not copy it into new code, and name it in the report.
+
 ## Name the structure the change wants
 
 Describe the change independently of the current code: the operation, the policy that varies, the state it needs, who owns that state, and what is likely to come next in the same direction. The distance between this description and the existing structure is the design decision.
 
 ## Fit, restructure, or redesign
 
-The proportion table in SKILL.md gives the response for each situation. These cues tell you which row you are in:
+The proportion table in SKILL.md ("Changing existing code") gives the response for each situation. These cues tell you which row you are in:
 
 | Situation | Cues |
 |---|---|
 | Fits an existing seam and owner | a new piece next to similar pieces; no other module notices |
 | Needs local restructuring | the owner exists but has no seam; a function must be split before the new behavior has a place; a copy would otherwise be needed |
 | Crosses a contract or boundary | another module's public surface, state ownership, a persisted or wire format, or a hard-to-reverse choice changes |
-| Repeats a fix | the same kind of patch has been applied before, here or in a sibling; find the cause with [root-cause-analysis.md](root-cause-analysis.md) |
+| Repeats a fix | the same kind of patch has been applied before, here or in a sibling; find the cause with [root-cause-analysis.md](../../architecture/references/root-cause-analysis.md) |
 
 "Make the change easy, then make the easy change" describes the second row. The third row is where a user's decision is needed; the first two are not.
 
@@ -58,10 +60,11 @@ There is no formula. Weigh these and say which ones decided the matter:
 Worked outcomes:
 
 - *A new filter is added to a list that already has five filters as plain predicates.* Fits. Add the sixth predicate.
-- *A seventh game needs wallet display, and six games each carry their own wallet copy.* The direct change adds a seventh copy and the next change edits seven places. The owner is obvious. Restructure: one wallet owner, modules receive a narrow interface to it — and because it changes the module contract, present it as options first.
+- *A seventh module needs currency formatting, and six modules each carry their own copy.* The direct change adds a seventh copy and the next change edits seven places. The owner is obvious. Restructure: one formatting owner, modules receive a narrow interface to it — and because it changes the module contract, present it as options first.
+- *A new payment method must be added, and checkout, receipts, and refunds each branch on the method.* Adding an eighth branch in three consumers extends a core-rule violation. Restructure first: each method owns its checkout step, receipt line, and refund rule; then add the new method as one module and a registration.
 - *One screen needs a one-off workaround for a vendor bug, removable when the vendor fixes it.* Direct change is right. Isolate it at the edge, name it as a workaround, and state the removal condition.
 
-Direct embedding is sometimes the correct answer. What is never correct is choosing it without having looked.
+Direct embedding is sometimes the correct answer. What is never correct is choosing it without having looked. The weighing never licenses a change that breaks a core rule in code it adds: when restructuring is too risky for the task, present options instead of extending the violation.
 
 ## Preparatory refactoring
 
@@ -72,7 +75,7 @@ Direct embedding is sometimes the correct answer. What is never correct is choos
 
 ## Fix or cause
 
-Before fixing a bug, check whether it is an instance of a class: look for siblings, earlier patches in the same area, and other copies of the rule (see [Finding siblings](root-cause-analysis.md#finding-siblings)). One isolated defect with an existing owner gets a local fix — say so explicitly. A second occurrence gets a cause.
+Before fixing a bug, check whether it is an instance of a class: look for siblings, earlier patches in the same area, and other copies of the rule (see [Finding siblings](../../architecture/references/root-cause-analysis.md#finding-siblings)). One isolated defect with an existing owner gets a local fix — say so explicitly. A second occurrence gets a cause.
 
 ## Signs of a workaround
 

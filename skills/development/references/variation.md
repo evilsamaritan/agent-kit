@@ -1,19 +1,48 @@
-# Composable Design: Extend by Adding, Not by Editing
+# Variation: Extend by Adding, Not by Editing
 
-Use this reference when something must be extensible, when designing a core or library API, or when flags, switches, factories, or preset bundles keep growing. Per-pattern semantics (ordering, errors, cancellation) live in [design-patterns.md](design-patterns.md); this file is about the structure that makes a design open.
+Use this reference when a family of variants grows, when code branches on kinds or types, when designing a core or library API, or when flags, switches, factories, or preset bundles keep growing. Per-pattern semantics (ordering, errors, cancellation) live in [patterns.md](patterns.md); this file is about where variant knowledge lives and the structure that makes a design open.
 
 Code sketches use TypeScript-flavored pseudo-code. The structures are language-independent.
 
 ## Contents
 
+- [Open and closed families](#open-and-closed-families)
 - [The property](#the-property)
 - [Anatomy of an open design](#anatomy-of-an-open-design)
 - [Contrast pairs](#contrast-pairs)
 - [Concrete knowledge belongs to its owner](#concrete-knowledge-belongs-to-its-owner)
 - [Designing an extension point](#designing-an-extension-point)
 - [Defaults built on the public contract](#defaults-built-on-the-public-contract)
-- [When open is the wrong answer](#when-open-is-the-wrong-answer)
+- [When a new mechanism is the wrong answer](#when-a-new-mechanism-is-the-wrong-answer)
 - [Review questions](#review-questions)
+
+## Open and closed families
+
+A family is a set of variants the code treats as alternatives of one concept. Decide what kind of set it is before writing the first branch over it; the core rules in SKILL.md follow from the answer.
+
+| The set is fixed by | Family | Dispatch |
+|---|---|---|
+| a protocol or file format with a version and one owner | closed | exhaustive, at the owner (decoder, state machine) |
+| a standard, or a type whose meaning fixes its cases: `Result`, `Option`, a language's AST, HTTP methods | closed | exhaustive, wherever consumed |
+| the states of a state machine | closed | the machine owns transitions |
+| a requirement that says the set does not grow | closed | exhaustive; cite the requirement beside the dispatch |
+| nothing of the above | open | each variant owns its knowledge; only construction and decoding name members |
+| — the variants differ only in values | data | definitions run by one algorithm |
+
+A format and the domain it stores are different sets. An export file that lists today's document types is a closed format: its codec dispatches by tag. The family of document types stays open, and a new type means a new codec entry plus a format version, not edits to every consumer.
+
+Declaring a union of domain kinds (`type Kind = "email" | "sms"`) does not close the family either: the union only lists today's members. Counting enumerated members in a specification does not close a family. "We support five notification channels" describes today; "the set of channels is fixed" is a requirement. When the specification is silent and a new member is a plausible request, treat the family as open and state the assumption.
+
+### Expressing ownership
+
+| Style | Open family | Closed family |
+|---|---|---|
+| Classes | a method on each variant, or on a named capability several variants implement | a sealed hierarchy or enum with an exhaustive switch |
+| Functions and data | a per-kind module registered once; one table at the registration mapping each kind to its module, proven complete by the type checker — never a per-consumer table of per-kind values | a discriminated union with an exhaustive switch |
+| ECS or data-oriented | a component and the system that owns it; kind-specific behavior is its own component | an enum dispatched by its owning system |
+| Persistence | one codec per kind, selected by tag at decode | the format's version dispatch |
+
+When several variants share a behavior — two payment methods that both support refunds — name the capability and implement it once. Consumers call the capability's operation; they do not test which variants have it.
 
 ## The property
 
@@ -60,19 +89,19 @@ Cost: the consumer assembles more. Pay it back with a convenience wrapper built 
 ### 2. Central factory or type switch versus registration at the composition root
 
 ```ts
-// Closed: every new game edits this function
-function createGame(kind: string) {
-  switch (kind) {
-    case "poker": return new PokerGame()
-    case "okey":  return new OkeyGame()
+// Closed: every new exporter edits this function
+function createExporter(format: string) {
+  switch (format) {
+    case "csv":  return new CsvExporter()
+    case "xlsx": return new XlsxExporter()
   }
 }
 ```
 
 ```ts
 // Open: the core knows the contract; the composition root lists the members
-const games: Record<string, GameModule> = { poker: pokerModule, okey: okeyModule }
-startHost({ games })
+const exporters: Record<string, ExporterModule> = { csv: csvModule, xlsx: xlsxModule }
+startReports({ exporters })
 ```
 
 Cost: the list lives somewhere. Keep it in one composition root, not in a self-registering global.
@@ -81,12 +110,12 @@ Cost: the list lives somewhere. Keep it in one composition root, not in a self-r
 
 ```ts
 // Closed: each new variation adds a flag and a branch
-function loadTable(id: string, opts: { withCache?: boolean; silent?: boolean; legacyFormat?: boolean }) { /* ... */ }
+function loadReport(id: string, opts: { withCache?: boolean; silent?: boolean; legacyFormat?: boolean }) { /* ... */ }
 ```
 
 ```ts
 // Open: the variation is a value the caller supplies
-function loadTable(id: string, deps: { fetch: FetchTable; onError: (e: Error) => void }) { /* ... */ }
+function loadReport(id: string, deps: { fetch: FetchReport; onError: (e: Error) => void }) { /* ... */ }
 ```
 
 Cost: callers must choose. Give them a default value, not a default branch.
@@ -122,25 +151,25 @@ for (let i = 0; i < 3; i++) { try { return await client.call(req) } catch { awai
 const client = withMetrics(withRetry(withAuth(transportClient), retryPolicy))
 ```
 
-Cost: order matters and must be stated (see [design-patterns.md](design-patterns.md#decorator-and-middleware)).
+Cost: order matters and must be stated (see [patterns.md](patterns.md#decorator-and-middleware)).
 
 ### 6. Shared structure copied into every module versus a narrow interface passed in
 
 ```ts
-// Closed: every module's state has a wallet field, a wallet reducer, and a wallet formatter
-type PokerState = { wallet: Wallet; /* ... */ }
-type OkeyState  = { wallet: Wallet; /* ... */ }
+// Closed: every module keeps its own locale field, loader, and money formatter
+type BillingState = { locale: Locale; /* ... */ }
+type ReportsState = { locale: Locale; /* ... */ }
 ```
 
 ```ts
 // Open: one owner; modules receive what they need from it
-type ModuleContext = { wallet: { balance$: Observable<Money>; format(m: Money): string } }
-function startPoker(ctx: ModuleContext) { /* reads through the interface; owns no copy */ }
+type ModuleContext = { locale: { current$: Observable<Locale>; formatMoney(m: Money): string } }
+function startBilling(ctx: ModuleContext) { /* reads through the interface; owns no copy */ }
 ```
 
 Cost: the context contract needs care — keep it a typed, narrow surface the host owns. It is still closed if modules must change whenever the host's internal structure changes.
 
-For inheritance trees built to express combinations of behavior, see [design-principles.md](design-principles.md#composition-and-variation): compose independent behaviors instead.
+For inheritance trees built to express combinations of behavior, see [principles.md](principles.md#composition-and-variation): compose independent behaviors instead.
 
 ## Concrete knowledge belongs to its owner
 
@@ -181,13 +210,13 @@ Use this decision test:
 | Variants differ only in configuration | Use data with one algorithm; do not manufacture classes. |
 | Consumer enumerates optional capabilities and infers a concrete type | It is reconstructing the family model; give it the required operation or query instead. |
 
-The criterion is propagation of knowledge, not the presence of `kind`, `switch`, or a registry. A table that centralizes every variant's business rules has the same problem as a switch. Conversely, a local exhaustive decoder for a deliberately closed wire format is valid. Do not turn every conditional into a plugin mechanism.
+The criterion is where the decision about a member lives. For an open family, construction and decoding name the members and nothing else does. A table inside a consumer that holds every variant's rules has the same problem as a switch. An exhaustive decoder for a closed wire format is valid. A conditional over values is not variation and needs no mechanism.
 
-Prove the boundary with a change sketch: add one committed or representative variant, list the expected changed files, and trace its creation, operation, failure, and cleanup. Explain any consumer that must change. Check one unrelated variant or consumer stays isolated. A sketch can suffice; build a spike or contract test when code inspection cannot resolve the risk. Report which evidence was executed and which was reasoned.
+Prove the structure with an extension trace: add one representative member, list the files it touches, and trace its creation, operation, failure, and cleanup. Any consumer on the list is a finding. Procedure: [extension-trace.md](../workflows/extension-trace.md).
 
 ## Designing an extension point
 
-Design extension points around variation that exists or is committed. For each one, answer:
+An extension point is a mechanism: a contract others implement, a registry, a plugin API. Build one around variation that exists or is committed. For each one, answer:
 
 1. What may vary?
 2. What must stay invariant, whatever the extension does?
@@ -205,21 +234,21 @@ Ship conveniences that use only what consumers can also use. The test: *could a 
 
 This keeps the core small, makes defaults disposable, and turns every shipped default into a living example of how to extend.
 
-## When open is the wrong answer
+## When a new mechanism is the wrong answer
 
-- One implementation and no demonstrated or committed variation: write it directly.
+- One implementation and no other variant in sight: write it directly.
 - Variants whose semantics genuinely differ: a common contract would hide the difference. Keep them separate.
 - Collaboration that must be coordinated in a fixed order: an explicit sequence is clearer than pluggable stages.
 - A mechanism that needs coined vocabulary to explain: it is a private framework. Use a known pattern or none.
 
-Buy the cheapest seam that works, in this order: a parameter → a passed-in function → a small contract → a composition mechanism. Move up only when the cheaper seam demonstrably fails.
+Buy the cheapest mechanism that works, in this order: a parameter → a passed-in function → a small contract → a composition mechanism. Move up only when the cheaper one demonstrably fails. This ladder prices mechanisms; it does not apply to placing a variant's knowledge on the variant, which is free.
 
 ## Review questions
 
 - Can a new behavior be added without editing the core?
 - Can a shipped default be replaced from outside, using only the public contract?
 - Who owns the order of composition, and is it visible where pieces are assembled?
-- Does the core know the names of specific cases?
+- Does the core, or any consumer outside construction and decoding, know the names of specific cases?
 - Is there one list of members, in one composition root?
 - Can the mechanism be explained with well-known pattern names and the project's own words?
 - Is it simpler than the sum of the cases it replaces?

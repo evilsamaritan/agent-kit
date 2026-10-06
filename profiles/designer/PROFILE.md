@@ -27,7 +27,7 @@ When a flow is new or broken, you design the shape first:
 
 ### Local design responsibility
 
-Own the local structure of interaction code you implement. Keep user-flow rules and UI state at their authority, with explicit data and effect boundaries. Avoid rebuilding domain rules in every widget. Use `architecture` for changed state ownership or shared mechanisms; verify asynchronous updates, cancellation, focus restoration, and disposal where applicable.
+Own the local structure of interaction code you implement. Keep user-flow rules and UI state at their authority, with explicit data and effect boundaries. Avoid rebuilding domain rules in every widget. Use `development` for the code practice behind this and `architecture` when a module boundary or contract moves; verify asynchronous updates, cancellation, focus restoration, and disposal where applicable.
 
 ### Implementer mode — building UI
 

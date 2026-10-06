@@ -94,7 +94,7 @@ If two proposed components must jointly enforce one invariant synchronously, rec
 **Composition and patterns**
 
 1. Name the force before the pattern: variation, isolation, coordination, lifecycle, consistency, or compatibility.
-2. Consider the direct solution first, then the smallest open shape that resolves the force ([composable-design.md](../references/composable-design.md), [design-patterns.md](../references/design-patterns.md)).
+2. Consider the direct solution first, then the smallest open shape that resolves the force ([variation.md](../../development/references/variation.md), [patterns.md](../../development/references/patterns.md), [integration-patterns.md](../references/integration-patterns.md)).
 3. Compare at least one viable alternative and, for an existing system, keeping the current design.
 4. Record the complexity each choice adds: indirection, ordering, state, operational burden, testing surface, migration cost.
 

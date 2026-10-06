@@ -1,6 +1,6 @@
 # Module and Application Design
 
-Use this reference to decide what belongs in the application core, where module boundaries sit, who owns state, and how dependencies flow. For extension points and open composition read [composable-design.md](composable-design.md); for choosing a collaboration pattern read [design-patterns.md](design-patterns.md); for structure inside a module read [code-design.md](code-design.md).
+Use this reference to decide what belongs in the application core, where module boundaries sit, who owns state, and how dependencies flow. For extension points, variant families, collaboration patterns, and structure inside a module, use the `development` skill ([variation.md](../../development/references/variation.md), [patterns.md](../../development/references/patterns.md), [code-design.md](../../development/references/code-design.md)); for coordination across owners read [integration-patterns.md](integration-patterns.md).
 
 ## Contents
 
@@ -86,7 +86,7 @@ Use these tests:
 
 If several modules can independently enforce or mutate the same invariant, either consolidate ownership or define an explicit coordination protocol. A shared table is not a coordination protocol, and a copy of the same state in every module is not ownership.
 
-When another module needs owned state, give it a query, a published fact, or a narrow interface from the owner — not a second copy to maintain (see [composable-design.md](composable-design.md#contrast-pairs), pair 6).
+When another module needs owned state, give it a query, a published fact, or a narrow interface from the owner — not a second copy to maintain (see [variation.md](../../development/references/variation.md#contrast-pairs), pair 6).
 
 ## Dependency direction
 

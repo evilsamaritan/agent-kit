@@ -1,6 +1,6 @@
 # Review an Architecture
 
-Review the architecture that exists in executable evidence, not the architecture implied by folder names or diagrams. Use this workflow to evaluate a codebase, a subsystem, or a design proposal, and to turn a large issue inventory into causes and a target model. For a single merge request, diff, or fix, use [critique.md](critique.md).
+Review the architecture that exists in executable evidence, not the architecture implied by folder names or diagrams. Use this workflow to evaluate a codebase, a subsystem, or a design proposal, and to turn a large issue inventory into causes and a target model. For a single merge request, diff, or fix, use the `development` [critique workflow](../../development/workflows/critique.md).
 
 ## Contents
 

@@ -26,7 +26,7 @@ Assign each pass a single review dimension. This constrains the model's attentio
 |------|-----------|--------|-------|
 | 1 | **Security** | 25% | OWASP Top 10, injection, auth, secrets, input validation |
 | 2 | **Correctness** | 25% | Logic errors, edge cases, error handling, null safety |
-| 3 | **Maintainability** | 20% | DRY, naming, cohesion, coupling, readability |
+| 3 | **Maintainability** | 20% | duplicated knowledge, naming, cohesion, coupling, readability |
 | 4 | **Performance** | 20% | Complexity, allocations, N+1, caching opportunities |
 | 5 | **Style** | 10% | Conventions, formatting, consistency with codebase |
 

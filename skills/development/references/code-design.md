@@ -1,6 +1,6 @@
 # Code Design: Structure in the Small
 
-Use this reference when writing or refactoring code inside a module: tangled functions, mixed responsibilities, hidden dependencies, growing conditionals. It applies the same judgment as the rest of the skill at the scale of a function, class, or file. Principles are defined in [design-principles.md](design-principles.md) and patterns in [design-patterns.md](design-patterns.md); this file shows the move.
+Use this reference when writing or refactoring code inside a module: tangled functions, mixed responsibilities, hidden dependencies, growing conditionals. It shows the moves behind the core rules at the scale of a function, class, or file. Principles are defined in [principles.md](principles.md), variation in [variation.md](variation.md), and patterns in [patterns.md](patterns.md).
 
 Code sketches use TypeScript-flavored pseudo-code. The structures are language-independent.
 
@@ -22,7 +22,7 @@ Code sketches use TypeScript-flavored pseudo-code. The structures are language-i
 |---|---|
 | a function or file that does "everything"; every feature edits it | [What a unit owns](#what-a-unit-owns), [Separate state, policy, and mechanism](#separate-state-policy-and-mechanism) |
 | tests that need half the application set up; globals, singletons, imports of concrete services deep in logic | [Pass dependencies in](#pass-dependencies-in) |
-| flag parameters, the same `switch` in several places, booleans that encode a lifecycle | [Conditionals and variation](#conditionals-and-variation) |
+| flag parameters, several operations branching on the same kind or type, booleans that encode a lifecycle | [Conditionals and variation](#conditionals-and-variation) |
 | classes with no state, or closures hiding a lifecycle | [Objects or functions](#objects-or-functions) |
 | business decisions inside setup or bootstrap code | [Wiring code](#wiring-code) |
 | `Manager`, `Helper`, `Utils`, or a word used with two meanings | [Names](#names) |
@@ -43,19 +43,19 @@ Most tangled units mix three kinds of code:
 
 ```ts
 // Before: one function decides, remembers, and talks to the network
-async function joinTable(id) {
-  if (current && current.id !== id && !settings.multiTable) await socket.send({ leave: current.id })
-  current = { id, joinedAt: Date.now() }
-  await socket.send({ join: id })
+async function subscribe(channelId) {
+  if (current && current.id !== channelId && !settings.multiChannel) await socket.send({ unsubscribe: current.id })
+  current = { id: channelId, since: Date.now() }
+  await socket.send({ subscribe: channelId })
 }
 ```
 
 ```ts
 // After: policy is a pure function; state has one owner; mechanism is passed in
-function planJoin(current: Table | null, id: string, multiTable: boolean): Step[] {
+function planSubscribe(current: Channel | null, channelId: string, multiChannel: boolean): Step[] {
   const steps: Step[] = []
-  if (current && current.id !== id && !multiTable) steps.push({ leave: current.id })
-  return [...steps, { join: id }]
+  if (current && current.id !== channelId && !multiChannel) steps.push({ unsubscribe: current.id })
+  return [...steps, { subscribe: channelId }]
 }
 // The stateful shell runs the plan through `send` and records the result.
 ```
@@ -74,13 +74,15 @@ Do not overdo it: stable, pure, local helpers are imported directly. Pass in wha
 
 | Shape | Reading | Move |
 |---|---|---|
-| one `if` in one place | fine | none |
+| an `if` over values in one place | fine | none |
 | a flag parameter selecting behavior | the caller already knows which behavior it wants | pass the behavior, or split into two functions |
-| the same `switch` on a type in several places | a variation point without an owner | one table or strategy per variant, selected once |
+| a branch on a variant's kind or type outside construction and decoding | the consumer is deciding what the variant means | move that decision to the variant; the consumer calls the operation |
+| several operations branching on the same family, even through different switches | the family has several competing descriptions | each variant owns its behavior, presentation data, and codec |
+| an exhaustive switch over a closed family (versioned protocol, `Result`, state-machine states) | the compiler proves it complete | keep it; make sure no `default` hides a member |
 | several booleans encoding a lifecycle | impossible combinations are representable | one state value with explicit transitions |
 | a lookup would do | the variants differ only in data | a table, not a class hierarchy |
 
-Replace a conditional only when it repeats or grows. A strategy for a single `if` is ceremony.
+Conditionals over values stay conditionals; a strategy for a single `if` is ceremony. A branch on a variant's type is not a value conditional: the core rules decide it, not its size.
 
 ## Objects or functions
 
@@ -90,7 +92,7 @@ Choose by state and variation, not ideology.
 - **Functions** fit stateless transformation, dataflow composition, explicit dependencies as arguments, and states expressed as data variants.
 - **Hybrids are normal:** immutable values and pure policy functions inside a stateful service; object adapters composed from functional middleware.
 
-Prefer composition over inheritance; see [design-principles.md](design-principles.md#composition-and-variation).
+Prefer composition over inheritance; see [principles.md](principles.md#composition-and-variation). When classes already model the variants, their behavior belongs on them: a class that only holds fields while other code decides what it means is a data bag, not an object.
 
 ## Wiring code
 
@@ -107,5 +109,5 @@ Code that assembles the application — constructs owners, passes dependencies, 
 
 - Stable code with no change pressure.
 - Three similar lines that may yet diverge.
-- A single implementation with no demonstrated variation.
+- A single implementation with no other variant in sight: write it directly, without a mechanism.
 - Anything outside the task's scope: propose the cleanup with its reason; do not fold it into an unrelated change.

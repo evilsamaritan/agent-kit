@@ -6,6 +6,7 @@
 
 - Roles: operator, reviewer
 - Skills: reliability, observability, performance
+- Required skills: none
 - Effort / access: medium / full
 - Claude model / tools: inherit / Read, Grep, Glob, WebSearch, WebFetch, Edit, Write, Bash, Skill
 - Codex model / effort / sandbox: inherit / medium / workspace-write

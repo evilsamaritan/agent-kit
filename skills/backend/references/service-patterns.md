@@ -4,7 +4,7 @@ Universal patterns for backend services. Adapt to your project's language and fr
 
 ## Contents
 
-- [Dependency Injection](#dependency-injection)
+- [Service Wiring](#service-wiring)
 - [Config Validation](#config-validation)
 - [Service Lifecycle](#service-lifecycle)
 - [Graceful Shutdown](#graceful-shutdown)
@@ -19,9 +19,9 @@ Universal patterns for backend services. Adapt to your project's language and fr
 
 ---
 
-## Dependency Injection
+## Service Wiring
 
-DI decouples service creation from service usage. Every major backend framework/language has a DI approach.
+Wiring decouples service creation from service usage: one composition root constructs everything and passes it in. A container is optional; hand-wiring in `main` is the default for small services.
 
 ### Core Principles
 1. **Constructor injection** — dependencies passed in at construction, not fetched at runtime
@@ -50,7 +50,7 @@ container.register("createOrderHandler", class CreateOrderHandler(orderService, 
 
 ### Common Mistakes
 - Circular dependencies in registration → split into smaller services
-- Manual `new Service(dep1, dep2)` in handler code → always use the container
+- Constructing services inside handler code → construct at the composition root and pass them in
 - Registering everything as transient → stateful resources leak connections
 
 ---

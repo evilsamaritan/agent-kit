@@ -142,7 +142,8 @@ cargo deny check
 
 ## Related Knowledge
 
-- **backend** — service patterns, DI, middleware when building Rust services
+- **development** — code practice the idioms here express: ownership, variant families, explicit dependencies
+- **backend** — service wiring, middleware, lifecycle when building Rust services
 - **database** — sqlx patterns, connection pooling, query optimization
 - **testing** — proptest, Kani verification, cargo-mutants, test architecture
 
@@ -150,7 +151,7 @@ cargo deny check
 
 Load on demand for detailed patterns and deep-dive knowledge:
 
-- `references/architecture-patterns.md` — hexagonal, typestate, CQRS, event sourcing, DI, ownership checklist
+- `references/design-idioms.md` — ports as traits, enum or trait for variant families, typestate, passing dependencies, design and ownership checklist
 - `references/async-patterns.md` — Tokio structured concurrency, cancellation, backpressure, async safety checklist
 - `references/error-handling-patterns.md` — thiserror / anyhow / miette / color-eyre patterns, error review checklist
 - `references/testing-strategies.md` — proptest, kani, bolero, insta, model-based testing, test completion checklist

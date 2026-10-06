@@ -16,6 +16,9 @@ argument-hint: "[task or agent composition]"
 - Give every agent a bounded task, inputs, file scope, expected output, and verification requirement.
 - Parallel writers must have disjoint file ownership or native worktree isolation. Otherwise run them sequentially.
 - Keep the main thread responsible for requirements, decisions, coordination, and final synthesis. Return compressed findings, not raw agent transcripts.
+- When the main thread writes code itself, it loads `development` first; otherwise it hands the code to an agent that carries it.
+- Before several writers extend the same family of variants or the same pattern, one complete exemplar is built and reviewed; assignments point to it instead of restating rules.
+- Verification comes from an agent other than the author and is stated as facts — command output, the files a new member would touch — not as the author's justification.
 - Never persist a proprietary `team.json`, loop, graph, or scheduler. Save a workflow only through a native host format when the user explicitly asks.
 
 ## Flow selection

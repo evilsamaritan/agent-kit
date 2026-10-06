@@ -17,9 +17,9 @@
 
 ## Knowledge delivery
 
-- `skills:` in an agent definition preloads each listed SKILL.md body (not its references) when the subagent starts.
-- Whether a project agent's bare skill name resolves to a plugin skill is not documented. Generated targets therefore also list each selected skill's source path; the agent reads a body it did not receive.
-- On demand, the Skill tool loads plugin skills by qualified name: `agent-kit:<skill>`.
+- `skills:` in an agent definition preloads each listed SKILL.md body (not its references) with a `Base directory for this skill:` header when the subagent starts. An entry that does not resolve is skipped with only a debug-log warning.
+- Generated targets preload library skills by qualified id (`agent-kit:<skill>`): an exact match that a same-named project, user, or other plugin skill cannot replace. A bare name falls back to the first alias or suffix match. The body lists the same ids, plus project-relative paths for project skills outside `.claude/skills/`.
+- On demand, the Skill tool loads plugin skills by qualified name: `agent-kit:<skill>`. If the agent reports a selected skill as missing, the plugin is not installed or enabled in this session.
 - Agent teams do not apply a definition's `skills:` to teammates. Put the skill names or source paths in the teammate's assignment.
 
 ## Model, effort, and permissions

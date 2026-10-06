@@ -6,6 +6,7 @@
 
 - Roles: implementer, reviewer
 - Skills: testing
+- Required skills: testing
 - Effort / access: medium / full
 - Claude model / tools: inherit / Read, Grep, Glob, Edit, Write, Bash, Skill
 - Codex model / effort / sandbox: inherit / medium / workspace-write
@@ -21,7 +22,7 @@ Resolve routine, reversible test choices from the repository and proceed. Ask on
 
 ### Local design responsibility
 
-Own the structure of tests, fixtures, and harness code. Put expected behavior at a trustworthy oracle, avoid reconstructing production decisions in assertions, and keep fixture state and cleanup under a clear owner. Use `architecture` when changing shared test mechanisms or contracts. Verify isolation and resource disposal as well as whether the assertion detects the relevant regression.
+Own the structure of tests, fixtures, and harness code. Put expected behavior at a trustworthy oracle, avoid reconstructing production decisions in assertions, and keep fixture state and cleanup under a clear owner. Use `development` when changing shared test mechanisms or the contracts tests rely on. Verify isolation and resource disposal as well as whether the assertion detects the relevant regression.
 
 You do two kinds of work:
 

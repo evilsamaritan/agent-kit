@@ -19,13 +19,13 @@
 
 | Signal | Profile | Suggested exact skills |
 |--------|---------|------------------------|
-| React frontend | developer | architecture, frontend, react, web, html, css, accessibility |
-| Vue frontend | developer | architecture, frontend, vue, web, html, css, accessibility |
-| Node backend | developer | architecture, backend, api-design, database, javascript, web |
-| Rust backend | developer | architecture, backend, api-design, database, rust |
-| Go backend | developer | architecture, backend, api-design, database, go |
-| Game (engine project, or a canvas/WebGL game loop) | developer | architecture, gamedev, and the language; add frontend skills only for a substantial web UI |
-| Mobile app (Android, iOS, React Native, Flutter, KMP) | developer | architecture, mobile, and the platform language, accessibility |
+| React frontend | developer | development, frontend, react, web, html, css, accessibility |
+| Vue frontend | developer | development, frontend, vue, web, html, css, accessibility |
+| Node backend | developer | development, backend, api-design, database, javascript, web |
+| Rust backend | developer | development, backend, api-design, database, rust |
+| Go backend | developer | development, backend, api-design, database, go |
+| Game (engine project, or a canvas/WebGL game loop) | developer | development, gamedev, and the language; add frontend skills only for a substantial web UI |
+| Mobile app (Android, iOS, React Native, Flutter, KMP) | developer | development, mobile, and the platform language, accessibility |
 | Containers / CI | devops | docker, ci-cd, release-engineering |
 | Kubernetes platform | devops | docker, kubernetes, ci-cd, release-engineering |
 | Production reliability | sre | reliability, observability, performance |
@@ -37,14 +37,14 @@
 
 | Recurring responsibility | Add profile when |
 |--------------------------|------------------|
-| architect | Cross-package contracts, major design decisions, recurring problems with a shared cause, structural critique of changes, or decision records recur |
+| architect | Cross-package contracts, major design decisions, recurring problems with a shared cause, architecture reviews, or decision records recur |
 | developer | Implementation owns UI, service, runtime, library, or other code; select knowledge for the responsibility |
 | tester | Test authoring/auditing is a recurring independent responsibility |
 | security | Security review recurs; do not add only because every project needs secure code |
 | devops | Deployment, CI, containers, or infrastructure live in this repository |
 | sre | SLOs, incidents, operational readiness, or reliability reviews recur |
 | designer | UX journeys and code-level design-system work recur |
-| reviewer | General independent code review is routinely delegated |
+| reviewer | General independent code review, including structural critique of changes, is routinely delegated |
 | writer | Human-facing technical documentation is a recurring deliverable |
 
 ## Sizing rules

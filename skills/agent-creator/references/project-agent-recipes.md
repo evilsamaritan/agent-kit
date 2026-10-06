@@ -12,15 +12,15 @@ Do not derive names by concatenating skills: `secure-kotlin-sre-developer`, `web
 
 | Responsibility / example name | Profile | Starting exact knowledge |
 |---|---|---|
-| Browser UI / frontend-developer | developer | architecture, frontend, web, html, css, accessibility; language and actual framework |
-| Service operations / backend-developer | developer | architecture, backend, api-design; language, persistence/auth only as used |
-| Shared library / developer | developer | architecture; language, testing/API knowledge as needed |
-| Game rules and runtime / game-developer | developer | architecture, gamedev; the language and engine actually used; performance when frame budgets are routine |
-| Mobile app and its lifecycle / mobile-developer | developer | architecture, mobile; kotlin for Android or KMP, javascript for React Native (iOS specifics live in the mobile skill's iOS reference); accessibility |
+| Browser UI / frontend-developer | developer | development, frontend, web, html, css, accessibility; language and actual framework |
+| Service operations / backend-developer | developer | development, backend, api-design; language, persistence/auth only as used |
+| Shared library / developer | developer | development; language, testing/API knowledge as needed |
+| Game rules and runtime / game-developer | developer | development, gamedev; the language and engine actually used; performance when frame budgets are routine |
+| Mobile app and its lifecycle / mobile-developer | developer | development, mobile; kotlin for Android or KMP, javascript for React Native (iOS specifics live in the mobile skill's iOS reference); accessibility |
 | Game scenarios and state transitions / game-tester | tester | testing, gamedev; the project language |
-| Cross-module decisions / architect | architect | architecture; relevant domain knowledge |
-| Independent code review / reviewer | reviewer | architecture; relevant implementation knowledge |
-| Security review / security-reviewer | reviewer | architecture, security; auth or other knowledge when in scope |
+| Cross-module decisions / architect | architect | architecture, development; relevant domain knowledge |
+| Independent code review / reviewer | reviewer | development; relevant implementation knowledge; architecture when boundaries are in scope |
+| Security review / security-reviewer | reviewer | development, security; auth or other knowledge when in scope |
 | UI journeys / ui-designer | designer | design, accessibility; html/css or platform knowledge for implementation |
 | Test ownership / tester | tester | testing; actual language/framework/domain |
 | Documentation / writer | writer | documentation, diagrams; the topic's knowledge |
@@ -33,5 +33,5 @@ A browser game is not a frontend project because it runs in a browser: gameplay 
 
 Realistic splits when the project is large enough:
 
-- **JavaScript game:** `game-developer` (simulation, presentation, scene lifecycle: architecture, gamedev, javascript) and, only if the UI is a substantial web app, `frontend-developer` (frontend, react or vue, html, css, accessibility). A dedicated renderer owner (`webgl-game-developer`) is justified when GPU work is a separate stream: gamedev, performance, javascript.
-- **Mobile app with offline sync:** `mobile-developer` (architecture, mobile, platform language, accessibility) plus `backend-developer` for the sync API; the conflict policy is agreed between them, recorded by `architect` when it is consequential.
+- **JavaScript game:** `game-developer` (simulation, presentation, scene lifecycle: development, gamedev, javascript) and, only if the UI is a substantial web app, `frontend-developer` (frontend, react or vue, html, css, accessibility). A dedicated renderer owner (`webgl-game-developer`) is justified when GPU work is a separate stream: gamedev, performance, javascript.
+- **Mobile app with offline sync:** `mobile-developer` (development, mobile, platform language, accessibility) plus `backend-developer` for the sync API; the conflict policy is agreed between them, recorded by `architect` when it is consequential.

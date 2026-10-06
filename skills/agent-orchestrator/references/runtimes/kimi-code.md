@@ -20,7 +20,7 @@ Sourced from the Kimi Code CLI documentation (plugins, agents, skills, tools pag
 
 - Skills are found in the plugin, in project `.kimi-code/skills/` and `.agents/skills/`, in user directories, and in `extra_skill_dirs`; project skills take priority over user ones. Users invoke one with `/skill:<name>`; the model loads one by its `description` and `whenToUse`.
 - Kimi reads `name`, `description`, `when_to_use`, `disable-model-invocation`, and `arguments`, and ignores Claude-only fields. Dynamic shell context (`` !`cmd` ``) is not supported. `$ARGUMENTS` and `$N` are substituted.
-- A custom sub-agent has no preload field. Generated bodies list each selected skill's source path, include `${skills}` for the skill index, and include `${agents_md}` for project instructions.
+- A custom sub-agent has no preload field. Kimi does not namespace plugin skills and its `Skill` tool looks up bare names, with project skills ahead of user, extra, and plugin ones. Generated bodies list each selected skill by bare name to load with `Skill`, include `${skills}` for the skill index (it adds install locations at run time), and include `${agents_md}` for project instructions.
 
 ## Custom agents
 
