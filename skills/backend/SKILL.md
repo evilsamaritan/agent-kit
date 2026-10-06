@@ -1,19 +1,19 @@
 ---
 name: backend
-description: "Structure service code and lifecycle. Use for DI, middleware, errors, request pipelines, startup/shutdown, resilience, and backend implementation or review."
+description: "Structure service runtime and lifecycle. Use for request pipelines and middleware order, error mapping to transport, service wiring, startup/shutdown, readiness, resilience of outbound calls, and backend implementation or review."
 user-invocable: true
 ---
 
 # Backend Service Patterns
 
-Patterns for structuring backend services — how to wire dependencies, organize middleware, handle errors, and manage lifecycle. Language-agnostic: the patterns apply whether you're in Go, Rust, Kotlin, or Node.
+Patterns for the runtime of backend services — how a request flows through the pipeline, how errors reach the client, how a service starts, stops, and survives slow dependencies. Language-agnostic: the patterns apply whether you're in Go, Rust, Kotlin, or Node. General code practice — ownership, explicit dependencies, variant families, error handling as a principle — is in `development`.
 
 ## Scope and boundaries
 
 **This skill covers:**
-- Dependency injection / wiring / service locator patterns (including tradeoffs)
+- Service wiring at startup — composition root, dependency scopes (app, request, transient)
 - Middleware / interceptor pipelines and ordering
-- Error handling — error types, wrapping, mapping to transport
+- Error mapping — error audiences, mapping to transport codes, retry safety
 - Service lifecycle — startup order, dependency readiness, graceful shutdown
 - Resilience patterns — timeouts, retries with jitter, circuit breakers, bulkheads (summary — see `reliability` for depth)
 - Request scoping — request ID, trace context, per-request resources
@@ -26,6 +26,7 @@ Patterns for structuring backend services — how to wire dependencies, organize
 - Observability instrumentation → `observability`
 - Deep SRE/SLO work → `reliability`
 - Language idioms → `go`, `rust`, `kotlin`, `javascript`
+- General code practice: explicit dependencies, ownership, variant families, refactoring → `development`
 
 ## Decision tree — picking a structure
 
@@ -34,19 +35,18 @@ Does the service handle one transport (HTTP only)?
 ├─ yes → flat layered structure: handlers → services → repositories
 └─ no → ports-and-adapters: domain core + adapters per transport (HTTP, queue, CLI)
 
-Does the service have > 10 collaborators wired at startup?
-├─ yes → formal DI (constructor injection, explicit wiring module)
-└─ no → hand-wired composition in main/bootstrap — keep it explicit and readable
+How is the service wired?
+├─ default → hand-wired composition root in main/bootstrap, explicit and readable
+└─ > ~20 collaborators with several scopes → a container, still configured in one place
 ```
 
 ## Core patterns
 
-### Dependency injection
+### Service wiring
 
-- **Constructor injection** is the default. Dependencies arrive through the constructor / factory function and stay immutable.
-- **Avoid service locators / global state** — they hide dependencies and break tests.
-- **Do not build DI frameworks for a small service.** Explicit wiring in `main` is simpler until the service has > ~20 collaborators.
-- **Scope matters.** Singleton (app lifetime), request-scoped (per-request), transient (new per call) — name the scope explicitly.
+- **One composition root.** `main` or a bootstrap module constructs clients, repositories, and handlers and passes them in; handlers never look dependencies up at request time.
+- **Name the scope of each dependency.** App lifetime (pools, clients), request scope (transaction, request ID, caller identity), transient (per call). A request-scoped value stored in an app-scoped object leaks between requests.
+- **Startup factories, not one long main.** `newDB`, `newRouter`, `newApp` keep wiring readable and testable.
 
 ### Middleware pipeline
 
@@ -67,7 +67,6 @@ Do not skip the early middleware — if your handler throws before the logging m
 ### Error handling
 
 - **Separate error types by audience.** Internal errors (for logs, observability) vs user-visible errors (for the response). Never leak stack traces to users.
-- **Wrap, don't replace.** When crossing a layer boundary, wrap the lower-layer error with context ("reading user %d from db: %w") rather than losing it.
 - **Map at the edge.** Transport-level error codes (HTTP 4xx/5xx, gRPC codes) are decided at the outermost error mapper, not sprinkled through handlers.
 - **Retries + idempotency go together.** A retryable error must point to an idempotent operation, or it's a bug.
 
@@ -84,6 +83,10 @@ Do not skip the early middleware — if your handler throws before the logging m
 - **Circuit breaker for dependencies that degrade.** Open on sustained failure; half-open probes before fully closing.
 - **Bulkhead the worst neighbor.** Don't let one slow downstream exhaust the whole connection pool.
 
+### Verifying a service change
+
+Exercise the changed operation or endpoint, including one relevant failure: a dependency timeout, a rejected input, a retry of the same request. Check that the error reaches the client with the right code and no internal detail, that a retried write is idempotent, and that shutdown drains the new work.
+
 ## Context adaptation
 
 **As implementer (building a new service):** pick the simplest structure; explicit wiring beats DI framework for < 20 collaborators. Install the standard middleware ordering on day one.
@@ -99,12 +102,12 @@ Do not skip the early middleware — if your handler throws before the logging m
 - **Big ball of main** — hundreds of lines of startup code in `main` with no decomposition into `newApp` / `newRouter` / `newDB` factories.
 - **Middleware soup** — 20+ middlewares, ordering accidental, half of them doing logging.
 - **Panic-driven error handling** — relying on panic/recover as control flow instead of explicit error returns.
-- **Shared global mutable state** — package-level singletons that everyone reaches into. Kills tests, hides dependencies.
 - **Retry without idempotency** — retrying a POST that charges money. Once is the limit until you can prove it's idempotent.
 - **No shutdown hook** — SIGTERM kills the process mid-request, in-flight work disappears.
 
 ## Related Knowledge
 
+- `development` — code practice inside the service: ownership, explicit dependencies, variant families, errors
 - `api-design` — contracts before this skill's patterns apply
 - `auth` — identity/authorization middleware
 - `database` — data access patterns

@@ -46,6 +46,8 @@ type PostgresStore struct { db *sql.DB }
 func (s *PostgresStore) GetUser(ctx context.Context, id string) (User, error) { ... }
 ```
 
+**Variant families** — an open family (providers, channels, importers) is an interface each member implements, registered once in `main`; consumers call the method instead of a type switch. A type switch over an interface belongs only where values are decoded or constructed. Go has no exhaustive switch for closed sets: keep the cases next to the type's definition and lint them with an `exhaustive`-style analyzer (`development`).
+
 ---
 
 ## Error Handling
@@ -349,7 +351,8 @@ go tool pprof                   # CPU/memory profiling
 
 ## Related Knowledge
 
-- **backend** — HTTP handlers, middleware, DI, service lifecycle
+- **development** — code practice these idioms express: variant families, ownership, explicit dependencies
+- **backend** — HTTP handlers, middleware, service wiring and lifecycle
 - **database** — database/sql, sqlc, pgx, connection pooling, migrations
 - **testing** — table-driven tests, fuzzing, race detection, testcontainers
 - **docker** — multi-stage builds for Go binaries, scratch/distroless

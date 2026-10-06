@@ -102,7 +102,7 @@ export const claude = {
     const { front, body } = splitFrontmatter(content, 'target', issues)
     const { name, description, skills: preload = [], ...settings } = front
     const knowledge = splitKnowledge(stripGeneratedComments(body))
-    // Diffs speak in portable skill names: the source list is complete, while
+    // Diffs speak in skill names: the source list is complete, while
     // `skills:` holds qualified ids and omits path-only project skills.
     const listed = Object.keys(knowledge.sources)
     const skills = listed.length ? listed : preload.map((skill) => skill.replace(QUALIFIED, ''))

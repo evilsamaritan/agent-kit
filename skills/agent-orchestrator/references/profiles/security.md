@@ -6,6 +6,7 @@
 
 - Roles: reviewer
 - Skills: security, auth, compliance
+- Required skills: none
 - Effort / access: high / full
 - Claude model / tools: inherit / Read, Grep, Glob, WebSearch, WebFetch, Edit, Write, Bash, Skill
 - Codex model / effort / sandbox: inherit / high / workspace-write

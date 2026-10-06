@@ -58,8 +58,8 @@
 - [ ] Package generator `--check` passes.
 - [ ] Project materializer `--check` passes; `--dry-run` reports no unexpected behavior or permission change.
 - [ ] Generated targets carry `agent-kit-metadata` with a composition fingerprint and no kit version.
-- [ ] No target contains an absolute path, home directory, user name, plugin-cache path, or kit version; `--check` reports none as not portable.
-- [ ] Nothing added an ignore entry for generated targets or `.agent-kit/`; committing them is the project's choice.
+- [ ] Library skills are named by host identifier, project skills by name or project-relative path.
+- [ ] Ignore files and host plugin settings were left untouched.
 - [ ] Non-generated native agent files are never overwritten or pruned.
 - [ ] Removing a composition entry plus `--prune` removes only marked derived targets.
 - [ ] Repository validation exercises a temporary project for all three runtimes.

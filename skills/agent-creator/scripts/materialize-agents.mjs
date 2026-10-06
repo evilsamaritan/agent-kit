@@ -2,7 +2,6 @@
 // Materialize project agents from Agent Kit profiles and .agent-kit/agents.json.
 
 import { existsSync, mkdirSync, readFileSync, readdirSync, statSync, unlinkSync, writeFileSync } from 'node:fs'
-import { homedir } from 'node:os'
 import { dirname, join, relative, resolve, sep } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import {
@@ -19,30 +18,28 @@ import {
   renderTarget,
   runtimeRegistry,
 } from '../../../scripts/profile-lib.mjs'
-import { compareTargets, portabilityIssues, skillLocator } from '../../../scripts/profile-runtimes/shared.mjs'
-import { RENAMED_SKILLS } from '../../../scripts/project-migrations.mjs'
+import { compareTargets, skillLocator } from '../../../scripts/profile-runtimes/shared.mjs'
 
 const toolkitRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..', '..', '..')
-// Literal local paths that must never reach a target; the structural and pattern
-// checks in portabilityIssues cover other machines.
-const MACHINE_PATHS = [toolkitRoot, homedir()]
 const CONFIG_FIELDS = new Set(['schema_version', 'agents'])
 const SPEC_FIELDS = new Set(['name', 'profile', 'skills', 'runtimes', 'description', 'effort', 'access', ...RUNTIMES])
 const NAME = /^[a-z0-9]+(?:-[a-z0-9]+)*$/
+// Names retired in 4.0; agent-creator's configure-project workflow migrates them.
 const RETIRED_PROFILES = new Set(['frontend', 'backend'])
+const RENAMED_SKILLS = { visualization: 'playground' }
 
 const USAGE = `Usage: materialize-agents.mjs [--project-root DIR] [--config FILE] [options]
 
   (default)        write native targets and print what changed
   --dry-run        print the semantic diff without writing
-  --check          fail when a target is missing, changed, orphaned, or not portable
+  --check          fail when a target is missing, changed, or orphaned
   --agent NAME     limit --check/--dry-run/writing to one project agent
   --prune          also delete generated targets no longer in the config
   --brief NAME     print a generic-subagent brief for one project agent
   --list-profiles  list bundled profession profiles`
 
 function parseArgs(argv) {
-  const args = { projectRoot: process.cwd(), check: false, prune: false, dryRun: false, portable: false, listProfiles: false }
+  const args = { projectRoot: process.cwd(), check: false, prune: false, dryRun: false, listProfiles: false }
   const value = (index, flag) => {
     const next = argv[index + 1]
     if (!next || next.startsWith('--')) throw new Error(`${flag} requires a value`)
@@ -55,15 +52,12 @@ function parseArgs(argv) {
     else if (arg === '--brief') args.brief = value(index++, arg)
     else if (arg === '--agent') args.agent = value(index++, arg)
     else if (arg === '--check') args.check = true
-    // Deprecated in 4.0.0-rc.2: targets are portable by construction.
-    else if (arg === '--portable') args.portable = true
     else if (arg === '--dry-run') args.dryRun = true
     else if (arg === '--prune') args.prune = true
     else if (arg === '--list-profiles') args.listProfiles = true
     else if (arg === '--help' || arg === '-h') args.help = true
     else throw new Error(`Unknown argument: ${arg}\n\n${USAGE}`)
   }
-  if (args.portable) console.error('note: --portable is deprecated and has no effect; generated targets are portable, so --check compares them exactly.')
   if (args.brief && (args.check || args.prune || args.dryRun)) throw new Error('--brief cannot be combined with --check, --dry-run, or --prune')
   if (args.agent && args.prune) throw new Error('--prune works on the whole project; drop --agent')
   args.config ??= join(args.projectRoot, '.agent-kit', 'agents.json')
@@ -98,7 +92,7 @@ function validateSpec(spec, profiles, names) {
   names.add(spec.name)
   if (!profiles.has(spec.profile)) {
     const hint = RETIRED_PROFILES.has(spec.profile)
-      ? '; migrate to developer with skills/agent-creator/scripts/migrate-project.mjs (preview by default, --write to apply)'
+      ? '; it was replaced by developer — see the agent-creator configure-project workflow, "Migrate from an older Agent Kit"'
       : ''
     throw new Error(`Unknown profile "${spec.profile}" for agent "${spec.name}"${hint}`)
   }
@@ -147,7 +141,7 @@ function resolveSources(projectRoot, directories, skills, label) {
     }
     if (existsSync(libraryPath)) return { name, absolute: libraryPath, project: false, shadows: false, invocable: modelInvocable(libraryPath) }
     const renamed = RENAMED_SKILLS[name]
-      ? `; it was renamed to "${RENAMED_SKILLS[name]}" — run skills/agent-creator/scripts/migrate-project.mjs (preview by default, --write to apply)`
+      ? `; it was renamed to "${RENAMED_SKILLS[name]}"`
       : ''
     throw new Error(`${label}: skill "${name}" is not installed in the project or in Agent Kit at ${toolkitRoot}${renamed}`)
   })
@@ -169,14 +163,11 @@ function expectedTargets(projectRoot, specs, profiles) {
     for (const id of runtimes) {
       const runtime = runtimeRegistry.get(id)
       const resolved = resolveSources(projectRoot, runtime.skillDirectories, agent.skills, spec.name)
-      // Portable locators only (see skillLocator): host identifiers and
-      // project-relative paths, resolved by each user's own installation. The
-      // same recipe renders the same bytes on every machine.
+      // Host identifiers and project-relative paths, resolved by each user's own
+      // installation, so a target never names the machine that wrote it.
       const sources = resolved.map((entry) => ({ name: entry.name, path: skillLocator(runtime, entry) }))
       const provenance = { inputs: compositionFingerprint(agent, id, sources) }
       const content = renderTarget(id, agent, sources, `.agent-kit/agents.json profile ${spec.profile}`, provenance)
-      const leaks = portabilityIssues(content, runtime.parse(content), MACHINE_PATHS)
-      if (leaks.length) throw new Error(`${spec.name} · ${id}: rendered target is not portable: ${leaks.join('; ')}`)
       const notes = [
         ...resolved.filter((entry) => entry.shadows).map((entry) => `project skill ${entry.name} shadows the Agent Kit skill of the same name`),
         ...resolved.filter((entry) => !entry.invocable).map((entry) => `skill ${entry.name} sets disable-model-invocation, so ${runtime.label} will not load it for this agent`),
@@ -215,8 +206,6 @@ function assess(path, target) {
   // The bytes differ even when the parsed composition does not.
   if (result.kind === 'none') result.kind = 'format'
   if (result.kind === 'format') result.changes.push('generated text differs without a composition change (renderer update or hand edit)')
-  const leaks = portabilityIssues(current, parsed, MACHINE_PATHS)
-  if (leaks.length) result.changes.unshift(...leaks.map((issue) => `not portable: ${issue}`))
   return result
 }
 
@@ -268,8 +257,7 @@ function run() {
     report(args.projectRoot, changed)
     for (const path of orphans) console.log(`orphan · ${relative(args.projectRoot, path)}\n  - generated target no longer configured; rerun with --prune`)
     if (!args.check) return
-    // Targets are portable, so any difference is drift: --check passes exactly
-    // when regenerating would write nothing.
+    // --check passes exactly when regenerating would write nothing.
     const stale = rows.filter((row) => row.result.kind !== 'none').length + orphans.length
     if (stale) {
       console.error(`Project agent targets are stale: ${stale} target(s). Refresh with materialize-agents.mjs${args.agent ? ` --agent ${args.agent}` : ''}.`)

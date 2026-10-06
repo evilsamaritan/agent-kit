@@ -14,7 +14,8 @@ The operating system owns the process. It starts, pauses, freezes, and kills the
 
 | Question | Owner |
 |---|---|
-| Which module owns this state, where the boundary goes | `architecture` — apply it here, do not restate it |
+| Code practice: ownership, async lifetime, variant families, refactoring | `development` — apply it here, do not restate it |
+| Module boundaries, data ownership between app and backend | `architecture` |
 | Coroutines, Flow, sealed types, KMP source sets | `kotlin` |
 | Promises, event loop, TypeScript | `javascript` |
 | Hooks and component patterns shared with React Native | `react` |
@@ -126,6 +127,8 @@ Is a record edited by one user on one device at a time?
 Depth: [lifecycle-and-restoration.md](references/lifecycle-and-restoration.md).
 
 ### 3. Async work and cancellation
+
+`development` ties async work to an owner; on mobile the owners are lifecycle scopes.
 
 - Give every coroutine, task, promise, and subscription an owner scope tied to a lifecycle; ending the scope cancels the work. E.g., load screen data in the state holder's scope, not a process-global scope.
 - Write results to the source of truth and let the UI observe it, instead of pushing results into a view from a callback. E.g., after `await upload()` the screen may be gone — the repository records the result; whichever screen exists renders it.
@@ -287,7 +290,8 @@ Not persisted: progress counters, animation state, the picker's temporary URI gr
 
 ## Related Knowledge
 
-- `architecture` — ownership, boundaries, and state authority; mobile applies these to lifecycle scopes
+- `development` — ownership, async lifetime, and change practice; mobile applies them to lifecycle scopes
+- `architecture` — module boundaries and data ownership between the app and its services
 - `kotlin` — coroutines, Flow, KMP mechanics behind Android and shared code
 - `javascript` — async model and TypeScript behind React Native
 - `react` — component and hook patterns shared with React Native

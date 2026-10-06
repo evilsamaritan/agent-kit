@@ -277,13 +277,13 @@ const Token = union(enum) {
     fn isOperator(self: Token) bool {
         return switch (self) {
             .plus, .minus => true,
-            else => false,
+            .number, .string, .eof => false,
         };
     }
 };
 ```
 
-**Switch on tagged unions is exhaustive** — compiler enforces handling all variants.
+**Switch on tagged unions is exhaustive** — the compiler enforces handling all variants. List the remaining tags instead of `else`, so a new variant forces a decision at every switch.
 
 ---
 
@@ -319,6 +319,7 @@ const Token = union(enum) {
 
 ## Related Knowledge
 
+- **development** — code practice these idioms express: variant families, ownership, explicit dependencies
 - **backend** — HTTP servers (zap, httpz), service patterns
 - **database** — SQLite via @cImport, custom storage engines
 - **docker** — minimal static binaries, scratch containers

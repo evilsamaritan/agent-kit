@@ -1,4 +1,4 @@
-# agent-kit v4.0.0-rc.2
+# agent-kit v4.0.0-rc.3
 
 ## Purpose
 
@@ -10,6 +10,7 @@ Profession **profiles** are the stable base entity. A project agent is assembled
 
 - **Role-templates** — behavioral primitives ("how to think, how to structure work"). Live in `skills/agent-creator/templates/*.md`. NOT runtime skills — `agent-creator` writes profile bodies from them, adapting each to the profession. Templates: `architect`, `implementer`, `reviewer`, `operator`, `writer`.
 - **Knowledge skills** — domain expertise. Vendor-neutral (`database`, `caching`) or technology-specific (`react`, `rust`). Discovered by compatible runtimes or preloaded into Claude Code agents via `skills:` frontmatter.
+- **Code practice** — `development` owns how code is written in any stack: SOLID and the other principles, ownership, variant families, dependencies, async lifetime, errors, refactoring. `architecture` owns boundaries between modules and systems. Zone skills (`frontend`, `backend`, `mobile`, `gamedev`, …) own their environment and point to `development` instead of restating it; language skills show how a language expresses it.
 
 **Meta skills** — create and manage the rest (`agent-creator`, `agent-orchestrator`, `skill-creator`, hooks, project init).
 
@@ -22,6 +23,7 @@ Profession **profiles** are the stable base entity. A project agent is assembled
 - Regenerate package targets with `scripts/generate-profiles.mjs` after touching a profile; `--check` fails the build when they drift
 - In consuming projects, edit `.agent-kit/agents.json` and run `skills/agent-creator/scripts/materialize-agents.mjs`; never copy profile or skill sources
 - One skill = one domain. Do not merge unrelated domains into a single skill.
+- One owner per piece of knowledge across skills. Code practice lives in `development`; the validator rejects principle vocabulary (SOLID, DRY, YAGNI, …) in other skills and profiles.
 - Every skill MUST have `name` and `description` in YAML frontmatter.
 - Skill `name` must match its directory name exactly (lowercase, hyphens only).
 - Description is the portable trigger — front-load WHAT + WHEN and phrases users actually say. Runtime-specific routing fields are optional extensions.
@@ -210,6 +212,7 @@ name: profile-name                  # Required. One word, profession-style. Matc
 description: What + when.           # Required. Portable trigger, single line.
 role: [implementer]                 # Required. Role-templates the body was written from.
 skills: [skill-a, skill-b]          # Default knowledge skills; a project composition may replace them.
+requires: [skill-a]                 # Optional. Defining skills always added to every composition; each is also a default.
 effort: high                        # Required. low | medium | high | xhigh | max — applied where the runtime supports it.
 access: edits                       # Required. read-only | edits | full.
 ---
@@ -253,7 +256,7 @@ Also accepted: `tools`, `disallowedTools`, `subagents`. Kimi custom agents have 
 
 ### Generated targets and freshness
 
-Generated targets are portable and correct to commit: library skills are named by host identifier (`agent-kit:<skill>` for Claude and Codex, the bare name for Kimi), project skills by catalog name or project-relative path, with no absolute path, home directory, user name, or kit version ([ADR 0001](docs/decisions/0001-portable-generated-agents.md)). Each carries a marker plus `agent-kit-metadata` with a fingerprint of its resolved composition. The same recipe and kit version render byte-identical files on every machine, and an upgrade rewrites a target only when its content changes. `materialize-agents.mjs --dry-run` prints a semantic diff (behavior, settings, skills, sources); `--check` passes only when regeneration would write nothing and reports non-portable content; `--agent NAME` limits either to one agent. Committing or ignoring generated targets is the project's choice; Agent Kit writes no ignore entries.
+Generated targets name library skills by host identifier (`agent-kit:<skill>` for Claude and Codex, the bare name for Kimi) and project skills by catalog name or project-relative path, so they work wherever Agent Kit is installed. Each carries a marker plus `agent-kit-metadata` with a fingerprint of its resolved composition; an upgrade rewrites a target only when its content changes. `materialize-agents.mjs --dry-run` prints a semantic diff (behavior, settings, skills, sources); `--check` passes only when regeneration would write nothing; `--agent NAME` limits either to one agent. Whether a project commits generated targets is its own choice; Agent Kit does not touch ignore files.
 
 ### Body structure
 
@@ -261,12 +264,15 @@ The body lives in `PROFILE.md` below the frontmatter and is assembled by `agent-
 
 1. **Adapted role-template(s)** — `skills/agent-creator/templates/{role}.md` rewritten for the domain, one `## Role — {role}` section per declared role.
 2. **Persona** — "You are a [profession] who [specialization]" — domain focus specific to this agent.
-3. **Skill pointers** — references to preloaded knowledge skills for reasoning about domain.
-4. **Output format + Done criteria** — concrete deliverables.
+3. **Skill pointers** — which preloaded skills serve which part of the work.
+4. **Working with others** — scope, handoffs, exemplars, review.
+5. **Output format + Done criteria** — concrete deliverables.
+
+A body sets behavior and connects skills; it does not branch by domain. Zone-dependent rules — how to verify a UI change, a service, a game loop — live in the zone skill, so the composition selects them.
 
 ### Project composition
 
-`.agent-kit/agents.json` is the portable project source. Each entry selects `name`, `profile`, exact `skills`, target `runtimes`, and optional effort/access/runtime overrides. It is a build recipe, not an execution runtime.
+`.agent-kit/agents.json` is the portable project source. Each entry selects `name`, `profile`, exact `skills`, target `runtimes`, and optional effort/access/runtime overrides. The profile's `requires` skills are always added in front of the project's list. It is a build recipe, not an execution runtime.
 
 ## Creating Skills
 

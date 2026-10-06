@@ -12,7 +12,7 @@ Extract the required outcome, constraints, affected areas, write permissions, ex
 4. If no project agent fits, read `../references/profile-catalog.md`, then load only the selected profile reference.
 5. If the missing composition should persist beyond this task, invoke `agent-creator` before execution. Otherwise use the profile persona as an ephemeral fallback.
 6. Check whether the current host's delegation tool can select the named agent and apply its config. A discovered file or mention without a named-agent selector is not sufficient.
-7. Before delegating to a generated agent, run the installed agent-creator materializer with `--check --agent NAME`. A stale result names the cause (profile behavior, settings, skills, skill sources, or non-portable content). Refresh through agent-creator when the sync is authorized; otherwise use `--brief NAME` for a current generic-subagent brief and say the native target is stale.
+7. Before delegating to a generated agent, run the installed agent-creator materializer with `--check --agent NAME`. A stale result names the cause (profile behavior, settings, skills, or skill sources). Refresh through agent-creator when the sync is authorized; otherwise use `--brief NAME` for a current generic-subagent brief and say the native target is stale.
 
 ## Step 3: Choose the workflow shape
 
@@ -26,6 +26,8 @@ Use the smallest shape that preserves correctness:
 
 Read `../references/orchestration-patterns.md` only when the choice is not obvious.
 
+When several writers will extend the same family of variants or the same pattern — object kinds, providers, screens, endpoints — run a pipeline first: one writer builds one member completely (behavior, presentation, persistence, tests), a reviewer checks it, and only then do parallel writers add the rest from that exemplar. The first member is the pattern everyone copies.
+
 ## Step 4: Write assignments
 
 For every agent, specify:
@@ -37,6 +39,8 @@ For every agent, specify:
 - expected result shape;
 - commands, tests, or evidence required before completion;
 - what to return to the main thread.
+
+Point to knowledge instead of restating it: name the skills the agent should apply and the exemplar path to follow. An agent that has not seen the design will bolt its change on, so pass the owners, contracts, and assumptions that bound the task — not a paraphrase of the skills' rules.
 
 Do not ask two agents to solve the same problem unless independent judgment is the purpose.
 
@@ -56,6 +60,7 @@ Read `../references/runtime-adapters.md`, then use the native mechanism availabl
 ## Step 7: Validate and synthesize
 
 1. Check every assignment returned the promised evidence.
-2. Resolve contradictions against repository state or primary documentation.
-3. Run integration validation that individual agents could not prove independently.
-4. Report one coherent outcome: what changed, what was verified, which professions were used, and what remains.
+2. Have code changes checked by an agent other than their author. Ask for facts: command output, file:line findings, and, when a family of variants changed, the files one more member would touch. An author's explanation of why the code is right is not verification.
+3. Resolve contradictions against repository state or primary documentation.
+4. Run integration validation that individual agents could not prove independently.
+5. Report one coherent outcome: what changed, what was verified, which professions were used, and what remains.

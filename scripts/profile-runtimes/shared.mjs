@@ -35,7 +35,7 @@ export function layered(profile, project, portableValue, portableOverride, key) 
 
 const SOURCES_HEADING = '## Selected knowledge sources'
 
-// Portable source locators. A library skill uses the host identifier each user's
+// Source locators. A library skill uses the host identifier each user's
 // own installation resolves; a project skill uses its host catalog name when the
 // host discovers that directory, else its project-relative path. No locator
 // names a machine, user, or kit version.
@@ -92,32 +92,6 @@ export function stripGeneratedComments(text) {
   return text.split('\n').filter((line) => !MARKER.test(line) && !METADATA.test(line)).join('\n').replace(/^\n+/, '')
 }
 
-// A committed target must read the same on every machine. Source locators are
-// host identifiers or project-relative paths; nothing may name a home, user,
-// temporary directory, or plugin installation.
-const MACHINE_LOCAL = [
-  [/(?:^|[\s"'`(=:])\/(?:Users|home|root|private|var\/folders|tmp)\//m, 'an absolute home or temporary path'],
-  [/\b[A-Za-z]:[\\/]+(?:Users|Documents and Settings)[\\/]/i, 'a Windows user path'],
-  [/(?:^|[\s"'`(=:])~[\\/]/m, 'a home-relative path'],
-  [/\$\{?HOME\}?|%USERPROFILE%/, 'a home-directory variable'],
-  [/plugins[\\/]+(?:cache|managed)[\\/]/, 'a plugin installation path'],
-]
-const RELATIVE_LOCATOR = /^(?![\\/]|~|[A-Za-z]:)(?!.*(?:^|[\\/])\.\.(?:[\\/]|$))/
-
-// Returns human-readable reasons a target is machine-local; empty when portable.
-// `machine` lists literal paths of the running installation that must not appear.
-export function portabilityIssues(content, parsed, machine = []) {
-  const issues = MACHINE_LOCAL.filter(([pattern]) => pattern.test(content)).map(([, reason]) => `contains ${reason}`)
-  for (const [skill, locator] of parsed?.locators ?? Object.entries(parsed?.sources ?? {})) {
-    if (!RELATIVE_LOCATOR.test(locator)) issues.push(`source for ${skill} is not a host identifier or project-relative path: ${locator}`)
-  }
-  for (const value of machine) {
-    // A whole path, not a fragment: a short home such as /w must not match read/write.
-    const path = new RegExp(`(?:^|[\\s"'\`(=:])${value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}(?=[\\/"'\`\\s)]|$)`, 'm')
-    if (value && value.length > 1 && path.test(content)) issues.push(`contains the local path ${value}`)
-  }
-  return [...new Set(issues)]
-}
 
 const sameValue = (a, b) => JSON.stringify(a ?? null) === JSON.stringify(b ?? null)
 const show = (value) => (value === undefined || value === null ? '(inherit/default)' : Array.isArray(value) ? value.join(', ') || '(none)' : String(value))
@@ -125,8 +99,7 @@ const show = (value) => (value === undefined || value === null ? '(inherit/defau
 // Compare two parsed targets of one runtime. `kind` is the most significant
 // difference: semantic (behavior, settings, skills), sources (where a selected
 // skill is loaded from), provenance (metadata only), or none. Every kind except
-// none is drift: generated targets are portable, so a difference is never
-// explained by the machine that produced it.
+// none is drift.
 export function compareTargets(previous, next) {
   const changes = []
   if (previous.description !== next.description) changes.push('description changed')

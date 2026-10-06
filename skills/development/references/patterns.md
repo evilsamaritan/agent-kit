@@ -1,10 +1,11 @@
-# Design and Collaboration Patterns
+# Collaboration Patterns in Code
 
-Select a pattern from the pressure it resolves. Start with a direct implementation, then add structure only when variation, lifecycle, ownership, or failure behavior requires it.
+Select a pattern from the pressure it resolves. Start with a direct implementation, then add structure only when variation, lifecycle, ownership, or failure behavior requires it. Patterns that coordinate owners across modules or services — repository and unit of work, saga, transactional outbox — belong to `architecture`.
 
 ## Contents
 
 - [Selection method](#selection-method)
+- [Selection map](#selection-map)
 - [Direct composition](#direct-composition)
 - [Decorator and middleware](#decorator-and-middleware)
 - [Strategy and policy](#strategy-and-policy)
@@ -15,10 +16,7 @@ Select a pattern from the pressure it resolves. Start with a direct implementati
 - [Pipeline and chain of responsibility](#pipeline-and-chain-of-responsibility)
 - [Command and handler](#command-and-handler)
 - [Observer and domain events](#observer-and-domain-events)
-- [Repository and unit of work](#repository-and-unit-of-work)
 - [Specification](#specification)
-- [Saga and process manager](#saga-and-process-manager)
-- [Transactional outbox](#transactional-outbox)
 - [Pattern combinations](#pattern-combinations)
 - [Pattern failure signals](#pattern-failure-signals)
 
@@ -34,7 +32,25 @@ Before naming a pattern, write:
 
 Reject a pattern when its contract is less clear than the repeated code, when only one hypothetical variant exists, or when it hides materially different semantics behind a false common interface.
 
-The selection map — problem signal, candidate, and when to avoid it — is in SKILL.md under "Pattern selection". This file gives the depth for each candidate. For the shapes that keep a design open to extension, read [composable-design.md](composable-design.md).
+For where variant knowledge lives and the shapes that keep a design open, read [variation.md](variation.md).
+
+## Selection map
+
+| Problem signal | Candidate | Avoid when |
+|---|---|---|
+| orthogonal behavior wraps one operation | Decorator or middleware | order and shared context dominate; use an explicit pipeline |
+| an algorithm or policy varies by context | Strategy or passed-in function | there is one stable behavior |
+| an external model must not leak into the core | Adapter or anticorruption layer | mapping adds no semantic isolation |
+| many callers need one stable entry point | Facade | it becomes an ownerless god API |
+| construction depends on runtime composition | Factory at the composition root | callers can construct one concrete value directly |
+| valid behavior depends on explicit lifecycle state | State machine | states are merely display labels |
+| ordered independent stages transform work | Pipeline | stages secretly share mutable internals |
+| one of several handlers may accept work | Chain of responsibility | all handlers must run, or order is fixed business policy |
+| an operation must be queued, retried, or audited | Command | a direct call expresses the behavior fully |
+| independent consumers react to a completed fact | Domain event or observer | the producer needs their synchronous result |
+| rules need semantic composition | Specification | simple conditions are clearer inline |
+
+Composition is the default way to add orthogonal behavior. Inheritance fits only a genuinely substitutable hierarchy with stable variation.
 
 ## Direct composition
 
@@ -94,6 +110,8 @@ Use a function for stateless behavior. Use an object when the strategy has ident
 Avoid a strategy registry when a small conditional at the composition boundary is clearer and changes in one place.
 
 ## Adapter and anticorruption layer
+
+This section covers adapters inside a module and at one integration point; an anticorruption layer between bounded contexts is an `architecture` decision.
 
 An adapter translates one contract or model into another. An anticorruption layer protects a domain model from a large or semantically different external model.
 
@@ -166,14 +184,6 @@ Specify delivery, ordering, duplication, compatibility, replay, privacy, and obs
 
 Do not use events when the caller must know whether an invariant was accepted. Do not use a synchronous call merely because it is easy when the receiver is an independent observer of a completed fact.
 
-## Repository and unit of work
-
-A repository presents domain-specific retrieval and persistence for aggregates or cohesive state. A unit of work coordinates changes that must commit atomically.
-
-**Useful when:** the core has meaningful persistence semantics worth insulating from storage details.
-
-Avoid generic `getAll/create/update/delete` repositories that merely duplicate an ORM. Prefer operations reflecting domain needs and preserve transactional boundaries. Do not pretend remote services participate in a local unit of work.
-
 ## Specification
 
 A specification names and composes a business predicate.
@@ -181,24 +191,6 @@ A specification names and composes a business predicate.
 **Useful when:** the same rules are reused, combined, explained, or translated into multiple evaluation contexts.
 
 Avoid turning every `if` into an object. Ensure in-memory and query-backed interpretations preserve the same semantics, especially around time, nullability, and locale.
-
-## Saga and process manager
-
-A saga/process manager coordinates a long-running business process across independent transactional owners using steps, persisted progress, and compensations or reconciliation.
-
-**Useful when:** one operation cannot be atomic across boundaries and the business accepts intermediate states.
-
-Model business compensation, not technical rollback. A refund is not the inverse of a charge in every domain. Define timeouts, duplicate messages, manual intervention, and terminal stuck states.
-
-Prefer one local transaction when the invariant belongs to one owner. Distribution is not a substitute for correct aggregation.
-
-## Transactional outbox
-
-An outbox stores a message record in the same transaction as the authoritative state change, then publishes it asynchronously.
-
-**Useful when:** losing the publication would violate integration guarantees and atomic cross-system commit is unavailable.
-
-Plan for at-least-once publication, idempotent consumers, ordering scope, retention, poison messages, monitoring, and recovery. If the message is merely opportunistic telemetry, a transactional outbox may be unnecessary overhead.
 
 ## Pattern combinations
 
@@ -208,8 +200,8 @@ Patterns commonly compose around one stable center:
 handler
   -> facade/use case
        -> state machine or domain policy
-       -> repository port <- storage adapter
-       -> event record -> outbox -> independent consumers
+       -> storage port <- storage adapter
+       -> domain event -> independent consumers
 
 client contract
   <- tracing decorator
@@ -227,7 +219,6 @@ Explain the role of each pattern independently. If removing one pattern cannot b
 - Decorator/pipeline order changes correctness but is implicit.
 - Events are used to make synchronous dependencies look decoupled.
 - Factories, registries, or plugins exist for one implementation.
-- Repository abstractions leak query/storage types.
 - A facade owns unrelated rules and state.
 - A strategy interface has methods unused by most variants.
 - The pattern name is offered as the rationale instead of a concrete force.

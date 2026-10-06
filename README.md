@@ -71,7 +71,7 @@ Installing the plugin exposes skills and profile recipes. It does not register p
 
 ## Upgrading from 3.x
 
-4.0 removes the bundled Claude agents, replaces the `frontend`/`backend` profiles with `developer`, renames the `visualization` skill to `playground`, and stops pinning models in profiles. Follow [docs/upgrading-to-4.0.md](docs/upgrading-to-4.0.md); `migrate-project.mjs` converts `.agent-kit/agents.json`, and `materialize-agents.mjs --dry-run` shows what each agent gains or loses. Changes per release: [CHANGELOG.md](CHANGELOG.md).
+4.0 removes the bundled Claude agents, replaces the `frontend`/`backend` profiles with `developer`, renames the `visualization` skill to `playground`, and stops pinning models in profiles. Follow the upgrade notes in [CHANGELOG.md](CHANGELOG.md#upgrading-to-40), or ask `agent-creator` to migrate the project: it rewrites `.agent-kit/agents.json` for the new profiles and skills, and `materialize-agents.mjs --dry-run` shows what each agent gains or loses.
 
 ## Configure agents for a project
 
@@ -91,7 +91,7 @@ Use a developer responsible for the backend, with Rust, database, and API knowle
     {
       "name": "backend-developer",
       "profile": "developer",
-      "skills": ["architecture", "backend", "api-design", "database", "rust"],
+      "skills": ["development", "backend", "api-design", "database", "rust"],
       "runtimes": ["claude", "codex"]
     },
     {
@@ -124,7 +124,7 @@ node <agent-kit>/skills/agent-creator/scripts/materialize-agents.mjs --project-r
 
 The diff names changed profile behavior, settings, skills, and skill sources. `--check` (or `--check --agent NAME`) passes only when regeneration would write nothing and reports a stale agent with its cause.
 
-Generated targets are portable: they name library skills by host identifier (`agent-kit:<skill>`, or the bare name in Kimi) and project skills by name or project-relative path, never by an absolute path, home directory, user name, or kit version. The same recipe renders the same bytes on every machine, so the files are correct to commit, and a kit upgrade changes them only when an agent's content changes. Whether to commit them or ignore them is your project's choice; Agent Kit adds no ignore entries. Each collaborator needs Agent Kit installed in the host they use.
+Generated targets name library skills by host identifier (`agent-kit:<skill>`, or the bare name in Kimi) and project skills by name or project-relative path, so they work wherever Agent Kit is installed; a kit upgrade changes them only when an agent's content changes. Each collaborator needs Agent Kit installed in the host they use.
 
 ## Run a task team
 

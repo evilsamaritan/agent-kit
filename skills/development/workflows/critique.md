@@ -1,6 +1,6 @@
 # Critique a Change
 
-Act as an architecture critic for a merge request, diff, commit range, or proposed fix. The question is not "is this code correct" but "is this the right structure of change": does it treat the cause or patch a symptom, is it integrated or bolted on, and what would be better. Correctness, security, test, and style review belong to other reviewers.
+Act as a structural critic for a merge request, diff, commit range, or proposed fix. The question is not "is this code correct" but "is this the right structure of change": does it treat the cause or patch a symptom, is it integrated or bolted on, and what would be better. Correctness, security, test, and style review belong to other reviewers.
 
 ## Contents
 
@@ -30,7 +30,7 @@ Use project documentation when it exists, as a hypothesis to check against code.
 
 ## 3. Classify the change
 
-Place the change in the proportion table of the core judgment and compare with what the author did:
+Place the change in the proportion table of SKILL.md ("Changing existing code") and compare with what the author did:
 
 | The change... | Expected | Finding when... |
 |---|---|---|
@@ -43,12 +43,12 @@ Say so when direct embedding was the right call. A critique that always demands 
 
 ## 4. Test the structure
 
-Check the change against the core judgment. Each check names what to look for in the diff:
+Check the change against the core rules and practice of SKILL.md. Each check names what to look for in the diff:
 
-- **Cause or symptom.** Search for siblings of the fixed bug and earlier patches in the same area ([root-cause-analysis.md](../references/root-cause-analysis.md#finding-siblings)). A second occurrence means the cause is still there.
+- **Cause or symptom.** Search for siblings of the fixed bug and earlier patches in the same area ([root-cause-analysis.md](../../architecture/references/root-cause-analysis.md#finding-siblings)). A second occurrence means the cause is still there.
 - **Workaround signs.** A special case in a shared path, a single-use flag, a guard or delay where the problem is ordering or ownership, a comment explaining why this case differs ([change-integration.md](../references/change-integration.md#signs-of-a-workaround)).
 - **Ownership.** A new copy of a rule, type, formatter, or piece of state; a second writer to state that already has an owner.
-- **Openness.** A new arm in a switch, case in a factory, or flag in an options bag where a composed piece would do; a consumer forced to edit the core ([composable-design.md](../references/composable-design.md)).
+- **Variant knowledge.** A new branch on a kind or type outside construction and decoding; a dispatch with a silent default; a new member that needed edits in consumers; a flag in an options bag where a passed-in piece would do ([variation.md](../references/variation.md)). Run an [extension trace](extension-trace.md) when a family changed.
 - **Parallel mechanism.** A new helper, manager, or subscription scheme beside an existing one that does the same job.
 - **Contract drift.** A public surface, persisted shape, or lifecycle changed without being treated as a decision.
 - **Unit structure.** State, policy, and mechanism newly mixed in one function; dependencies reached for instead of passed in ([code-design.md](../references/code-design.md)).
@@ -63,8 +63,8 @@ For each significant finding, propose one to three concrete alternatives: a shor
 
 A five-minute read:
 
-1. **Verdict** — sound; sound with a follow-up; or restructure before merge. One sentence of why.
-2. **Findings** — the few that matter, ranked by architectural impact, each with `file:line` evidence, the judgment it violates, and the consequence. When several findings share a cause, report the cause once.
+1. **Verdict** — Approve, Request changes, or Comment. One sentence of why.
+2. **Findings** — the few that matter, ranked by structural impact, each with `file:line` evidence, the rule or judgment it violates, the consequence, and a severity: **blocker** for a violated requirement, invariant, contract, or core rule in code the change adds or modifies; **concern** when the change makes a named next change more expensive; **note** otherwise, including pre-existing violations. When several findings share a cause, report the cause once.
 3. **Alternatives** — per significant finding, with a recommendation.
 4. **Not checked** — what was out of scope or could not be verified.
 

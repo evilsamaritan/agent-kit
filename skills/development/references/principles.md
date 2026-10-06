@@ -1,6 +1,6 @@
 # Design Principles as Decision Tools
 
-Use principles to diagnose change cost and correctness, not to score code by slogans. Principles conflict; apply the one tied to the active force and state the tradeoff.
+Use principles to diagnose change cost and correctness, not to score code by slogans. Principles conflict; apply the one tied to the active force and state the tradeoff. The core rules in SKILL.md are not up for this weighing: a principle explains why a rule holds, never why it may be skipped.
 
 ## Contents
 
@@ -57,11 +57,11 @@ A component should have one coherent reason to change, expressed in domain or po
 
 Stable policy should accept known forms of variation without repeated modification.
 
-**Signals:** every new transport, rule, or policy edits the same switch across several files.
+**Signals:** a new member of a family — a transport, provider, object kind, rule — edits operations that already exist: a dispatcher, a renderer, a save routine, a panel.
 
-**Correction:** isolate the demonstrated variation behind composition, strategy, data-driven policy, or a narrow extension contract.
+**Correction:** put each member's knowledge with the member (a method, a per-kind module, a codec) and let consumers call the operation. Select members only at construction and decoding.
 
-OCP does not justify speculative extension points. A stable direct implementation is closed enough when no independent variation exists. For the shapes that make a design open, with contrast pairs, read [composable-design.md](composable-design.md).
+OCP separates two costs. Placing knowledge with its owner is free and always applies to an open family. A new mechanism — a registry, plugin contract, configuration switch — is paid for only when the variation exists or is committed. Closed families (versioned protocols, types whose meaning fixes their cases, state-machine states) are dispatched exhaustively instead. Shapes and contrast pairs: [variation.md](variation.md).
 
 ### Liskov Substitution Principle
 
@@ -113,9 +113,9 @@ Duplication is often cheaper than the wrong shared abstraction. Revisit after re
 
 **KISS:** minimize the concepts, states, runtime parts, and hidden interactions required to explain the design.
 
-**YAGNI:** do not pay present complexity for an uncommitted hypothetical future. Preserve reversible seams instead of implementing every possible extension.
+**YAGNI:** do not pay present complexity for an uncommitted hypothetical future. It applies to mechanisms — frameworks, plugin systems, configuration, generic layers — not to placement: putting a variant's behavior on the variant adds no concept and is never speculative.
 
-These principles do not mean "write the fastest local patch." Repeating a known cross-cutting rule in many places is already present complexity. A small coherent mechanism may be simpler than many branches.
+These principles do not mean "write the fastest local patch." Repeating a known cross-cutting rule in many places is already present complexity. A small coherent mechanism is often simpler than many branches.
 
 ## Encapsulation and information hiding
 
@@ -142,7 +142,7 @@ Prefer inheritance only when:
 - variants share invariants, not just code;
 - combinations do not create a subclass explosion.
 
-Prefer a direct function or concrete object when one behavior exists and no variation pressure is demonstrated.
+Prefer a direct function or concrete object when one behavior exists. When several variants exist, their behavior lives on them; no extra mechanism is needed for that.
 
 ## State and invalid states
 
@@ -175,7 +175,7 @@ Stability is contextual. A mature external library may be more stable than a hom
 | Tension | Resolve by asking |
 |---|---|
 | DRY vs low coupling | Is this one piece of knowledge or only similar syntax? |
-| OCP vs YAGNI | Is variation demonstrated/committed, and is the seam cheaper than later change? |
+| OCP vs YAGNI | Is this placement (always) or a new mechanism (only for variation that exists or is committed)? |
 | SRP vs fragmentation | Does separation create a coherent responsibility or only more navigation? |
 | abstraction vs simplicity | Does the contract hide meaningful complexity for multiple consumers? |
 | events vs direct calls | Is temporal decoupling semantically valuable, or are we hiding required coordination? |
@@ -191,7 +191,7 @@ State which side the design favors and why. No principle wins without context.
 - Which module knows details it should only request through a contract?
 - Who owns each invariant and state transition?
 - Which abstractions have only one accidental consumer or many unrelated flags?
-- Can a representative extension be added by composition rather than core edits?
+- Which files does one more member of each open family touch, and does that list name any consumer?
 - Can a component be tested without reconstructing unrelated infrastructure?
 - Does removing a module reveal hidden state or lifecycle ownership?
 - Can a new engineer explain the main flow and failure behavior without reading every file?

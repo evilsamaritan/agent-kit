@@ -1,16 +1,18 @@
-# Architecture Patterns
+# Design Idioms in Rust
+
+How Rust expresses the practice in `development` and the boundaries chosen with `architecture`: ports as traits, variant families as enums or traits, typestate, and explicit dependencies.
 
 ## Contents
 
-- [Hexagonal Architecture (Ports & Adapters)](#hexagonal-architecture-ports--adapters)
+- [Ports as Traits, Adapters as Crates](#ports-as-traits-adapters-as-crates)
+- [Variant Families: Enum or Trait](#variant-families-enum-or-trait)
 - [Typestate Pattern](#typestate-pattern)
-- [CQRS (Command Query Responsibility Segregation)](#cqrs-command-query-responsibility-segregation)
-- [Event Sourcing Pattern](#event-sourcing-pattern)
-- [Dependency Injection Pattern](#dependency-injection-pattern)
+- [Passing Dependencies: Generics or Trait Objects](#passing-dependencies-generics-or-trait-objects)
+- [Design Checklist](#design-checklist)
 
 ---
 
-## Hexagonal Architecture (Ports & Adapters)
+## Ports as Traits, Adapters as Crates
 
 The domain crate has **zero infrastructure dependencies**.  
 Traits are ports. Structs implementing them are adapters.
@@ -62,6 +64,37 @@ mod tests {
     impl UserRepository for InMemoryUserRepo { ... }
 }
 ```
+
+---
+
+## Variant Families: Enum or Trait
+
+A closed family — protocol messages, states, a format's record versions — is an `enum` consumed with `match` and no `_` arm, so a new variant fails to compile until every match handles it:
+
+```rust
+pub enum Frame { Data { payload: Bytes }, Ping, Close { code: u16 } }
+
+fn handle(conn: &mut Connection, frame: Frame) -> Result<(), ProtocolError> {
+    match frame {
+        Frame::Data { payload } => conn.deliver(payload),
+        Frame::Ping => conn.pong(),
+        Frame::Close { code } => conn.close(code),
+    }
+}
+```
+
+An open family — notification channels, payment providers, importers — is a trait each member implements, registered once where the application is assembled. Consumers call the trait, never test which member they hold:
+
+```rust
+pub trait Channel: Send + Sync {
+    fn send(&self, message: &Message) -> Result<Receipt, SendError>;
+    fn settings_schema(&self) -> Schema;
+}
+
+pub struct Channels(HashMap<ChannelId, Box<dyn Channel>>); // filled in main(); the only place that names members
+```
+
+Prefer generics when the set of implementations is fixed at compile time per call site, `Box<dyn Trait>` when members are chosen at runtime.
 
 ---
 
@@ -126,91 +159,9 @@ pub struct Config {
 
 ---
 
-## CQRS (Command Query Responsibility Segregation)
+## Passing Dependencies: Generics or Trait Objects
 
-Separate write operations (commands) from read operations (queries):
-
-```rust
-// Commands — mutate state, return minimal data
-pub trait CommandHandler<C: Command>: Send + Sync {
-    type Error;
-    async fn handle(&self, cmd: C) -> Result<C::Output, Self::Error>;
-}
-
-#[derive(Debug)]
-pub struct CreateOrder { pub customer_id: CustomerId, pub items: Vec<OrderItem> }
-impl Command for CreateOrder { type Output = OrderId; }
-
-// Queries — read-only, return view models (can be denormalized for performance)
-pub trait QueryHandler<Q: Query>: Send + Sync {
-    type Error;
-    async fn handle(&self, query: Q) -> Result<Q::Output, Self::Error>;
-}
-
-#[derive(Debug)]
-pub struct GetOrderSummary { pub order_id: OrderId }
-impl Query for GetOrderSummary { type Output = OrderSummaryView; }
-
-// View model — optimized for the UI, not normalized
-pub struct OrderSummaryView {
-    pub id: OrderId,
-    pub customer_name: String,   // denormalized from customer table
-    pub item_count: usize,
-    pub total: Money,
-    pub status_label: String,    // human-readable status
-}
-```
-
----
-
-## Event Sourcing Pattern
-
-Store events instead of current state. Replay events to reconstruct state.
-
-```rust
-// Events are the source of truth
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
-pub enum OrderEvent {
-    Created { customer_id: CustomerId, items: Vec<OrderItem> },
-    ItemAdded { item: OrderItem },
-    Submitted { submitted_at: SystemTime },
-    Cancelled { reason: String },
-}
-
-// Aggregate reconstructed by applying events
-#[derive(Debug, Default)]
-pub struct Order {
-    pub id: Option<OrderId>,
-    pub items: Vec<OrderItem>,
-    pub status: OrderStatus,
-}
-
-impl Order {
-    pub fn apply(&mut self, event: &OrderEvent) {
-        match event {
-            OrderEvent::Created { customer_id, items } => {
-                self.items = items.clone();
-                self.status = OrderStatus::Draft;
-            }
-            OrderEvent::ItemAdded { item } => self.items.push(item.clone()),
-            OrderEvent::Submitted { .. } => self.status = OrderStatus::Submitted,
-            OrderEvent::Cancelled { .. } => self.status = OrderStatus::Cancelled,
-        }
-    }
-
-    pub fn from_events(events: &[OrderEvent]) -> Self {
-        let mut order = Self::default();
-        events.iter().for_each(|e| order.apply(e));
-        order
-    }
-}
-```
-
----
-
-## Dependency Injection Pattern
-
-No framework needed — constructor injection with trait bounds:
+No framework needed — dependencies arrive through constructors with trait bounds:
 
 ```rust
 // Static dispatch (preferred — zero cost)
@@ -247,7 +198,7 @@ The key insight: test code wires the same `App` with in-memory implementations �
 
 ---
 
-## Architecture Checklist
+## Design Checklist
 
 Before handing off any design:
 

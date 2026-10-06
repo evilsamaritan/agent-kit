@@ -233,26 +233,36 @@ sealed interface ConnectionState {
     data class Error(val cause: Throwable, val retryCount: Int) : ConnectionState
 }
 
-// State transitions — exhaustive when ensures all states handled
+sealed interface Event {
+    data object Connect : Event
+    data class Connected(val session: Session) : Event
+    data class Failed(val cause: Throwable) : Event
+    data object Disconnect : Event
+    data object Retry : Event
+}
+
+// State transitions — `when` as an expression over sealed types is exhaustive in both
+// dimensions. Ignored events are listed, not hidden behind `else`, so a new Event
+// forces a decision in every state.
 fun ConnectionState.transition(event: Event): ConnectionState = when (this) {
     is ConnectionState.Disconnected -> when (event) {
-        is Event.Connect -> ConnectionState.Connecting
-        else -> this
+        Event.Connect -> ConnectionState.Connecting
+        is Event.Connected, is Event.Failed, Event.Disconnect, Event.Retry -> this
     }
     is ConnectionState.Connecting -> when (event) {
         is Event.Connected -> ConnectionState.Connected(event.session)
         is Event.Failed -> ConnectionState.Error(event.cause, retryCount = 0)
-        else -> this
+        Event.Connect, Event.Disconnect, Event.Retry -> this
     }
     is ConnectionState.Connected -> when (event) {
-        is Event.Disconnect -> ConnectionState.Disconnected
+        Event.Disconnect -> ConnectionState.Disconnected
         is Event.Failed -> ConnectionState.Error(event.cause, retryCount = 0)
-        else -> this
+        Event.Connect, is Event.Connected, Event.Retry -> this
     }
     is ConnectionState.Error -> when (event) {
-        is Event.Retry -> if (retryCount < 3) ConnectionState.Connecting else this
-        is Event.Disconnect -> ConnectionState.Disconnected
-        else -> this
+        Event.Retry -> if (retryCount < 3) ConnectionState.Connecting else this
+        Event.Disconnect -> ConnectionState.Disconnected
+        Event.Connect, is Event.Connected, is Event.Failed -> this
     }
 }
 

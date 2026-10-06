@@ -83,7 +83,7 @@ Pick one per axis. Don't install two linters.
 
 ## Component patterns — framework-agnostic
 
-- **Composition over inheritance.** No component extends another; it composes children, slots, or props.
+- **Components compose.** No component extends another; it composes children, slots, or props.
 - **Compound components** — when a set of elements share internal state (`Select`, `Tabs`, `Disclosure`).
 - **Headless / render-prop / slot patterns** — separate behavior (state machine) from presentation (markup). Same state, many skins.
 - **Container vs presentational** is a heuristic, not a rule. Modern frameworks blur the line — use it when it simplifies, drop it when it adds boilerplate.
@@ -104,6 +104,10 @@ Framework specifics in `react` / `vue`.
 - **Ship modern JS to modern browsers.** Differential serving via `<script type="module">` + `<script nomodule>` if legacy matters; otherwise just ship modern JS (ES2022+).
 - **Bundle analysis.** `vite-bundle-visualizer` / `source-map-explorer` / `bundle-analyzer`. Check what you ship — regressions creep.
 
+## Verifying a UI change
+
+Open the changed flow in a browser. Check the states it can be in — loading, empty, error, success — keyboard and focus order, semantics, and contrast, at the narrowest and widest supported widths. A passing type check says nothing about any of these.
+
 ## Context adaptation
 
 **As implementer:** pick the simplest stack that matches scale. Default: Vite + pnpm + ESLint + Prettier + TypeScript. Don't pre-optimize.
@@ -123,6 +127,7 @@ Framework specifics in `react` / `vue`.
 
 ## Related Knowledge
 
+- `development` — code practice inside components and modules: ownership, variant families, dependencies, async lifetime
 - `react`, `vue` — framework specifics
 - `html/css` — markup and layout depth
 - `accessibility` — WCAG, ARIA, keyboard

@@ -105,7 +105,7 @@ All three run `.ts` natively:
 ### Type System
 - **Structural typing** — checks shape, not name
 - **Type narrowing** — `typeof`, `instanceof`, `in`, discriminated unions, type guards
-- **Discriminated unions** — the idiomatic pattern for variant types:
+- **Discriminated unions** — the idiomatic shape for a closed set: results, protocol messages, states. Dispatch over more than two members with an exhaustive `switch` whose default hands the value to `never`, so a new member fails to compile:
 
 ```typescript
 type Result<T> = { ok: true; value: T } | { ok: false; error: Error };
@@ -113,7 +113,11 @@ function handle(r: Result<string>) {
   if (r.ok) return r.value;     // narrowed
   throw r.error;                 // narrowed
 }
+
+function assertNever(value: never): never { throw new Error(`Unhandled variant: ${String(value)}`); }
 ```
+
+- **Open families** — providers, document types, widgets that keep growing are not unions consumed by `switch` or `instanceof` chains. Put the behavior on each class, or keep one table at the registration that maps each kind to its module, typed `Record<Kind, KindModule>` so the type checker proves it complete — never a per-consumer table of per-kind values. Consumers call the operation (`development`).
 
 ### Generics Quick Reference
 
@@ -179,6 +183,7 @@ Rule: if a generic has > 3 type parameters, refactor.
 
 ## Related Knowledge
 
+- **development** — code practice these idioms express: variant families, ownership, explicit dependencies, async lifetime
 - **react** / **vue** — framework-specific patterns, typed hooks
 - **backend** — server frameworks, middleware, API patterns
 - **frontend** — component architecture, bundling, build tools

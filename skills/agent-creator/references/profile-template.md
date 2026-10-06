@@ -24,7 +24,8 @@ profiles/developer/
 name: developer
 description: Implement software with coherent local design. Select domain knowledge for the project responsibility.
 role: [implementer]
-skills: [architecture]
+skills: [development]
+requires: [development]
 effort: medium
 access: full
 ---
@@ -43,7 +44,7 @@ Concrete deliverables and evidence.
 Concrete completion criteria.
 ```
 
-Core fields are portable profile intent. `skills` is the default set for an uncustomized profile instance.
+Core fields are portable profile intent. `skills` is the default set for an uncustomized profile instance. `requires` names the skills without which the profession does not work; each must also be a default skill, and the materializer adds them to every project composition. Keep it to the profession's defining skill.
 
 ## Claude overlay
 
@@ -69,3 +70,5 @@ Usually empty. The materializer maps `effort` to `model_reasoning_effort` and co
 3. Rewrite template behavior in domain terms; do not paste the generic template.
 4. Add output format and done criteria.
 5. Keep shared domain knowledge in skills rather than duplicating it into the profile.
+
+A body sets behavior and connects skills; it is not a rule book. Typical parts: the persona; which skills serve which part of the work; how the agent works (steps, operating modes); how it works with others (scope, handoffs, exemplars, review); output; done criteria. Rules that depend on the zone — how to verify a UI change, a service, a game loop — belong to the zone skill, so the composition selects them; a body does not branch by domain. There is no length quota; a body grows only with behavior.

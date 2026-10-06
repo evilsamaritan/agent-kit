@@ -4,7 +4,7 @@ import { fileURLToPath } from 'node:url'
 import { readFileSync } from 'node:fs'
 import { composeAgent, compositionFingerprint, loadProfiles, renderTarget, runtimeRegistry } from '../profile-lib.mjs'
 import { parseFlatYaml } from '../profile-format.mjs'
-import { PLUGIN_NAME, compareTargets, portabilityIssues, skillLocator } from '../profile-runtimes/shared.mjs'
+import { PLUGIN_NAME, compareTargets, skillLocator } from '../profile-runtimes/shared.mjs'
 
 const root = fileURLToPath(new URL('../../', import.meta.url))
 const profiles = loadProfiles(root)
@@ -66,7 +66,7 @@ test('locators: library skills by host identifier, discovered project skills by 
 })
 
 for (const runtime of [claude, codex, kimi]) {
-  test(`${runtime.id}: portable rendering names no machine and survives the portability check`, () => {
+  test(`${runtime.id}: rendering names skills by identifier, never by a path on this machine`, () => {
     const agent = composeAgent(reviewer, { skills: ['architecture', 'rules', 'notes'] })
     const sources = [
       { name: 'architecture', path: skillLocator(runtime, { name: 'architecture', project: false }) },
@@ -74,28 +74,11 @@ for (const runtime of [claude, codex, kimi]) {
       { name: 'notes', path: 'skills/notes/SKILL.md' },
     ]
     const target = renderTarget(runtime.id, agent, sources, '.agent-kit/agents.json profile reviewer', { inputs: compositionFingerprint(agent, runtime.id, sources) })
-    assert.deepEqual(portabilityIssues(target, runtime.parse(target), ['/Users/alice', '/opt/agent-kit']), [])
     assert.doesNotMatch(target, /"\/|\\"\/|~\/|\d+\.\d+\.\d+/)
     assert.deepEqual(runtime.parse(target).skills, ['architecture', 'rules', 'notes'])
     if (runtime === claude) assert.match(target, /^skills: \["agent-kit:architecture"\]$/m, 'path-only project skills are not preloaded by a guessable name')
   })
 
-  test(`${runtime.id}: the portability check names absolute, home, and escaping locators`, () => {
-    const agent = composeAgent(reviewer, { skills: ['architecture'] })
-    for (const [path, reason] of [
-      ['/Users/alice/.claude/plugins/cache/agent-kit/agent-kit/4.0.0/skills/architecture/SKILL.md', /absolute home/],
-      ['~/agent-kit/skills/architecture/SKILL.md', /home-relative/],
-      ['C:\\Users\\alice\\agent-kit\\SKILL.md', /Windows user path/],
-      ['../agent-kit/skills/architecture/SKILL.md', /not a host identifier or project-relative path/],
-      ['/opt/agent-kit/skills/architecture/SKILL.md', /not a host identifier or project-relative path/],
-    ]) {
-      const target = renderTarget(runtime.id, agent, source(path), 'x', provenance)
-      assert.match(portabilityIssues(target, runtime.parse(target)).join('\n'), reason, path)
-    }
-    const local = renderTarget(runtime.id, agent, source('agent-kit:architecture'), 'x', provenance)
-    assert.match(portabilityIssues(`${local}\n# /srv/build/kit`, runtime.parse(local), ['/srv/build/kit']).join('\n'), /local path \/srv\/build\/kit/)
-    assert.deepEqual(portabilityIssues(local, runtime.parse(local), ['/w', '/srv/build/kit']), [], 'a local path matches whole path segments only')
-  })
 
   test(`${runtime.id}: diff separates source, provenance, and behavior changes`, () => {
     const agent = composeAgent(reviewer, { skills: ['architecture'] })
@@ -155,7 +138,7 @@ test('Kimi target: explicit allowlist by access, context restored on purpose, no
   assert.doesNotMatch(tools, /"(?:Edit|Write|Bash|Agent|AgentSwarm)"/)
   assert.match(tools, /"Read"/)
   assert.doesNotMatch(readOnly, /^(model|effort):/m)
-  for (const part of ['${agents_md}', '${skills}', '## Handoff', 'architecture: "architecture"', 'Skill tool']) assert(readOnly.includes(part), part)
+  for (const part of ['${agents_md}', '${skills}', '## Handoff', 'development: "development"', 'Skill tool']) assert(readOnly.includes(part), part)
   const full = renderTarget('kimi', composeAgent(reviewer, { access: 'full' }))
   assert.match(full, /"Bash"/)
   assert.doesNotMatch(full, /"Agent"/)
