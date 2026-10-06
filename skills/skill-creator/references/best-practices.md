@@ -199,7 +199,7 @@ Name: lowercase, hyphens only (`my-skill-name`).
 Skills should interact with the user at decision points, not dump information.
 
 **Rules:**
-- Use `AskUserQuestion` for material choices between approaches that cannot be inferred safely
+- Ask the user (Claude Code: `AskUserQuestion`; otherwise a plain chat question) for material choices between approaches that cannot be inferred safely
 - Present options with clear trade-offs
 - Confirm destructive or irreversible actions
 - When the user requested creation or modification, apply safe in-scope local writes without a redundant approval round
@@ -221,17 +221,17 @@ At decision points with multiple valid approaches, first inspect the request, re
 
 **Pattern:**
 ```markdown
-Ask: What framework is the project using?
-- Next.js → Turbopack (locked to framework)
-- Nuxt/SvelteKit/Astro → Vite (framework default)
-- Custom → present options with trade-offs
+Ask: Is the data shared across service instances?
+- Yes → shared cache with explicit invalidation
+- No, per-process and short-lived → in-process cache
+- Unclear → present both with their consistency cost
 ```
 
 **Rules:**
 - Place `Ask:` before decision trees only when the relevant constraint cannot be inferred
 - Frame questions around constraints (framework, scale, team size, existing tooling)
 - Present 2-4 options with clear trade-offs, not exhaustive lists
-- Use `AskUserQuestion` at runtime for unresolved material decisions
+- Ask the user at runtime for unresolved material decisions
 - Default recommendations are OK as tiebreakers, but present alternatives
 
 **When to use:**
@@ -252,18 +252,18 @@ When a skill teaches naming conventions or code patterns, use **rule + examples*
 
 **Rule + examples (correct):**
 ```markdown
-Name epic as: `on` + trigger + action + target + `Epic`
-(e.g., `onSelectLoadDetailsEpic`, `onSubmitCloseModalEpic`, `onConnectLoadChatsEpic`).
+Name a migration file as: timestamp + `_` + verb + `_` + target
+(e.g., `20260301_add_orders_status`, `20260302_drop_users_legacy_flag`).
 ```
 
 **Placeholder template (avoid):**
 ```markdown
-on<Trigger>Load<Entity>Epic
+<timestamp>_<verb>_<target>
 ```
 
 **Additional guidelines:**
-- Use backticks for fixed parts (e.g., `` `on` + trigger + `Epic` ``)
-- Use plain text for variable parts (e.g., "trigger", "action", "target")
+- Use backticks for fixed parts (e.g., `` `_` ``)
+- Use plain text for variable parts (e.g., "verb", "target")
 - Avoid `<AngleBrackets>` — conflicts with JSX/generics
 - Avoid `{CurlyBraces}` — conflicts with template literals
 - When multiple code examples share a naming convention, extract to a `## Naming` section
@@ -310,9 +310,9 @@ WHAT (imperative verb + object) + WHEN (trigger phrases) + KEY CAPABILITIES (if 
 ### Good Examples
 
 ```yaml
-description: Create and maintain AGENTS.md files for packages, services, and libraries. Use when creating AGENTS.md, adding package agents, or setting up service agents files.
-description: Run JavaScript/TypeScript code quality checks (lint, types, dependencies, stylelint). Use when checking types, running linter, checking eslint/stylelint, or fixing lint/type errors.
-description: Write E2E tests with Playwright for an AdminUI service. Use when creating page objects, domain components, and test specs.
+description: Design or review tests. Use for unit/integration/e2e/contract strategy, fixtures, mocks, flake diagnosis, coverage, and regression cases.
+description: Design or review data storage and access. Use for schemas, migrations, indexes, queries, transactions, and relational/document/key-value models.
+description: Build and secure container images. Use for Dockerfiles, multi-stage builds, Compose, image signing, SBOM, health checks, or container debugging.
 ```
 
 ### Anti-patterns
@@ -353,32 +353,36 @@ Choose an approach based on the use case:
 |-------|---------|-------|
 | `allowed-tools` | none | Portable pre-approval field. In Claude Code it grants listed tools while the skill is active without restricting unlisted tools. String or YAML list. |
 | `disallowed-tools` | none | One-turn Claude Code restriction. String or YAML list. |
-| `when_to_use` | — | Claude Code routing extension. Extra trigger examples; keep `description` portable. |
+| `when_to_use` | — | Routing extension read by Claude Code and Kimi. Extra trigger examples; keep `description` portable. |
 | `user-invocable` | `true` | Boolean. Set `false` to hide from `/slash` menu while keeping auto-discovery. |
 | `context` | — | Set to `fork` for isolated sub-agent execution. |
-| `agent` | `general-purpose` | Only with `context: fork`. Options: `Explore`, `Plan`, `general-purpose`. |
-| `model` | conversation model | Override model for this skill. Agent-specific model IDs. |
+| `agent` | `general-purpose` | Only with `context: fork`. A built-in subagent (`Explore`, `Plan`, `general-purpose`) or any custom subagent from `.claude/agents/`. |
+| `model` | conversation model | Claude Code extension: model for the rest of the current turn. Accepts the same values as `/model`, or `inherit`. |
 | `effort` | session effort | Model-dependent override: `low`, `medium`, `high`, `xhigh`, or `max`. |
 | `background` | `true` with fork | With `context: fork`, set `false` to wait for the result. |
-| `hooks` | — | Lifecycle hooks: `PreToolUse`, `PostToolUse`, `Stop`. See AGENTS.md for format. |
+| `hooks` | — | Claude Code extension: lifecycle hooks scoped to the skill. See the host's hooks documentation. |
 | `argument-hint` | — | Autocomplete hint for arguments (e.g., `[issue-number]`, `[filename]`). |
 | `arguments` | — | Named positional arguments for `$name` substitution. |
-| `disable-model-invocation` | `false` | Prevent agent from auto-loading this skill. |
+| `disable-model-invocation` | `false` | Prevent agent from auto-loading this skill. In Claude Code it also stops preloading into subagents, so shorten a long description instead of hiding the skill to save context. |
 | `license` | — | Open-source license (e.g., `MIT`, `Apache-2.0`). For distribution. |
 | `compatibility` | — | Environment requirements, 1-500 chars (intended product, system packages, network access). |
-| `metadata` | — | Custom key-value pairs: `author`, `version`, `mcp-server`, `category`, `tags`. |
+| `metadata` | — | Portable custom key-value map (`author`, `tags`, or taxonomy for external tooling). Unknown top-level keys belong here. |
 | `paths` | — | Claude Code activation globs for path-specific skills. |
 | `shell` | `bash` | Shell for dynamic context blocks (`bash` or `powershell`). |
 
-**String substitution:** `$ARGUMENTS` (or `$1`, `$2`, `$ARGUMENTS[0]`) substitutes user input. `${CLAUDE_SESSION_ID}` provides session-specific paths.
+**String substitution:** `$ARGUMENTS` (or `$1`, `$2`, `$ARGUMENTS[0]`, `$name`) substitutes user input in Claude Code and Kimi. Write amounts as `USD 10` or `10 dollars`, never a dollar sign followed by a digit. `${CLAUDE_SESSION_ID}` and `${CLAUDE_SKILL_DIR}` are Claude Code extensions (current session ID; the skill's own directory).
 
-**Dynamic context injection:** `` `!command` `` in skill body injects live command output at load time.
+**Dynamic context injection:** `` `!command` `` in a skill body injects live command output at load time in Claude Code. Kimi does not support it; put a data-gathering step in the workflow instead.
 
 **Scoped permission grants:** `allowed-tools` supports scoped syntax such as `"Bash(python:*) Bash(npm:*) WebFetch"`; only matching Bash commands are pre-approved. Other tools still exist unless runtime policy or `disallowed-tools` removes them.
 
+### Portability across hosts
+
+Claude Code, Codex, and Kimi Code all read `name` and `description`; keep `description` sufficient on its own. Kimi also reads `whenToUse` (alias `when_to_use`), `disableModelInvocation`, `arguments`, and `type`, and ignores other fields, including Claude-only ones such as `user-invocable`, `allowed-tools`, and `context`. Codex controls implicit invocation through the `policy.allow_implicit_invocation` field of an optional `agents/openai.yaml`, not through `disable-model-invocation`.
+
 ### Validation Rules
 
-For this portable repository, `name` matches the directory, uses lowercase kebab-case, and `description` stays single-line. `context: fork` may name an `agent`; otherwise the runtime default applies. Unknown Claude-only fields can break Skills API or claude.ai uploads even when Claude Code accepts them, so distinguish portable metadata from runtime extensions.
+For a portable skill, `name` matches the directory, uses lowercase kebab-case, and `description` stays single-line. `context: fork` may name an `agent`; otherwise the runtime default applies. Skills uploaded to the Skills API or claude.ai are validated: `name` max 64 characters of lowercase letters, numbers, and hyphens, with no XML tags and no reserved words (`anthropic`, `claude`); `description` non-empty, max 1024 characters, no XML tags. Claude Code ignores unrecognized fields; keep extension fields minimal in a skill that is also uploaded elsewhere, and distinguish portable metadata from runtime extensions.
 
 ---
 
@@ -424,8 +428,9 @@ Skills live in `skills/<name>/`; reusable profession profiles live in `profiles/
 | Skills source | `skills/<name>/` |
 | Profile source | `profiles/<name>/PROFILE.md` |
 | Project composition | `.agent-kit/agents.json` |
-| Runtime targets | `.claude/agents/*.md`, `.codex/agents/*.toml` |
-| Package exposure | Claude root `skills/` discovery; Codex manifest `./skills/` |
+| Runtime targets | `.claude/agents/*.md`, `.codex/agents/*.toml`, `.kimi-code/agents/*.md` (opt-in) |
+| Package exposure | Claude root `skills/` discovery; Codex and Kimi manifests expose `./skills/` |
+| Project skills | `.claude/skills/`, `.agents/skills/`, `.kimi-code/skills/` in the consuming project |
 | External skills | `npx skills add <package>` |
 | Discovery | `npx skills find <query>` |
 
@@ -435,4 +440,4 @@ Always edit reusable knowledge in `skills/`, reusable professions in `profiles/`
 
 ## Testing Checklist
 
-After creating a skill: (1) frontmatter parses (`name` + `description` present), (2) canonical source exists and both plugin packages expose `skills/`, (3) the description covers observed requests without stealing sibling tasks, (4) direct invocation works, (5) sub-files load on demand, (6) workflow completes end-to-end, (7) output meets explicit acceptance criteria, and (8) `./scripts/validate-repository.sh` passes.
+After creating a skill: (1) frontmatter parses (`name` + `description` present), (2) the source exists in the directory the mode requires (kit: every plugin manifest exposes `skills/`), (3) the description covers observed requests without stealing sibling tasks, (4) direct invocation works, (5) sub-files load on demand, (6) workflow completes end-to-end, (7) output meets explicit acceptance criteria, and (8) in the kit repository, `./scripts/validate-repository.sh` passes.

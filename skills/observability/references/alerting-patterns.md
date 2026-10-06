@@ -14,7 +14,7 @@ Symptom-based alerting, severity levels, alert templates, and noise reduction.
 
 ## Symptom-Based Alerting
 
-Alert on what users experience, not on internal system causes.
+Alert on what users experience, not on internal system causes. Paging policy is owned by `reliability`.
 
 ```
 BAD:  Alert on CPU > 90%              (cause, not symptom)
@@ -43,6 +43,8 @@ GOOD: Alert on success rate < 99.9%    (SLO violation)
 
 ## Severity Levels
 
+What deserves a page and the burn-rate thresholds are policy owned by `reliability`; the table and routing below are one way to wire that policy.
+
 | Severity | Response Time | Example | Action |
 |----------|---------------|---------|--------|
 | Critical (P1) | Immediate (page on-call) | Service down, data loss risk | Wake someone up |
@@ -57,16 +59,13 @@ GOOD: Alert on success rate < 99.9%    (SLO violation)
 route:
   receiver: 'default-slack'
   routes:
-    - match:
-        severity: critical
+    - matchers: ['severity="critical"']
       receiver: 'pagerduty-oncall'
       repeat_interval: 5m
-    - match:
-        severity: high
+    - matchers: ['severity="high"']
       receiver: 'slack-urgent'
       repeat_interval: 30m
-    - match:
-        severity: warning
+    - matchers: ['severity="warning"']
       receiver: 'slack-warnings'
       repeat_interval: 4h
 ```
@@ -75,52 +74,76 @@ route:
 
 ## Alert Templates
 
+Examples use Prometheus syntax; the shape carries over to other rule engines. Keep one copy of each template here; do not duplicate them elsewhere. What deserves a page and the burn-rate thresholds are reliability policy; these templates implement it.
+
 ### High Error Rate
+
+Aggregate both sides of the ratio. Dividing per-series rates (one series per status or instance) gives a ratio of 1 for any series that has a 5xx and fires on a single error.
 
 ```yaml
 alert: HighErrorRate
-expr: rate(http_requests_total{status=~"5.."}[5m]) / rate(http_requests_total[5m]) > 0.01
+expr: |
+  sum by (service) (rate(http_requests_total{status=~"5.."}[5m]))
+  /
+  sum by (service) (rate(http_requests_total[5m])) > 0.01
 for: 5m
 labels:
-  severity: critical
+  severity: high
   team: backend
 annotations:
   summary: "Error rate above 1% for {{ $labels.service }}"
   description: "Current error rate: {{ $value | humanizePercentage }}"
-  runbook: "https://wiki.example.com/runbooks/high-error-rate"
-  dashboard: "https://grafana.example.com/d/service-overview"
+  runbook: "runbooks/high-error-rate.md"
 ```
 
 ### High Latency
 
 ```yaml
 alert: HighLatency
-expr: histogram_quantile(0.99, sum(rate(http_request_duration_seconds_bucket[5m])) by (le, service)) > 2
+expr: histogram_quantile(0.99, sum by (le, service) (rate(http_request_duration_seconds_bucket[5m]))) > 2
 for: 5m
 labels:
   severity: warning
 annotations:
   summary: "P99 latency above 2s for {{ $labels.service }}"
-  description: "Current p99: {{ $value | humanizeDuration }}"
-  runbook: "https://wiki.example.com/runbooks/high-latency"
+  runbook: "runbooks/high-latency.md"
 ```
 
-### SLO Burn Rate
+### SLO Burn Rate (multi-window, multi-burn-rate)
+
+Burn rate is how many times faster than allowed the error budget is being spent. At burn rate 1 a 30-day budget lasts exactly 30 days; at 14.4 it lasts about 50 hours (2% of the budget in one hour); at 6 it lasts 5 days (5% in six hours). Each alert requires a long window (the trend is real) and a short window (it is still happening, so the alert resolves quickly).
 
 ```yaml
-alert: ErrorBudgetBurnRate
-expr: |
-  (
-    sum(rate(http_requests_total{status=~"5.."}[1h])) by (service)
-    / sum(rate(http_requests_total[1h])) by (service)
-  ) > 14.4 * (1 - 0.999)
-for: 5m
-labels:
-  severity: critical
-annotations:
-  summary: "{{ $labels.service }}: burning error budget 14.4x faster than allowed"
-  description: "At this rate, 30-day error budget will be exhausted in ~2 hours"
+# Error budget ratio = 1 - SLO target (SLO 99.9% -> 0.001).
+# Define it once, for example as a recording rule or a per-service label, not inline.
+- alert: ErrorBudgetFastBurn
+  expr: |
+    (
+      sum by (service) (rate(http_requests_total{status=~"5.."}[1h]))
+        / sum by (service) (rate(http_requests_total[1h])) > (14.4 * 0.001)
+    and
+      sum by (service) (rate(http_requests_total{status=~"5.."}[5m]))
+        / sum by (service) (rate(http_requests_total[5m])) > (14.4 * 0.001)
+    )
+  labels: { severity: critical }
+  annotations:
+    summary: "{{ $labels.service }}: burning error budget 14.4x too fast"
+
+- alert: ErrorBudgetSlowBurn
+  expr: |
+    (
+      sum by (service) (rate(http_requests_total{status=~"5.."}[6h]))
+        / sum by (service) (rate(http_requests_total[6h])) > (6 * 0.001)
+    and
+      sum by (service) (rate(http_requests_total{status=~"5.."}[30m]))
+        / sum by (service) (rate(http_requests_total[30m])) > (6 * 0.001)
+    )
+  labels: { severity: high }
+  annotations:
+    summary: "{{ $labels.service }}: burning error budget 6x too fast"
 ```
+
+A third tier (burn rate 1 over 3 days) typically opens a ticket instead of paging.
 
 ### Service Down
 
@@ -169,10 +192,8 @@ Suppress downstream alerts when the root cause is already alerting.
 
 ```yaml
 inhibit_rules:
-  - source_match:
-      alertname: 'ServiceDown'
-    target_match_re:
-      alertname: 'High(ErrorRate|Latency)'
+  - source_matchers: ['alertname="ServiceDown"']
+    target_matchers: ['alertname=~"High(ErrorRate|Latency)"']
     equal: ['service']
 ```
 
@@ -181,7 +202,7 @@ inhibit_rules:
 Mute during planned maintenance.
 
 ```bash
-# Alertmanager API
+# amtool (Alertmanager CLI)
 amtool silence add \
   --alertmanager.url=http://alertmanager:9093 \
   --author="deploy-bot" \

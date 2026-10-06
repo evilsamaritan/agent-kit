@@ -1,5 +1,41 @@
 # Changelog
 
+## 4.0.0-rc.4
+
+A full review of every skill, verified finding by finding, and the fixes it called for. Per-skill notes stay in the skills; this entry summarizes.
+
+### Added
+
+- `python` skill: version-first workflow, typing and data models, asyncio with structured concurrency, packaging decisions, variant families in Python.
+- `grill-me` skill: a round-based interview that settles a plan's decisions with the user before work starts (idea from grill-me by Matt Pocock, MIT; written for Agent Kit).
+- Missing depth as references inside existing skills: `auth` authorization and credential storage, `accessibility` native platforms, `reliability` recovery (RPO, RTO, restore drills), `file-storage` serving untrusted files, `payments` store billing and regulatory rails, `api-design` RPC patterns, `security` OWASP Top 10, `react` Next.js, `i18n` library and runtime references, `javascript` build tooling, `zig` build system and version notes, `go` version notes.
+
+### Changed
+
+- Code and configuration examples updated for current stable releases, including Zig, TypeScript, Go tooling, Vite, Biome, ESLint, Vitest, Kotlin, Rust, Kubernetes, CI providers, payment provider APIs, and OpenTelemetry.
+- Unsafe examples fixed: authorization in server code, WebSocket authentication, row-level security, presigned uploads, container users, pod security, security headers.
+- Contradictions with `development` removed across skills: silent defaults, catch-all error handling, second writers, consumer-side branching on variant types.
+- One owner per topic, with the others pointing to it: retry policy (`reliability`), idempotency (`message-queues`), webhooks and cursors (`api-design`), Cache-Control policy (`caching`), header mechanics (`web`), probes and shutdown (`backend` code, `reliability` policy), migrations (`database`), supply chain and SAST/DAST (`security`), fuzzing (`testing`), Core Web Vitals (`performance`), outbox, saga, and CQRS (`architecture`), changelog production (`release-engineering`).
+- Volatile facts (versions, support tables, release status) moved from SKILL.md into references; language skills start by determining the project's version.
+- `frontend` covers UI structure, state ownership, rendering strategy, and UI verification; build tooling moved to `javascript`.
+- `council` is host-neutral; `seo`, `payments`, and `zig` were reworked; descriptions sharpened across the catalog; references that only repeated SKILL.md were cut.
+- Project recipes live in one place (`agent-creator`); `init` points to them.
+- AGENTS.md: explicit list of meta skills, classes and section skeletons kept once in `skill-creator`, portable frontmatter fields separated from host extensions, profile overlays optional.
+- Codex manifest `defaultPrompt` is a list of prompts.
+- `materialize-agents.mjs`: `--agent` and `--brief` resolve skills only for the selected agent; `--brief` takes `--runtime` so a fallback brief resolves project skills the way the receiving host does.
+- `tester` loads `development` for all test code, not only shared test mechanisms.
+
+### Removed
+
+- `hook-creator` and `update-config` (Claude Code only; Claude Code ships its own settings skill).
+- The `security` profile: use `reviewer` with the `security` skill.
+- `testing/references/multi-pass-review.md`, the playground maintainer gallery and its D2 renderer, superseded `frontend`, `docker`, and `init` references, and empty Codex profile overlays.
+- Validator checks that guarded retired names and mandatory empty overlays.
+
+### Upgrade
+
+Agents built from the `security` profile fail validation: switch them to `profile: reviewer` with `security` in `skills` (agent-creator's migration instruction does this). Agents listing `hook-creator` or `update-config` must drop them. Run `materialize-agents.mjs --dry-run`, then regenerate.
+
 ## 4.0.0-rc.3
 
 Code practice has one owner, and profiles carry the skills they cannot work without.
@@ -27,7 +63,7 @@ Code practice has one owner, and profiles carry the skills they cannot work with
 
 ### Upgrade
 
-`--dry-run` shows `development` added to `developer` and `reviewer` agents; no `agents.json` edit is needed. Developer agents that listed `architecture` only for code practice can drop it.
+`--dry-run` shows `development` added to `developer` and `reviewer` agents; no `agents.json` edit is needed. Developer agents that listed `architecture` only for code practice can drop it. Scripts that still pass `--portable` must drop it: the flag is now rejected.
 
 ## 4.0.0-rc.2
 
@@ -50,8 +86,8 @@ Release candidate. Upgrade notes: [Upgrading to 4.0](#upgrading-to-40).
 ### Breaking
 
 - Removed the bundled Claude plugin agents; project agents are generated from `.agent-kit/agents.json`.
-- Replaced the `frontend` and `backend` profiles with `developer`; `migrate-project.mjs` converts project entries.
-- Renamed the `visualization` skill to `playground`; `migrate-project.mjs` rewrites explicit skill lists.
+- Replaced the `frontend` and `backend` profiles with `developer`; `migrate-project.mjs` converts project entries (removed in rc.3; ask agent-creator to migrate).
+- Renamed the `visualization` skill to `playground`; `migrate-project.mjs` rewrites explicit skill lists (removed in rc.3; ask agent-creator to migrate).
 - Profiles no longer pin models; generated agents inherit the host model unless the project pins one.
 
 ### Added
@@ -81,6 +117,8 @@ Agent Kit 4.0 ships profiles and skills, not a ready-made team. Project agents a
 | `visualization` skill renamed to `playground` | explicit skill lists naming `visualization` fail validation | Rename it in `agents.json`; invoke `/agent-kit:playground` |
 | Profiles pin no model | agents that relied on library defaults now inherit the host model | Review the `--dry-run` diff; pin `claude.model` or `codex.model` where a specific model matters |
 | Portable generated targets (rc.2) | rc.1 targets with absolute plugin-cache paths fail `--check` | Regenerate once |
+| `security` profile removed (rc.4) | agents with `profile: security` fail validation | Use `profile: reviewer` with the `security` skill |
+| `hook-creator`, `update-config` removed (rc.4) | explicit skill lists naming them fail validation | Drop them; Claude Code's built-in settings skill covers hooks and settings |
 | Code practice moved to `development` (rc.3) | links into `architecture` references for principles, variation, patterns, or critique | Use `development`; profiles that need it carry it through `requires` |
 
 From the project root, with `<agent-kit>` the installed library (Claude Code `~/.claude/plugins/cache/agent-kit/agent-kit/<version>/`, Codex `~/.codex/plugins/cache/agent-kit/agent-kit/<version>/`, Kimi Code `$KIMI_CODE_HOME/plugins/managed/<id>/`):

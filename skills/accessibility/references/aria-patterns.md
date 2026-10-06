@@ -24,8 +24,8 @@ Full interaction patterns for common components. Each pattern includes role, sta
   <h2 id="dialog-title">Confirm deletion</h2>
   <p>Are you sure you want to delete this item? This cannot be undone.</p>
   <div class="dialog-actions">
-    <button data-action="cancel">Cancel</button>
-    <button data-action="confirm" autofocus>Delete</button>
+    <button data-action="cancel" autofocus>Cancel</button>
+    <button data-action="confirm">Delete</button>
   </div>
 </dialog>
 ```
@@ -36,12 +36,21 @@ const trigger = document.getElementById("delete-btn")!;
 
 trigger.addEventListener("click", () => dialog.showModal());
 dialog.addEventListener("close", () => trigger.focus()); // Return focus
+```
 
+Never close a destructive confirmation or a form with unsaved input on a stray backdrop click. For a separate non-destructive dialog (an informational panel, a picker), backdrop-click close can be added:
+
+```typescript
+// e.target === dialog is also true for clicks on the dialog's own padding, so compare coordinates too.
+// Keyboard-activated clicks on inner buttons report clientX/clientY as 0 but target the button, so the target check keeps them from closing the dialog.
 dialog.addEventListener("click", (e) => {
-  // Close on backdrop click
-  if (e.target === dialog) dialog.close();
+  const r = dialog.getBoundingClientRect();
+  const inside = e.clientX >= r.left && e.clientX <= r.right && e.clientY >= r.top && e.clientY <= r.bottom;
+  if (e.target === dialog && !inside) dialog.close();
 });
 ```
+
+`<dialog closedby="any">` can replace the script in browsers that implement it (Chromium and Firefox; Safari lacks it), so keep the script as the fallback.
 
 **Keyboard:**
 
@@ -52,7 +61,7 @@ dialog.addEventListener("click", (e) => {
 | Escape | Close dialog |
 
 **Rules:**
-- Set initial focus to first interactive element, or `autofocus` on primary action
+- Set initial focus to the first interactive element; for a destructive confirmation focus the least destructive action (Cancel), never the destructive one
 - Return focus to trigger element on close
 - Prevent scroll of background content
 
@@ -101,6 +110,8 @@ dialog.addEventListener("click", (e) => {
 ---
 
 ## Menu
+
+`role="menu"` is for application-style action menus (Edit, Duplicate, Delete). Site navigation and "show more links" lists are not menus: use a disclosure button (`aria-expanded`) controlling a list of links. A popover (`popover` attribute) gives top-layer, light dismiss and Escape handling, but no menu semantics or arrow-key behavior; those still need the pattern below.
 
 ```html
 <div class="menu-wrapper">
@@ -179,21 +190,23 @@ dialog.addEventListener("click", (e) => {
 
 ```html
 <ul role="tree" aria-label="File browser">
-  <li role="treeitem" aria-expanded="true">
+  <li role="treeitem" aria-expanded="true" tabindex="0">
     <span>Documents</span>
     <ul role="group">
-      <li role="treeitem" class="leaf">report.pdf</li>
-      <li role="treeitem" aria-expanded="false">
+      <li role="treeitem" class="leaf" tabindex="-1">report.pdf</li>
+      <li role="treeitem" aria-expanded="false" tabindex="-1">
         <span>Photos</span>
         <ul role="group">
-          <li role="treeitem" class="leaf">vacation.jpg</li>
+          <li role="treeitem" class="leaf" tabindex="-1">vacation.jpg</li>
         </ul>
       </li>
     </ul>
   </li>
-  <li role="treeitem" class="leaf">readme.txt</li>
+  <li role="treeitem" class="leaf" tabindex="-1">readme.txt</li>
 </ul>
 ```
+
+Roving tabindex: exactly one treeitem has `tabindex="0"` (the focused or last-focused one); all others have `-1`. Arrow keys move focus and swap the values. Without it the tree is not keyboard operable.
 
 **Keyboard:**
 
@@ -255,7 +268,7 @@ dialog.addEventListener("click", (e) => {
 ## Data Table
 
 ```html
-<table role="table" aria-label="Employee directory">
+<table aria-label="Employee directory">
   <thead>
     <tr>
       <th scope="col" aria-sort="ascending">

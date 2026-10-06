@@ -13,7 +13,7 @@
 - [Mutex Rules](#mutex-rules)
 - [Common Mistakes](#common-mistakes)
 
-Tokio is the only runtime for production. `edition = "2024"` + Tokio 1.x.
+Tokio is the default runtime for services; libraries stay runtime-agnostic. The ownership rule behind the cancellation patterns (async work has an owner that cancels it and releases what it holds on every path) is `development` rule 5; this file shows the Tokio idioms.
 
 ---
 
@@ -25,7 +25,8 @@ Dynamic N concurrent operations                        → JoinSet
 Ordered stream of results                              → FuturesOrdered
 Unordered results as fast as possible                  → FuturesUnordered
 First one to complete wins                             → tokio::select!
-Cancel on signal / timeout                             → CancellationToken + select!
+Deadline on one operation                              → tokio::time::timeout(dur, fut)
+Cancel on signal / shutdown                            → CancellationToken + select!
 CPU-bound work                                         → spawn_blocking
 ```
 
@@ -80,14 +81,14 @@ use tokio_util::sync::CancellationToken;
 async fn run_service(token: CancellationToken) -> Result<(), Error> {
     loop {
         tokio::select! {
-            biased;  // check cancellation first
+            biased;  // poll branches in order: cancellation first (order only, see Cancellation Safety)
 
             _ = token.cancelled() => {
                 tracing::info!("shutting down gracefully");
                 return Ok(());
             }
 
-            result = next_task() => {
+            result = next_task() => { // next_task must be cancellation-safe, e.g. a channel recv
                 process(result?).await?;
             }
         }
@@ -139,11 +140,21 @@ let mut rx1 = tx.subscribe();
 let mut rx2 = tx.subscribe();
 
 tokio::spawn(async move {
-    while let Ok(event) = rx1.recv().await {
-        handle_event(event).await;
+    loop {
+        match rx1.recv().await {
+            Ok(event) => handle_event(event).await,
+            // The receiver fell behind and the channel overwrote `n` events: decide, don't exit
+            Err(broadcast::error::RecvError::Lagged(n)) => {
+                tracing::warn!(skipped = n, "subscriber lagged");
+                resync().await;
+            }
+            Err(broadcast::error::RecvError::Closed) => break,
+        }
     }
 });
 ```
+
+A slow subscriber never blocks the sender; it loses events instead. Handle `Lagged` explicitly (skip, resync, or fail loudly), because treating every `Err` as the end of the stream silently stops a live subscriber.
 
 ---
 
@@ -168,27 +179,35 @@ let content = tokio::fs::read_to_string(path).await?;
 
 ## Cancellation Safety
 
-Not all async operations are safe to cancel (drop mid-execution):
+When a `select!` branch completes, the other branches' futures are dropped. A future is cancellation-safe if dropping it before completion loses no data and leaves no half-done state. The Tokio docs state each method's cancellation safety; read them for any method used as a `select!` branch.
 
-| Operation | Safe? | Notes |
-|-----------|-------|-------|
-| `tokio::time::sleep` | ✅ | Pure timer |
-| `mpsc::Receiver::recv()` | ✅ | Message stays in channel |
-| `tokio::fs::read` | ✅ | Kernel handles partial reads |
-| `sqlx::query::fetch` | ⚠️ | Transaction may be left open |
-| Writing to channel mid-send | ❌ | Data may be lost |
+| Operation | Cancellation-safe? | Notes |
+|-----------|--------------------|-------|
+| `tokio::time::sleep`, `CancellationToken::cancelled` | Yes | Pure waits |
+| `Notify::notified`, `Mutex::lock` | Yes, with a cost | Nothing is lost, but cancelling forfeits the place in the fair queue |
+| `mpsc::Receiver::recv` | Yes | The message stays in the channel |
+| `AsyncReadExt::read` | Yes | Nothing consumed until it returns |
+| `AsyncReadExt::read_exact`, `AsyncBufReadExt::read_line` | No | Some data may already be read into the buffer (a partial line or a partly filled slice) |
+| `mpsc::Sender::send` | Partly | If another branch wins, the value was not sent and is dropped; use `reserve()` first to keep it |
+| An `async fn` with several awaits and side effects between them | No | Dropping it between steps leaves the side effects done and the rest undone |
 
-In `select!`, if a branch is not cancellation-safe, document it:
+`biased;` only fixes the order in which branches are polled. It does not make a branch cancellation-safe, and it can starve the later branches. The fix for a cancellation-unsafe future is to create it once, outside the loop, and poll it by reference so a competing branch never drops it:
 
 ```rust
-// SAFETY: fetch_next is not cancellation-safe — use biased to prevent
-// interleaving with the cancellation branch
-tokio::select! {
-    biased;
-    _ = shutdown_signal() => break,
-    item = fetch_next() => process(item).await,
+let next = fetch_next();            // not cancellation-safe
+tokio::pin!(next);
+loop {
+    tokio::select! {
+        _ = token.cancelled() => break,
+        item = &mut next => {       // other branches winning does not drop `next`
+            process(item).await;
+            next.set(fetch_next()); // start the next read after finishing this one
+        }
+    }
 }
 ```
+
+Alternatively move the read into its own task and select on the channel it feeds (`recv` is cancellation-safe), or split the read from the processing step. Where a branch is deliberately not cancellation-safe, say so in the code with a `// CANCEL-SAFETY:` note (not `// SAFETY:`, which is reserved for `unsafe` blocks).
 
 ---
 
@@ -197,7 +216,7 @@ tokio::select! {
 ```rust
 // std::sync::Mutex: OK if lock is NEVER held across .await
 {
-    let value = mutex.lock().unwrap(); // lock acquired
+    let value = mutex.lock().expect("state mutex poisoned"); // lock acquired
     compute(value);
     // lock released here (before any .await)
 }
@@ -225,7 +244,7 @@ tokio::spawn(async {
 
 // ❌ std::Mutex across .await (can deadlock)
 async fn bad(mutex: Arc<Mutex<State>>) {
-    let guard = mutex.lock().unwrap();
+    let guard = mutex.lock().expect("state mutex poisoned");
     save(guard.data).await; // .await with guard held → potential deadlock
 }
 // ✅ Fix: either release before .await or use tokio::sync::Mutex
@@ -248,7 +267,7 @@ Use during review or before marking async code complete:
 - [ ] No `.unwrap()` on `JoinHandle::await` — panics propagate as `JoinError`
 - [ ] No `std::sync::Mutex` held across `.await` points — use `tokio::sync::Mutex`
 - [ ] `tokio::spawn` tasks are `'static` — check for non-obvious captures
-- [ ] `select!` branches are cancellation-safe (or documented as non-cancellation-safe)
+- [ ] `select!` branches are cancellation-safe, or the future is pinned outside the loop (a `// CANCEL-SAFETY:` note if neither)
 - [ ] Bounded channels used for backpressure; unbounded channels justified
-- [ ] All async trait errors are `Send + Sync + 'static`
+- [ ] Errors returned from spawned tasks and async traits are `Send + 'static`
 - [ ] No spawned tasks without tracked `JoinHandle` or `JoinSet`

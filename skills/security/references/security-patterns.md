@@ -1,22 +1,22 @@
 # Security Patterns Reference
 
-Domain knowledge for application security review. Stack-agnostic patterns and severity classification.
+Code-review lens for application security: severity, secrets, authorization checks, validation, rate limiting, supply chain. Stack-agnostic. Authentication protocol design is in `auth`; zero-trust network design in `networking`; header and CORS mechanics in `web`.
 
 ## Contents
 
 - [Severity Classification](#severity-classification)
 - [Secrets Management Patterns](#secrets-management-patterns)
-- [Authentication Patterns](#authentication-patterns)
+- [Authentication Review](#authentication-review)
 - [Authorization Patterns](#authorization-patterns)
 - [Input Validation Patterns](#input-validation-patterns)
 - [API Security Patterns](#api-security-patterns)
 - [Supply Chain Security](#supply-chain-security)
-- [Zero Trust Patterns](#zero-trust-patterns)
-- [Common Anti-Patterns](#common-anti-patterns) (see SKILL.md for full table)
 
 ---
 
 ## Severity Classification
+
+Severity follows exploitability, reachability, and impact. The classes are defaults; adjust for context (an unreachable path or a gated endpoint lowers them, an exposed one with sensitive data raises them).
 
 ```
 CRITICAL — Direct compromise risk:
@@ -71,47 +71,21 @@ LOW — Improvement:
 | High-entropy strings in source | Hardcoded secret | `*.config`, `*.yaml`, `*.json`, `*.properties` |
 | `Bearer ey...` in source | Hardcoded JWT | Any source file |
 | `://user:pass@` in URLs | Embedded credentials | Config files, connection strings |
-| Base64 of `AKIA` prefix | AWS access key | Any file |
+| Known provider key prefixes (for example a cloud access-key ID prefix) | Provider credential | Any file |
 | `-----BEGIN.*PRIVATE KEY` | Exposed private key | Any file |
+
+The control is a maintained secret scanner with push protection; use these signals only for manual review.
 
 ---
 
-## Authentication Patterns
+## Authentication Review
 
-### Token-based auth (JWT, opaque tokens)
-- Validate signature on every request (do not trust payload without verification)
-- Check expiry (`exp` claim) — reject expired tokens
-- Verify issuer (`iss`) and audience (`aud`) claims
-- Use short-lived access tokens (5-15 min) + refresh tokens
-- Store refresh tokens server-side or in HttpOnly cookies
+What to look for in a diff. Protocol design (OAuth, OIDC, sessions, MFA, passkeys) is in `auth`.
 
-### OAuth2 / OIDC
-- Authorization Code flow with PKCE for public clients (SPAs, mobile)
-- Client Credentials flow for service-to-service
-- Validate ID tokens: signature, issuer, audience, nonce, expiry
-- Token introspection for opaque tokens
-- Revocation endpoint for logout
-
-### API key auth
-- Transmit via header (not query parameter — query params appear in logs)
-- Hash keys at rest (store hash, compare hash on request)
-- Scope keys to specific permissions/resources
-- Support multiple active keys for rotation
-- Rate limit per key
-
-### Session management
-- HttpOnly, Secure, SameSite=Strict (or Lax) flags on session cookies
-- Regenerate session ID after authentication
-- Absolute and idle timeout
-- Server-side session invalidation on logout
-
-### Constant-time comparison
-Timing attacks extract secrets character-by-character. Use language-specific constant-time functions:
-- Node.js: `crypto.timingSafeEqual()`
-- Python: `hmac.compare_digest()`
-- Go: `subtle.ConstantTimeCompare()`
-- Rust: `constant_time_eq` crate
-- Java: `MessageDigest.isEqual()`
+- Tokens: signature verified on every request; `exp`, `iss`, `aud` checked; no trusting payload before verification.
+- API keys: sent in a header (not a query string, which lands in logs), stored hashed, scoped, rotatable, rate-limited per key.
+- Sessions: new session ID after login, absolute and idle timeout, server-side invalidation on logout.
+- Secret comparison is constant-time (`crypto.timingSafeEqual`, `hmac.compare_digest`, `subtle.ConstantTimeCompare`, or the language equivalent).
 
 ---
 
@@ -137,12 +111,15 @@ Timing attacks extract secrets character-by-character. Use language-specific con
 ## Input Validation Patterns
 
 ### Trust boundary principle
-Validate at every point where data crosses a trust boundary:
-- External client to API server
-- API server to internal service
-- Message queue producer to consumer
-- File upload to processing pipeline
-- User input to database query
+A trust boundary is a change in who controls the data: a different owner, tenant, or privilege level. Validate and authorize where data crosses one:
+- Internet client to API
+- One tenant's data to another tenant's context
+- Third-party callback, webhook, or partner API into your system
+- Uploaded file into a processing pipeline
+- Message queue consumers when producers belong to another trust domain (another team's or tenant's input)
+- Model output into an interpreter
+
+Hops between components under the same control are not boundaries; inside a module rely on the checked contract (see `development`). Use schema validation at each real boundary.
 
 ### Schema validation
 - Define explicit schemas for all input structures
@@ -177,21 +154,16 @@ Validate at every point where data crosses a trust boundary:
 | Webhooks (inbound) | Per source | Verify signatures, moderate rate |
 
 ### CORS configuration
-- Production: explicit origin allowlist (never `*` with credentials)
-- Restrict allowed methods and headers
-- Set `Access-Control-Max-Age` to reduce preflight requests
-- Credentials: only when needed, with explicit origins
+Mechanics are owned by `web`. Review check: explicit origin allowlist, never `*` with credentials.
 
 ### Security headers
 
-| Header | Value | Purpose |
-|--------|-------|---------|
-| `Content-Security-Policy` | Script/style/connect sources | Prevent XSS, data injection |
-| `Strict-Transport-Security` | `max-age=31536000; includeSubDomains` | Force HTTPS |
-| `X-Content-Type-Options` | `nosniff` | Prevent MIME-type sniffing |
-| `X-Frame-Options` | `DENY` or `SAMEORIGIN` | Prevent clickjacking |
-| `Referrer-Policy` | `strict-origin-when-cross-origin` | Control referrer leakage |
-| `Permissions-Policy` | Feature restrictions | Disable unused browser APIs |
+Header syntax and values are owned by `web`; this skill owns the policy review. Checks:
+
+- CSP: nonce generated per response and never on cacheable HTML (use hashes there); `object-src 'none'`; `frame-ancestors` set deliberately; rolled out in report-only first.
+- CORS: explicit origin allowlist, never `*` with credentials; `Vary: Origin` when the allowed origin is chosen per request.
+- HSTS: `includeSubDomains` only after every subdomain serves HTTPS; `preload` only after accepting that removal is slow.
+- Present and matching `web`'s guidance: `nosniff`, referrer policy, permissions policy, cookie attributes.
 
 ### API gateway security
 - Centralized auth validation at the gateway
@@ -204,52 +176,27 @@ Validate at every point where data crosses a trust boundary:
 
 ## Supply Chain Security
 
-### Dependency auditing
-- Run vulnerability scanner in CI (blocks on critical/high CVE)
-- Review new dependencies before adding (maintainer, license, size, transitive deps)
-- Prefer well-maintained packages with security policies
-- Audit lockfile changes in code review
+Policy and decision list are in SKILL.md. Review checks:
 
-### Lockfile integrity
-- Commit lockfiles to version control
-- Verify lockfile hashes match registry (detects tampering)
-- Use `--frozen-lockfile` / `--locked` in CI (no silent updates)
+- New or changed dependencies reviewed (maintainer, provenance, install scripts, transitive additions); lockfile diffs read.
+- Frozen-lockfile installs in CI (`--frozen-lockfile`, `--locked`); lockfile hashes verified.
+- Vulnerability scanner in CI with a triage rule (reachability, exploitability).
+- SBOM (CycloneDX or SPDX) generated for production artifacts; artifacts signed (for example Sigstore) and verified before deploy; base image provenance checked.
+- Secret scanning with push protection enabled.
+- Provenance target: require SLSA Build Level 2 or higher for production artifacts (hosted build, signed provenance); raise it where the threat model demands. Wiring is in `ci-cd`.
 
-### SBOM (Software Bill of Materials)
-- Generate SBOM for production artifacts (CycloneDX or SPDX format)
-- Include in release artifacts
-- Track with dependency-track or similar
+### Signing and verification snippet
 
-### Build provenance
-- Sigstore/cosign for container image signing
-- Reproducible builds where feasible
-- Verify provenance of base images
+For `ci-cd`, `docker`, and `release-engineering` to point at: at build, generate the SBOM, sign the image by digest (keyless signing with the CI identity, for example `cosign sign <image>@<digest>`), and attach provenance and SBOM attestations. At deploy, verify the signature and provenance against the expected identity and builder before the artifact runs (`cosign verify`, `cosign verify-attestation`), and enforce the same check in an admission policy so unsigned or unverified images are rejected in the cluster. Pipeline wiring: `ci-cd`.
 
----
+### SAST, DAST, and dependency scanning
 
-## Zero Trust Patterns
+- **SAST** in CI on every change; block on new high-confidence findings, track the rest. Tune rules to cut false positives.
+- **DAST** against a running pre-production environment on a schedule or before release; needs a safe target and authenticated scans to reach real paths.
+- **Dependency scanning** on every lockfile change and on a schedule, since new advisories appear for unchanged code.
+- Triage by reachability, exploitability, and impact; every accepted finding has an owner and expiry. Fuzzing is owned by `testing`.
 
-### Core principles
-1. Never trust, always verify — authenticate every request regardless of network location
-2. Least privilege — grant minimal permissions for the task
-3. Assume breach — design as if the attacker is already inside the network
+### Server hardening and policy as code
 
-### Implementation patterns
-- mTLS between all services (not just edge)
-- Short-lived credentials (hours, not months)
-- Per-request authorization (not "once authenticated, always authorized")
-- Network segmentation: services only reach what they need
-- Encrypted data at rest and in transit
-- Audit log every access decision
-
-### Service-to-service auth
-- Service mesh with automatic mTLS (Istio, Linkerd)
-- JWT with service identity claims
-- SPIFFE/SPIRE for workload identity
-- No shared secrets between services — use PKI
-
----
-
-## Common Anti-Patterns
-
-See SKILL.md `## Anti-Patterns` for the full table. This reference focuses on deep patterns; anti-patterns live in the skill entry point for immediate visibility.
+- Hosts: SSH keys only (no passwords, no root login), firewall default deny with only needed ports, unattended security updates, least-privilege service accounts, no shared admin credentials.
+- Policy as code: express rules (no public buckets, required image signatures, no privileged containers, required resource limits) as versioned policy evaluated in CI and enforced at admission; violations fail the change, exceptions are explicit and time-boxed. Cluster policy mechanics: `kubernetes`.

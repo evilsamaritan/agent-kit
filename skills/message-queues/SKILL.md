@@ -1,213 +1,157 @@
 ---
 name: message-queues
-description: "Design message broker flows. Use for broker choice, topics, consumer groups, delivery guarantees, idempotency, DLQ, and event schemas."
-user-invocable: true
+description: "Design message broker flows. Use for broker choice, topics, partitions, consumer groups, delivery guarantees, event schemas and compatibility, broker-side dead letters, and the idempotent-consumer pattern. Do NOT use for task queues, schedules, and job retries (background-jobs)."
 ---
 
-# Message Queues & Event Streaming
+# Message Queues and Event Streaming
 
-Message broker selection, event-driven architecture patterns, and reliable message processing.
+Broker selection, event contracts, and reliable consumption. Determine the broker, its version, and the client library from the project before giving configuration advice; several defaults changed across recent major versions ([kafka-patterns.md](references/kafka-patterns.md), [queue-patterns.md](references/queue-patterns.md)).
 
----
+## Scope and boundaries
 
-## Broker Selection Decision Tree
+**Shared boundary with `background-jobs`:** a command for one worker (task, schedule, workflow step) → `background-jobs`. A fact published to any number of subscribers (topic, stream, consumer group) → `message-queues`. Retry, dead-letter, and idempotency handling follow whichever of the two the work is.
+
+| Question | Owner |
+|---|---|
+| Broker model, topics and partitions, consumer groups, ordering, delivery guarantees, schemas, broker-side dead-letter mechanics | this skill |
+| Idempotency pattern for any consumer or handler (claim first, keys derived from intent) | this skill — [idempotency-patterns.md](references/idempotency-patterns.md) |
+| Choosing outbox, saga, CQRS, or event sourcing | `architecture` ([outbox](../architecture/references/integration-patterns.md#transactional-outbox), [saga](../architecture/references/integration-patterns.md#saga-and-process-manager), [CQRS](../architecture/references/integration-patterns.md#cqrs-separate-query-model)) |
+| Which errors to retry, backoff, retry budgets, deadlines | `reliability` |
+| Task queues, scheduled jobs, workflow orchestration | `background-jobs` |
+| Webhooks to external consumers | `api-design` |
+
+## Broker selection decision tree
 
 ```
 What is the primary need?
-
-├── Event replay / audit log / stream processing?
-│   ├── Need Kafka ecosystem (Connect, Streams, Schema Registry)? → Kafka-protocol broker
-│   ├── Want simpler ops / single binary / no JVM? → Kafka-API-compatible alternative
-│   └── Want lightweight cloud-native with built-in KV? → NATS JetStream
-│
-├── Complex routing (topic patterns, headers, fanout)?
-│   └── AMQP broker (exchange + queue model)
-│
-├── Request-reply + pub/sub with minimal infra?
-│   └── NATS (core or JetStream for persistence)
-│
-├── Lightweight streaming, already using Redis?
-│   └── Redis Streams
-│
-└── Simple task distribution, no ordering needed?
-    └── Any broker with competing consumers or share groups
+├── Replayable event log, stream processing, many independent consumers at high volume
+│   └── Log-based streaming broker (Kafka protocol or compatible)
+├── Routing by key patterns or headers, per-message acknowledgement, priorities
+│   └── Routed-queue broker (AMQP)
+├── Request-reply plus pub/sub with minimal infrastructure, edge or IoT fan-out
+│   └── Lightweight messaging with optional persistence (NATS-style)
+├── Already on a cloud platform; simple queues or fan-out; no replay needed
+│   └── Managed queue / topic service — decide by ordering (FIFO option), delivery semantics,
+│       retention, and message size limits
+├── Low volume, and enqueue must commit atomically with business data
+│   └── Table-backed queue in the primary database (SKIP LOCKED-style claiming)
+└── Moderate streaming and the stack already runs a Redis-compatible store
+    └── Streams on that store — accept weaker durability and tooling
 ```
 
-### Broker Comparison (supplementary detail)
+Products per model: [queue-patterns.md](references/queue-patterns.md#broker-models-and-products).
 
-| Feature | Kafka-protocol | AMQP broker | NATS JetStream | Redis Streams |
-|---------|---------------|-------------|----------------|---------------|
-| **Model** | Distributed log | Message broker | Cloud-native messaging | Append-only log |
-| **Ordering** | Per partition | Per queue | Per stream | Per stream |
-| **Throughput** | Millions/sec | Tens of thousands/sec | Hundreds of thousands/sec | Hundreds of thousands/sec |
-| **Persistence** | Disk (retention-based) | Quorum queues (Raft) | File/memory | AOF/RDB |
-| **Consumer groups** | Native | Competing consumers | Native | Native (XREADGROUP) |
-| **Replay** | Yes (offset reset) | No (ack = gone) | Yes (by sequence) | Yes (by ID) |
-| **Protocol** | Kafka binary protocol | AMQP 1.0 (core) / 0-9-1 | NATS protocol | Redis protocol |
-| **Best for** | Event streaming, high throughput | Task routing, complex topologies | Microservices, request-reply | Lightweight streaming with Redis |
+| Model | Ordering | Replay | Consumption | Typical fit |
+|---|---|---|---|---|
+| Log-based streaming | Per partition | Yes (offsets) | Consumer groups; queue-style share groups on recent versions | Event streams, CDC, analytics |
+| Routed queues (AMQP) | Per queue | No (stream queues add it) | Competing consumers, per-message ack | Task routing, complex topologies |
+| Lightweight messaging with streams | Per stream/subject | Yes (by sequence) | Pull consumers | Microservices, request-reply, edge |
+| Managed cloud queue/topic | Best effort or FIFO groups | Usually no | Competing consumers | Simple distribution on one cloud |
+| Table-backed queue | By query | No | Row claiming | Low volume, transactional enqueue |
 
----
+## Broker-side patterns
 
-## Event-Driven Architecture Patterns
+| Pattern | Description | When |
+|---|---|---|
+| **Pub/sub fan-out** | One publish, many independent subscriptions | Decoupled notification |
+| **Claim-check** | Store the payload externally, send a reference | Payloads beyond the broker's message limit |
+| **Outbox relay** | Publish rows written in the same transaction as the state change; relay preserves order per key and publishes at least once | Reliable publish without two-phase commit; design choice in `architecture` |
+| **Change data capture** | Publish from the database log | Integrating without touching write paths |
 
-| Pattern | Description | When to Use |
-|---------|-------------|-------------|
-| **Pub/Sub** | Publisher emits events, subscribers consume independently | Decoupled notification, fan-out |
-| **Event Sourcing** | Store state changes as immutable event log | Audit trail, temporal queries, rebuilding state |
-| **CQRS** | Separate read/write models, sync via events | Read-heavy with different query needs |
-| **Outbox Pattern** | Write event to DB outbox table in same transaction, relay to broker | Reliable publish without 2PC |
-| **Claim-Check** | Store large payload externally, send reference in message | Messages > 1MB |
-| **Saga / Choreography** | Coordinate multi-service transactions via events + compensations | Distributed transactions without 2PC |
+Whether to use outbox, saga, CQRS, or event sourcing at all is an `architecture` decision.
 
----
+## Log-based streaming essentials
 
-## Kafka-Protocol Essentials
+- **Topic** → partitions; a **partition** is an ordered log and the unit of parallelism.
+- **Key** picks the partition: same key, same partition, same order. Key by the entity whose order matters (order id, account id); null keys spread load but drop ordering.
+- **Consumer group** splits partitions across members; **offset** is the committed position. Commit after processing.
+- **Share groups** (queue-style consumption with per-record acknowledgement) suit task-like work without ordering; check broker and client support for your versions.
+- Increasing partitions remaps keys to partitions; plan counts up front.
 
-Applies to any Kafka-protocol-compatible broker (Apache Kafka, Redpanda, WarpStream, etc.).
+Producer and consumer configuration, rebalance protocols, transactions: [kafka-patterns.md](references/kafka-patterns.md).
 
-- **Topic**: named log, divided into partitions
-- **Partition**: ordered, immutable sequence; unit of parallelism
-- **Consumer group**: consumers that divide partitions among themselves
-- **Offset**: consumer position in a partition; committed to track progress
-- **Key**: determines partition assignment; same key = same partition = ordering guarantee
+## Routed-queue (AMQP) essentials
 
-**Partition key strategy:** user_id for per-user ordering, entity_id for per-entity ordering, tenant_id for isolation, null for max throughput (round-robin).
-
-**Exactly-once:** idempotent producer (`enable.idempotence=true`), transactions (`transactional.id`), commit offset AFTER processing with idempotency key for downstream writes.
-
-**Share groups:** queue-like consumption without partition-to-consumer binding. Multiple consumers process from the same partitions with per-record acknowledgment and delivery counting. Use for task-queue workloads where ordering is not required. Traditional consumer groups remain best for ordered stream processing.
-
-**KRaft metadata:** Kafka no longer requires ZooKeeper. KRaft is the only metadata mode. Simplified deployment — single process type.
-
-> Deep dive: `references/kafka-patterns.md` -- producer/consumer config, exactly-once, schema registry, Kafka Connect, share groups, topic design, operational patterns.
-
----
-
-## AMQP Broker Essentials
-
-Applies to AMQP-compatible brokers (RabbitMQ, LavinMQ, etc.).
-
-| Exchange | Routing | Use Case |
+| Exchange | Routing | Use case |
 |----------|---------|----------|
-| Direct | Exact routing key match | Task queues, point-to-point |
-| Topic | Pattern match (`order.*`, `#.error`) | Flexible pub/sub |
-| Fanout | All bound queues | Broadcast to all consumers |
-| Headers | Header attribute match | Content-based routing |
+| Direct | Exact routing key | Point-to-point |
+| Topic | Pattern (`order.*`, `#.error`) | Flexible pub/sub |
+| Fanout | All bound queues | Broadcast |
+| Headers | Header attributes | Content-based routing |
 
-**Queue types:** Quorum queues (Raft-based replication) are the default for durability. Classic mirrored queues are deprecated/removed. Streams provide log-based semantics (replay, time-based offset).
+Use replicated (quorum) queues for durability; stream queues add replay. Publish with publisher confirms and consume with manual acks. Dead-lettering: a dead-letter exchange per queue plus a delivery limit. Setup and version notes: [queue-patterns.md](references/queue-patterns.md#amqp-broker-patterns).
 
-**DLQ config:** set `x-dead-letter-exchange`, `x-dead-letter-routing-key`, optional `x-message-ttl` and `x-max-length`. Quorum queues have a default redelivery limit (messages exceeding it are dropped or routed to DLQ).
+## Lightweight streams
 
-> Deep dive: `references/queue-patterns.md` -- exchange topology, consumer setup, priority queues.
+Lightweight messaging systems with persistence (JetStream-style) and streams on a Redis-compatible store both provide append-only streams, consumer groups or durable consumers, explicit acks, and redelivery of unacked messages. They suit moderate volumes when that system is already in the stack. Commands and setup: [queue-patterns.md](references/queue-patterns.md).
 
----
+## Delivery guarantees
 
-## NATS JetStream Essentials
+Brokers deliver **at least once** under failure. **Effectively-once** = at-least-once delivery + idempotent effects. Broker "exactly-once" features (idempotent producers, transactions, publish deduplication windows) cover only the broker's own state — for example consume-transform-produce between topics. The guarantee ends at the first external side effect (database write, email, payment), which needs its own idempotency key ([idempotency-patterns.md](references/idempotency-patterns.md)). `background-jobs` uses the same statement.
 
-- **Stream**: persistent storage of messages on subjects
-- **Consumer**: durable subscription with ack tracking (pull consumers preferred for backpressure)
-- **Key-Value**: built-in KV store backed by JetStream
-- **Object Store**: large binary storage backed by JetStream
-- **Request-Reply**: built-in pattern with timeouts
+## Schema evolution
 
-| Retention | Behavior | Use When |
-|-----------|----------|----------|
-| Limits | Keep N messages or N bytes | Bounded streams |
-| Interest | Delete after all consumers ack | Work queues |
-| WorkQueue | Delete after first consumer ack | Task distribution |
+**Serialization:** JSON for low volume and debugging; Avro or Protobuf with a schema registry for streams and polyglot consumers.
 
-**Exactly-once:** combine message deduplication (`Nats-Msg-Id` header) with double acks for exactly-once publish and consume without heavy transaction protocols.
+**Compatibility mode — decide by who upgrades first and whether consumers replay old data:**
 
-> Deep dive: `references/queue-patterns.md` -- stream/consumer setup, pull consumers, KV store, request-reply.
+| Mode | Checks against | Allows | Fits |
+|------|---------------|--------|------|
+| BACKWARD | Latest version | New schema reads data written with the previous one | Consumers upgrade first, no replay of older history |
+| FORWARD | Latest version | Old schema reads data written with the new one | Producers upgrade first |
+| FULL | Latest version | Both directions | Independent upgrades |
+| BACKWARD_TRANSITIVE / FULL_TRANSITIVE | All earlier versions | Same, across the whole history | Consumers can replay from the start of the log |
 
----
+If the topic is replayable and retention spans several schema versions, use a transitive mode. Add fields with defaults; remove only fields that have defaults. Money and identifiers are never floats in an event contract: amounts as decimal logical types or integer minor units plus currency, identifiers as strings.
 
-## Redis Streams Essentials
+## Dead letters (broker side)
 
-Core operations: `XADD` (produce), `XREADGROUP` (consume in group), `XACK` (acknowledge), `XPENDING` (check unacked), `XCLAIM` (claim stuck messages from dead consumers).
+1. A consumer classifies the failure (`reliability` owns which errors are retryable).
+2. Retryable: redeliver with delay — broker delayed redelivery, retry topics or queues with increasing delay, or a pause-and-resume on the partition. Never block the partition with a sleep.
+3. Non-retryable, or retry budget spent: publish to the dead-letter destination **and wait for its acknowledgement** before committing or acking the original.
+4. Dead-letter records keep the original payload, key, headers, source position, error, and attempt history.
+5. Alert on dead-letter growth; replay only after fixing the cause, through the same idempotent consumer.
 
-Best fit when Redis is already in the stack and streaming needs are moderate. Not a replacement for dedicated brokers at high scale.
+Topologies and replay tooling: [queue-patterns.md](references/queue-patterns.md#dead-letter-queue-strategies).
 
-> Deep dive: `references/queue-patterns.md` -- producer trimming, consumer group pattern, claiming stuck messages.
+## Idempotent consumers
 
----
+Claim the message's business key with a unique insert before processing, in the same transaction as the consumer's own writes; on conflict, skip or return the stored result. Use the producer's business event id, not the broker's delivery id. Commit the offset or ack only after that transaction commits. Full pattern, key derivation, external side effects, and cleanup windows: [idempotency-patterns.md](references/idempotency-patterns.md).
 
-## Schema Evolution
+## Context Adaptation
 
-Schema management is broker-agnostic — the pattern applies regardless of which broker carries the messages.
-
-**Serialization decision:** JSON for debugging/low volume. Avro with schema registry for streaming. Protobuf for gRPC integration or polyglot systems.
-
-**Compatibility modes:**
-
-| Mode | Add Field | Remove Field | Best For |
-|------|-----------|-------------|----------|
-| BACKWARD | With default | Yes | Consumers upgrade first |
-| FORWARD | Yes | With default | Producers upgrade first |
-| FULL | With default | With default | Independent upgrades (recommended for prod) |
-
-**Rules:** Use FULL compatibility in production. Every field addition needs a default value. Every removal requires the field to already have a default.
-
-> Deep dive: `references/kafka-patterns.md` -- schema registry API, Avro schema examples, compatibility checks.
-
----
-
-## Dead Letter Queues
-
-**Flow:** message fails -> retry count < max (3-5)? -> requeue with exponential backoff (`base * 2^attempt` + jitter) -> exceeded? -> DLQ with original message, error details, retry history, timestamps, source topic.
-
-**Monitoring:** alert when DLQ depth > 0. Dashboard by error type, age, and source topic.
-
-> Deep dive: `references/queue-patterns.md` -- retry topologies, DLQ message format, reprocessing scripts.
-
----
-
-## Idempotency
-
-**Pattern:** store `idempotency_key` + result in DB atomically with processing. On duplicate, return stored result. Commit offset only after successful processing + dedup insert.
-
-**Cleanup:** expire dedup entries after a window (e.g., 7 days). Window must exceed maximum possible redelivery delay.
-
-> Deep dive: `references/idempotency-patterns.md` -- dedup schema, idempotent consumer code, consumer group management.
-
----
+- **Single service, low volume** — a table-backed queue or managed queue avoids running a broker.
+- **Ordered per entity** — partition by entity key; parallelism is bounded by partition count.
+- **Replay and audit** — log-based broker with retention covering the replay window, transitive schema compatibility.
+- **Multi-tenant** — tenant in the event and the key; quotas per tenant so one tenant cannot saturate consumers.
+- **Regulated data** — personal data in a retained log is hard to erase; keep references or encrypt per subject and delete keys.
 
 ## Anti-Patterns
 
 | Anti-Pattern | Why It Fails | Correct Approach |
 |-------------|-------------|-----------------|
-| No DLQ | Poison messages block the queue forever | Always configure DLQ with alerting |
-| Ignoring consumer lag | Silent data processing delays | Monitor lag, alert on growth trends |
-| Unbounded retry | Infinite loops on permanent failures | Max retries + exponential backoff + DLQ |
-| Large messages in queues | Broker pressure, slow consumers | Claim-check: store payload externally, send reference |
-| Tight coupling via message format | Breaking changes cascade | Schema registry, versioned schemas, backward compatibility |
-| Direct DB writes + broker publish | Dual-write inconsistency on partial failure | Outbox pattern: write to DB outbox table, relay to broker |
-| Using classic mirrored queues (AMQP) | Deprecated, removed in modern versions | Quorum queues for replication |
-| Skipping schema validation | Silent contract drift between services | Schema registry with compatibility enforcement |
-
----
-
-## Context Adaptation
-
-| Domain | Relevant Aspects |
-|--------|-----------------|
-| **Backend services** | Broker selection, consumer group design, idempotency, DLQ |
-| **Data engineering** | Event sourcing, schema evolution, exactly-once, replay |
-| **DevOps / Platform** | Broker deployment, monitoring, partition management, scaling |
-| **Microservices** | Saga/choreography, outbox pattern, schema contracts, routing |
-
----
+| No dead-letter destination | Poison messages block or loop | Bounded redelivery, then dead letter with alerting |
+| Fire-and-forget dead-letter publish before commit | The record is lost if the publish fails | Wait for the publish acknowledgement, then commit |
+| Unbounded retry | Infinite loops on permanent failures | Retry budget, then dead letter |
+| Ignoring consumer lag | Silent processing delay | Alert on lag growth |
+| Large payloads in messages | Broker pressure, slow consumers | Claim-check |
+| Database write + separate broker publish | One succeeds, the other fails | Outbox relay or change data capture |
+| Dedup by broker delivery id | Redelivery or republish gets a new id | Business event id from the producer |
+| Float amounts in event schemas | Rounding errors across services | Decimal type or integer minor units plus currency |
+| Non-transitive compatibility on a replayable topic | Old records fail to decode on replay | Transitive compatibility mode |
 
 ## Related Knowledge
 
-- **api-design** skill — synchronous API patterns that complement async messaging
-- **background-jobs** skill — job queues (BullMQ/Celery/Sidekiq) for task-level work; message-queues covers broker-level event streaming. Boundary: if the work is "process this task" use background-jobs; if it is "propagate this event to N subscribers" use message-queues
-- **realtime** skill — event-driven backends feeding real-time frontends (broker -> WebSocket/SSE)
-
----
+- **architecture** — choosing outbox, saga, CQRS, event sourcing
+- **background-jobs** — task queues, schedules, workflow orchestration (shared boundary above)
+- **reliability** — retry classification, backoff, budgets
+- **database** — outbox table, idempotency table, change data capture source
+- **observability** — lag, throughput, and dead-letter metrics; trace context in message headers
+- **api-design** — webhooks and synchronous contracts
+- **realtime** — pushing broker events to clients
 
 ## References
 
-- [kafka-patterns.md](references/kafka-patterns.md) -- Producer/consumer config, exactly-once, schema registry, Kafka Connect, topic design, operations
-- [queue-patterns.md](references/queue-patterns.md) -- AMQP exchanges, NATS JetStream, Redis Streams, DLQ strategies, serialization, testing
-- [idempotency-patterns.md](references/idempotency-patterns.md) -- Dedup schema, idempotent consumer code, consumer group rebalancing, lag monitoring
+- [kafka-patterns.md](references/kafka-patterns.md) — producer/consumer configuration, rebalance protocols, transactions, schema registry, Connect, share groups, topic design, operations
+- [queue-patterns.md](references/queue-patterns.md) — broker models and products, AMQP, JetStream-style streams, Redis-compatible streams, dead-letter strategies, serialization, testing
+- [idempotency-patterns.md](references/idempotency-patterns.md) — idempotency pattern owner: key derivation, claim-first consumer, external side effects, cleanup, consumer group management

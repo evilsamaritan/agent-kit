@@ -1,6 +1,8 @@
 # Metrics Patterns
 
-RED/USE methods, Prometheus queries, histogram design, recording rules, and Grafana dashboards.
+Prometheus-style RED/USE instrumentation, queries, histogram design, recording rules, and dashboards. The query and recording-rule sections are Prometheus-specific; the metric design rules apply to any backend.
+
+**Which instrumentation path:** if the service already uses OpenTelemetry for traces and logs, instrument with the OTel metrics API and export over OTLP (to a Prometheus-compatible backend if needed). Use a Prometheus client library directly only when the stack is Prometheus-only and has no OTel SDK. Do not run both for the same metric.
 
 ## Contents
 
@@ -40,7 +42,8 @@ http_request_duration_seconds = Histogram(
     buckets=[0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10]
 )
 
-# Middleware
+# Middleware. The endpoint label is the route template, not the raw URL:
+# raw paths carry IDs and make cardinality unbounded.
 @app.middleware
 def metrics_middleware(request, handler):
     start = time.monotonic()
@@ -49,13 +52,13 @@ def metrics_middleware(request, handler):
 
     http_requests_total.labels(
         method=request.method,
-        endpoint=request.path,
+        endpoint=request.route_template,   # "/orders/{id}", never the raw path
         status=response.status_code,
     ).inc()
 
     http_request_duration_seconds.labels(
         method=request.method,
-        endpoint=request.path,
+        endpoint=request.route_template,
     ).observe(duration)
 
     return response
@@ -209,11 +212,11 @@ avg(rate(http_requests_total[5m])) by (service)
 ### Joins and Math
 
 ```promql
-# Error budget: % of error budget remaining
+# Error budget remaining (fraction): 1 - (error ratio / allowed error ratio)
 1 - (
   sum(rate(http_requests_total{status=~"5.."}[30d]))
   / sum(rate(http_requests_total[30d]))
-) / (1 - 0.999)  # SLO = 99.9%
+) / 0.001  # allowed error ratio = 1 - SLO target (SLO 99.9%)
 
 # Request duration as % of SLO
 histogram_quantile(0.99, sum(rate(http_request_duration_seconds_bucket[5m])) by (le))
@@ -290,48 +293,7 @@ Examples:
 
 ## Alerting Rules
 
-```yaml
-groups:
-  - name: service-alerts
-    rules:
-      # High error rate
-      - alert: HighErrorRate
-        expr: service:http_error_percentage:rate5m > 1
-        for: 5m
-        labels:
-          severity: critical
-        annotations:
-          summary: "{{ $labels.service }}: error rate {{ $value | humanizePercentage }}"
-          runbook: "https://wiki/runbooks/high-error-rate"
-
-      # High latency
-      - alert: HighLatency
-        expr: service:http_duration:p99_5m > 2
-        for: 5m
-        labels:
-          severity: warning
-        annotations:
-          summary: "{{ $labels.service }}: p99 latency {{ $value | humanizeDuration }}"
-
-      # No traffic (service may be down)
-      - alert: NoTraffic
-        expr: service:http_requests:rate5m == 0
-        for: 10m
-        labels:
-          severity: warning
-        annotations:
-          summary: "{{ $labels.service }}: no traffic for 10 minutes"
-
-      # High memory usage
-      - alert: HighMemoryUsage
-        expr: |
-          (container_memory_working_set_bytes / container_spec_memory_limit_bytes) > 0.9
-        for: 5m
-        labels:
-          severity: warning
-        annotations:
-          summary: "{{ $labels.pod }}: memory usage above 90%"
-```
+Alert rule templates (error rate, latency, burn rate, service down) live in [alerting-patterns.md](alerting-patterns.md). Memory-limit alerts must ignore containers with no limit: `container_spec_memory_limit_bytes` is 0 for them, so filter with `container_spec_memory_limit_bytes > 0` before dividing.
 
 ---
 

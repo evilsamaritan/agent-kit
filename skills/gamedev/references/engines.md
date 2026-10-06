@@ -1,6 +1,6 @@
 # Engines
 
-How the patterns in this skill map onto common engines and web rendering libraries. These are mappings, not tutorials: each section names where the simulation, presentation, renderer, fixed step, scene lifecycle, leases, saves, and RNG live in that engine. API names change between engine versions; confirm them against the version in use.
+How the patterns in this skill map onto common engines and web rendering libraries. These are mappings, not tutorials: each section names where the simulation, presentation, renderer, fixed step, scene lifecycle, leases, saves, and RNG live in that engine. API names change between engine versions; confirm them against the version in use. Mappings were written against: Unity 6, Godot 4.x (2D physics interpolation since 4.3, 3D since 4.4), Unreal Engine 5.x, current three.js, Babylon.js 8 and 9, PixiJS 8, and Phaser 3 and 4 (the scene lifecycle is shared; Phaser 4 replaces the renderer and filter system). Engines not listed (Bevy, MonoGame, Defold, Love2D, custom C++) follow the same mapping; see the last section.
 
 ## Contents
 
@@ -13,6 +13,8 @@ How the patterns in this skill map onto common engines and web rendering librari
 - [PixiJS](#pixijs)
 - [Phaser](#phaser)
 - [Web platform notes](#web-platform-notes)
+- [Lifetime check after await in C# and GDScript](#lifetime-check-after-await-in-c-and-gdscript)
+- [Code-first and custom engines](#code-first-and-custom-engines)
 - [Mapping table](#mapping-table)
 
 ---
@@ -95,7 +97,7 @@ Either way: rules live in plain modules that run headless in tests.
 
 - Scenes have a lifecycle (`init`, `preload`, `create`, `update(time, delta)`) and their own loader, clock, and event emitter. `update` delta is variable: accumulate it for a custom simulation step.
 - Arcade Physics steps at a fixed rate set in the physics config, independent of rendering; use it, or keep rules in your own fixed-step simulation and use physics only for queries.
-- `scene.start` shuts the current scene down immediately. For a rollback point, load the next scene's assets first (a loading scene or a loader queue) and start the target scene only after loading succeeded.
+- `scene.start` shuts the current scene down and runs the target at the next Scene Manager update, not immediately, so the old scene cannot be kept as a fallback. For a rollback point, load the next scene's assets first (a loading scene or a loader queue) and start the target scene only after loading succeeded.
 - The texture manager is global: textures outlive the scene that loaded them until removed. Release scene-owned keys on the scene's `shutdown` event.
 - Scene timers and tweens are scene-owned (cleared at shutdown) but run on the scene clock, not simulation ticks; use them for presentation only.
 - `Phaser.Math.RandomDataGenerator` accepts seeds; give the simulation its own instance.
@@ -108,6 +110,35 @@ Either way: rules live in plain modules that run headless in tests.
 - An `AudioContext` starts suspended until a user gesture; resume it on the first input.
 - There is no API for GPU memory use; track texture and buffer sizes in the asset cache against your own budget.
 - JavaScript numbers are doubles: basic arithmetic and integer bit operations are portable across engines; `Math` trigonometric and exponential functions are not guaranteed identical across browsers.
+
+## Lifetime check after await in C# and GDScript
+
+The same rule as the TypeScript sketch in [scene-and-asset-lifecycle.md](scene-and-asset-lifecycle.md#async-work-across-lifetimes): capture before the suspension point, check the owner after it, then run effects.
+
+```csharp
+// Unity: the token cancels when the component is destroyed
+async Awaitable SaveAsync(Session session, CancellationToken ct) {
+    var snapshot = session.Sim.Snapshot();                 // capture first
+    await storage.WriteAtomicAsync(session.Slot, snapshot); // let the write finish
+    if (ct.IsCancellationRequested || session.Disposed) return;
+    session.Ui.ShowStatus("Saved");
+}
+```
+
+```gdscript
+# Godot
+func save(session: Session) -> void:
+    var snapshot := session.sim.snapshot()
+    await storage.write_atomic(session.slot, snapshot)
+    # Godot never resumes a coroutine whose own instance was freed; check what the effect touches.
+    if session.disposed or not is_instance_valid(session.ui) or not session.ui.is_inside_tree():
+        return
+    session.ui.show_status("Saved")
+```
+
+## Code-first and custom engines
+
+Bevy, MonoGame, Defold, Love2D, and in-house C++ engines usually give a loop callback and leave scenes, assets, and saves to the project, so the "rendering library" branch of the first decision tree applies: write the accumulator, the asset leases, and disposal once, outside gameplay code. Bevy's fixed-timestep schedule is the fixed step and its ECS world holds the simulation; MonoGame calls `Game.Update` at a fixed `TargetElapsedTime` by default (`IsFixedTimeStep`) but provides no interpolation alpha, so keep the previous and current states and interpolate in `Draw` yourself, or switch to a variable step and run your own accumulator; after an await or deferred command, re-query the entity or handle, since a despawned entity makes the lookup fail instead of returning stale data.
 
 ## Mapping table
 

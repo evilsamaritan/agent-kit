@@ -21,7 +21,7 @@ Universal UX patterns for designing effective, inclusive user experiences.
 |---------|------------------|--------------|
 | Button | Raised/filled appearance, cursor: pointer, hover state | Flat text that is actually clickable |
 | Link | Underline or color differentiation, visited state | Styled identically to body text |
-| Card (clickable) | Hover elevation change, cursor: pointer on entire surface | Click target only on title text |
+| Card (clickable) | Hover elevation change; one real link or button (the title) stretched over the card, not nested links or buttons | Click target only on title text, or a card containing several nested interactive elements |
 | Toggle | Distinct on/off states, thumb movement direction | Ambiguous middle state |
 | Drag handle | Grip dots/lines icon, cursor: grab | No visual indicator of draggability |
 
@@ -76,12 +76,12 @@ For each step in a user journey, document:
 
 ### State Transition Map
 
-Every screen or component exists in one of these states. All must be designed:
+A data-driven screen or component moves through these states. The four core states (empty, loading, error, ideal) always need a design; add the others when the product can reach them:
 
 | State | Description | Design Requirements |
 |-------|-------------|-------------------|
 | **Empty** | No data exists yet | Explain why empty, show how to add data, illustration optional |
-| **Loading** | Data is being fetched | Skeleton matching final layout, progress indicator if >2s |
+| **Loading** | Data is being fetched | Skeleton matching final layout; progress per the timing table below |
 | **Partial** | Some data loaded, more available | Show what's available, indicate more exists, load-more trigger |
 | **Ideal** | Full data, everything works | The "happy path" design everyone starts with |
 | **Error** | Something failed | What failed, why, how to fix, retry action |
@@ -102,48 +102,21 @@ Every screen or component exists in one of these states. All must be designed:
 
 ## Cognitive Load Patterns
 
-### Visual Hierarchy Principles
+### Hierarchy
 
-Establish reading order through these tools (in order of impact):
+Reading order comes from size, contrast, position (top-left in LTR, top-right in RTL), whitespace, and weight. Use color to reinforce meaning, never to carry it alone (see `accessibility`).
 
-1. **Size**: larger elements draw attention first
-2. **Contrast**: high-contrast elements stand out from surroundings
-3. **Color**: semantic color (red for errors, green for success) guides interpretation
-4. **Position**: top-left (LTR) or top-right (RTL) gets scanned first
-5. **Whitespace**: isolation draws attention (surrounded by space = important)
-6. **Typography weight**: bold text within regular text creates emphasis
+### Chunking
 
-### Chunking Strategies
+| Content | Method |
+|---------|--------|
+| Long form | Section headers and grouped settings |
+| Lists | Group by category; collapse the long tail behind search or "more" |
+| Data tables | Row grouping, pagination, or virtual scroll |
+| Forms | Fieldset grouping or a multi-step flow when the form is long |
+| Dashboards | Cards with clear section labels |
 
-| Content Type | Chunking Method | Example |
-|-------------|-----------------|---------|
-| Long form | Section headers + paragraphs | Settings page with categorized groups |
-| Lists | Group by category, max 5-7 visible items | Navigation menu with sections |
-| Data tables | Row grouping, pagination, or virtual scroll | Transactions grouped by date |
-| Forms | Multi-step wizard or fieldset grouping | Checkout: shipping → payment → review |
-| Dashboards | Card-based layout with clear section labels | Metrics section, activity section, alerts section |
-
-### Recognition Over Recall
-
-| Recall (Bad) | Recognition (Good) |
-|-------------|-------------------|
-| Blank text input for commands | Dropdown with searchable options |
-| "Enter the code" | "Select from recent codes" with history |
-| Memorize keyboard shortcuts | Command palette with searchable actions |
-| Remember where a setting lives | Search/filter within settings |
-| Type exact filter syntax | Visual filter builder with dropdowns |
-
-### Hick's Law Application
-
-Reduce decision time by limiting choices:
-
-| Scenario | Too Many Choices | Better Approach |
-|----------|-----------------|-----------------|
-| Primary action | 5 equal-weight buttons | 1 primary + secondary + overflow menu |
-| Navigation | 15+ top-level items | 5-7 top-level, rest in sub-navigation |
-| Settings | All options on one page | Categorized sections, search within settings |
-| Data actions | Row of action buttons per item | Primary action visible, rest in dropdown |
-| Onboarding | Every feature shown at once | Progressive disclosure over first sessions |
+Group sizes are a judgment call: novices scan fewer items per group, expert tools can carry more when search and grouping make items findable. Prefer recognition to recall: searchable pickers, recent items, a command palette, and visual filter builders instead of memorized syntax or exact codes.
 
 ---
 
@@ -197,7 +170,7 @@ Every error message answers three questions:
 | **Permission** | "You don't have access" | Request access link or explain how to get permission |
 | **Not found** | "This page doesn't exist" | Search, go home, report if unexpected |
 | **Conflict** | "Someone else edited this" | Show diff, offer merge or overwrite choice |
-| **Rate limit** | "Too many requests" | Show wait time, auto-retry with countdown |
+| **Rate limit** | "Too many requests" | Show wait time and offer retry; if a countdown retries automatically, expose it in a polite status region |
 | **Timeout** | "Request took too long" | Retry button, suggest trying again later |
 
 ### Prevention Over Recovery
@@ -206,7 +179,7 @@ Every error message answers three questions:
 |-------------------|-------------|
 | **Inline validation** | Validate on blur (not keystroke), show errors before submit |
 | **Confirmation dialog** | "Are you sure?" with description of consequences for destructive actions |
-| **Undo** | Allow reversal within time window instead of blocking with confirmation |
+| **Undo** | Allow reversal within a window (long enough to find and use, pausable on hover and focus) instead of blocking with confirmation |
 | **Autosave** | Save drafts automatically, prevent data loss |
 | **Constraints** | Disable invalid options instead of allowing then rejecting |
 | **Smart defaults** | Pre-fill with sensible values to reduce error opportunity |
@@ -215,15 +188,17 @@ Every error message answers three questions:
 
 ## Feedback Loops
 
+Timed or transient feedback (toasts, undo windows, auto-retry countdowns) must be announced through a status region, must stay long enough to read and act on, and should be pausable (WCAG 2.2.1, 4.1.3; see `accessibility`).
+
 ### Timing Guidelines
 
 | Duration | User Perception | Feedback Needed |
 |----------|----------------|-----------------|
 | < 100ms | Instantaneous | None (direct manipulation) |
 | 100ms - 1s | Slight delay | Cursor change, button state change |
-| 1s - 5s | Noticeable wait | Spinner or progress bar |
-| 5s - 10s | Long wait | Progress bar with percentage, skeleton screen |
-| > 10s | Very long | Progress with estimate, allow background processing |
+| 1s - 5s | Noticeable wait | Spinner or skeleton; progress bar once it clearly runs past a few seconds |
+| 5s - 10s | Long wait | Progress bar with percentage |
+| > 10s | Very long | Progress with an estimate (ETA), allow background processing |
 
 ### Loading Feedback
 
@@ -241,7 +216,7 @@ Every error message answers three questions:
 |-------------|-----------------|
 | **Create** | Navigate to new item, or show toast "Created successfully" |
 | **Update** | Inline confirmation (checkmark, "Saved"), brief toast |
-| **Delete** | Item removed from list + undo toast with timer |
+| **Delete** | Item removed from list + undo offered in a status region, with a window that does not expire before keyboard and screen reader users can act |
 | **Submit** | Confirmation page or state change (button → "Submitted") |
 | **Bulk action** | Summary toast: "3 items archived" with undo |
 

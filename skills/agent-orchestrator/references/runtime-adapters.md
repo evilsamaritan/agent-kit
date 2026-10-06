@@ -24,7 +24,7 @@ Effort is reasoning depth where the host applies it. Never simulate an unsupport
 
 ## Brief for a generic subagent
 
-When a named agent is missing, unselectable, or stale, generate the brief with the installed agent-creator materializer: `materialize-agents.mjs --project-root <project> --brief NAME`. It carries the profile behavior and the selected skill sources. A brief conveys knowledge, not tool, sandbox, model, effort, or preload controls the spawn API lacks; say so when those controls matter.
+When a configured agent is unselectable or its native target is stale, generate the brief with the installed agent-creator materializer: `materialize-agents.mjs --project-root <project> --brief NAME --runtime <claude|codex|kimi>`, naming the host that runs the brief so project skills resolve from that host's skill directories. It carries the profile behavior and the selected skill sources, and works only for an agent listed in a valid `.agent-kit/agents.json`. When no agent is configured, pass the selected profile reference from `profiles/` plus the exact skill ids instead. A brief conveys knowledge, not tool, sandbox, model, effort, or preload controls the spawn API lacks; say so when those controls matter.
 
 ## Other runtimes
 

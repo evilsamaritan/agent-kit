@@ -39,16 +39,15 @@ if ("serviceWorker" in navigator) {
 
 ### Caching Strategies
 
+One `fetch` handler routes each request to one strategy. Do not register several handlers that each call `respondWith` for the same request: the second call throws `InvalidStateError`.
+
 ```typescript
-// sw.js — Cache First with version
 const CACHE_VERSION = "v2";
 const STATIC_ASSETS = ["/", "/styles.css", "/app.js", "/offline.html"];
 
 self.addEventListener("install", (event: ExtendableEvent) => {
-  event.waitUntil(
-    caches.open(CACHE_VERSION).then((cache) => cache.addAll(STATIC_ASSETS))
-  );
-  self.skipWaiting();  // Activate immediately
+  event.waitUntil(caches.open(CACHE_VERSION).then((cache) => cache.addAll(STATIC_ASSETS)));
+  // self.skipWaiting() only when the new worker is compatible with pages that loaded under the old one
 });
 
 self.addEventListener("activate", (event: ExtendableEvent) => {
@@ -57,32 +56,44 @@ self.addEventListener("activate", (event: ExtendableEvent) => {
       Promise.all(keys.filter((k) => k !== CACHE_VERSION).map((k) => caches.delete(k)))
     )
   );
-  self.clients.claim();  // Take control of all clients
+  // self.clients.claim() has the same compatibility caveat
 });
 
-// Stale-While-Revalidate
 self.addEventListener("fetch", (event: FetchEvent) => {
-  event.respondWith(
-    caches.match(event.request).then((cached) => {
-      const fetched = fetch(event.request).then((response) => {
-        const clone = response.clone();
-        caches.open(CACHE_VERSION).then((cache) => cache.put(event.request, clone));
-        return response;
-      });
-      return cached || fetched;
-    })
-  );
-});
+  const req = event.request;
+  if (req.method !== "GET") return;                       // never cache writes; let the browser handle them
+  const url = new URL(req.url);
+  if (url.origin !== location.origin) return;
 
-// Network First with offline fallback
-self.addEventListener("fetch", (event: FetchEvent) => {
-  if (event.request.mode === "navigate") {
+  if (req.mode === "navigate") {
+    // Network first, offline fallback
+    event.respondWith(fetch(req).catch(() => caches.match("/offline.html") as Promise<Response>));
+  } else if (url.pathname.startsWith("/assets/")) {
+    // Cache first for hashed assets
+    event.respondWith(caches.match(req).then((hit) => hit ?? fetchAndCache(event, req)));
+  } else {
+    // Stale-while-revalidate for the rest
     event.respondWith(
-      fetch(event.request).catch(() => caches.match("/offline.html")!)
+      caches.match(req).then((hit) => {
+        const refresh = fetchAndCache(event, req);
+        event.waitUntil(refresh.catch(() => {}));         // keep the worker alive until the cache write finishes
+        return hit ?? refresh;
+      })
     );
   }
 });
+
+async function fetchAndCache(event: FetchEvent, req: Request): Promise<Response> {
+  const res = await fetch(req);
+  if (res.ok) {                                            // do not store error responses
+    const copy = res.clone();
+    event.waitUntil(caches.open(CACHE_VERSION).then((c) => c.put(req, copy)));
+  }
+  return res;
+}
 ```
+
+Update flow: `skipWaiting()` plus `clients.claim()` swaps a worker under open pages, which breaks pages that expect the old cache layout or message format. The safer default is to let the new worker wait, tell the page an update is ready, and activate on user confirmation or next navigation. Serve `sw.js` with `Cache-Control: no-cache` (see [http-patterns.md](http-patterns.md#service-worker-script-caching)).
 
 ---
 
@@ -214,29 +225,11 @@ performance.measure("fetch-duration", "fetch-start", "fetch-end");
 const measure = performance.getEntriesByName("fetch-duration")[0];
 console.log(`Fetch took ${measure.duration.toFixed(2)}ms`);
 
-// Web Vitals observation
-const observer = new PerformanceObserver((list) => {
-  for (const entry of list.getEntries()) {
-    switch (entry.entryType) {
-      case "largest-contentful-paint":
-        console.log("LCP:", entry.startTime);
-        break;
-      case "event":
-        const inp = entry as PerformanceEventTiming;
-        console.log("INP candidate:", inp.duration);
-        break;
-      case "layout-shift":
-        if (!(entry as any).hadRecentInput) {
-          console.log("CLS shift:", (entry as any).value);
-        }
-        break;
-    }
-  }
-});
-
-observer.observe({ type: "largest-contentful-paint", buffered: true });
-observer.observe({ type: "event", buffered: true, durationThreshold: 16 });
-observer.observe({ type: "layout-shift", buffered: true });
+// Core Web Vitals field measurement (LCP, INP, CLS): see the performance skill.
+// PerformanceObserver is the underlying mechanism, e.g.:
+new PerformanceObserver((list) => {
+  for (const entry of list.getEntries()) report(entry);
+}).observe({ type: "largest-contentful-paint", buffered: true });
 
 // Long task detection: observe({ type: "longtask" }), log entries > 50ms
 // Navigation timing: getEntriesByType("navigation")[0] for TTFB, domInteractive, domComplete
@@ -246,42 +239,7 @@ observer.observe({ type: "layout-shift", buffered: true });
 
 ## Web Crypto
 
-```typescript
-// Hash a string
-async function sha256(message: string): Promise<string> {
-  const data = new TextEncoder().encode(message);
-  const hash = await crypto.subtle.digest("SHA-256", data);
-  return Array.from(new Uint8Array(hash))
-    .map((b) => b.toString(16).padStart(2, "0"))
-    .join("");
-}
-
-// Generate AES-GCM key
-const key = await crypto.subtle.generateKey(
-  { name: "AES-GCM", length: 256 },
-  true,     // extractable
-  ["encrypt", "decrypt"]
-);
-
-// Encrypt
-const iv = crypto.getRandomValues(new Uint8Array(12));
-const encrypted = await crypto.subtle.encrypt(
-  { name: "AES-GCM", iv },
-  key,
-  new TextEncoder().encode("secret data")
-);
-
-// Decrypt
-const decrypted = await crypto.subtle.decrypt(
-  { name: "AES-GCM", iv },
-  key,
-  encrypted
-);
-const text = new TextDecoder().decode(decrypted);
-
-// Generate UUID
-const id = crypto.randomUUID();
-```
+Use `crypto.subtle` and `crypto.getRandomValues` for hashing and randomness in the browser, and `crypto.randomUUID()` for identifiers. Choosing algorithms, key handling, and what not to build yourself: `security`.
 
 ---
 
@@ -329,20 +287,24 @@ document.startViewTransition({
 }
 ```
 
-### Level 2 Features (Baseline)
+### Level 2 Features
 
-- **`view-transition-class`** — style groups of snapshots without individual names
-- **`view-transition-name: match-element`** — auto-naming based on element identity
-- **`:active-view-transition`** — selector active during transitions
-- **Scoped transitions** (experimental) — `element.startViewTransition()` on any HTMLElement for subtree transitions
-- Cross-document transitions work with Speculation Rules for instant MPA navigations
+Same-document transitions are the broadly available core (Baseline since Firefox 144 in October 2025, after Chrome and Safari 18). The Level 2 additions ship unevenly, so treat them as progressive enhancement.
+
+- **`view-transition-class`**: style groups of snapshots without individual names
+- **`view-transition-name: match-element`**: auto-naming based on element identity
+- **`:active-view-transition`**: selector active during transitions
+- **Scoped transitions** (experimental, Chromium only so far): `element.startViewTransition()` for subtree transitions
+- Cross-document transitions pair with Speculation Rules for instant multi-page navigations
+
+Honor `prefers-reduced-motion` by shortening or disabling the animations.
 
 ---
 
 ## Navigation API
 
 ```typescript
-// Modern replacement for history.pushState / popstate (Baseline — all browsers)
+// Replacement for history.pushState / popstate (Baseline newly available since January 2026; older browsers lack it)
 navigation.addEventListener("navigate", (event: NavigateEvent) => {
   if (!event.canIntercept) return;
 
@@ -396,10 +358,22 @@ Advantages over History API: event-based interception, abort signal support, nav
 |-----------|----------|---------|
 | `immediate` | Speculate as soon as rules are observed | Near-certain navigations (CTA buttons) |
 | `eager` | Desktop: 10ms hover. Mobile: viewport heuristics (50ms after entering viewport) | Likely navigations |
-| `moderate` | Hover (desktop) or pointerdown (mobile) | Probable navigations |
+| `moderate` | Desktop: 200 ms hover or pointerdown, whichever comes first. Mobile: viewport heuristics (after scrolling stops) | Probable navigations |
 | `conservative` | Pointerdown or touchstart only | Less certain navigations |
 
-**Replaces `<link rel="prerender">`** (deprecated). Works with cross-document View Transitions. Browser limits concurrent prerenders (~10 in Chrome). Use `Speculation-Rules` HTTP header for dynamic rules. Document rules (`where`) apply site-wide without per-page configuration.
+Chrome and Edge ship it, Firefox does not, and Safari keeps it behind a flag: treat it as progressive enhancement that does nothing elsewhere. It supersedes the legacy `<link rel="prerender">` hint (Chromium treats the old hint as a prefetch). Works with cross-document View Transitions. Browsers cap concurrent speculations. Use the `Speculation-Rules` HTTP header for dynamic rules; document rules (`where`) apply site-wide.
+
+**Prerender hazard:** a prerendered page runs its JavaScript and loads subresources before the user navigates. Analytics, side-effecting GET handlers, personalized state, and ad impressions fire early. Gate them on `document.prerendering` and wait for the `prerenderingchange` event:
+
+```typescript
+function whenVisible(fn: () => void) {
+  if (document.prerendering) document.addEventListener("prerenderingchange", fn, { once: true });
+  else fn();
+}
+whenVisible(() => analytics.pageView());
+```
+
+Prefer `prefetch` for authenticated or personalized pages; prerender only content that is safe to render before the user asks for it.
 
 ---
 
@@ -413,9 +387,9 @@ Advantages over History API: event-based interception, abort signal support, nav
 </div>
 
 <!-- Manual popover — no light dismiss -->
-<div id="dialog" popover="manual">Stays open until explicitly closed</div>
+<div id="panel" popover="manual">Stays open until explicitly closed</div>
 
-<!-- Hint popover — subordinate to auto popovers (tooltips) -->
+<!-- Hint popover — subordinate to auto popovers (tooltip-like). Not Baseline: Chromium and Firefox only; Safari lacks it -->
 <div id="tip" popover="hint">Tooltip text</div>
 ```
 
@@ -432,7 +406,7 @@ popover.addEventListener("toggle", (e: ToggleEvent) => {
 });
 ```
 
-**Key benefits:** top-layer rendering (no z-index), built-in light dismiss for `popover="auto"`, accessible by default, `closedby` attribute controls dismiss behavior. Replaces custom modal/dropdown stacking logic.
+**What it gives you:** top-layer rendering (no z-index), light dismiss and Escape for `popover="auto"`, and automatic invoker-to-popover wiring. **What it does not give you:** a focus trap, an inert background, or menu semantics. Use a popover for non-modal top-layer UI; a menu still needs its own ARIA pattern and keyboard handling (see `accessibility`). Use `<dialog>` with `showModal()` for modal UI. The `closedby` attribute belongs to `<dialog>`, not popovers.
 
 ---
 
@@ -455,7 +429,7 @@ watcher.addEventListener("close", () => {
 watcher.destroy();
 ```
 
-Built into `<dialog>` and Popover API automatically. Use CloseWatcher directly for custom UI elements (drawers, panels, custom modals) that need platform close gesture support.
+Built into `<dialog>` and the Popover API. Use CloseWatcher directly for custom UI (drawers, panels) that needs platform close gestures. Safari does not ship it (Chrome and Firefox do): feature-detect `"CloseWatcher" in window` and keep an Escape-key handler as the fallback.
 
 ---
 
@@ -476,7 +450,7 @@ scheduler.postTask(
 async function processItems(items: Item[]) {
   for (const item of items) {
     process(item);
-    await scheduler.yield();  // let browser handle events and rendering
+    await yieldToMain();      // let the browser handle events and rendering
   }
 }
 
@@ -484,7 +458,14 @@ async function processItems(items: Item[]) {
 controller.abort();
 ```
 
-Use `scheduler.yield()` instead of `setTimeout(fn, 0)` — it preserves task priority and is integrated with the browser's event loop.
+`scheduler.yield()` continues the task at high priority after the browser handles pending input and rendering. Chrome and Firefox ship it, Safari does not: feature-detect it and fall back to a macrotask yield.
+
+```typescript
+const yieldToMain = () =>
+  "scheduler" in globalThis && "yield" in scheduler
+    ? scheduler.yield()
+    : new Promise<void>((resolve) => setTimeout(resolve));
+```
 
 ---
 

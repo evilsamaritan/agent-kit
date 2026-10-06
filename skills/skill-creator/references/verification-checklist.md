@@ -2,6 +2,8 @@
 
 48 checks across 5 categories. Each check has an ID, severity, rule, and fix guidance.
 
+In the kit repository, `scripts/validate-repository.sh` already enforces A1-A4, A7, the A8 hard cap, B1, the B2 ceiling, relative links, instruction-file names, and the dollar-digit rule. Run it instead of re-deriving those checks by hand, and spend review effort on the judgment checks: routing (A5-A6, A10), placement and duplication (B3-B12, D3), tone, agnosticism, and value (C-category, D2, D4).
+
 ## Contents
 
 - [Category A: Frontmatter](#category-a-frontmatter) — 12 checks (A1-A12)
@@ -9,7 +11,6 @@
 - [Category C: Content Quality](#category-c-content-quality) — 14 checks (C1-C14)
 - [Category D: Anti-Patterns](#category-d-anti-patterns) — 7 checks (D1-D7)
 - [Category E: Deployment](#category-e-deployment) — 1 check (E1)
-- [Verification Report Format](#verification-report-format)
 
 **Severity levels:**
 - **CRITICAL** — Skill will malfunction or fail to trigger. Must fix.
@@ -66,7 +67,7 @@ If a sibling skill has overlapping domain, check for "Do NOT use for" in descrip
 In Claude Code, `allowed-tools` pre-approves the listed tools for the invoking turn and does not restrict availability. Verify that bare high-impact grants such as `Bash`, `Write`, or `Edit` are intentional for the skill's trusted workflow. Scope them when only a deterministic command needs pre-approval; use `disallowed-tools` or runtime policy when actual restriction is required.
 
 **A12: Field compatibility check**
-Recognized Claude Code extensions include `when_to_use`, `argument-hint`, `arguments`, `disable-model-invocation`, `user-invocable`, `allowed-tools`, `disallowed-tools`, `model`, `effort`, `context`, `agent`, `background`, `hooks`, `paths`, and `shell`. Portable Agent Skills metadata includes `name`, `description`, `license`, `compatibility`, `metadata`, and `allowed-tools`. Store custom taxonomy inside the `metadata` map, not as an unknown top-level key.
+Compare every top-level key with the field table in `best-practices.md` ("Frontmatter Reference"). Store custom taxonomy inside the `metadata` map, not as an unknown top-level key.
 
 ---
 
@@ -88,8 +89,6 @@ Recognized Claude Code extensions include `when_to_use`, `argument-hint`, `argum
 | B12 | WARNING | SKILL.md follows progressive disclosure: entry point with overview and routing, not full content. Multi-procedure skills (2+ independent procedures) keep SKILL.md concise. | Extract detailed content to sub-files, keep SKILL.md as concise entry point |
 | B13 | WARNING | Broad knowledge skills list related knowledge in a "Related Knowledge" section | Add `## Related Knowledge` section with bullet list of knowledge skills that complement this role |
 | B15 | WARNING | Framework-specific content lives in separate reference files with explicit framework names, not inline in SKILL.md | Extract framework content to `references/<framework-name>.md` and link from SKILL.md |
-
-> **B14 removed** in v2.1.0. The universal B2 line budget (soft 500, ceiling ~550) applies to language/framework skills too. Use B7 / B15 to enforce extraction when needed.
 
 ### B: Detailed Checks
 
@@ -249,7 +248,7 @@ If SKILL.md has < 30 lines of actual content (excluding frontmatter, headers, bl
 
 | ID | Severity | Check | Fix |
 |----|----------|-------|-----|
-| E1 | CRITICAL | Canonical skill exists and is exposed by both plugin packages | Verify `skills/<name>/SKILL.md` exists, Claude's root skill discovery can include it, and `.codex-plugin/plugin.json` exposes `./skills/`. |
+| E1 | CRITICAL | Kit only: the skill is exposed by every plugin package | Verify `skills/<name>/SKILL.md` exists, Claude's root skill discovery can include it, and `.codex-plugin/plugin.json` and `.kimi-plugin/plugin.json` expose `./skills/`. |
 
 ### E: Detailed Checks
 
@@ -257,7 +256,7 @@ If SKILL.md has < 30 lines of actual content (excluding frontmatter, headers, bl
 ```
 Check that skills/<skill-name>/SKILL.md exists.
 Check that the Claude plugin uses root skills/ discovery or declares that directory.
-Check that .codex-plugin/plugin.json exposes ./skills/.
+Check that .codex-plugin/plugin.json and .kimi-plugin/plugin.json expose ./skills/.
 If any check fails, the installed plugin cannot load the skill consistently.
 ```
 

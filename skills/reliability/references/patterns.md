@@ -1,6 +1,6 @@
 # SRE Patterns and Anti-Patterns
 
-Platform-agnostic reliability patterns, common failure modes, and domain knowledge.
+Platform-agnostic reliability patterns, common failure modes, and domain knowledge. SKILL.md holds the rules; this file holds parameters, catalogs, and depth.
 
 ## Contents
 
@@ -40,7 +40,7 @@ Platform-agnostic reliability patterns, common failure modes, and domain knowled
      Closed               Open
 ```
 
-Configuration parameters:
+Configuration parameters (values are examples; tune to the dependency):
 - **Failure threshold**: number of failures before opening (e.g., 5 failures in 60 seconds)
 - **Open duration**: how long to reject requests before testing (e.g., 30 seconds)
 - **Half-open max requests**: how many test requests in half-open state (e.g., 1-3)
@@ -53,24 +53,33 @@ Configuration parameters:
 ### Exponential Backoff with Jitter
 
 ```
-delay = min(base * 2^attempt + random_jitter, max_delay)
+delay = random(0, min(max_delay, base * 2^attempt))      # "full jitter"
+# base = 100ms, attempt counts retries from 0
 
-Attempt 1: 100ms  + jitter(0-50ms)
-Attempt 2: 200ms  + jitter(0-100ms)
-Attempt 3: 400ms  + jitter(0-200ms)
-Attempt 4: 800ms  + jitter(0-400ms)
+Attempt 1: up to 100ms
+Attempt 2: up to 200ms
+Attempt 3: up to 400ms
+Attempt 4: up to 800ms
 Attempt 5: give up
 ```
 
-### What to retry vs what not to retry
+Fixed or equal-interval retries synchronize clients and create waves; jitter spreads them. Stop at the remaining deadline of the caller, not only at a fixed attempt count.
 
-| Retry | Do NOT retry |
-|-------|-------------|
-| Network timeout (no response received) | 400 Bad Request (client error) |
-| 503 Service Unavailable | 401/403 Auth failure |
-| 429 Too Many Requests (with backoff) | 404 Not Found |
-| Connection refused (service restarting) | Data validation errors |
-| Temporary DNS failure | Business logic errors |
+### What to retry
+
+| Failure | Retry? | Idempotent op or idempotency key | Non-idempotent op, no key |
+|---------|--------|----------------------------------|---------------------------|
+| Connection refused / reset before the request was sent | Transient | Retry | Retry (request never ran) |
+| Timeout, no response received | Transient | Retry | Do not retry blindly: it may have executed. Use a key or read back state |
+| 408, 429 (honor `Retry-After`) | Transient | Retry with backoff | Retry only if the server guarantees it did not process the request |
+| 502, 503, 504 | Transient | Retry | As for timeout |
+| Temporary DNS failure | Transient | Retry | Retry (request never ran) |
+| 409 for a request still in progress under the same idempotency key (see `api-design`) | Transient | Retry with backoff and the same key | — (needs a key) |
+| 400, 401, 403, 404, 409 conflicts on state, 422, validation and business errors | Permanent | Do not retry | Do not retry |
+
+### Retry budgets
+
+Retries multiply load: three layers that each make up to three attempts produce up to 27 calls at the bottom per original request. Retry in one layer of a call chain (usually the outermost that has a deadline), or cap retries to a fraction of recent requests (a budget), and never retry when the breaker for that dependency is open.
 
 ---
 
@@ -120,32 +129,15 @@ Level 4: Continuous chaos in production canaries with auto-rollback
 
 ## Progressive Delivery Patterns
 
-### Canary Deployment
+Rollout mechanics (canary, flags, rollback automation) are owned by `release-engineering`. The reliability view: gate each step on SLIs for the new cohort, keep a kill switch that works without a deploy, and roll back before diagnosing.
 
-```
-Step 1: Deploy new version alongside old
-Step 2: Route 1-5% of traffic to new version
-Step 3: Monitor SLIs for the canary cohort
-Step 4: If SLIs healthy, increase to 25%, 50%, 100%
-Step 5: If SLIs degrade, route 100% back to old version
-```
-
-### Feature Flags for Reliability
-
-Use feature flags to decouple deployment from release:
-- Deploy code with flag OFF
-- Enable for internal users first
-- Enable for percentage of external users
-- Monitor SLIs per cohort
-- Kill switch: disable instantly without redeploying
-
-### Rollback Decision Matrix
+### Rollback Decision Matrix (example thresholds)
 
 | Signal | Action |
 |--------|--------|
 | Error rate doubled after deploy | Immediate rollback |
-| Latency p99 increased > 50% | Immediate rollback |
-| Error budget burn rate > 14x | Immediate rollback |
+| Latency p99 up sharply after deploy | Immediate rollback |
+| Fast error-budget burn alert fires | Immediate rollback |
 | Single user report, metrics stable | Investigate, don't rollback yet |
 | Memory slowly increasing | Monitor, set a time-boxed investigation |
 
@@ -176,8 +168,7 @@ Should you automate this?
 
 ### Toil Tracking
 
-- Measure toil hours per engineer per sprint
-- Target: < 50% of time on toil, > 50% on engineering work
+- Measure toil hours per engineer per sprint, against the budget in SKILL.md
 - Review toil trends quarterly -- rising toil signals scaling problems
 - Tag tickets as "toil" to make it visible in sprint retrospectives
 
@@ -199,7 +190,7 @@ Should you automate this?
 - Track alert-to-incident ratio: target > 50% of pages result in real action
 - Regularly review and prune alerts that never lead to action
 
-### On-Call Health Metrics
+### On-Call Health Metrics (example thresholds)
 
 | Metric | Healthy | Needs attention |
 |--------|---------|----------------|
@@ -255,7 +246,7 @@ Before any change, ask:
 3. **Zombie process** -- process in pool but not processing, causes stalls and uneven load
 4. **Log explosion** -- debug logging in production fills disk, degrades I/O performance
 5. **Config drift** -- environment docs outdated, new instances can't start without tribal knowledge
-6. **Lying health check** -- returns 200 while dependency is actually down
+6. **Lying health check** -- readiness returns 200 on an instance that cannot serve (stuck pool, failed warm-up). The opposite error is equally common: readiness or liveness that fails because a shared dependency is down, taking all capacity out at once
 7. **Alert fatigue** -- too many noisy alerts, real failures get ignored
 8. **No runbook** -- incident happens, nobody knows the recovery steps
 9. **Unbounded retries** -- failing dependency gets hammered with retries, making recovery harder
@@ -272,8 +263,9 @@ Before any change, ask:
 | Alert on raw thresholds | Too many false positives, misses slow degradation | Alert on SLO burn rate |
 | Average latency as SLI | Hides tail latency problems | Use percentiles (p95, p99) |
 | Monitoring without alerting | Nobody sees the dashboard at 3am | Automated alerts with runbook links |
-| Retry without backoff | Thundering herd during outages | Exponential backoff with jitter |
-| Health check that always returns OK | Orchestrator thinks service is healthy when it's broken | Check actual dependency connectivity |
+| Retry without backoff, budget, or idempotency | Thundering herd, duplicate side effects | Jittered backoff, one retry layer, idempotency key |
+| Health check that always returns OK | Orchestrator thinks service is healthy when it's broken | Readiness reflects local ability to serve; liveness covers the process only |
+| Health check that fails on any dependency outage | One shared outage removes every instance | Define degraded mode; check critical dependencies deliberately |
 | Manual incident response | Slow response, inconsistent actions | Runbooks with automated first-response |
 | Postmortem blame culture | People hide mistakes, root causes stay unfixed | Blameless postmortems focused on systemic fixes |
 | Single point of failure in monitoring | Monitoring goes down with the system it monitors | Independent monitoring path |

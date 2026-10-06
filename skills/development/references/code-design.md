@@ -68,6 +68,8 @@ A unit's dependencies should be visible where it is constructed or called: param
 
 This needs no framework. Passing a function is dependency injection. Include time, randomness, and identity generation: a unit that calls the clock directly cannot be tested or replayed.
 
+A feature-flag client is such a dependency: inject it, evaluate the flag once at a single seam where the implementation is chosen, and pass the chosen behavior downstream so inner code never asks the flag. An unknown flag name is an error, not a silent "off". Rollout mechanics: `release-engineering`.
+
 Do not overdo it: stable, pure, local helpers are imported directly. Pass in what varies, what has a lifecycle, what performs I/O, and what tests must control.
 
 ## Conditionals and variation

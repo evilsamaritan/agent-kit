@@ -68,7 +68,7 @@ data: line three\n
 ### Node.js / Express
 
 ```javascript
-app.get('/events', authenticate, (req, res) => {
+app.get('/events', authenticate, async (req, res) => {
   // Required headers
   res.writeHead(200, {
     'Content-Type': 'text/event-stream',
@@ -89,17 +89,26 @@ app.get('/events', authenticate, (req, res) => {
     res.write(`data: ${JSON.stringify(data)}\n\n`);
   }
 
-  // Handle Last-Event-ID for reconnection
-  const lastEventId = req.headers['last-event-id'];
-  if (lastEventId) {
-    const missedEvents = getEventsSince(userId, lastEventId);
-    missedEvents.forEach(e => sendEvent(e.type, e.data, e.id));
-  }
-
-  // Subscribe to events
+  // Subscribe first (buffer), then replay from Last-Event-ID, then flush — see the replay contract
+  // in reconnection-presence-binary.md. Event ids here are the per-stream sequence numbers.
+  let buffer = [];
   const unsubscribe = eventBus.subscribe(userId, (event) => {
-    sendEvent(event.type, event.data, event.id);
+    buffer ? buffer.push(event) : sendEvent(event.type, event.data, event.seq);
   });
+
+  const lastEventId = req.headers['last-event-id'];
+  let last = 0;
+  if (lastEventId) {
+    const after = Number(lastEventId);
+    const replay = Number.isSafeInteger(after) ? await eventLog.since(userId, after) : null;
+    if (replay === null) {
+      sendEvent('resync_required', {}, undefined);           // unknown or expired position: client reloads a snapshot
+    } else {
+      for (const e of replay) { sendEvent(e.type, e.data, e.seq); last = e.seq; }
+    }
+  }
+  for (const e of buffer.splice(0)) if (e.seq > last) sendEvent(e.type, e.data, e.seq);
+  buffer = null;
 
   // Heartbeat to prevent proxy/LB timeout
   const heartbeat = setInterval(() => {
@@ -250,23 +259,14 @@ app.get('/events', (req, res) => {
 });
 ```
 
-### Token via Query Parameter
+### Header or Single-Use Ticket
 
-```javascript
-// Client (use fetch-based SSE for header auth when possible)
-const source = new EventSource(`/events?token=${accessToken}`);
+Never put a long-lived access token in the URL: it is logged by proxies and kept in history.
 
-// Server: validate token from query
-app.get('/events', (req, res) => {
-  const token = req.query.token;
-  try {
-    req.user = verifyJwt(token);
-  } catch {
-    return res.status(401).end();
-  }
-  // ... SSE setup
-});
-```
+- **Header:** use `fetch()` streaming (above) to send `Authorization: Bearer ...`.
+- **Ticket:** when `EventSource` must be used cross-site, fetch a ticket valid for seconds and redeemable once, then open `/events?ticket=...`; the server redeems it and binds the stream to that user.
+
+Enforce credential expiry on the server: end the stream when the session or token expires; the client re-authenticates and reconnects with `Last-Event-ID`. Authorize each stream or topic the client asks for, not just the connection.
 
 ---
 
@@ -284,28 +284,7 @@ HTTP/2: multiplexes over a single TCP connection -- no practical limit from the 
 
 ### Multi-Server with Event Bus
 
-```javascript
-// Redis pub/sub as event bus
-const redis = require('redis');
-const sub = redis.createClient();
-const pub = redis.createClient();
-
-// Each server subscribes to user-specific channels
-function subscribeUser(userId, sendEvent) {
-  const channel = `sse:user:${userId}`;
-  sub.subscribe(channel);
-  sub.on('message', (ch, message) => {
-    if (ch === channel) {
-      sendEvent(JSON.parse(message));
-    }
-  });
-}
-
-// Any server can publish events
-function publishEvent(userId, event) {
-  pub.publish(`sse:user:${userId}`, JSON.stringify(event));
-}
-```
+Fan-out works as for WebSocket ([websocket-patterns.md](websocket-patterns.md#fan-out-across-instances)): append to the durable log, publish once on the broker, deliver to local streams, and replay from the log, never from the broker.
 
 ---
 
@@ -328,12 +307,14 @@ function publishEvent(userId, event) {
 
 ## Use Case Patterns
 
-| Use Case | Event Name | Data Shape | ID Strategy |
-|----------|-----------|------------|-------------|
-| Live notifications | `notification` | `{id, title, body, action, timestamp}` | notification ID |
-| Real-time dashboard | `metrics` | `{cpu, memory, requestsPerSecond, errorRate}` | `metrics-${timestamp}` |
-| Build/deploy progress | `build-progress` | `{buildId, stage, status, progress, logs}` | `build-${id}-${stage}` |
-| Stock/price updates | `price-update` | `{symbol, price, change, timestamp}` | `price-${symbol}-${timestamp}` |
+| Use Case | Event Name | Data Shape |
+|----------|-----------|------------|
+| Live notifications | `notification` | `{id, title, body, action, timestamp}` |
+| Live dashboard | `metrics` | `{cpu, memory, requestsPerSecond, errorRate}` |
+| Build or deploy progress | `build-progress` | `{buildId, stage, status, progress}` |
+| Price updates | `price-update` | `{symbol, price, change, timestamp}` |
+
+The SSE `id` is always the per-stream sequence number, never a timestamp or a composite string: replay needs an ordered position the log can answer from. Streams whose old values are worthless (metrics, prices) can skip replay and send the current snapshot on reconnect instead.
 
 ---
 
@@ -359,21 +340,7 @@ location /events {
 
 ### Event Storage for Replay
 
-```sql
-CREATE TABLE sse_events (
-  id          BIGSERIAL PRIMARY KEY,
-  event_id    TEXT NOT NULL UNIQUE,
-  user_id     UUID NOT NULL,
-  event_type  TEXT NOT NULL,
-  data        JSONB NOT NULL,
-  created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
-);
-
-CREATE INDEX idx_sse_user_id ON sse_events(user_id, id);
-
--- Cleanup: keep 24 hours of events
-DELETE FROM sse_events WHERE created_at < NOW() - INTERVAL '24 hours';
-```
+Use the per-stream log in [reconnection-presence-binary.md](reconnection-presence-binary.md#server-durable-per-stream-log): a sequence assigned per stream, retention, and an explicit "position expired" answer that triggers `resync_required`.
 
 ### Monitoring Checklist
 

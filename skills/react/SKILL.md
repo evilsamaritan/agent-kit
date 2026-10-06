@@ -1,223 +1,138 @@
 ---
 name: react
-description: "Build or review React. Use for hooks, state, Suspense, Server Components, server actions, effects, and React data flow."
+description: "Build or review React. Use for hooks, effects, state ownership, Suspense, Server Components, server functions, and React data flow."
 user-invocable: true
 ---
 
 # React
 
-Expert-level React knowledge. Hooks, Server Components (framework-agnostic RSC patterns), modern state management. RSC is a React feature — not tied to any single framework.
+Determine the project's React version and framework first (`package.json` or lockfile, framework config). Feature availability by version is in [hooks-patterns.md](references/hooks-patterns.md#react-version-notes). RSC is a React feature, not tied to one framework.
 
 ---
 
-## Hooks Rules & Patterns
+## Hooks
 
-**Rules (enforced by compiler/linter):**
-1. Only call hooks at the top level — never inside conditions, loops, or nested functions
-2. Only call hooks from React components or custom hooks
+**Rules (enforced by the linter and compiler):** call hooks at the top level of a component or custom hook — never in conditions, loops, or nested functions. `use` is the exception: it may be called conditionally.
 
 | Hook | Purpose | When to use |
 |------|---------|-------------|
-| `useState` | Local state | Component-scoped, simple values |
-| `useReducer` | Complex local state | Multiple sub-values, state machines |
-| `useEffect` | Side effects (sync with external system) | Subscriptions, DOM manipulation, timers |
-| `useRef` | Mutable ref (no re-render) | DOM refs, previous values, instance vars |
-| `useMemo` | Memoize computation | Expensive calculations, referential stability |
-| `useCallback` | Memoize function | Stable callback for child components |
-| `useContext` | Read context | Theme, auth, locale — low-frequency updates |
-| `useId` | Stable unique ID | Form labels, ARIA attributes |
-| `useTransition` | Non-urgent updates | Keep UI responsive during heavy renders |
-| `useDeferredValue` | Defer re-render of value | Debounce-like behavior without timers |
-| `useOptimistic` | Optimistic UI | Show expected state before server confirms |
-| `useActionState` | Form actions state | Server action results + pending state |
-| `use` | Read resource in render | Read promises, context — can be called conditionally (unlike other hooks) |
+| `useState` / `useReducer` | Local state | Simple values / multi-field transitions |
+| `useEffect` | Synchronize with an external system | Subscriptions, timers, non-React widgets, DOM APIs |
+| `useEffectEvent` | Read the latest props/state inside an effect without re-running it | Handler called from an effect that must not re-subscribe |
+| `useSyncExternalStore` | Subscribe to a store outside React | External stores, browser state (online, media query) |
+| `useRef` | Mutable value that does not re-render | DOM nodes, timers, previous values |
+| `useMemo` / `useCallback` | Memoize | Only when profiling shows a cost, or for referential stability a child depends on |
+| `useContext` | Read context | Low-frequency values: theme, locale, session |
+| `useId` | Stable ID | Label/ARIA pairing |
+| `useTransition` / `useDeferredValue` | Keep UI responsive | Non-urgent updates, deferred expensive renders |
+| `useOptimistic` | Show expected state until the server confirms | Mutations with a likely outcome |
+| `useActionState` | Form action result and pending state | Forms with actions |
+| `use` | Read a promise or context during render | Suspense-based data, conditional context |
 
-**When to memoize:** Only when profiling shows a performance problem. React Compiler (stable v1.0) auto-memoizes — manual `useMemo`/`useCallback` is rarely needed in Compiler-enabled projects.
+**Effects.** An effect has a reason: synchronize with something outside React. It needs cleanup (unsubscribe, clear timer, abort the request) and complete dependencies. If the value is only needed to compute rendering, it is not an effect. If an effect must read the latest value without re-subscribing, use `useEffectEvent`.
 
----
+**Memoization.** If the React Compiler is enabled (check the build config), manual `useMemo`/`useCallback` is rarely needed; otherwise add it after measuring.
 
-## Custom Hooks
-
-```typescript
-// Convention: use* prefix, return tuple or object
-function useDebounce<T>(value: T, delay: number): T {
-  const [debounced, setDebounced] = useState(value);
-  useEffect(() => {
-    const timer = setTimeout(() => setDebounced(value), delay);
-    return () => clearTimeout(timer);
-  }, [value, delay]);
-  return debounced;
-}
-
-// Composition — hooks calling hooks
-function useSearch(query: string) {
-  const debouncedQuery = useDebounce(query, 300);
-  const { data, isLoading } = useQuery({
-    queryKey: ["search", debouncedQuery],
-    queryFn: () => searchApi(debouncedQuery),
-    enabled: debouncedQuery.length > 2,
-  });
-  return { results: data, isLoading };
-}
-```
-
-**Return conventions:** Single value → return directly. Two values → tuple `[value, setter]`. Three+ → named object `{ data, isLoading, error }`.
+**Custom hooks.** `use` prefix; one purpose; return a single value directly, a pair as a tuple, three or more as a named object. A hook that subscribes to something must clean up. Patterns and testing → [hooks-patterns.md](references/hooks-patterns.md).
 
 ---
 
-## Server Components vs Client Components
+## Server Components and Client Components
 
 | | Server Component | Client Component |
 |---|---|---|
-| **Directive** | None (default in RSC) | `"use client"` at top |
-| **Runs on** | Server only | Server (SSR) + Client |
-| **Can use** | `async/await`, DB, fs, env vars | Hooks, event handlers, browser APIs |
-| **Bundle** | Zero JS sent to client | Included in JS bundle |
-| **State** | None | `useState`, `useReducer` |
-| **Re-renders** | Never | On state/prop change |
+| **Directive** | None (default under RSC) | `"use client"` at the top of the file |
+| **Runs on** | Server only | Server (SSR) and client |
+| **Can use** | `async/await`, databases, files, secrets | Hooks, event handlers, browser APIs |
+| **Client JS** | None | Included in the bundle |
 
-**Decision tree:**
-1. Does it need interactivity (clicks, input, state)? → Client Component
-2. Does it only display data? → Server Component
-3. Does it fetch data? → Server Component (direct DB/API access, no waterfalls)
-4. Mixed? → Server Component wrapper with Client Component children
+- Default to a Server Component. Add `"use client"` only for interactivity or browser APIs, and push the boundary down to the smallest interactive leaf.
+- A Server Component fetches and passes serializable props down. Client Components receive Server Components as `children` or props; they cannot import them.
+- Props crossing the boundary must be serializable (no functions, class instances, symbols).
 
-**Composition pattern:** Server Component fetches data, passes to Client Component as props:
+Directives, serialization, data fetching, composition → [rsc-patterns.md](references/rsc-patterns.md).
 
-```tsx
-// Server Component — fetches data
-async function ProductPage({ id }: { id: string }) {
-  const product = await db.product.findUnique({ where: { id } });
-  return <ProductDetails product={product} />;  // Client Component
-}
-```
+### Server functions are public endpoints
 
----
+A `"use server"` function is callable over HTTP by anyone who can reach the app, not only by your UI.
 
-## Suspense Boundaries
+- **Re-derive the caller inside every server function** from the session or request context. Never accept a user ID, role, or tenant from the arguments.
+- **Check authorization and validate input** inside the function; hiding the button is not a control. Details → `auth`, `security`.
+- Keep `react-server-dom-*` and the framework on patched releases; see [rsc-patterns.md](references/rsc-patterns.md#server-functions).
 
-```tsx
-<Suspense fallback={<Skeleton />}>
-  <AsyncComponent />       {/* Suspends while loading */}
-</Suspense>
-
-{/* Nested Suspense — progressive loading */}
-<Suspense fallback={<PageSkeleton />}>
-  <Header />
-  <Suspense fallback={<ContentSkeleton />}>
-    <MainContent />
-    <Suspense fallback={<CommentsSkeleton />}>
-      <Comments />
-    </Suspense>
-  </Suspense>
-</Suspense>
-```
-
-**Suspense works with:** `React.lazy()`, RSC async components, `use()` with promises, data fetching libraries (TanStack Query, SWR).
-
----
-
-## React 19.2 Features
-
-**`<Activity>`** — controls subtree visibility and lifecycle. Two modes:
-- `visible` — shows children, mounts effects, processes updates normally
-- `hidden` — hides children, unmounts effects, defers updates until idle
-
-Use for: pre-rendering offscreen routes, preserving state on navigation (back button retains form input), background data loading.
-
-**`<ViewTransition>`** — declarative animation when DOM updates via `startTransition`, `useDeferredValue`, or Suspense reveal. Pairs with `<Activity>` for enter/exit animations on route changes.
-
-```tsx
-<ViewTransition>
-  <Activity mode={isVisible ? "visible" : "hidden"}>
-    <Panel />
-  </Activity>
-</ViewTransition>
-```
-
-**React Compiler v1.0** — build-time optimizing compiler. Auto-memoizes components and hooks, eliminating manual `useMemo`/`useCallback`. Supported in Next.js 16 (stable) and Expo SDK 54 (out of the box). For Vite projects, use `babel-plugin-react-compiler`.
-
----
-
-## RSC Data Flow
-
-```
-Server Function → Mutation → Revalidation (framework-specific) → Re-render → Stream to Client
-```
-
-```typescript
-// Server Function — "use server" directive (React feature, works across frameworks)
+```ts
 "use server";
 
-async function updateProfile(formData: FormData) {
-  const name = formData.get("name") as string;
-  await db.user.update({ where: { id: userId }, data: { name } });
-  // Revalidation is framework-specific:
-  // Next.js: revalidatePath("/profile") or revalidateTag("profile")
-  // Waku/TanStack Start: framework-managed invalidation
+export async function updateProfile(formData: FormData) {
+  const session = await requireSession();            // identity comes from the session
+  const name = parseDisplayName(formData.get("name")); // validate, do not trust
+  await db.user.update({ where: { id: session.userId }, data: { name } });
 }
 ```
 
 ---
 
-## Framework Integration
+## Suspense
 
-RSC is a React feature, not tied to any single framework. Current framework support:
-
-```
-Need RSC in production?
-├── Yes → Next.js (only production-ready RSC framework)
-├── Experimental RSC → Waku (alpha, not for production)
-└── No RSC needed, want type-safe routing → TanStack Start (v1 stable, RSC planned)
-```
-
-Load `references/rsc-patterns.md` for framework-agnostic RSC core + Next.js App Router, Waku, TanStack Start specifics.
+Wrap each region that loads independently in its own boundary so the rest renders first; nest boundaries from page shell down to slow regions. Suspense works with `React.lazy`, async Server Components, `use()` on a promise, and data libraries that support it. Put an error boundary next to each Suspense boundary that can reject.
 
 ---
 
-## State Management
+## Frameworks for RSC
 
-**Decision tree:**
+Choose a framework that supports React Server Components if the project needs them, and check that framework's current RSC support before relying on it — support, versions, and APIs change between releases. Framework specifics (Next.js App Router, caching, revalidation) → [nextjs.md](references/nextjs.md).
+
+---
+
+## State management
+
+Ownership rules (who owns server, URL, form, local, shared state) live in `frontend`. In React:
+
 ```
 What kind of state?
-├── Server/async data (fetching, caching, revalidation) → TanStack Query
-├── Global client state
-│   ├── Simple (few stores, selectors) → Zustand
-│   └── Fine-grained (many independent atoms, derived state) → Jotai
-├── Low-frequency global (theme, locale, auth) → React Context
-└── Component-local → useState / useReducer
+├── Data from a server → the framework's data layer, `use` with Suspense,
+│   or a server-state cache. Never copy it into a client store.
+├── Should survive reload or be linkable → URL (router search params)
+├── Draft values in a form → form state (`useActionState`, uncontrolled inputs,
+│   or a form library); the server cache owns the result
+├── One component's UI state → useState / useReducer
+├── Low-frequency, wide reach (theme, locale, session) → Context
+└── Client-only state read by distant components
+    → one owner module exposing operations (`useSyncExternalStore`-based store);
+      other code calls the operations (`development`: one writer)
 ```
 
-| Library | Model | Best for |
-|---------|-------|----------|
-| **TanStack Query** | Server state cache | Data fetching, caching, background refresh |
-| **Zustand** | Single store, selectors | Global client state, simple API |
-| **Jotai** | Atomic, bottom-up | Fine-grained reactive state, derived atoms |
-| **Valtio** | Mutable proxy | Teams from Vue/MobX, simple mental model |
-| **React Context** | Built-in | Low-frequency updates (theme, locale, auth) |
+Product examples (server-state caches, external stores) → [hooks-patterns.md](references/hooks-patterns.md#state-tool-examples).
 
 ---
 
 ## Anti-Patterns
 
-1. **`useEffect` for derived state** — compute during render instead; `useMemo` if expensive
-2. **Prop drilling vs context abuse** — 2-3 levels is fine; context for truly global concerns only; Zustand/Jotai for shared client state
-3. **Premature memoization** — profile first; React Compiler v1.0 handles most cases automatically
-4. **Client Components wrapping Server Components** — loses server benefits; pass Server Components as `children` instead
-5. **`useEffect` for data fetching** — use RSC, TanStack Query, or SWR; raw useEffect creates waterfalls and race conditions
+1. **`useEffect` for derived state** — compute during render; memoize only if measured.
+2. **`useEffect` for data fetching** — use the framework's data layer, Suspense, or a server-state cache; raw effects create waterfalls and race conditions (if unavoidable, abort on cleanup).
+3. **Server data copied into a client store** — two caches that disagree.
+4. **A shared store with many writers** — expose operations from one owner.
+5. **Premature memoization** — measure first.
+6. **Importing a Server Component from a Client Component** — pass it as `children`.
+7. **Server function without a caller check** — see the rule above.
+8. **Context for high-frequency values** — every consumer re-renders; use a store with selectors.
+9. **Effect with missing dependencies or no cleanup** — stale closures and leaks.
 
 ---
 
 ## Related Knowledge
 
-- **javascript** — type patterns, generics for typed hooks and components
-- **html/css** — semantic markup, layout patterns, CSS features
-- **accessibility** — ARIA patterns, keyboard navigation, focus management
-- **web** — fetch API, service workers, browser APIs
+- `frontend` — state ownership, rendering strategy, UI verification
+- `development` — one writer, explicit dependencies, async lifetime inside components
+- `javascript` — types, generics for typed hooks and components
+- `html`, `css` — semantic markup, layout, styling
+- `accessibility` — ARIA, keyboard, focus management
+- `web` — fetch, service workers, browser APIs
+- `auth`, `security` — server function authorization, input trust
+- `feature-sliced-design` — structuring a React app by layers
 
 ## References
 
-Load on demand for detailed patterns and deep-dive knowledge:
-
-- `references/hooks-patterns.md` — custom hooks cookbook, composition patterns, testing hooks
-- `references/rsc-patterns.md` — RSC deep dive: framework-agnostic core (directives, serialization rules, data fetching, server actions, composition), Next.js-specific patterns (revalidation, routing), alternative RSC frameworks (Waku, TanStack Start)
+- [hooks-patterns.md](references/hooks-patterns.md) — effect and subscription patterns, testing hooks, version notes, state tool examples
+- [rsc-patterns.md](references/rsc-patterns.md) — framework-agnostic RSC: directives, serialization, data fetching, server functions, composition
+- [nextjs.md](references/nextjs.md) — Next.js App Router specifics: file conventions, caching, revalidation, alternatives

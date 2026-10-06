@@ -63,25 +63,29 @@ Every log entry should be JSON with consistent fields for machine parsing and co
 
 ## Log Level Guidelines
 
-| Level | When | Alert? | Production |
-|-------|------|--------|------------|
-| ERROR | Unexpected failure, needs attention | Yes | Enabled |
-| WARN | Degraded operation, recoverable | Monitor trends | Enabled |
+| Level | When | Page? | Production |
+|-------|------|-------|------------|
+| ERROR | Unexpected failure, needs investigation | No: feeds error-rate metrics and tickets | Enabled |
+| WARN | Degraded operation, recoverable | No: watch trends | Enabled |
 | INFO | Significant business events | No | Enabled |
 | DEBUG | Developer troubleshooting detail | No | Disabled |
 
+Paging comes from symptom and burn-rate alerts (policy in `reliability`), never from a log line. A spike of ERROR logs should show up as an error-rate metric first.
+
 ### Level Selection Rules
 
-- **ERROR**: Something broke that shouldn't have. Requires human investigation. Examples: unhandled exceptions, failed retries after exhaustion, data corruption detected.
-- **WARN**: System is working but in a degraded state. Examples: fallback to cache, retry attempt, approaching quota limit.
-- **INFO**: Normal but significant operations. Examples: order placed, user login, deployment started. One INFO log per business operation (not per step).
-- **DEBUG**: Detailed internal state for troubleshooting. Examples: SQL queries, cache hit/miss, config loaded. High volume -- disabled in production.
+- **ERROR**: Something broke that shouldn't have. Examples: unhandled exceptions, failed retries after exhaustion, data corruption detected.
+- **WARN**: Working but degraded. Examples: fallback to cache, retry attempt, approaching quota limit.
+- **INFO**: Normal but significant operations. One INFO log per business operation (not per step).
+- **DEBUG**: Detailed internal state. High volume; disabled in production.
 
 ---
 
 ## Trace Correlation
 
-### Injecting Trace Context into Logs
+Prefer the OpenTelemetry logging integration for the language in use: it stamps `trace_id` and `span_id` on each record from the active span, so application code does not read span context itself. Check the SDK version for the current package and opt-in.
+
+Manual fallback when no integration exists (Node sketch):
 
 ```javascript
 const { context, trace } = require('@opentelemetry/api');
@@ -89,133 +93,90 @@ const { context, trace } = require('@opentelemetry/api');
 function getTraceContext() {
   const span = trace.getSpan(context.active());
   if (!span) return {};
-  const ctx = span.spanContext();
-  return {
-    trace_id: ctx.traceId,
-    span_id: ctx.spanId,
-    trace_flags: ctx.traceFlags,
-  };
+  const { traceId, spanId, traceFlags } = span.spanContext();
+  return { trace_id: traceId, span_id: spanId, trace_flags: traceFlags };
 }
-
-// Use in logger
-const logger = createLogger({
-  defaultMeta: { service: 'order-service' },
-  format: format.combine(
-    format.timestamp(),
-    format((info) => ({ ...info, ...getTraceContext() }))(),
-    format.json(),
-  ),
-});
-```
-
-```python
-import logging
-from opentelemetry import trace
-
-class TraceContextFilter(logging.Filter):
-    def filter(self, record):
-        span = trace.get_current_span()
-        if span and span.is_recording():
-            ctx = span.get_span_context()
-            record.trace_id = format(ctx.trace_id, '032x')
-            record.span_id = format(ctx.span_id, '016x')
-        else:
-            record.trace_id = ''
-            record.span_id = ''
-        return True
-
-logger = logging.getLogger('order-service')
-logger.addFilter(TraceContextFilter())
-
-formatter = logging.Formatter(
-    '{"timestamp":"%(asctime)s","level":"%(levelname)s",'
-    '"service":"order-service","trace_id":"%(trace_id)s",'
-    '"span_id":"%(span_id)s","message":"%(message)s"}'
-)
+// Add getTraceContext() output in a logger format step, after timestamp and before JSON serialization.
 ```
 
 ---
 
 ## Sensitive Data Redaction
 
-### Field-Level Redaction
+One rule, owned here (`compliance` and `security` link to it):
+
+1. **Allowlist at the call site.** Log named, known-safe fields; do not dump request bodies, headers, or whole objects.
+2. **Scrub as the final stage.** A logger processor or pipeline (collector) stage redacts known-sensitive keys (`password`, `token`, `secret`, `authorization`, `api_key`, `card_number`, `cvv`, `ssn`) and values with strong signatures, after serialization rules are applied. It is a safety net for mistakes, not a substitute for the allowlist.
+3. **Treat email, IP address, and user identifiers as personal data** where privacy law applies: log a pseudonymous ID instead, and follow retention rules from `compliance`.
+4. **Never log credentials, even in DEBUG.**
 
 ```javascript
-const sensitiveFields = ['password', 'token', 'secret', 'credit_card', 'ssn', 'authorization'];
+const sensitive = ['password', 'token', 'secret', 'authorization', 'credit_card', 'card_number', 'cvv', 'ssn'];
 
-function redactSensitive(obj) {
-  const redacted = { ...obj };
-  for (const key of Object.keys(redacted)) {
-    if (sensitiveFields.some(f => key.toLowerCase().includes(f))) {
-      redacted[key] = '[REDACTED]';
-    } else if (typeof redacted[key] === 'object' && redacted[key] !== null) {
-      redacted[key] = redactSensitive(redacted[key]);
-    }
-  }
-  return redacted;
+function redact(obj) {
+  if (obj === null || typeof obj !== 'object') return obj;
+  return Object.fromEntries(Object.entries(obj).map(([k, v]) =>
+    sensitive.some(f => k.toLowerCase().includes(f)) ? [k, '[REDACTED]'] : [k, redact(v)]));
 }
 ```
-
-### Common Sensitive Fields to Redact
-
-- `password`, `passwd`, `secret`
-- `token`, `api_key`, `authorization`
-- `credit_card`, `card_number`, `cvv`
-- `ssn`, `social_security`
-- `email` (depending on privacy requirements)
-- `ip_address` (depending on jurisdiction -- GDPR)
-
-### Rules
-
-1. Redact at the logging layer, not at the application layer
-2. Never log raw request/response bodies without redaction
-3. Redact before serialization to avoid accidental exposure
-4. Use allowlists (log only known-safe fields) rather than denylists for high-security contexts
 
 ---
 
 ## Logger Setup
 
-### Node.js (Winston + OpenTelemetry)
+One setup per language. Both emit JSON from a real serializer; never build JSON with format strings, because a quote or newline in a message produces invalid JSON.
+
+### Node.js (winston)
 
 ```javascript
 const winston = require('winston');
 
+const addTrace = winston.format((info) => ({ ...info, ...getTraceContext() }));
+
 const logger = winston.createLogger({
   level: process.env.LOG_LEVEL || 'info',
   format: winston.format.combine(
-    winston.format.timestamp({ format: 'YYYY-MM-DDTHH:mm:ss.SSSZ' }),
+    winston.format.timestamp(),
     winston.format.errors({ stack: true }),
+    addTrace(),
     winston.format.json(),
   ),
-  defaultMeta: {
-    service: process.env.SERVICE_NAME || 'unknown',
-    environment: process.env.NODE_ENV || 'development',
-  },
-  transports: [
-    new winston.transports.Console(),
-  ],
+  defaultMeta: { service: process.env.SERVICE_NAME || 'unknown' },
+  transports: [new winston.transports.Console()],
 });
 ```
 
 ### Python (structlog)
 
+structlog processors run on the event dict before any standard-library record exists, so IDs attached to records later never reach them. Add the IDs with a processor that reads the current span.
+
 ```python
 import structlog
+from opentelemetry import trace
+
+
+def add_trace_context(logger, method, event_dict):
+    ctx = trace.get_current_span().get_span_context()
+    if ctx.is_valid:
+        event_dict["trace_id"] = format(ctx.trace_id, "032x")
+        event_dict["span_id"] = format(ctx.span_id, "016x")
+    return event_dict
+
 
 structlog.configure(
     processors=[
+        structlog.contextvars.merge_contextvars,
         structlog.stdlib.add_log_level,
-        structlog.processors.TimeStamper(fmt="iso"),
-        structlog.processors.StackInfoRenderer(),
+        structlog.processors.TimeStamper(fmt="iso", utc=True),
         structlog.processors.format_exc_info,
+        add_trace_context,
         structlog.processors.JSONRenderer(),
     ],
-    wrapper_class=structlog.stdlib.BoundLogger,
-    context_class=dict,
     logger_factory=structlog.stdlib.LoggerFactory(),
 )
 
 log = structlog.get_logger("order-service")
 log.info("order_placed", order_id="o123", amount=99.99)
 ```
+
+Never hand-format trace IDs into message strings; keep them as separate fields.

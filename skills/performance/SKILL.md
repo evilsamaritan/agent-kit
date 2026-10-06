@@ -1,202 +1,135 @@
 ---
 name: performance
-description: "Measure and improve runtime performance. Use for latency, throughput, capacity, profiling, memory leaks, queries, caching bottlenecks, and resource budgets."
+description: "Measure performance and find the bottleneck. Use for slow requests, latency or throughput regressions, profiling, load testing, capacity, memory leaks, and resource budgets; fixes live in database, caching, and the language skills."
 user-invocable: true
 ---
 
 # Performance Engineering
 
-Measure, profile, and eliminate bottlenecks systematically. Performance is not just speed — it is throughput, latency percentiles, memory stability, and graceful degradation under load.
+Measure, localize, then fix. Performance is throughput, latency percentiles, memory stability, and behavior under load, not just speed. The method is runtime-agnostic: discover the stack first (runtime and version, infrastructure, data flow), then apply it.
 
-Runtime-agnostic. Apply the same methodology whether the system runs on Node.js, JVM, Go, Rust, Python, .NET, or any other platform. Discover the stack first, then apply domain-specific knowledge.
+## Scope and boundaries
 
----
+**Owns:** the measurement method (profiling, benchmarking, load testing), bottleneck localization, capacity and headroom reasoning, resource budgets, and Core Web Vitals definitions, thresholds, and measurement.
 
-## Core Methodology
+**Does not own the fix:**
+- Query plans, indexes, schema → `database`
+- Cache design, invalidation, hit-rate tuning → `caching`
+- Telemetry infrastructure, continuous-profiling pipelines → `observability`
+- SLO targets and paging → `reliability`
+- Ranking impact of vitals → `seo`; UI causes of slow rendering (bundles, layout, hydration) → `frontend`
+- Runtime-specific tuning → the language skill (`go`, `rust`, `python`, `javascript`, `kotlin`, ...)
 
-```
-1. Profile first — never guess the bottleneck
-2. Establish baseline before optimizing — you cannot improve what you do not measure
-3. Optimize the measured hotspot, not the assumed one
-4. Verify improvement with the same measurement — optimization without proof is refactoring
-5. One change at a time — isolate variables
-```
-
----
-
-## Foundational Laws
-
-| Law | Formula / Rule | Implication |
-|-----|---------------|-------------|
-| **Amdahl's Law** | Speedup = 1 / ((1 - P) + P/S) | Parallelizing 95% of work with infinite cores yields only 20x speedup. Find the serial bottleneck. |
-| **Little's Law** | L = λ × W (items = arrival rate × wait time) | To reduce queue depth, reduce latency or reduce arrival rate. |
-| **Universal Scalability Law** | Contention + coherence limit throughput | Adding resources past the inflection point *decreases* throughput. |
-| **Latency hierarchy** | L1 ~1ns, L2 ~4ns, RAM ~100ns, SSD ~100μs, network ~1ms, disk ~10ms | Know your storage tier. A "fast" database query is still 1000x slower than RAM. |
-| **Tail latency** | p99 often 10-100x median | Optimize for percentiles, not averages. One slow dependency poisons the whole request. |
-| **Roofline model** | Performance ≤ min(compute ceiling, memory bandwidth ceiling) | Determine whether workload is compute-bound or memory-bound before optimizing. |
-
----
-
-## Performance Diagnosis Decision Tree
+## Core method
 
 ```
-System is slow. Where to start?
-├── CPU utilization > 80%?
-│   ├── YES → Profile CPU (flame graphs). Identify hotspot.
-│   │   ├── Application code → optimize algorithm or data structure
-│   │   ├── GC pauses → tune collector, reduce allocation rate
-│   │   └── Kernel / syscalls → check I/O patterns, context switches
-│   └── NO → CPU is not the bottleneck
-├── Memory growing over time?
-│   ├── YES → Heap snapshot. Find retention path.
-│   │   ├── Cache without eviction → add LRU/TTL/max-size
-│   │   ├── Listener/timer leak → clear on shutdown
-│   │   └── Large object accumulation → pool or stream
-│   └── NO → Memory is stable
-├── I/O wait high?
-│   ├── YES → Profile I/O (disk, network)
-│   │   ├── Database queries → EXPLAIN, check indexes, N+1
-│   │   ├── External API calls → connection pool, timeouts, caching
-│   │   └── Disk I/O → async I/O, buffer sizing, SSD
-│   └── NO → I/O is not the bottleneck
-├── Concurrency issues?
-│   ├── Lock contention → reduce critical section, use lock-free structures
-│   ├── Thread/goroutine starvation → increase pool, reduce blocking
-│   └── Deadlock → consistent lock ordering, timeout on acquisition
-└── None of the above? → Measure again. The bottleneck moved or is external.
+1. Define the goal: which metric, which percentile, under what load
+2. Measure a baseline in a realistic setup before changing anything
+3. Profile; optimize the measured hotspot, not the assumed one
+4. Change one thing at a time
+5. Re-measure the same way; keep the change only if it is clearly better than noise
 ```
 
----
+How to profile, benchmark, and load test (warm-up, coordinated omission, percentiles from histograms, noise): [profiling-patterns.md](references/profiling-patterns.md).
 
-## Common Anti-Patterns
+## Laws worth knowing
 
-| Anti-Pattern | Why It Hurts | Fix |
-|-------------|-------------|-----|
-| Sync I/O on async hot path | Blocks event loop / thread pool, kills concurrency | Move to async I/O or offload to worker |
-| Parse → validate → reparse | Triple the allocation cost | Parse once, pass typed result downstream |
-| Unbounded cache / collection | Memory grows until OOM | Add eviction policy (LRU, TTL, max size) |
-| Log serialization in hot path | JSON.stringify / fmt.Sprintf per tick | Sample logs, use structured logging with lazy eval |
-| Connection per request | TCP + TLS handshake overhead per call | Use connection pooling |
-| Unbounded concurrency | Promise.all(1000) / goroutine storm / thread explosion | Use semaphore, worker pool, or bounded channel |
-| Timer / listener leak | Resources accumulate, never freed | Clear on shutdown, use weak references where appropriate |
-| N+1 queries | 1 + N round trips instead of 1 | Batch fetch, JOIN, or dataloader pattern |
-| Full table scan | Missing index on filter/join column | Add index, check EXPLAIN output |
-| Optimizing without profiling | Guessing the bottleneck wastes effort | Profile first, optimize the measured hotspot |
-| No baseline before optimization | Cannot measure improvement without a starting point | Establish load test baseline, then compare |
-| Micro-benchmarking in isolation | Component fast alone, slow in context | Benchmark under realistic load with real data |
-| Premature caching | Adds complexity without measured need | Prove the read is slow and frequent before caching |
+| Law | Rule | Implication |
+|-----|------|-------------|
+| Amdahl | Speedup = 1 / ((1 - P) + P/S) | The serial part caps the gain; parallelizing 95% of the work gives at most 20x |
+| Little | L = λ × W | Concurrency in a system = arrival rate × time in system; use it to size pools and queues |
+| Universal Scalability | Contention and coherence costs limit scale | Adding capacity past a point lowers throughput |
+| Tail latency | A request that fans out to N parts waits for the slowest | p99 of the whole is worse than p99 of any part |
+| Roofline | Performance is capped by compute or memory bandwidth | Know which one binds before optimizing |
 
----
-
-## Caching Strategy Decision Tree
+## Where to look first
 
 ```
-Should you cache this?
-├── Data changes < 1/min AND read:write > 10:1 → YES, cache aggressively
-├── Data is user-specific AND session-scoped → local/session cache
-├── Data is shared AND consistency matters → cache with invalidation
-├── Data is computed expensively → cache with TTL
-└── Data changes per-request → DO NOT cache
-
-Cache layer selection:
-├── Same process → in-memory (HashMap, LRU)
-├── Same host, multiple processes → shared memory or local Redis
-├── Multiple hosts → distributed cache (Redis, Memcached)
-└── CDN-cacheable → HTTP cache headers, CDN edge
+System is slow. Which resource is saturated?
+├── CPU high → CPU profile (flame graph)
+│   ├── Application code → algorithm or data structure
+│   ├── Garbage collection → allocation rate, collector settings
+│   └── Kernel / syscalls → I/O pattern, context switches
+├── Memory growing over time → heap / allocation profile, find the retaining path
+├── Time spent waiting (low CPU) → off-CPU / wall-clock profile and traces
+│   ├── Database → see `database`
+│   ├── Remote calls → timeouts, pooling, fan-out; see `reliability`
+│   └── Locks, pools, queues → contention profile, pool wait time
+├── Only some requests slow → tail analysis: traces for the slow ones, compare with fast ones
+└── Nothing stands out → measure again; the bottleneck moved, is external, or the test is wrong
 ```
 
----
+For a per-layer audit of compute, memory, I/O, concurrency, and a pointer list for the rest, use [bottleneck-checklist.md](references/bottleneck-checklist.md). For a full review of a system, follow [workflows/review.md](workflows/review.md).
 
-## Connection Pool Sizing
+## Core Web Vitals
 
-```
-General formula: pool_size = (cpu_cores * 2) + effective_spindle_count
-For SSD: pool_size ≈ cpu_cores * 2 + 1
+Three user-centric metrics, judged on **field data at the 75th percentile** (per page type and device class, on real users). Lab runs are diagnostics, not the verdict.
 
-Symptoms:
-  Too small → "connection pool exhausted" errors, request queuing
-  Too large → database context switching, OOM, diminishing returns
-```
+| Metric | Measures | Good (p75) |
+|--------|----------|------------|
+| LCP (Largest Contentful Paint) | Loading: when the main content renders | 2.5 s or less |
+| INP (Interaction to Next Paint) | Responsiveness: latency of interactions across the visit | 200 ms or less |
+| CLS (Cumulative Layout Shift) | Visual stability: unexpected layout movement | 0.1 or less |
 
-Applies to PostgreSQL, MySQL, MongoDB, Redis connection pools, HTTP client pools, and gRPC channel pools.
+INP replaced FID as the responsiveness vital. The metric set and thresholds are owned by web.dev and are revised from time to time; cite that source, not this table, in a report.
 
-### Tail Latency Amplification
+Measure with field sources (CrUX, Search Console, or your own real-user monitoring) and with the `web-vitals` library or a `PerformanceObserver` (entry types `largest-contentful-paint`, `event`, `layout-shift`), sent to your telemetry with page, device, and navigation type. Diagnose a failing metric from the attribution (LCP element and its phases, the slow interaction and its handler, the shifting node). Fixes: UI causes in `frontend`, ranking relevance in `seo`.
 
-When a request fans out to N services, the overall p99 degrades:
+## Caching
 
-```
-P(all N respond within SLO) = P(single)^N
-If each service has p99 = 100ms and you fan out to 5:
-  P(all under 100ms) = 0.99^5 = 0.95 → your p95 is now 100ms
+Do not design caches here. Premature caching adds invalidation cost without a measured need. Measure the read's frequency and cost and the hit rate you could reach, then use `caching` for design and invalidation.
 
-Mitigations:
-  - Hedged requests (send to 2 replicas, take first response)
-  - Deadline propagation (cancel downstream if parent deadline expires)
-  - Caching at aggregation layer
-  - Reduce fan-out breadth
-```
+## Connection and thread pool sizing
 
----
+Size from measurement, not a constant.
 
-## Runtime Quick Reference
+1. **Server limit first.** The sum of all pools across all application instances (and replicas, jobs, and tools) must stay below the server's connection limit. A pool of 20 on 50 instances is 1000 connections.
+2. **Little's law for the target.** Needed connections ≈ throughput × time each request holds a connection. Start there, and add headroom for variance.
+3. **Verify by measuring pool wait time** and server-side saturation, not by watching for errors. Too small shows as queuing on the pool; too large shows as contention on the server (context switching, memory) and no further gain.
+4. **No universal formula.** Start from the Little's law figure and the server limit, then load test and adjust; the database side of pooling is in `database`.
 
-| Runtime | Key Concerns | Profiling Tools |
-|---------|-------------|----------------|
-| **Node.js / Bun** | Event loop blocking, microtask queue depth, V8/JSC GC pauses | `--inspect`, `clinic.js`, `0x`, `node --prof` |
-| **JVM (Java/Kotlin/Scala)** | GC tuning (G1/ZGC/Shenandoah), thread pool sizing, JIT warmup | JFR, async-profiler, VisualVM, GC logs |
-| **Go** | Goroutine leaks, channel backpressure, GC STW pauses, mutex contention | `pprof`, `trace`, `expvar`, runtime metrics |
-| **Rust** | Async runtime (Tokio) task starvation, allocator pressure, lock contention | `perf`, `flamegraph`, `tokio-console`, `heaptrack` |
-| **Python** | GIL contention, sync I/O in async code, memory fragmentation | `cProfile`, `py-spy`, `memray`, `tracemalloc` |
-| **.NET** | ThreadPool starvation, LOH fragmentation, async-over-sync | dotTrace, PerfView, `dotnet-counters`, ETW |
+This does not carry over to key-value stores, HTTP clients, or RPC channels: those multiplex differently, so size by concurrency needs (Little's law) and the remote side's limits.
 
----
+## Tail latency amplification
+
+If a request needs N parallel calls and each is under its p99 99% of the time, the whole is under it only 0.99^N of the time (about 95% for N = 5). Mitigations: reduce fan-out, propagate deadlines and cancel, hedge idempotent requests, cache at the aggregation layer.
 
 ## Context Adaptation
 
-Adapt your analysis based on the domain of the system under review.
+- **Backend:** load testing baseline, async I/O and backpressure, memory and allocation profiling.
+- **Frontend:** measure Core Web Vitals in the field (section above), use lab tools to reproduce; fixes are in `frontend`.
+- **Reliability:** saturation (USE method) per resource, headroom, scaling triggers, tail-latency budgets.
+- **CI/CD:** build and test time, cache layers, container resource requests and limits.
+- **ML serving:** measure latency and throughput separately, vary batch size, watch accelerator utilization and host-to-device transfer, and separate model load time from steady-state time.
 
-### Frontend
-- **Core Web Vitals**: LCP (Largest Contentful Paint), INP (Interaction to Next Paint, replaced FID — target < 200ms), CLS (Cumulative Layout Shift)
-- **INP optimization**: break long tasks (yield to main thread), minimize input delay, reduce DOM size, defer non-critical JS, avoid layout thrashing during interaction handlers
-- **Bundle size**: tree-shaking, code splitting, lazy loading, dynamic imports
-- **Rendering performance**: layout thrashing, forced reflows, paint costs, compositor layers
-- **Image optimization**: format selection (WebP/AVIF), responsive images, lazy loading, CDN delivery
+## Anti-Patterns
 
-### Backend
-- **Query optimization**: EXPLAIN plans, index coverage, N+1 elimination, query batching
-- **Connection pooling**: database, HTTP client, gRPC channel pool sizing and health checks
-- **Async I/O**: non-blocking operations, backpressure handling, worker pool saturation
-- **Memory profiling**: heap snapshots, allocation tracking, GC tuning, leak detection
-- **Load testing**: baseline establishment, stress testing, soak testing, spike testing
-
-### Reliability
-- **Capacity planning**: saturation forecasting, resource headroom, scaling triggers
-- **Saturation monitoring**: USE method (Utilization, Saturation, Errors) per resource
-- **Tail latency**: p99/p999 tracking, latency budgets, hedged requests, deadline propagation
-- **Continuous profiling**: always-on low-overhead production profiling — flame graphs aggregated over time reveal chronic bottlenecks that load tests miss
-
-### CI/CD
-- **Build performance**: incremental builds, dependency caching, parallelized compilation
-- **CI pipeline speed**: test parallelism, cache layers, conditional stages, artifact reuse
-- **Container resource limits**: CPU/memory requests and limits, OOMKill prevention, right-sizing
-
-### AI/ML Workloads
-- **Inference latency**: model loading time, batch size tuning, quantization tradeoffs (FP16/INT8)
-- **GPU utilization**: kernel occupancy, memory bandwidth saturation, CPU-GPU transfer overhead
-- **Throughput optimization**: request batching, speculative decoding, model sharding
-
----
-
-## References
-
-- `references/bottleneck-checklist.md` — Per-layer audit checklist (compute, memory, I/O, database, queues, caching, serialization, concurrency)
-- `references/profiling-patterns.md` — Review protocol phases, eBPF observability, continuous profiling, capacity planning, new project setup
+| Anti-Pattern | Why It Hurts | Fix |
+|-------------|-------------|-----|
+| Optimizing without profiling | Wasted effort on the wrong thing | Profile first |
+| No baseline | Cannot show an improvement | Record before and after under the same conditions |
+| Comparing averages | Hides tail latency | Percentiles from histograms |
+| Micro-benchmark only | Fast alone, slow in context | Also test under realistic load and data |
+| Load generator waits on slow responses | Understates latency (coordinated omission) | Open-model arrival rate; measure from intended send time |
+| Sync I/O on an async hot path | Blocks the event loop or thread pool | Async I/O or offload |
+| Unbounded concurrency, cache, or collection | Memory or resource exhaustion | Semaphore, worker pool, eviction |
+| N+1 calls or connection per request | Round-trip and handshake cost | Batch, pool (details in `database`) |
+| Several changes at once | Cannot attribute the effect | One change per measurement |
+| Premature caching | Complexity without measured need | Measure, then see `caching` |
 
 ## Related Knowledge
 
-- **observability** — Metrics (RED/USE), distributed tracing, continuous profiling, alerting on performance degradation
-- **caching** — Cache strategy selection, invalidation patterns, multi-layer architecture, stampede prevention
-- **database** — Query optimization, index design, connection pooling, schema design
-- **reliability** — SLO-driven performance targets, capacity planning, load testing in production
-- **backend** — Service architecture, connection management, async patterns
-- **ci-cd** — Container resource limits, CI pipeline speed, build performance
+- `observability` — metrics, traces, continuous-profiling infrastructure
+- `caching` — cache design and invalidation
+- `database` — queries, indexes, pooling on the database side
+- `reliability` — SLO-driven targets, saturation, load shedding
+- `backend` — service structure, async patterns
+- `ci-cd` — build speed, container limits
+- `seo`, `frontend` — ranking relevance and UI causes of poor vitals
+- `development` — code practice this skill applies when changing the measured hotspot
+
+## References
+
+- [profiling-patterns.md](references/profiling-patterns.md) — profile types, reading flame graphs, benchmarking and load-test method, noise, capacity planning, tool selection, tools by runtime
+- [bottleneck-checklist.md](references/bottleneck-checklist.md) — compute, memory, I/O, concurrency checklist and pointers to sibling skills
+- [workflows/review.md](workflows/review.md) — performance review protocol and report template

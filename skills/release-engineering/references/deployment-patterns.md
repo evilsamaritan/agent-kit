@@ -1,404 +1,145 @@
 # Deployment Patterns
 
+Implementation of the deploy strategies chosen in SKILL.md (strategy tree, strategy table, rollback table). This file keeps strategy mechanics, single-host deploys, preview environments, and failure modes. Everything else points to the skill that owns it.
+
 ## Contents
 
-- [Deployment Strategies](#deployment-strategies)
-- [VPS / Single Server Deployment](#vps--single-server-deployment)
-- [Container Orchestration Deployment](#container-orchestration-deployment)
-- [Serverless Deployment](#serverless-deployment)
-- [Reverse Proxy Patterns](#reverse-proxy-patterns)
-- [SSL/TLS Configuration](#ssltls-configuration)
-- [Rollback Strategies](#rollback-strategies)
-- [Ephemeral / Preview Environments](#ephemeral--preview-environments)
-- [IaC and GitOps Concepts](#iac-and-gitops-concepts)
-- [Policy as Code](#policy-as-code)
-- [FinOps in CI/CD](#finops-in-cicd)
-- [Server Hardening](#server-hardening)
+- [Strategy Implementation](#strategy-implementation)
+- [Single-Host Deployment](#single-host-deployment)
+- [Orchestrated and Serverless Deployment](#orchestrated-and-serverless-deployment)
+- [Preview Environments](#preview-environments)
+- [Owned Elsewhere](#owned-elsewhere)
 - [Common Deployment Failures](#common-deployment-failures)
 
 ---
 
-## Deployment Strategies
+## Strategy Implementation
 
-| Strategy | How It Works | Rollback Speed | Risk | Best For |
-|----------|-------------|----------------|------|----------|
-| Rolling update | Replace instances one at a time | Medium | Low-medium | Most services |
-| Blue-green | Run old and new side by side, switch traffic | Fast (switch back) | Low (full old env available) | Critical services |
-| Canary | Route small % of traffic to new version | Fast (route back) | Low (limited blast radius) | High-traffic services |
-| Recreate | Stop old, start new | Slow (redeploy old) | High (downtime) | Dev/staging only |
-| Feature flags | Deploy code inactive, enable per-feature | Instant (toggle off) | Low | Gradual rollouts |
+### Rolling update
 
----
+Replace instances gradually, gated by readiness. In Kubernetes: `strategy.type: RollingUpdate` with `maxUnavailable` and `maxSurge`, plus a readiness probe and a PodDisruptionBudget ([kubernetes](../../kubernetes/SKILL.md)). Roll back with `kubectl rollout undo`.
 
-## VPS / Single Server Deployment
-
-### SSH-Based Deploy Script
-
-```bash
-#!/bin/bash
-set -euo pipefail
-TAG="${1:?Usage: deploy.sh <tag>}"
-
-ssh deploy@server "
-  cd /opt/app && \
-  export TAG=$TAG && \
-  docker compose pull && \
-  docker compose up -d --remove-orphans && \
-  sleep 5 && \
-  curl -sf http://localhost:3000/health || \
-    (docker compose down && docker compose up -d --remove-orphans && echo 'ROLLBACK executed' && exit 1)
-"
-echo "Deploy $TAG successful"
-```
-
-### Server Setup Essentials
-
-| Component | Configuration |
-|-----------|---------------|
-| Process management | systemd unit for Docker Compose (auto-restart on reboot) |
-| Log rotation | Docker json-file driver with max-size/max-file, or logrotate |
-| Disk cleanup | Scheduled `docker system prune` (cron or systemd timer) |
-| Backups | Database dumps, volume snapshots (scheduled, tested) |
-
-### Systemd Unit Pattern
-
-```ini
-[Unit]
-Description=App Docker Compose
-After=docker.service
-Requires=docker.service
-
-[Service]
-Type=oneshot
-RemainAfterExit=yes
-WorkingDirectory=/opt/app
-ExecStart=/usr/bin/docker compose up -d
-ExecStop=/usr/bin/docker compose down
-
-[Install]
-WantedBy=multi-user.target
-```
-
----
-
-## Container Orchestration Deployment
-
-### Kubernetes
-
-- Deployments with rolling update strategy
-- Readiness/liveness probes for health gating
-- Resource requests and limits per container
-- Horizontal Pod Autoscaler for scaling
-- Helm or Kustomize for templating
-
-### Nomad
-
-- Job definitions with rolling update stanza
-- Health checks for canary promotion
-- Resource constraints (memory, CPU, network)
-
-### ECS / Cloud Run
-
-- Task definitions with desired count
-- ALB target groups with health checks
-- Auto-scaling policies
-
-The universal principles apply regardless of orchestrator: immutable tags, health gates, resource limits, rollback capability.
-
----
-
-## Serverless Deployment
-
-| Platform | Deploy Method | Cold Start | Scaling |
-|----------|--------------|------------|---------|
-| AWS Lambda | SAM / CDK / Terraform | Yes (mitigate with provisioned) | Automatic |
-| Cloud Functions | gcloud CLI / Terraform | Yes | Automatic |
-| Fly.io | `fly deploy` | Minimal (Firecracker) | Configurable |
-| Railway | Git push | No (always running) | Configurable |
-| Cloudflare Workers | Wrangler CLI | No (V8 isolates) | Automatic, edge |
-
-Serverless trade-offs: simpler ops, but less control over runtime, harder to debug, vendor lock-in risk.
-
----
-
-## Reverse Proxy Patterns
-
-### nginx
-
-```nginx
-upstream app {
-    server 127.0.0.1:3000;
-}
-
-server {
-    listen 443 ssl http2;
-    server_name app.example.com;
-
-    ssl_certificate /etc/letsencrypt/live/app.example.com/fullchain.pem;
-    ssl_certificate_key /etc/letsencrypt/live/app.example.com/privkey.pem;
-
-    # Security headers
-    add_header Strict-Transport-Security "max-age=31536000" always;
-    add_header X-Frame-Options DENY always;
-    add_header X-Content-Type-Options nosniff always;
-
-    # Rate limiting
-    limit_req_zone $binary_remote_addr zone=api:10m rate=10r/s;
-
-    location / {
-        proxy_pass http://app;
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto $scheme;
-    }
-
-    # WebSocket upgrade
-    location /ws {
-        proxy_pass http://app;
-        proxy_http_version 1.1;
-        proxy_set_header Upgrade $http_upgrade;
-        proxy_set_header Connection "upgrade";
-    }
-}
-```
-
-### Caddy
-
-```
-app.example.com {
-    reverse_proxy localhost:3000
-
-    # WebSocket path
-    @ws path /ws
-    reverse_proxy @ws localhost:3000
-
-    # Rate limiting (via plugin or middleware)
-    header {
-        Strict-Transport-Security "max-age=31536000"
-        X-Frame-Options "DENY"
-        X-Content-Type-Options "nosniff"
-    }
-}
-```
-
-Caddy handles SSL/TLS automatically via built-in ACME. No certbot setup needed.
-
-### Traefik (Docker-native)
+### Canary with Argo Rollouts
 
 ```yaml
-# docker-compose.yml labels
-services:
-  app:
-    labels:
-      - "traefik.enable=true"
-      - "traefik.http.routers.app.rule=Host(`app.example.com`)"
-      - "traefik.http.routers.app.tls.certresolver=letsencrypt"
-      - "traefik.http.services.app.loadbalancer.server.port=3000"
-
-  traefik:
-    image: traefik:v3
-    command:
-      - "--providers.docker=true"
-      - "--entrypoints.websecure.address=:443"
-      - "--certificatesresolvers.letsencrypt.acme.email=admin@example.com"
-      - "--certificatesresolvers.letsencrypt.acme.storage=/letsencrypt/acme.json"
-      - "--certificatesresolvers.letsencrypt.acme.httpchallenge.entrypoint=web"
-    ports:
-      - "443:443"
-      - "80:80"
-    volumes:
-      - /var/run/docker.sock:/var/run/docker.sock:ro
-      - letsencrypt:/letsencrypt
+apiVersion: argoproj.io/v1alpha1
+kind: Rollout
+metadata:
+  name: my-app
+spec:
+  replicas: 10
+  strategy:
+    canary:
+      canaryService: my-app-canary
+      stableService: my-app-stable
+      # Without trafficRouting, weights are approximated by replica counts.
+      # For exact percentages, configure trafficRouting for your ingress, Gateway API, or mesh provider.
+      steps:
+        - setWeight: 5
+        - pause: { duration: 5m }
+        - analysis:
+            templates:
+              - templateName: error-rate     # abort and roll back when the metric breaches
+        - setWeight: 25
+        - pause: { duration: 10m }
+        - setWeight: 50
+        - pause: { duration: 10m }
 ```
 
-Traefik auto-discovers services via Docker labels. No manual proxy config updates when adding services.
+The analysis template queries your metrics backend (error rate, latency, business metric per version); the rollout aborts automatically on a breach. Any controller with weighted routing and metric gates works the same way. A plain `Deployment` plus a weighted `HTTPRoute` is a manual canary.
 
-### Security Headers (Universal)
+### Blue-green
 
-| Header | Value | Purpose |
-|--------|-------|---------|
-| Strict-Transport-Security | `max-age=31536000; includeSubDomains` | Force HTTPS |
-| X-Frame-Options | `DENY` or `SAMEORIGIN` | Prevent clickjacking |
-| X-Content-Type-Options | `nosniff` | Prevent MIME sniffing |
-| Content-Security-Policy | App-specific | Prevent XSS, injection |
-| Referrer-Policy | `strict-origin-when-cross-origin` | Control referrer leakage |
-| Permissions-Policy | `camera=(), microphone=()` | Restrict browser APIs |
+```
+1. Deploy the new version to the idle environment (green)
+2. Run smoke tests against green
+3. Switch traffic (load balancer target group, DNS, route weight)
+4. Watch error rate and latency for a fixed window
+5. On errors: switch back to blue (instant rollback)
+6. When stable: keep blue until the window closes, then reuse it for the next release
+```
 
----
+The routing mechanism varies; the pattern does not. Both environments share the database, so schema changes must be compatible with both versions (expand/contract: `database`).
 
-## SSL/TLS Configuration
+### Flag-based release
 
-| Method | Setup | Renewal | Best For |
-|--------|-------|---------|----------|
-| Certbot + nginx | `certbot --nginx` | Cron/timer auto-renewal | nginx on VPS |
-| Caddy built-in | Automatic | Automatic | Caddy deployments |
-| Traefik ACME | Config in Traefik | Automatic | Docker-native setups |
-| Cloud provider | Managed certificates | Automatic | Cloud deployments |
-| cert-manager | Kubernetes operator | Automatic | Kubernetes clusters |
-
-Critical: always verify auto-renewal is working. Certificate expiry is a common, preventable outage.
+Deploy the code dark, then raise exposure by percentage with a flag (see SKILL.md). Rollback is the flag, not a deploy.
 
 ---
 
-## Rollback Strategies
+## Single-Host Deployment
 
-| Strategy | Method | Speed | Requirements |
-|----------|--------|-------|-------------|
-| Image rollback | Deploy previous image tag | Fast | Immutable tags, tag history |
-| Git revert + redeploy | Revert commit, trigger pipeline | Medium | CI pipeline must be fast |
-| Blue-green switch | Route traffic back to old environment | Instant | Two environments running |
-| Feature flag toggle | Disable feature remotely | Instant | Feature flag system |
-| Database rollback | Run reverse migration | Slow, risky | Reversible migrations |
+Deploy an immutable image tag, record the running tag, verify health, and roll back to the recorded tag on failure. Exit codes distinguish outcomes: 0 success, 10 deploy failed and rolled back, 20 deploy failed and rollback failed or impossible.
 
-Rules:
-- Tag every production deploy with an immutable identifier
-- Keep at least 3 previous versions available for rollback
-- Test rollback procedure before you need it
-- Database migrations must be backward-compatible (old code must work with new schema)
+```bash
+#!/usr/bin/env bash
+set -euo pipefail
+NEW_TAG="${1:?Usage: deploy.sh <tag>}"
+
+ssh deploy@server bash -s -- "$NEW_TAG" <<'REMOTE'
+set -uo pipefail
+cd /opt/app
+NEW_TAG="$1"
+PREV_TAG="$(cat .current_tag 2>/dev/null || true)"
+
+health() { for _ in $(seq 1 20); do curl -fsS http://localhost:3000/readyz >/dev/null && return 0; sleep 3; done; return 1; }
+up()     { TAG="$1" docker compose pull && TAG="$1" docker compose up -d --remove-orphans; }
+
+if up "$NEW_TAG" && health; then echo "$NEW_TAG" > .current_tag; exit 0; fi
+echo "deploy of $NEW_TAG failed" >&2
+
+[ -n "$PREV_TAG" ] || exit 20                      # nothing to roll back to
+if up "$PREV_TAG" && health; then echo "rolled back to $PREV_TAG" >&2; exit 10; fi
+exit 20
+REMOTE
+```
+
+Compose references `image: registry.example.com/app:${TAG}`. Keep several previous tags available in the registry. Proxy, TLS, host hardening, and Compose details: see [Owned Elsewhere](#owned-elsewhere).
 
 ---
 
-## Ephemeral / Preview Environments
+## Orchestrated and Serverless Deployment
 
-Short-lived, isolated deployments spun up per PR or branch. Auto-destroyed on merge/close.
+Orchestrators (Kubernetes, Nomad, ECS, Cloud Run) share the principles: immutable tags or digests, health gating, resource limits, and rollback to a previous revision. Kubernetes specifics: `kubernetes`.
 
-### When to Use
+Serverless platforms: publish an immutable version of the function, shift traffic between versions or aliases with weights (that is the canary), and use provisioned or minimum capacity where cold starts hurt. Roll back by pointing the alias at the previous version. Trade-off: simpler operations, less runtime control, tighter platform coupling.
 
-- Feature testing in isolation before staging
-- QA review of visual changes
-- E2E test execution against real infrastructure
-- Reducing staging bottlenecks (parallel feature validation)
+---
 
-### Implementation Approaches
+## Preview Environments
 
-| Approach | Complexity | Best For |
+Short-lived, isolated deployments per pull request or branch, destroyed on merge or close.
+
+| Approach | Complexity | Best for |
 |----------|-----------|----------|
-| Docker Compose + dynamic ports | Low | Single-server, small teams |
-| Kubernetes namespaces per PR | Medium | Teams already on Kubernetes |
-| Managed platforms (Vercel preview, Netlify deploy previews) | Low | Frontend-only or JAMstack |
-| IaC-driven (Terraform workspace per PR) | High | Full-stack with infrastructure |
-
-### Lifecycle
+| Compose with dynamic ports | Low | Single server, small teams |
+| Kubernetes namespace per PR | Medium | Teams already on Kubernetes |
+| Managed platform previews | Low | Frontend-only |
+| Per-PR infrastructure | High | Full-stack with provisioned infra |
 
 ```
-PR opened --> provision environment --> run tests --> post URL to PR
-PR updated --> update environment --> re-run tests
-PR merged/closed --> destroy environment --> clean up resources
+PR opened  → provision environment → run tests → post URL to the PR
+PR updated → update environment → re-run tests
+PR merged or closed → destroy environment and clean up
 ```
 
-### Cost Control
-
-- Set TTL (time-to-live) on environments: auto-destroy after 24-72h of inactivity
-- Use spot/preemptible instances for preview environments
-- Share databases (with isolated schemas) instead of provisioning per-PR databases
-- Scale to zero when idle
+Cost control: a TTL (destroy after idle days), shared databases with per-PR schemas instead of per-PR databases, and scale to zero when idle. Never copy production data into previews without masking.
 
 ---
 
-## IaC and GitOps Concepts
+## Owned Elsewhere
 
-### Infrastructure as Code
+| Topic | Where |
+|-------|-------|
+| Reverse proxies, TLS certificates and renewal, load balancers, CDN | `networking` |
+| Security headers | `web` (mechanics), `security` (policy) |
+| Server hardening (SSH, firewall, updates), policy-as-code, admission policy, secrets | `security` |
+| Compose files, log rotation settings, container runtime flags | `docker` |
+| GitOps controllers (Argo CD, Flux), Kustomize and Helm | `kubernetes` |
+| Pipelines and approval gates | `ci-cd` |
+| Cost controls beyond preview TTLs | no dedicated skill; keep environment TTLs and right-sizing review in the pipeline |
 
-Define infrastructure in version-controlled files, not manual console clicks.
-
-| Tool | Language | Best For |
-|------|----------|----------|
-| Terraform / OpenTofu | HCL | Multi-cloud, provider ecosystem |
-| Pulumi | TypeScript/Python/Go | Developers who prefer real languages |
-| Ansible | YAML | Configuration management, server setup |
-| CloudFormation / CDK | JSON/YAML/TypeScript | AWS-native |
-| SST | TypeScript | AWS serverless with type safety |
-
-### GitOps
-
-Declarative infrastructure with git as the source of truth.
-
-```
-Git repo (desired state)
-  |
-  v (sync)
-GitOps operator (e.g., ArgoCD, FluxCD)
-  |
-  v (reconcile)
-Live infrastructure (actual state)
-```
-
-Principles:
-- All infrastructure defined declaratively in git
-- Changes go through pull requests (audit trail)
-- Automated sync from git to infrastructure
-- Drift detection and auto-reconciliation
-
-### GitOps Operator Selection
-
-| If you need... | Choose |
-|----------------|--------|
-| Web UI, team RBAC, fast onboarding | ArgoCD (centralized hub-and-spoke) |
-| Modular toolkit, multi-source sync, no UI | FluxCD (decentralized, library approach) |
-| No Kubernetes | File-based deploy with git as source of truth |
-
-### GitOps Repository Strategy
-
-| Pattern | Description | Best For |
-|---------|-------------|----------|
-| **Monorepo** | App code + manifests in same repo | Small teams, simple apps |
-| **Split repo** | App repo triggers manifest repo update | Teams with separate platform teams |
-| **Environment branches** | Branch per environment (dev, staging, prod) | Simple promotion model |
-| **Directory per environment** | Single branch, directory structure for envs | Recommended for most teams |
-
----
-
-## Policy as Code
-
-Enforce governance programmatically. Policies run as admission controllers, CI gates, or reconciliation loops.
-
-### Enforcement Points
-
-| Point | Tools | What to enforce |
-|-------|-------|-----------------|
-| **CI pipeline** | OPA/conftest, Checkov, tfsec | IaC validation, cost limits, security rules |
-| **Kubernetes admission** | Kyverno (YAML), OPA/Gatekeeper (Rego) | Pod security, resource limits, image policies |
-| **Runtime** | Network policies, RBAC, resource quotas | Access control, blast radius |
-| **IaC pre-deploy** | Sentinel, OPA, Checkov | Drift prevention, compliance |
-
-### Common Policies
-
-- Require non-root containers
-- Block `latest` image tag in production
-- Enforce resource limits on all pods
-- Require labels/annotations (owner, cost-center)
-- Block public load balancers without approval
-- Enforce encrypted storage volumes
-- Require signed images for production deploys
-
----
-
-## FinOps in CI/CD
-
-Integrate cost awareness into the delivery pipeline.
-
-| Practice | Implementation |
-|----------|---------------|
-| **Budget alerts** | Notify when environment cost exceeds threshold |
-| **Environment TTLs** | Auto-destroy dev/preview environments after inactivity |
-| **Right-sizing checks** | Flag over-provisioned resources in IaC review |
-| **Cost regression detection** | Compare infrastructure cost before/after changes |
-| **Spot/preemptible for non-prod** | Use cheaper compute for dev, test, preview |
-
----
-
-## Server Hardening
-
-| Check | Action |
-|-------|--------|
-| SSH access | Key-only auth, disable password login, non-root user |
-| SSH port | Consider non-standard port (not required, reduces noise) |
-| Firewall | Only expose 80, 443, SSH. Deny all else by default. |
-| Fail2ban | Block IPs after repeated failed SSH attempts |
-| Updates | Unattended security updates enabled |
-| Users | Separate deploy user with minimal sudo permissions |
-| Audit logs | Log all SSH sessions and sudo commands |
+Infrastructure as code and GitOps follow one rule: the desired state lives in version control, changes go through review, and drift is detected and reconciled instead of fixed by hand. There is no infrastructure-as-code skill in this kit.
 
 ---
 
@@ -406,12 +147,11 @@ Integrate cost awareness into the delivery pipeline.
 
 | Failure | Cause | Prevention |
 |---------|-------|------------|
-| Deploy during active operations | Service restarts mid-transaction | Graceful shutdown, drain connections |
-| No health check gate | Broken version deployed, no rollback | Verify health before marking deploy success |
-| Secrets in image layers | .env copied into Docker build | Runtime injection, .dockerignore |
-| No log rotation | Disk fills in days | Configure max-size and rotation |
-| `latest` tag in prod | Cannot rollback, cannot audit | Immutable tags (git SHA, semver) |
-| Flat network | All containers on default bridge | Network segmentation, internal networks |
-| No migration lock | Concurrent migrations on deploy | Migration lock or single-pod migration job |
-| Certificate expiry | Renewal cron not configured | Auto-renewal with monitoring |
-| Config drift | Manual changes diverge from IaC | GitOps reconciliation, no manual edits |
+| Restart mid-transaction | No graceful shutdown | Drain connections (`reliability`) |
+| Broken version stays live | No health gate | Verify readiness before marking the deploy successful |
+| Rollback restarts the same version | Previous tag not recorded | Store the running tag before deploying |
+| `latest` in production | Cannot roll back or audit | Immutable tags or digests |
+| Secrets in image layers | `.env` copied at build | Runtime injection, `.dockerignore` |
+| Concurrent migrations | Several instances migrate on start | Single migration job or lock (`database`) |
+| Config drift | Manual edits diverge from source | Reconcile from version control, no manual edits |
+| Certificate expiry | Renewal not monitored | Automatic renewal plus expiry alerts (`networking`) |

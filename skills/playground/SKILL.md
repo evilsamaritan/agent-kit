@@ -20,32 +20,17 @@ Turn a topic, document, codebase, dataset, or model into a web artifact a reader
 
 ## Decision tree
 
-```text
-Does a separate page help more than a diagram, table, or text in the answer?
-├── No  -> answer directly; use diagrams for a diagram
-└── Yes -> what should the reader do with it?
-    ├── understand one concept or mechanism ......... explainer
-    ├── navigate a system, codebase, or design ...... explorer (optional explorer shell)
-    ├── tune parameters and watch the effect ........ configurator / simulation
-    ├── look things up ................................ reference
-    ├── follow a talk or a guided story ............. presentation
-    ├── weigh options on the same criteria .......... comparison
-    └── annotate a document or a diff ............... review
-```
+First ask whether a separate page helps more than a diagram, a table, or text in the answer. If not, answer directly (`diagrams` for a diagram). If yes, pick the form by what the reader does with it, then load the matching template from `templates/`. When the request fits none cleanly, start from the closest and adapt; templates are starting compositions, not fixed chrome.
 
-Load the matching template from `templates/`; when the request fits none cleanly, start from the closest and adapt. Templates are starting compositions, not fixed chrome or a closed list.
-
-## Forms
-
-| Form | Template | Useful interaction | Typical shape |
+| The reader should | Form | Template | Useful interaction |
 |---|---|---|---|
-| explainer | [explainer.md](templates/explainer.md) | steps, highlight, a worked example the reader can change | one column, one or two diagrams, short sections |
-| explorer | [explorer.md](templates/explorer.md) | section navigation, details on demand, search, filters | explorer shell with switcher or sidebar navigation |
-| configurator / simulation | [simulation.md](templates/simulation.md) | controls, live preview, presets, reset, export of the result | controls beside or above a live view |
-| reference | [reference.md](templates/reference.md) | search, anchors, expandable examples | sidebar or table of contents, dense typography |
-| presentation | [presentation.md](templates/presentation.md) | slide or scene steps, keyboard, overview | full-viewport scenes with a printable/static fallback |
-| comparison | closest: explainer or reference | criteria matrix, before/after toggle, linked views | aligned columns or small multiples |
-| review | closest: explorer | inline comments, accept/reject, exported feedback | the source with an annotation rail |
+| understand one concept or mechanism | explainer | [explainer.md](templates/explainer.md) | steps, highlight, a worked example the reader can change |
+| navigate a system, codebase, or design | explorer | [explorer.md](templates/explorer.md) | section navigation, details on demand, search, filters |
+| tune parameters and watch the effect | configurator / simulation | [simulation.md](templates/simulation.md) | controls, live preview, presets, reset, export |
+| look things up | reference | [reference.md](templates/reference.md) | search, anchors, expandable examples |
+| follow a talk or a guided story | presentation | [presentation.md](templates/presentation.md) | slide or scene steps, keyboard, overview, print fallback |
+| weigh options on the same criteria | comparison | closest: reference ([note](templates/reference.md#comparison-and-review)) | criteria matrix, before/after toggle |
+| annotate a document or a diff | review | closest: explorer ([note](templates/explorer.md#review)) | inline comments, accept/reject, exported feedback |
 
 ## Core rules
 
@@ -59,7 +44,7 @@ Load the matching template from `templates/`; when the request fits none cleanly
 8. **Responsive by meaning.** Reflow or switch to a compact projection before shrinking text. No page-level horizontal overflow; diagram and code regions may scroll horizontally, and vertical gestures always reach the page.
 9. **Accessible by default.** Keyboard access, visible focus, labelled controls, sufficient contrast, reduced-motion support, and a textual equivalent for essential visuals.
 10. **Delivery follows the host.** Local files by default; a host-native artifact when the host's own instructions call for it; public publication only when the user asks ([runtime-output.md](references/runtime-output.md)).
-11. **Check, then look.** Run `node scripts/check-shell-contract.mjs <artifact.html>`, then view both themes at wide, half-width, and phone sizes and exercise every control. Report exactly what was checked.
+11. **Check, then look.** Run `node <skill-dir>/scripts/check-shell-contract.mjs <artifact.html>`, then view both themes at wide, half-width, and phone sizes and exercise every control. Report exactly what was checked.
 
 ## Flow selection
 
@@ -78,7 +63,7 @@ Load the matching template from `templates/`; when the request fits none cleanly
 | Host-native artifact, single file, offline, host theme, CDN limits | [runtime-output.md](references/runtime-output.md) |
 | Write or change diagram source | `diagrams` |
 
-Load only what the artifact needs: the workflow, the template, and the references its components use.
+Load only what the artifact needs: the workflow, the template, and the references its components use. Scripts and assets resolve from this skill's directory, not the consuming project: copy assets from it and run scripts with its absolute path on the artifact's absolute path.
 
 ## Context Adaptation
 
@@ -117,14 +102,7 @@ Load only what the artifact needs: the workflow, the template, and the reference
 
 ## References
 
-- [create.md](workflows/create.md) — research → form → build → check → deliver
-- Templates: [explainer](templates/explainer.md), [explorer](templates/explorer.md), [reference](templates/reference.md), [presentation](templates/presentation.md), [simulation](templates/simulation.md)
-- [shell-components.md](references/shell-components.md) — shared components, theme control, optional explorer shell, hooks, revisions
-- [diagram-selection.md](references/diagram-selection.md) — views inside an artifact, compact projections, quantitative rules
-- [mermaid-rendering.md](references/mermaid-rendering.md) — Mermaid browser adapter
-- [compiled-diagrams.md](references/compiled-diagrams.md) — compiled SVG figures: markup, theme and compact variants, fit
-- [visual-language.md](references/visual-language.md), [visual-system.md](references/visual-system.md) — semantics, tokens, palette, typography
-- [responsive-layout.md](references/responsive-layout.md), [interactive-html.md](references/interactive-html.md), [code-views.md](references/code-views.md)
-- [runtime-output.md](references/runtime-output.md) — delivery, host contracts, single file, dependencies
-- Assets: `assets/visualization-shell.css`, `assets/visualization-shell.js`, explorer shell `assets/visualization-shell.html`; optional `visualization-mermaid.js`, `visualization-diagram.js`, `visualization-code.js`, `visualization-diff.js`; gallery `assets/_preview.html` with per-diagram Mermaid/D2 selectors
-- Scripts: `scripts/check-shell-contract.mjs` (components, themes, compiled figures, explorer contract when used), `scripts/check-theme-contrast.mjs` (token contrast), `scripts/render-d2-preview.mjs` (rebuilds or `--check`s the gallery's 32 D2 SVGs with the pinned D2 0.9.0)
+Workflow, templates, and references are routed in the tables above; this list adds only what they do not name.
+
+- Assets: `assets/visualization-shell.css`, `assets/visualization-shell.js`, compositions `assets/visualization-page.html` and `assets/visualization-shell.html` (explorer); optional `visualization-mermaid.js`, `visualization-diagram.js`, `visualization-code.js`, `visualization-diff.js`
+- Scripts: `scripts/check-shell-contract.mjs` (components, themes, compiled figures, explorer contract when used); `scripts/check-theme-contrast.mjs` (token contrast, after changing shared tokens)

@@ -6,17 +6,18 @@ user-invocable: true
 
 # Kubernetes — Orchestration & Cluster Management
 
+Check the cluster's Kubernetes version and installed API versions (`kubectl version`, `kubectl api-resources`, CRDs) before writing manifests; feature availability and add-on API versions (Gateway API, operators) follow the cluster, not this skill.
+
 ## Hard Rules
 
-- NEVER use `latest` image tag -- pin tag + digest for deterministic deployments
-- NEVER store secrets in plain manifests -- use External Secrets Operator or Sealed Secrets
-- ALWAYS set resource requests AND memory limits on every container
-- ALWAYS add readiness + liveness probes (startup probe when init > 10s)
+- NEVER use `latest` image tag — pin tag + digest for deterministic deployments
+- NEVER store secrets in plain manifests — use External Secrets Operator or Sealed Secrets
+- ALWAYS set CPU and memory requests on every container, and a memory limit. CPU limits: omit unless the namespace needs them for quota, noisy-neighbour control, or Guaranteed QoS; CPU limits throttle bursts even when the node has idle CPU
+- ALWAYS define a readiness probe; add a startup probe for slow starters. Liveness is optional and must not check dependencies (probe semantics: `reliability`)
 - ALWAYS create PodDisruptionBudgets for production workloads
-- ALWAYS use namespace-scoped Roles over ClusterRoles unless cross-namespace access is required
-- ALWAYS apply Pod Security Standards (`restricted` profile for production namespaces)
-- Use Gateway API for new projects -- Ingress API is in maintenance mode; prefer Gateway API for new workloads
-- Omit CPU limits on HPA-managed workloads -- let HPA handle horizontal scaling
+- ALWAYS prefer namespace-scoped Roles over ClusterRoles unless cross-namespace access is required
+- ALWAYS enforce Pod Security Standards (`restricted` for production namespaces) and write manifests that pass it
+- Use Gateway API for new external traffic. The Ingress API still works but is frozen, and the ingress-nginx controller is retired
 
 ---
 
@@ -25,26 +26,26 @@ user-invocable: true
 ```
 What are you deploying?
 ├── Stateless app (API, worker) → Deployment
-├── Stateful (DB, ordered startup, stable IDs) → StatefulSet
+├── Stateful (DB, ordered startup, stable IDs) → StatefulSet (or an operator)
 ├── Node-level agent (logging, monitoring) → DaemonSet
 ├── One-off or scheduled task → Job / CronJob
-└── Batch ML/AI workload → Job with completions + parallelism
+└── Batch workload → Job with completions + parallelism
 
 How to expose it?
 ├── Internal only → Service (ClusterIP)
 ├── External HTTP/gRPC (new) → Gateway + HTTPRoute/GRPCRoute
-├── External HTTP (legacy) → Ingress (migrate to Gateway API)
+├── External HTTP (existing Ingress) → keep, plan migration to Gateway API
 └── StatefulSet DNS → Headless Service (clusterIP: None)
 
 How to configure it?
 ├── Non-sensitive config → ConfigMap
-├── Sensitive data → ExternalSecret (External Secrets Operator)
+├── Sensitive data → ExternalSecret (External Secrets Operator), mounted as files where possible
 └── TLS certificates → cert-manager
 ```
 
 ---
 
-## Resource Manifests Quick Reference
+## Minimal Production Deployment
 
 ```yaml
 apiVersion: apps/v1
@@ -62,89 +63,59 @@ spec:
       labels: { app.kubernetes.io/name: api }
     spec:
       serviceAccountName: api-sa
-      securityContext:
+      automountServiceAccountToken: false     # enable only if the app calls the API server
+      securityContext:                        # pod level
         runAsNonRoot: true
-        runAsUser: 1001
+        runAsUser: 10001
+        seccompProfile: { type: RuntimeDefault }
       containers:
         - name: api
-          image: registry.example.com/api:1.2.3@sha256:abc123
+          image: registry.example.com/api:1.2.3@sha256:<digest>
           ports: [{ containerPort: 8080, name: http }]
+          securityContext:                    # container level; required by `restricted`
+            allowPrivilegeEscalation: false
+            capabilities: { drop: ["ALL"] }
+            readOnlyRootFilesystem: true      # recommended extra, not required by `restricted`
           resources:
             requests: { cpu: 100m, memory: 128Mi }
-            limits: { memory: 512Mi }  # CPU limit omitted — HPA handles scaling
+            limits: { memory: 512Mi }
           readinessProbe:
-            httpGet: { path: /healthz, port: http }
+            httpGet: { path: /readyz, port: http }
             periodSeconds: 5
-          livenessProbe:
-            httpGet: { path: /healthz, port: http }
-            periodSeconds: 10
-          startupProbe:
-            httpGet: { path: /healthz, port: http }
+          startupProbe:                       # holds off liveness/readiness checks while the app boots
+            httpGet: { path: /readyz, port: http }
             failureThreshold: 30
             periodSeconds: 5
 ```
 
-### Native Sidecar Containers (K8s 1.33+ GA)
-
-Use `initContainers` with `restartPolicy: Always` for sidecars that must start before and outlive the main container (log shippers, proxy agents, vault injectors):
-
-```yaml
-initContainers:
-  - name: log-shipper
-    image: fluent-bit:3.2
-    restartPolicy: Always  # Runs alongside main container
-    resources:
-      requests: { cpu: 50m, memory: 64Mi }
-      limits: { memory: 128Mi }
-```
-
-Native sidecars start before regular containers, survive restarts, and shut down after main containers exit. Replaces the old workaround of putting sidecars in `containers[]` with lifecycle hacks.
+Probe mechanics here, semantics in `reliability`: the startup probe runs first and disables liveness until it succeeds; a failing readiness probe removes the pod from Service endpoints without a restart; a failing liveness probe restarts the container. Use separate `/livez` (process is not wedged, no dependency checks) and `/readyz` (can serve traffic) endpoints. Readiness must not fail because a shared downstream failed, or every replica leaves the Service at once. Graceful shutdown (`preStop`, `terminationGracePeriodSeconds`, native sidecars) and more manifests: [manifests-patterns.md](references/manifests-patterns.md).
 
 ---
 
-## Traffic Routing: Gateway API
+## Traffic Routing
 
-Gateway API is the production standard for L4/L7 traffic routing (successor to Ingress, GA since v1.0, current v1.4).
+Gateway API separates roles (platform owns the Gateway, teams own Routes), supports HTTP, gRPC, TCP, TLS and UDP, and has native traffic splitting. Check the latest release and release channel supported by the chosen controller and the CRDs installed in the cluster.
 
-```yaml
-# Gateway API HTTPRoute (preferred)
-apiVersion: gateway.networking.k8s.io/v1
-kind: HTTPRoute
-metadata:
-  name: api-route
-spec:
-  parentRefs:
-    - name: main-gateway
-  hostnames: ["api.example.com"]
-  rules:
-    - matches:
-        - path: { type: PathPrefix, value: / }
-      backendRefs:
-        - name: api
-          port: 80
+```
+Gateway controller?
+├── No existing controller → pick any controller that passes the Gateway API conformance report for the version you need
+├── Service mesh in use → the mesh's own gateway implementation
+├── eBPF CNI in use → its integrated Gateway
+└── Migrating from NGINX Ingress → a controller with an ingress2gateway provider, converted one service at a time
 ```
 
-Key advantages over Ingress: role-oriented (platform owns Gateway, teams own Routes), multi-protocol (HTTP, gRPC, TCP, UDP), native traffic splitting for canary/blue-green, standardized policy attachment. GRPCRoute also GA.
-
-### Gateway Controller Selection
-
-If no existing controller: Envoy Gateway (reference implementation).
-If service mesh needed: Istio (with Ambient mode for sidecarless mTLS).
-If eBPF networking: Cilium (high performance, integrated CNI + Gateway).
-If migrating from NGINX: NGINX Gateway Fabric.
-If middleware-heavy: Traefik.
+Gateway, HTTPRoute, GRPCRoute, BackendTLSPolicy, controller comparison, and migration steps: [operators-gateway.md](references/operators-gateway.md).
 
 ---
 
 ## RBAC Pattern
 
+Least privilege: Role → RoleBinding → ServiceAccount, namespace-scoped.
+
 ```yaml
-# Least-privilege: Role → RoleBinding → ServiceAccount
 apiVersion: rbac.authorization.k8s.io/v1
 kind: Role
-metadata:
-  namespace: app
-  name: pod-reader
+metadata: { namespace: app, name: pod-reader }
 rules:
   - apiGroups: [""]
     resources: ["pods"]
@@ -152,20 +123,13 @@ rules:
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: RoleBinding
-metadata:
-  namespace: app
-  name: read-pods
+metadata: { namespace: app, name: read-pods }
 subjects:
-  - kind: ServiceAccount
-    name: app-sa
-    namespace: app
-roleRef:
-  kind: Role
-  name: pod-reader
-  apiGroup: rbac.authorization.k8s.io
+  - { kind: ServiceAccount, name: app-sa, namespace: app }
+roleRef: { kind: Role, name: pod-reader, apiGroup: rbac.authorization.k8s.io }
 ```
 
-Role = namespace-scoped. ClusterRole = cluster-wide. Prefer Role unless cross-namespace access is needed.
+Avoid wildcard verbs and resources, and bindings to `cluster-admin` for workloads. Check effective access with `kubectl auth can-i --list --as=system:serviceaccount:<ns>:<sa>`.
 
 ---
 
@@ -173,39 +137,52 @@ Role = namespace-scoped. ClusterRole = cluster-wide. Prefer Role unless cross-na
 
 ```
 What needs scaling?
-├── Pods (horizontal) — request/CPU-driven stateless
-│   └── HPA (autoscaling/v2, stabilizationWindowSeconds: 300)
-├── Pods (horizontal) — event-driven, scale-to-zero
-│   └── KEDA (CNCF graduated, 70+ scalers: Kafka, SQS, Prometheus, Cron)
-├── Pod resources (vertical) — right-sizing requests/limits
-│   └── VPA (do NOT combine with HPA on the same metric)
-└── Nodes — provision/deprovision compute
-    └── Karpenter (GA v1.0+, replaces Cluster Autoscaler)
-        Provisions right-sized nodes in seconds, bin-packs efficiently,
-        supports spot/on-demand mix, consolidation, drift detection
+├── Pods, request/CPU-driven stateless → HPA (autoscaling/v2) with a scale-down stabilization window
+├── Pods, event-driven or scale-to-zero → KEDA
+├── Pod size (right-sizing requests) → VPA, in recommendation mode first (not on the same metric as HPA)
+└── Nodes → the cloud's managed node autoscaler or Karpenter where a provider exists; Cluster Autoscaler otherwise
 ```
+
+Metrics, behavior policies, KEDA triggers, and Karpenter configuration: [operators-gateway.md](references/operators-gateway.md).
 
 ---
 
 ## Network Policies
 
+Policies are additive allow-lists, and they only take effect when the cluster's CNI enforces them. Start with a namespace-wide deny, then allow what is needed, including DNS egress:
+
 ```yaml
-# Default deny all ingress, then allow specific traffic
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
-metadata:
-  name: allow-api-to-db
+metadata: { name: default-deny, namespace: app }
 spec:
-  podSelector:
-    matchLabels: { app: db }
+  podSelector: {}                      # all pods in the namespace
+  policyTypes: [Ingress, Egress]
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata: { name: allow-api-to-db, namespace: app }
+spec:
+  podSelector: { matchLabels: { app: db } }
+  policyTypes: [Ingress]
   ingress:
     - from:
         - podSelector: { matchLabels: { app: api } }
-      ports:
-        - port: 5432
+      ports: [{ port: 5432 }]
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata: { name: allow-dns-egress, namespace: app }
+spec:
+  podSelector: {}
+  policyTypes: [Egress]
+  egress:
+    - to:
+        - namespaceSelector: { matchLabels: { kubernetes.io/metadata.name: kube-system } }
+      ports: [{ port: 53, protocol: UDP }, { port: 53, protocol: TCP }]
 ```
 
-For advanced network policies (L7 filtering, DNS-aware, FQDN egress), use Cilium NetworkPolicy CRDs.
+Each workload that makes outbound calls then needs its own egress allow. L7 or FQDN rules need a CNI that provides them (for example Cilium). Mesh mTLS and policy: `networking`.
 
 ---
 
@@ -213,12 +190,9 @@ For advanced network policies (L7 filtering, DNS-aware, FQDN egress), use Cilium
 
 ```
 Isolation requirement?
-├── Soft (teams share cluster, cost-efficient)
-│   └── Namespace per team + RBAC + ResourceQuota + NetworkPolicy
-├── Medium (teams need own control plane, CRDs)
-│   └── vCluster (virtual clusters — own API server, shared nodes)
-└── Hard (regulatory, full isolation)
-    └── Separate physical clusters
+├── Soft (teams share cluster) → namespace per team + RBAC + ResourceQuota + NetworkPolicy
+├── Medium (own control plane, CRDs) → virtual clusters
+└── Hard (regulatory, full isolation) → separate clusters
 ```
 
 ---
@@ -228,12 +202,12 @@ Isolation requirement?
 | Command | Purpose |
 |---------|---------|
 | `kubectl describe pod <name>` | Events, conditions, container status |
-| `kubectl logs <pod> -c <container> --previous` | Logs (including crashed containers) |
-| `kubectl debug <pod> --image=busybox` | Ephemeral debug container |
-| `kubectl port-forward svc/<name> 8080:80` | Local access to cluster service |
-| `kubectl get events --sort-by=.lastTimestamp` | Cluster events timeline |
-| `kubectl top pods` | Resource usage (requires metrics-server) |
-| `kubectl auth can-i --list --as=system:serviceaccount:ns:sa` | RBAC permission check |
+| `kubectl logs <pod> -c <container> --previous` | Logs of a crashed container |
+| `kubectl debug <pod> --image=<debug-image>` | Ephemeral debug container (use for shell-less images) |
+| `kubectl port-forward svc/<name> 8080:80` | Local access to a service |
+| `kubectl get events --sort-by=.lastTimestamp` | Event timeline |
+| `kubectl top pods` | Resource usage (needs metrics-server) |
+| `kubectl rollout status` / `undo` | Rollout progress and rollback |
 
 ---
 
@@ -241,53 +215,40 @@ Isolation requirement?
 
 | Anti-Pattern | Why It Fails | Correct Approach |
 |-------------|-------------|-----------------|
-| No resource requests/limits | Noisy neighbor, OOM kills | Set requests + memory limits always |
-| Everything in default namespace | No isolation, RBAC nightmare | Namespace per team/environment |
-| Secrets in plain manifests | Committed to git, visible in etcd | External Secrets Operator, Sealed Secrets |
-| No network policies | Any pod can reach any pod | Default deny + explicit allow |
-| `latest` image tag | Non-deterministic deployments | Pinned tag + digest |
-| No probes | Traffic to unhealthy pods | readiness + liveness + startup probes |
-| New projects using Ingress | Ingress API is in maintenance mode; prefer Gateway API for new workloads | Gateway API for greenfield |
-| CPU limits on HPA workloads | Throttling under load, HPA conflicts | Omit CPU limits, let HPA scale horizontally |
-| Sidecar in `containers[]` with lifecycle hacks | Fragile ordering, shutdown races | Native sidecar (`initContainers` + `restartPolicy: Always`) |
-| Cluster Autoscaler for dynamic workloads | Slow provisioning, poor bin-packing | Karpenter (seconds vs minutes, right-sized nodes) |
+| No resource requests | Bad scheduling, noisy neighbours, OOM kills | Requests everywhere, memory limit always |
+| Blanket CPU limits | Throttling under bursts | Omit unless quota or QoS needs them |
+| One endpoint for liveness and readiness, checking dependencies | A shared outage restarts or drains every pod | Separate `/livez` and `/readyz`; no dependency checks in liveness |
+| Everything in the default namespace | No isolation | Namespace per team or environment |
+| Secrets in plain manifests | In git and visible in etcd | External Secrets Operator or Sealed Secrets; encrypt etcd at rest |
+| No default-deny NetworkPolicy | Any pod reaches any pod | Deny, then allow, on an enforcing CNI |
+| `latest` tag | Non-deterministic rollouts | Pinned tag + digest |
+| Manifests that fail `restricted` | Rejected at admission | Container securityContext as above |
+| Sidecars in `containers[]` with lifecycle hacks | Ordering and shutdown races | Native sidecars (`initContainers` with `restartPolicy: Always`) |
 
 ---
 
 ## Context Adaptation
 
-### DevOps
-- Manifest management: Helm charts, Kustomize overlays, GitOps (Argo CD, Flux)
-- CI/CD integration: image build, push, deploy, rollout status checks
-- Multi-environment: namespace-per-env, overlay-per-env, promotion pipelines
+**Delivery:** Helm or Kustomize per environment, GitOps (Argo CD or Flux), rollout status checks in the pipeline (`ci-cd`).
 
-### SRE
-- Pod health: liveness/readiness/startup probes, PodDisruptionBudget
-- Autoscaling: HPA for request-driven, KEDA for event-driven, VPA for right-sizing, Karpenter for nodes
-- Observability: ServiceMonitor, PodMonitor, OpenTelemetry Collector DaemonSet
+**Operations:** PDBs, autoscaling, `ServiceMonitor`/`PodMonitor` for metrics (`observability`).
 
-### Security
-- RBAC: least-privilege ServiceAccounts, namespace-scoped Roles
-- Network Policies: default-deny ingress, explicit allow rules (Cilium for L7)
-- Pod Security Standards: `restricted` profile, seccomp, AppArmor
-- Secrets: External Secrets Operator, Sealed Secrets -- never plain manifests in git
-- Service mesh: Istio Ambient mode for sidecarless mTLS (ztunnel per node, waypoint proxies for L7)
+**Security:** least-privilege RBAC and ServiceAccounts, Pod Security Standards, default-deny networking, external secrets, etcd encryption.
 
 ---
 
 ## Related Knowledge
 
-- **docker** -- build container images consumed by Kubernetes workloads
-- **ci-cd** -- CI/CD pipelines deploying to clusters, GitOps workflows
-- **networking** -- DNS, TLS/mTLS, service mesh, load balancing
-- **security** -- RBAC hardening, pod security standards, supply chain
-- **observability** -- distributed tracing, metrics, logging for cluster workloads
-- **reliability** -- SLOs, PDBs, incident response for cluster reliability
+- **docker** — images consumed by workloads; shell-less images affect hooks and debugging
+- **ci-cd** — pipelines deploying to clusters
+- **release-engineering** — rollout strategy and rollback policy
+- **networking** — DNS, TLS/mTLS, service mesh, load balancing
+- **security** — RBAC hardening, supply chain
+- **observability** — metrics, logs, tracing for cluster workloads
+- **reliability** — probe semantics, graceful shutdown, SLOs
 
 ## References
 
-- [manifests-patterns.md](references/manifests-patterns.md) -- Detailed manifest patterns, labeling, production configurations, Pod Security Standards
-- [helm-patterns.md](references/helm-patterns.md) -- Chart structure, templating, values organization, hooks, testing
-- [operators-gateway.md](references/operators-gateway.md) -- Operator patterns, Gateway API migration, advanced autoscaling (VPA/KEDA/Karpenter), service mesh
-
-Load references when you need detailed manifest templates, Helm chart guidance, Gateway API migration steps, or Karpenter/service mesh configuration.
+- [manifests-patterns.md](references/manifests-patterns.md) — load for labels, shutdown and drain, native sidecars, Services, ConfigMaps and external secrets, Jobs, PDB, quotas, Pod Security Standards
+- [helm-patterns.md](references/helm-patterns.md) — load for chart structure, values, helpers, hooks, tests, Helm 3 vs 4 commands
+- [operators-gateway.md](references/operators-gateway.md) — load for Gateway API resources and Ingress migration, operators (adopting and writing), VPA/KEDA/HPA tuning, Karpenter, service mesh enrolment

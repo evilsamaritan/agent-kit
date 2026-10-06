@@ -19,8 +19,8 @@ import {
   yamlList,
 } from './shared.mjs'
 
-export const CLAUDE_COLORS = ['red', 'blue', 'green', 'yellow', 'purple', 'orange', 'pink', 'cyan']
-export const TOOLS_BY_ACCESS = {
+const CLAUDE_COLORS = ['red', 'blue', 'green', 'yellow', 'purple', 'orange', 'pink', 'cyan']
+const TOOLS_BY_ACCESS = {
   'read-only': ['Read', 'Grep', 'Glob', 'WebSearch', 'WebFetch', 'Skill'],
   edits: ['Read', 'Grep', 'Glob', 'WebSearch', 'WebFetch', 'Edit', 'Write', 'Skill'],
   full: ['Read', 'Grep', 'Glob', 'WebSearch', 'WebFetch', 'Edit', 'Write', 'Bash', 'Skill'],

@@ -1,17 +1,17 @@
-# Sub-Agent Prompt Templates
+# Council Prompt Templates
 
-Three templates, one per council stage. Each is filled with substitutions and passed verbatim to a sub-agent via `Agent(subagent_type: "general-purpose", prompt: ...)`.
+Three templates, one per council stage. Each is filled and passed verbatim as the task of one delegated run ([run.md](../workflows/run.md)).
 
-Placeholder convention: `{{double-brace}}` markers are replaced before spawning.
+Placeholder convention: `{{double-brace}}` markers are replaced before each run.
 
 ---
 
 ## Advisor prompt
 
-Spawn 5 advisors in **parallel** — a single message with 5 `Agent` tool calls, one per advisor. Each gets the same framed question but a different identity block.
+Five advisors run in **parallel**. Each gets the same framed question and a different identity block.
 
 ```
-You are {{advisor_name}} on an LLM Council.
+You are {{advisor_name}} on a decision council.
 
 Your thinking style:
 {{advisor_description}}
@@ -30,7 +30,7 @@ Hard constraints:
 - 150-300 words. No preamble. Go straight into analysis.
 - Be concrete. Reference specifics from the framed question.
 - If you see a fatal flaw, name it. If you see massive upside, name it.
-- Do not summarize or recap the question — the chairman has it.
+- Do not summarize or recap the question — the chair has it.
 ```
 
 **Substitutions:**
@@ -51,12 +51,12 @@ Hard constraints:
 
 ## Reviewer prompt
 
-After all 5 advisor responses arrive, build the anonymized review prompt. Randomize the `{A, B, C, D, E}` → advisor mapping per session (use a seeded shuffle or just a fresh random shuffle each run). Reviewers must not see advisor names.
+After all five advisor responses arrive, build the anonymized review prompt with a fresh random `{A, B, C, D, E}` → advisor mapping. Reviewers must not see advisor names.
 
-Spawn 5 reviewers in **parallel** — same anonymized prompt, 5 calls in one message. The reviewers don't know they're reviewing themselves; that's fine, the volume produces useful divergence.
+Five reviewers run in **parallel** with the same anonymized prompt; independent runs produce useful divergence.
 
 ```
-You are reviewing the outputs of an LLM Council. Five advisors independently
+You are reviewing the outputs of a decision council. Five advisors independently
 answered this question:
 
 ---
@@ -103,16 +103,16 @@ Hard constraints:
 **Why anonymization matters:**
 Reviewers know they're rating peers. If they can see "The Contrarian said X", they'll defer to thinking styles they trust — Outsider gets dismissed, Executor gets over-weighted, etc. Anonymizing forces evaluation on argument quality alone.
 
-Keep the `{A → advisor}` mapping in memory for the transcript. It's revealed at the end so the user can trace lineage.
+Keep the `{A → advisor}` mapping for the transcript. It's revealed at the end so the user can trace lineage.
 
 ---
 
-## Chairman prompt
+## Chair prompt
 
-One sub-agent. It receives the framed question, **de-anonymized** advisor responses (labeled by advisor name — synthesis benefits from knowing which lens produced which argument), and all 5 peer reviews concatenated.
+One delegated run. It receives the framed question, **de-anonymized** advisor responses (labeled by advisor name — synthesis benefits from knowing which lens produced which argument), and all 5 peer reviews concatenated.
 
 ```
-You are the Chairman of an LLM Council. Your job is to synthesize the work
+You are the chair of a decision council. Your job is to synthesize the work
 of 5 advisors and their peer reviews into a final verdict.
 
 The question brought to the council:
@@ -181,7 +181,7 @@ Hard constraints:
 | `{{all_peer_reviews_concatenated}}` | All 5 peer reviews, separated by `---` |
 
 **Why fixed headers:**
-The HTML report parses the chairman output by these exact headers to render the visual briefing. If the chairman renames or reorders sections, the report falls back to a single blob and loses scannability.
+The report template has one slot per header. If the chair renames or reorders sections, the sections cannot be mapped to slots and the report loses its structure.
 
 ---
 
@@ -191,6 +191,6 @@ The HTML report parses the chairman output by these exact headers to render the 
 |---------|--------------|-----|
 | All advisors agree on everything | Question is too narrow or wasn't worth counciling | Re-frame to surface the real tradeoff, or just answer directly |
 | Advisors hedge despite the prompt | Question is loaded with the answer | Re-frame more neutrally; remove leading language |
-| Reviewers refuse to pick a strongest response | Responses are too similar (low spread) | Likely a sign step 2 prompt didn't differentiate enough — re-spawn with sharper persona descriptions |
-| Chairman produces a list under "The One Thing to Do First" | Constraint not enforced | The skill must reject and re-prompt; the report renders this section as a single item |
-| Chairman invents a new advisor | Model confabulation under synthesis pressure | Reject and re-prompt with explicit "only the 5 above" reminder |
+| Reviewers refuse to pick a strongest response | Responses are too similar (low spread) | Likely a sign step 2 prompt didn't differentiate enough — re-run with sharper lens descriptions |
+| Chair produces a list under "The One Thing to Do First" | Constraint not enforced | Reject and re-prompt; the report renders this section as a single item |
+| Chair invents a new advisor | Model confabulation under synthesis pressure | Reject and re-prompt with explicit "only the 5 above" reminder |

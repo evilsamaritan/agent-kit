@@ -1,6 +1,6 @@
 # JavaScript Async Patterns
 
-Deep-dive into JavaScript's async model: event loop, Promises, async/await, AbortController, async iteration, structured concurrency, and common pitfalls.
+JavaScript's async model: event-loop ordering, Promise combinators, cancellation and deadlines, concurrency limiting, async iteration, newer primitives, and common pitfalls. The ownership rule behind the cancellation patterns (async work has an owner that cancels it and releases what it holds on every path) is `development` core rule 5; this file shows the JavaScript idioms.
 
 ## Contents
 
@@ -11,6 +11,7 @@ Deep-dive into JavaScript's async model: event loop, Promises, async/await, Abor
 - [Async Iteration](#async-iteration)
 - [Structured Concurrency](#structured-concurrency)
 - [Scheduling](#scheduling)
+- [Newer Primitives](#newer-primitives)
 - [Common Pitfalls](#common-pitfalls)
 
 ---
@@ -35,7 +36,7 @@ JavaScript is single-threaded. All async operations are managed through the even
            ▼
 ┌─────────────────────────────┐
 │      Macrotask Queue         │  ← setTimeout, setInterval, I/O callbacks, setImmediate
-│  (one task per iteration)    │
+│  (next task when drained)    │
 └──────────┬──────────────────┘
            │
            ▼
@@ -49,8 +50,8 @@ JavaScript is single-threaded. All async operations are managed through the even
 
 1. Synchronous code runs to completion (call stack must empty)
 2. **All** microtasks drain before the next macrotask
-3. Each event loop iteration processes **one** macrotask, then all resulting microtasks
-4. `await` desugars to `.then()` — yields to microtask queue
+3. Microtasks drain after each macrotask (in browsers) and after each callback (in Node.js 11 and later)
+4. `await` continues in a microtask
 
 ```typescript
 console.log("1 - sync");
@@ -76,7 +77,9 @@ Node.js has a more granular event loop with phases:
 5. **Check** — `setImmediate` callbacks
 6. **Close** — `socket.on('close')` callbacks
 
-`process.nextTick()` runs before any other microtask (even before `Promise.then`). Use sparingly — can starve the event loop.
+Between callbacks Node drains the `process.nextTick()` queue first, then the promise microtask queue, so `nextTick` callbacks run before `Promise.then` callbacks, except when the code itself runs inside a microtask (ES module top level, an `await` continuation), where promise microtasks already in the queue go first. Recursive `nextTick` or microtask loops starve I/O. Prefer `queueMicrotask` or `setImmediate`.
+
+From the main module, `setTimeout(fn, 0)` and `setImmediate(fn)` run in either order; inside an I/O callback `setImmediate` always runs first.
 
 ---
 
@@ -98,7 +101,7 @@ const result = await fetchUser(id)
 |--------|--------------|-------------|----------|
 | `Promise.all(ps)` | All resolve | Any rejects | Parallel fetches where all are required |
 | `Promise.allSettled(ps)` | All settle | Never rejects | Parallel ops where partial failure is OK |
-| `Promise.race(ps)` | First settles | First rejects | Timeout pattern, fastest response |
+| `Promise.race(ps)` | First settles | First rejects | First outcome wins; the losers keep running unless they take a signal |
 | `Promise.any(ps)` | First resolves | All reject (`AggregateError`) | Fallback sources, redundant requests |
 
 ```typescript
@@ -124,13 +127,9 @@ if (failures.length) {
   logger.warn("Some notifications failed", { failures });
 }
 
-// Promise.race — timeout pattern
-async function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
-  const timeout = new Promise<never>((_, reject) =>
-    setTimeout(() => reject(new Error(`Timeout after ${ms}ms`)), ms)
-  );
-  return Promise.race([promise, timeout]);
-}
+// Deadlines: pass a signal into the work instead of racing it against a timer.
+// Racing leaves the losing work running, and a hand-made timer leaks unless cleared.
+const data = await fetchJson(url, { signal: AbortSignal.timeout(5_000) });
 
 // Promise.any — first success wins
 const response = await Promise.any([
@@ -215,52 +214,78 @@ console.log(result.value);  // narrowed to T
 
 ### Retry with backoff
 
+The retry policy (which errors, full-jitter backoff, retry budget and overall deadline, idempotency precondition, one retry layer) is owned by `reliability`; the caller supplies it as `shouldRetry`, and the JavaScript part is that the wait must be abortable. The `signal` doubles as the overall deadline: pass `AbortSignal.timeout(totalMs)`.
+
 ```typescript
+import { setTimeout as sleep } from "node:timers/promises"; // or a signal-aware sleep helper
+
 async function retry<T>(
   fn: () => Promise<T>,
-  options: { maxAttempts?: number; baseDelay?: number; signal?: AbortSignal } = {}
+  options: {
+    shouldRetry: (err: unknown) => boolean; // required: no default retries everything
+    maxAttempts?: number;
+    baseDelay?: number;
+    maxDelay?: number; // cap
+    signal?: AbortSignal;
+  }
 ): Promise<T> {
-  const { maxAttempts = 3, baseDelay = 1000, signal } = options;
+  const { shouldRetry, maxAttempts = 3, baseDelay = 1000, maxDelay = 30_000, signal } = options;
 
   for (let attempt = 1; attempt <= maxAttempts; attempt++) {
     try {
       signal?.throwIfAborted();
       return await fn();
     } catch (err: unknown) {
-      if (attempt === maxAttempts) throw err;
-      if (signal?.aborted) throw signal.reason;
+      if (attempt === maxAttempts || signal?.aborted || !shouldRetry(err)) throw err;
 
-      const delay = baseDelay * Math.pow(2, attempt - 1) + Math.random() * 100;
-      await new Promise(resolve => setTimeout(resolve, delay));
+      const delay = Math.random() * Math.min(maxDelay, baseDelay * 2 ** (attempt - 1)); // full jitter
+      await sleep(delay, undefined, { signal }); // rejects with AbortError when aborted
     }
   }
   throw new Error("Unreachable");
 }
 ```
 
-### Debounce and throttle (async-aware)
+### Debounce (async-aware)
+
+Every caller's promise must settle: the latest call runs, and earlier callers receive the same result or error.
 
 ```typescript
-// Async debounce — only latest call executes
-function asyncDebounce<T extends (...args: any[]) => Promise<any>>(
-  fn: T,
-  ms: number
-): (...args: Parameters<T>) => Promise<Awaited<ReturnType<T>>> {
-  let timeoutId: ReturnType<typeof setTimeout> | undefined;
-  let pendingResolve: ((value: any) => void) | undefined;
+function asyncDebounce<A extends unknown[], R>(
+  fn: (...args: A) => Promise<R>,
+  ms: number,
+): { call: (...args: A) => Promise<R>; cancel: () => void } {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  let waiters: PromiseWithResolvers<R>[] = [];
 
-  return (...args: Parameters<T>) => {
-    clearTimeout(timeoutId);
-    return new Promise(resolve => {
-      pendingResolve = resolve;
-      timeoutId = setTimeout(async () => {
-        const result = await fn(...args);
-        resolve(result);
-      }, ms);
-    });
+  const call = (...args: A) => {
+    const waiter = Promise.withResolvers<R>();
+    waiters.push(waiter);
+    clearTimeout(timer);
+    timer = setTimeout(() => {
+      const batch = waiters;
+      waiters = [];
+      fn(...args).then(
+        (value) => batch.forEach((w) => w.resolve(value)),
+        (error) => batch.forEach((w) => w.reject(error)),
+      );
+    }, ms);
+    return waiter.promise;
   };
+
+  // Teardown: stop the pending timer and settle every waiter
+  const cancel = () => {
+    clearTimeout(timer);
+    const batch = waiters;
+    waiters = [];
+    batch.forEach((w) => w.reject(new DOMException("Debounce cancelled", "AbortError")));
+  };
+
+  return { call, cancel };
 }
 ```
+
+If superseded callers should not receive a result, reject them with an `AbortError` instead. The owner of a debounced function calls `cancel()` on teardown.
 
 ---
 
@@ -268,41 +293,34 @@ function asyncDebounce<T extends (...args: any[]) => Promise<any>>(
 
 `AbortController` is the standard cancellation mechanism across all runtimes.
 
-### Fetch cancellation
+### Fetch cancellation and deadlines
 
 ```typescript
+// Manual cancellation (user action, owner teardown)
 const controller = new AbortController();
-
-// Cancel after 5 seconds
-const timeoutId = setTimeout(() => controller.abort(), 5000);
-
 try {
-  const response = await fetch("https://api.example.com/data", {
-    signal: controller.signal,
-  });
-  clearTimeout(timeoutId);
+  const response = await fetch("https://api.example.com/data", { signal: controller.signal });
   return await response.json();
 } catch (err: unknown) {
   if (err instanceof DOMException && err.name === "AbortError") {
-    console.log("Request was cancelled");
+    // cancelled by us: not a failure to report
+    return undefined;
   }
   throw err;
 }
-```
 
-### AbortSignal.timeout (built-in)
-
-```typescript
-// Simpler timeout — no manual controller needed
+// Deadline: no controller or timer to clean up
 const response = await fetch("https://api.example.com/data", {
-  signal: AbortSignal.timeout(5000),
+  signal: AbortSignal.timeout(5_000),
 });
 ```
+
+`controller.abort()` rejects with an `AbortError`; an expired `AbortSignal.timeout` rejects with a `TimeoutError`. Tell them apart by `err.name`, since the first is the caller's choice and the second is a failure of the dependency. `controller.abort(reason)` makes `signal.reason` your own value.
 
 ### AbortSignal.any (combining signals)
 
 ```typescript
-// Cancel on either user action OR timeout
+// Cancel on either the owner's signal or a deadline; pass the combined signal into the work
 const userController = new AbortController();
 const combinedSignal = AbortSignal.any([
   userController.signal,
@@ -453,7 +471,7 @@ async function* asyncTake<T>(
 
 ## Structured Concurrency
 
-JavaScript lacks built-in structured concurrency, but you can approximate it with `Promise.all` as scope and `AbortController` as cancellation.
+JavaScript has no built-in structured concurrency. Approximate it with `Promise.all` as the scope and an `AbortController` as the cancellation channel; the rule they implement is in `development`.
 
 ### Promise.all as concurrency scope
 
@@ -471,8 +489,8 @@ async function processOrder(orderId: string): Promise<OrderResult> {
 
     return { inventory, payment, shipping };
   } catch (err: unknown) {
-    // Cancel remaining operations on first failure
-    controller.abort();
+    // Cancel the siblings that are still running; Promise.all does not
+    controller.abort(err);
     throw err;
   }
 }
@@ -569,7 +587,7 @@ function animate(timestamp: DOMHighResTimeStamp): void {
 requestAnimationFrame(animate);
 ```
 
-### scheduler.postTask (browser, experimental)
+### scheduler.postTask (browser; Chromium and Firefox only)
 
 ```typescript
 // Priority-based scheduling
@@ -581,10 +599,35 @@ await scheduler.postTask(() => updateUI(), { priority: "user-blocking" });
 
 | API | When it runs | Use case |
 |-----|-------------|----------|
-| `process.nextTick()` | Before I/O, before microtasks | Critical path, must run before anything else |
-| `queueMicrotask()` | After nextTick, before I/O | Standard deferred work |
-| `setImmediate()` | After I/O polling phase | Non-urgent deferred work |
-| `setTimeout(fn, 0)` | Next timer phase (minimum ~1ms) | Delayed execution |
+| `process.nextTick()` | After the current operation, before promise microtasks | Rarely: emit events after construction, before I/O |
+| `queueMicrotask()` | After nextTick callbacks, before I/O | Standard deferred work |
+| `setImmediate()` | Check phase, right after the poll phase | Yield to I/O, then continue |
+| `setTimeout(fn, 0)` | Timers phase (clamped to at least 1 ms) | Delayed execution |
+
+---
+
+## Newer Primitives
+
+Check the target runtime's support (or transpile) before relying on these.
+
+| Primitive | Replaces |
+|-----------|----------|
+| `Promise.withResolvers()` | `new Promise((resolve, reject) => { outer = ... })` capture boilerplate |
+| `Promise.try(fn)` | `new Promise(r => r(fn()))` or `async () => fn()` to turn sync throws into rejections |
+| `Array.fromAsync(iterable)` | A `for await` loop that collects into an array |
+| `using` / `await using` | `try`/`finally` cleanup for objects with `[Symbol.dispose]` or `[Symbol.asyncDispose]` |
+| `AbortSignal.timeout()` / `AbortSignal.any()` | Manual timers and signal-merging code |
+
+`await using` ties a resource's release to the scope, on every exit path:
+
+```typescript
+async function exportRows(db: Database): Promise<void> {
+  await using conn = await db.connect(); // conn[Symbol.asyncDispose]() runs on return or throw
+  for await (const row of conn.stream("select * from rows")) {
+    await write(row);
+  }
+}
+```
 
 ---
 
@@ -625,15 +668,29 @@ const results = await Promise.all(userIds.map(id => fetchUser(id)));
 const results = await mapWithConcurrency(userIds, fetchUser, 10);
 ```
 
-### 3. Missing error handling on Promise.all
+### 3. Choosing the wrong combinator
+
+Choose by contract, not by reflex.
 
 ```typescript
-// WRONG — one failure loses all results
-const [a, b, c] = await Promise.all([fetchA(), fetchB(), fetchC()]);
+// Every result is required: Promise.all fails fast. Cancel the siblings with a shared signal.
+const controller = new AbortController();
+try {
+  const [a, b, c] = await Promise.all([
+    fetchA(controller.signal), fetchB(controller.signal), fetchC(controller.signal),
+  ]);
+} catch (err) {
+  controller.abort(err);
+  throw err;
+}
 
-// RIGHT — when partial failure is acceptable
-const [a, b, c] = await Promise.allSettled([fetchA(), fetchB(), fetchC()]);
+// Partial failure is acceptable: allSettled never rejects, so unwrap each outcome explicitly.
+const settled = await Promise.allSettled([fetchA(), fetchB(), fetchC()]);
+const values = settled.flatMap((r) => (r.status === "fulfilled" ? [r.value] : []));
+const errors = settled.flatMap((r) => (r.status === "rejected" ? [r.reason] : []));
 ```
+
+`allSettled` results are `{ status, value | reason }` objects, not values: destructuring them as values is a bug.
 
 ### 4. Async function in forEach
 
@@ -682,10 +739,13 @@ import { Worker } from "node:worker_threads";
 
 app.get("/report", async (req, res) => {
   const worker = new Worker("./report-worker.ts", { workerData: data });
-  worker.on("message", result => res.json(result));
-  worker.on("error", err => res.status(500).json({ error: err.message }));
+  worker.once("message", result => res.json(result));
+  worker.once("error", err => res.status(500).json({ error: err.message }));
+  worker.once("exit", () => worker.removeAllListeners());
 });
 ```
+
+A worker per request does not scale; use a pool (see runtime-patterns).
 
 ### 7. Ignoring AbortSignal in long operations
 

@@ -1,11 +1,11 @@
 # CDN Patterns
 
-Cache-Control headers, surrogate keys, edge computing, and cache hierarchy.
+Edge cache keys, surrogate keys and purge, edge workers, layered invalidation, and provider configuration. The Cache-Control policy per content type is in [SKILL.md](../SKILL.md#cache-control-policy); directive grammar and semantics are owned by `web`.
 
 ## Contents
 
-- [Cache-Control Header Guide](#cache-control-header-guide)
-- [CDN Architecture](#cdn-architecture)
+- [Vary and the Cache Key](#vary-and-the-cache-key)
+- [Edge Cache Key](#edge-cache-key)
 - [Surrogate Keys and Purge Strategies](#surrogate-keys-and-purge-strategies)
 - [Edge Computing Patterns](#edge-computing-patterns)
 - [Cache Hierarchy Design](#cache-hierarchy-design)
@@ -14,54 +14,14 @@ Cache-Control headers, surrogate keys, edge computing, and cache hierarchy.
 
 ---
 
-## Cache-Control Header Guide
-
-### Directive Reference
-
-| Directive | Meaning | Example |
-|-----------|---------|---------|
-| `public` | Any cache can store | CDN, browser, proxies |
-| `private` | Only browser can store | User-specific data |
-| `no-store` | Do not cache at all | Sensitive data |
-| `no-cache` | Cache but revalidate every time | Fresh-on-every-request |
-| `max-age=N` | Browser cache for N seconds | `max-age=3600` (1hr) |
-| `s-maxage=N` | CDN/proxy cache for N seconds (overrides max-age) | `s-maxage=86400` (1day) |
-| `must-revalidate` | Don't serve stale even if allowed | Strict freshness |
-| `stale-while-revalidate=N` | Serve stale for N seconds while refreshing | Background refresh |
-| `stale-if-error=N` | Serve stale for N seconds if origin errors | Resilience |
-| `immutable` | Never revalidate (content never changes) | Hashed filenames |
-
-### Common Recipes
-
-```http
-# Static assets with hash in filename (main.a1b2c3.js)
-Cache-Control: public, max-age=31536000, immutable
-
-# HTML pages (always revalidate)
-Cache-Control: public, max-age=0, must-revalidate
-ETag: "abc123"
-
-# API response cacheable by CDN
-Cache-Control: public, s-maxage=3600, max-age=60, stale-while-revalidate=120
-
-# Private user data
-Cache-Control: private, max-age=300
-
-# Sensitive data (never cache)
-Cache-Control: no-store
-
-# Resilient caching (serve stale if origin down)
-Cache-Control: public, max-age=300, stale-if-error=86400
-```
-
-### Vary Header
+## Vary and the Cache Key
 
 ```http
 # Cache different versions based on these headers
 Vary: Accept-Encoding              # gzip vs brotli
 Vary: Accept-Language              # Localized content
 Vary: Accept                       # JSON vs HTML
-Vary: Authorization                # AVOID -- effectively disables CDN cache
+Vary: Authorization                # avoid: per-user responses should be `private`, not shared-cached
 
 # Warning: each unique Vary combination = separate cache entry
 # Too many Vary values = poor cache hit rate
@@ -69,31 +29,9 @@ Vary: Authorization                # AVOID -- effectively disables CDN cache
 
 ---
 
-## CDN Architecture
+## Edge Cache Key
 
-### Request Flow
-
-```
-Client -> Edge PoP (nearest) -> Shield/Mid-Tier -> Origin
-           |                      |
-           | Cache HIT            | Cache HIT
-           | -> Return            | -> Return to Edge -> Cache -> Return
-           |                      |
-           | Cache MISS           | Cache MISS
-           | -> Forward           | -> Forward to Origin
-```
-
-### Origin Shield
-
-A single mid-tier cache between edges and origin:
-- Reduces origin load (edges share a single cache)
-- Increases cache hit rate (larger combined keyspace)
-- Adds latency on MISS (extra hop)
-
-**Use when:** origin is expensive to query, content is globally popular.
-**Skip when:** content is geo-specific, ultra-low latency needed.
-
-### Cache Key Design
+Edge, shield, and origin topology (PoPs, origin shield, routing) is owned by `networking`. This section covers what forms the cache key.
 
 Default cache key: `scheme + host + path + query string`
 
@@ -124,6 +62,8 @@ Surrogate-Key: product-123 category-electronics homepage-featured user-content
 Cache-Control: public, s-maxage=86400
 ```
 
+The tag header name is provider-specific: Fastly reads `Surrogate-Key` (space-separated), Cloudflare reads `Cache-Tag` (comma-separated). Send the one your CDN reads.
+
 ### Purge Patterns
 
 ```bash
@@ -133,7 +73,7 @@ curl -X PURGE https://cdn.example.com/products/123
 # Purge by surrogate key (Fastly)
 curl -X POST https://api.fastly.com/service/SVC/purge/product-123
 
-# Purge by tag (Cloudflare)
+# Purge by tag (Cloudflare; matches the Cache-Tag response header)
 curl -X POST https://api.cloudflare.com/client/v4/zones/ZONE/purge_cache \
   -d '{"tags": ["product-123"]}'
 
@@ -172,31 +112,31 @@ curl -X POST https://api.cloudflare.com/client/v4/zones/ZONE/purge_cache \
 | Rate limiting | Count requests at edge | Protect origin |
 | Image optimization | Resize/format at edge | Bandwidth savings |
 
-### Edge Worker Pattern (Cloudflare Workers)
+### Edge Worker Pattern (Cloudflare Workers syntax)
+
+Cache only what is public and keyed correctly: successful GET responses without `Set-Cookie`, for requests without credentials, and only as long as the origin's own `Cache-Control` allows.
 
 ```javascript
 export default {
-  async fetch(request, env) {
-    const url = new URL(request.url);
-
-    // Check edge cache first
-    const cache = caches.default;
-    const cacheKey = new Request(url.toString(), request);
-    let response = await cache.match(cacheKey);
-
-    if (!response) {
-      // Cache miss -- fetch from origin
-      response = await fetch(request);
-
-      // Clone and cache (can't read body twice)
-      const cachedResponse = new Response(response.body, response);
-      cachedResponse.headers.set('Cache-Control', 'public, s-maxage=3600');
-
-      // Non-blocking cache put
-      event.waitUntil(cache.put(cacheKey, cachedResponse.clone()));
-      response = cachedResponse;
+  async fetch(request, env, ctx) {
+    if (request.method !== 'GET' || request.headers.has('Authorization') || request.headers.has('Cookie')) {
+      return fetch(request);                       // never share-cache credentialed requests
     }
 
+    const cache = caches.default;
+    const cached = await cache.match(request);
+    if (cached) return cached;
+
+    const response = await fetch(request);
+    const cc = response.headers.get('Cache-Control') || '';
+    const cacheable =
+      response.status === 200 &&
+      !response.headers.has('Set-Cookie') &&
+      !/no-store|private/.test(cc);
+
+    if (cacheable) {
+      ctx.waitUntil(cache.put(request, response.clone()));   // origin headers decide the TTL
+    }
     return response;
   },
 };
@@ -206,50 +146,18 @@ export default {
 
 ## Cache Hierarchy Design
 
-### Three-Layer Architecture
+Layer roles and TTL ranges: [distributed-and-browser-patterns.md](distributed-and-browser-patterns.md#multi-layer-caching).
 
-```
-                          TTL    Hit Rate   Latency
-L1: In-Process Memory     30s    60-80%     <1ms
-    (Node.js Map, Go sync.Map, LRU cache)
-          |
-L2: Distributed Cache    5-60m   80-95%     1-5ms
-    (Redis, Memcached)
-          |
-L3: CDN Edge Cache       1-24h   90-99%     10-50ms
-    (Cloudflare, Fastly, CloudFront)
-          |
-Origin: Database / API   N/A     N/A        50-500ms
-```
+### Invalidation Order
 
-### Invalidation Cascade
-
-```python
-def invalidate_cache(key, tags=None):
-    # L1: Delete from local memory
-    local_cache.delete(key)
-
-    # L2: Delete from Redis
-    redis.delete(key)
-
-    # L3: Purge from CDN by surrogate key
-    if tags:
-        cdn.purge_by_tags(tags)
-
-    # Notify other instances to clear L1
-    redis.publish('cache:invalidate', json.dumps({
-        'key': key,
-        'tags': tags,
-    }))
-```
+Source first, then outward: commit → delete the shared (L2) entry → broadcast L1 deletion → purge the edge by surrogate key for public content. Code: [distributed-and-browser-patterns.md](distributed-and-browser-patterns.md#invalidation-order).
 
 ### Write Patterns Across Layers
 
 | Write Pattern | L1 | L2 | L3 |
 |--------------|-----|-----|-----|
-| Cache-Aside | Delete on write | Delete on write | TTL or purge |
-| Write-Through | Update on write | Update on write | Purge |
-| Write-Behind | Update on write | Async write | Purge |
+| Cache-aside (default) | Broadcast delete | Delete after commit | TTL or purge by tag |
+| Write-through (one writer per key) | Broadcast delete | Updated by the writer | Purge by tag |
 
 ---
 
@@ -257,56 +165,15 @@ def invalidate_cache(key, tags=None):
 
 ### Cloudflare
 
-```
-# Page Rules (legacy) or Cache Rules (modern)
-Match: *.example.com/api/*
-  Cache Level: Standard
-  Edge Cache TTL: 1 hour
-  Browser Cache TTL: 1 minute
-
-Match: *.example.com/static/*
-  Cache Level: Cache Everything
-  Edge Cache TTL: 1 month
-
-# Workers Route
-Route: example.com/api/dynamic/*
-  Worker: dynamic-handler
-```
+Cache Rules match paths and set edge and browser TTLs, or respect origin headers. Static paths can be marked eligible for caching; API paths should respect origin `Cache-Control` and bypass on cookies or `Authorization`. Workers routes run code before the cache.
 
 ### AWS CloudFront
 
-```json
-{
-  "CacheBehaviors": [{
-    "PathPattern": "/api/*",
-    "CachePolicyId": "custom-api-policy",
-    "TTL": { "DefaultTTL": 60, "MaxTTL": 3600, "MinTTL": 0 },
-    "AllowedMethods": ["GET", "HEAD"],
-    "CachedMethods": ["GET", "HEAD"],
-    "ForwardedValues": {
-      "QueryString": true,
-      "Headers": ["Accept", "Accept-Language"]
-    }
-  }]
-}
-```
+Each cache behavior (path pattern) references a **cache policy** (TTL bounds and which headers, cookies, and query strings form the cache key) and an **origin request policy** (what is forwarded to the origin without entering the key). Keep the key minimal; forward extra values through the origin request policy. Private bucket origins use Origin Access Control (OAC). Invalidations are by path.
 
-### Vercel
+### Framework-managed headers
 
-```javascript
-// next.config.js headers
-module.exports = {
-  async headers() {
-    return [{
-      source: '/api/:path*',
-      headers: [{
-        key: 'Cache-Control',
-        value: 'public, s-maxage=60, stale-while-revalidate=300',
-      }],
-    }];
-  },
-};
-```
+Hosting platforms and frameworks often set `Cache-Control` from route configuration (for example a `headers()` function in the framework config). Set the policy there per route instead of patching it at the edge.
 
 ---
 
@@ -337,8 +204,7 @@ curl -I https://example.com/page
 
 ### Monitoring Metrics
 
-- Cache hit rate (target: >90% for static, >70% for API)
-- Origin request rate (should decrease as cache improves)
-- Cache purge rate (high = too aggressive purging)
-- Edge latency vs origin latency (quantify cache benefit)
-- Bandwidth savings (cached bytes vs origin bytes)
+- Cache hit ratio per path class (compare against your own baseline, not a universal target)
+- Origin request rate (should fall as the cache improves)
+- Purge rate (high means TTLs are too long or content too dynamic)
+- Edge vs origin latency, and bytes served from cache

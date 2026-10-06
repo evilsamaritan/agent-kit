@@ -12,7 +12,7 @@ Extract the required outcome, constraints, affected areas, write permissions, ex
 4. If no project agent fits, read `../references/profile-catalog.md`, then load only the selected profile reference.
 5. If the missing composition should persist beyond this task, invoke `agent-creator` before execution. Otherwise use the profile persona as an ephemeral fallback.
 6. Check whether the current host's delegation tool can select the named agent and apply its config. A discovered file or mention without a named-agent selector is not sufficient.
-7. Before delegating to a generated agent, run the installed agent-creator materializer with `--check --agent NAME`. A stale result names the cause (profile behavior, settings, skills, or skill sources). Refresh through agent-creator when the sync is authorized; otherwise use `--brief NAME` for a current generic-subagent brief and say the native target is stale.
+7. Before delegating to a generated agent, run the installed agent-creator materializer with `--check --agent NAME`. A stale result names the cause (profile behavior, settings, skills, or skill sources). Refresh through agent-creator when the sync is authorized; otherwise use `--brief NAME --runtime <this host>` (configured agents only) for a current generic-subagent brief and say the native target is stale.
 
 ## Step 3: Choose the workflow shape
 
@@ -41,6 +41,8 @@ For every agent, specify:
 - what to return to the main thread.
 
 Point to knowledge instead of restating it: name the skills the agent should apply and the exemplar path to follow. An agent that has not seen the design will bolt its change on, so pass the owners, contracts, and assumptions that bound the task — not a paraphrase of the skills' rules.
+
+A read-only agent, such as the default reviewer, cannot run commands: give it the diff (or base and head refs plus changed paths) and any command output it needs, and run those commands in the main thread or through a tester.
 
 Do not ask two agents to solve the same problem unless independent judgment is the purpose.
 

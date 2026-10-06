@@ -6,16 +6,19 @@ user-invocable: true
 
 # Go
 
-Idiomatic Go patterns. Go 1.24+, modules, generics, structured concurrency.
+Idiomatic Go: modules, interfaces, errors, generics, concurrency with context.
+
+**Check the `go` directive in `go.mod` (and `toolchain`) before using version-gated features** such as `WaitGroup.Go`, `testing/synctest`, range-over-func, or `new(expr)`. Features by version are in [go-versions.md](references/go-versions.md).
 
 **Hard rules:**
 - `gofmt` is not optional — all code is formatted with `gofmt`/`goimports`
-- Errors are values — handle them explicitly, never ignore with `_`
+- Errors are values — handle them explicitly; never discard one silently, and an explicit `_ =` needs a comment saying why
 - Accept interfaces, return structs
-- `context.Context` is always the first parameter
-- No `init()` — explicit initialization, testable code
-- No `panic()` in library code — return errors
+- `context.Context` is the first parameter of anything that does I/O or can be cancelled
+- Avoid `init()` for application logic: use explicit initialization in `main`. It is fine for registration in imported packages (database drivers, codecs)
+- No `panic()` for recoverable errors in library code — return errors
 - No global mutable state — pass dependencies explicitly
+- Use a mutex to protect state, and channels to hand off ownership or work
 
 ---
 
@@ -200,11 +203,11 @@ func TestParse(t *testing.T) {
 | `t.Helper()` | Mark function as test helper (better error locations) |
 | `t.Cleanup(fn)` | Register cleanup (runs after test, LIFO) |
 | `testing.Short()` | Skip slow tests with `-short` flag |
-| `func FuzzX(f *testing.F)` | Fuzz testing (Go 1.18+) |
-| `func BenchmarkX(b *testing.B)` | Benchmarks with `b.N` loop / `b.Loop()` (1.24+) |
-| `t.Context()` | Context cancelled after test (Go 1.24+) |
-| `t.Chdir(dir)` | Temporary working directory (Go 1.24+) |
-| `testify` | Assertion library (optional, widely used) |
+| `func FuzzX(f *testing.F)` | Fuzz testing |
+| `func BenchmarkX(b *testing.B)` | Benchmarks (`b.Loop()` in newer versions) |
+| `t.Context()` | Context cancelled when the test ends (newer versions) |
+| `synctest.Test` | Deterministic tests of timers and goroutines with virtual time (newer versions) |
+| `testify`, `go-cmp` | Optional assertion and comparison helpers |
 
 ---
 
@@ -219,43 +222,22 @@ myproject/
 │   ├── handler/
 │   ├── service/
 │   └── repository/
-├── pkg/                 # public library packages (use sparingly)
 ├── go.mod
-├── go.sum
-└── Makefile
+└── go.sum
 ```
 
-**Rules:**
-- `internal/` prevents external imports — use for implementation details
-- `cmd/` for entry points — minimal code, wire up dependencies, call `run()`
+**Go-specific rules** (module and layer design is in `architecture`; HTTP wiring, middleware, and handlers are in `backend`):
+- `internal/` is compiler-enforced against outside imports — use it for implementation details
+- `cmd/<binary>/main.go` is minimal: wire dependencies, call `run()`, exit
+- A public library package (`pkg/`-style) is for code others import; do not create it by default
 - Flat packages for small projects — don't over-structure
 - Package names: short, lowercase, no underscores, no plurals
 
 ---
 
-## Go 1.22-1.24 Features
-
-| Feature | Version | What changed |
-|---------|---------|-------------|
-| Range over integers | 1.22 | `for i := range 10` |
-| Range over func | 1.23 | `for v := range iter.Seq[V]` — custom iterators |
-| Enhanced HTTP routing | 1.22 | `mux.HandleFunc("GET /users/{id}", handler)` — method + path params |
-| Loop variable capture fix | 1.22 | Loop vars are per-iteration (no more goroutine capture bug) |
-| `slices` / `maps` packages | 1.21 | Generic utility functions for slices and maps |
-| `log/slog` | 1.21 | Structured logging in stdlib |
-| `sync.OnceValue` / `sync.OnceFunc` | 1.21 | Type-safe lazy initialization |
-| Fuzz testing | 1.18 | Built-in fuzzer |
-| Swiss Tables (maps) | 1.24 | Faster map implementation (2-3% CPU improvement) |
-| `go tool` directives | 1.24 | `go get -tool` replaces `tools.go` workaround |
-| `weak` package | 1.24 | Weak pointers for caches |
-| `encoding/json` `omitzero` | 1.24 | Zero-value omission struct tag |
-| PGO (Profile-Guided Optimization) | 1.21+ | Place `default.pgo` in main package, 2-7% speedup |
-
----
-
 ## Common Patterns
 
-### Iterators (Go 1.23+)
+### Iterators (range-over-func)
 
 `iter.Seq[V]`, `iter.Seq2[K, V]` — first-class range-over-func. Use for custom collections, lazy sequences, database cursor iteration. `for x := range mySeq { ... }` eliminates callback-style iteration.
 
@@ -305,18 +287,6 @@ func NewServer(opts ...Option) *Server {
 }
 ```
 
-### Middleware Chain
-
-```go
-func Logging(next http.Handler) http.Handler {
-    return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-        slog.Info("request", "method", r.Method, "path", r.URL.Path)
-        next.ServeHTTP(w, r)
-    })
-}
-// chain: Logging(Auth(handler))
-```
-
 ---
 
 ## Tooling
@@ -328,7 +298,10 @@ golangci-lint run               # comprehensive linter (replaces many individual
 go test ./... -race -count=1    # tests with race detector
 go test ./... -bench=.          # run benchmarks
 go tool pprof                   # CPU/memory profiling
+go fix ./...                    # apply the toolchain's code modernizers (newer versions)
 ```
+
+Use the project's `golangci-lint` configuration. If none exists, start from the defaults and add `errcheck`, `errorlint`, and `exhaustive` (for switches over closed sets); the config file format differs between golangci-lint v1 and v2, so check the version before writing one.
 
 ---
 
@@ -340,7 +313,7 @@ go tool pprof                   # CPU/memory profiling
 | 2 | Nil interface trap | `(*T)(nil)` is not `nil` interface | Compare concrete type to nil before wrapping |
 | 3 | Slice append to shared backing | `append` may mutate original | Copy or pre-allocate with `make([]T, 0, cap)` |
 | 4 | `context.Value` for dependencies | Invisible, untyped coupling | Pass dependencies as function parameters |
-| 5 | `init()` functions | Hidden side effects, untestable | Explicit initialization in `main()` |
+| 5 | `init()` doing application setup | Hidden side effects, untestable | Explicit initialization in `main()`; `init()` only for registration |
 | 6 | Naked returns in long functions | Unreadable, error-prone | Name returns only for documentation |
 | 7 | `panic` in library code | Crashes caller, unrecoverable | Return errors — let caller decide |
 | 8 | Ignoring `errcheck` | Silently swallowed errors | Handle every error or explicitly `_ =` with comment |
@@ -353,6 +326,7 @@ go tool pprof                   # CPU/memory profiling
 
 - **development** — code practice these idioms express: variant families, ownership, explicit dependencies
 - **backend** — HTTP handlers, middleware, service wiring and lifecycle
+- **architecture** — module and package boundaries
 - **database** — database/sql, sqlc, pgx, connection pooling, migrations
 - **testing** — table-driven tests, fuzzing, race detection, testcontainers
 - **docker** — multi-stage builds for Go binaries, scratch/distroless
@@ -360,7 +334,6 @@ go tool pprof                   # CPU/memory profiling
 
 ## References
 
-Load on demand for detailed patterns:
-
-- `references/concurrency-patterns.md` — goroutine lifecycle, channel patterns, errgroup, worker pools, pipeline
-- `references/library-reference.md` — standard library highlights, popular third-party packages by category
+- [concurrency-patterns.md](references/concurrency-patterns.md) — goroutine lifecycle, channel patterns, errgroup, worker pools, pipeline, testing concurrency
+- [go-versions.md](references/go-versions.md) — features and changes by Go release
+- [library-reference.md](references/library-reference.md) — choosing dependencies, linting, stdlib first

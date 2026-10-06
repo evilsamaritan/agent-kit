@@ -1,6 +1,6 @@
 {
   "name": "agent-kit",
-  "version": "4.0.0-rc.3",
+  "version": "4.0.0-rc.4",
   "description": "Reusable profession profiles, engineering skills, and native-agent helpers for Claude Code, Codex, and Kimi Code.",
   "author": {
     "name": "Maksim Misiukevich",
@@ -27,6 +27,9 @@
       "Write"
     ],
     "websiteURL": "https://github.com/evilsamaritan/agent-kit",
-    "defaultPrompt": "Configure or orchestrate the right Agent Kit profession profiles and skills for this project."
+    "defaultPrompt": [
+      "Create project agents for this repository with Agent Kit.",
+      "Choose and run an Agent Kit team for this task."
+    ]
   }
 }

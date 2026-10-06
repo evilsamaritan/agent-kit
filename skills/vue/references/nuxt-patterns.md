@@ -1,6 +1,6 @@
 # Nuxt Patterns
 
-Data fetching, server routes, middleware, modules, state management, and deployment patterns for Nuxt (4.x).
+Data fetching, server routes, middleware, modules, state management, and deployment patterns for Nuxt 4 (check the installed major version; paths below assume the `app/` source directory). Module names and presets are examples, not recommendations.
 
 ---
 
@@ -43,8 +43,9 @@ project/
 // useFetch — shorthand for URL-based fetching
 const { data: users, status, error, refresh } = useFetch('/api/users', {
   query: { page: 1, limit: 20 },
-  transform: (response) => response.data, // shape the response
-  pick: ['id', 'name', 'email'],           // reduce payload
+  // The route returns { data, total }; shape it and reduce the payload here.
+  // pick: ['data', 'total'] is the lighter option when no reshaping is needed.
+  transform: (response) => response.data.map(({ id, name, email }) => ({ id, name, email })),
 })
 
 // useAsyncData — for non-URL async operations
@@ -66,16 +67,19 @@ const { data, status } = useLazyFetch('/api/heavy-data')
 
 ### Caching & Revalidation
 
+By default the cached value is only the hydrated payload. To expire it, record when it was fetched with `transform` and compare in `getCachedData`:
+
 ```ts
-// Cache for 60 seconds
+// Reuse the cached response for 60 seconds
 const { data } = useFetch('/api/products', {
-  getCachedData(key, nuxtApp) {
+  transform(response) {
+    return { ...response, fetchedAt: Date.now() }   // nothing else sets fetchedAt
+  },
+  getCachedData(key, nuxtApp, ctx) {
+    if (ctx.cause === 'refresh:manual') return undefined   // an explicit refresh() always refetches
     const cached = nuxtApp.payload.data[key] || nuxtApp.static.data[key]
-    if (!cached) return null
-    // Return cached if less than 60s old
-    const expiresAt = new Date(cached.fetchedAt).getTime() + 60_000
-    if (Date.now() < expiresAt) return cached
-    return null
+    if (!cached) return undefined
+    return Date.now() - cached.fetchedAt < 60_000 ? cached : undefined
   },
 })
 
@@ -106,27 +110,32 @@ server/
 
 ### Server Route Patterns
 
+Every server route is a public HTTP endpoint: authenticate the caller, authorize the action on the specific record, and validate and bound every input there. Route middleware on the client (below) is navigation UX, not a security control. Details → `auth`, `api-design`, `security`.
+
 ```ts
 // server/api/users/index.get.ts
+import { z } from 'zod'
+
+const querySchema = z.object({
+  page: z.coerce.number().int().min(1).default(1),
+  limit: z.coerce.number().int().min(1).max(100).default(20),   // clamp page size
+})
+
 export default defineEventHandler(async (event) => {
-  const query = getQuery(event) // { page: '1', limit: '20' }
-  const users = await db.users.findMany({
-    skip: (Number(query.page) - 1) * Number(query.limit),
-    take: Number(query.limit),
-  })
+  const caller = await requireUser(event)                // example helper in server/utils: throws 401
+  assertCan(caller, 'user:list')                         // example helper: throws 403
+  const { page, limit } = await getValidatedQuery(event, querySchema.parse)
+  const users = await db.users.findMany({ skip: (page - 1) * limit, take: limit })
   return { data: users, total: await db.users.count() }
 })
 
 // server/api/users/index.post.ts
 export default defineEventHandler(async (event) => {
-  const body = await readBody(event)
-  // Validate with zod
-  const parsed = createUserSchema.safeParse(body)
+  const caller = await requireUser(event)
+  assertCan(caller, 'user:create')
+  const parsed = createUserSchema.safeParse(await readBody(event))
   if (!parsed.success) {
-    throw createError({
-      statusCode: 422,
-      data: parsed.error.issues,
-    })
+    throw createError({ statusCode: 422, data: parsed.error.issues })
   }
   const user = await db.users.create({ data: parsed.data })
   setResponseStatus(event, 201)
@@ -135,9 +144,12 @@ export default defineEventHandler(async (event) => {
 
 // server/api/users/[id].get.ts
 export default defineEventHandler(async (event) => {
+  const caller = await requireUser(event)
   const id = getRouterParam(event, 'id')
+  if (!id) throw createError({ statusCode: 400, message: 'Missing id' })
   const user = await db.users.findUnique({ where: { id } })
   if (!user) throw createError({ statusCode: 404, message: 'User not found' })
+  assertCanRead(caller, user)                            // per-record check, not only a role check
   return user
 })
 ```
@@ -146,16 +158,15 @@ export default defineEventHandler(async (event) => {
 
 ```ts
 // server/middleware/auth.ts — runs on every server request
-export default defineEventHandler((event) => {
-  const token = getHeader(event, 'authorization')?.replace('Bearer ', '')
-  if (event.path.startsWith('/api/admin') && !token) {
-    throw createError({ statusCode: 401, message: 'Unauthorized' })
-  }
+export default defineEventHandler(async (event) => {
+  const token = getHeader(event, 'authorization')?.replace(/^Bearer /, '')
   if (token) {
-    event.context.user = verifyToken(token)
+    event.context.user = await verifyToken(token)   // verify signature, expiry, audience; throws on failure
   }
 })
 ```
+
+Middleware only identifies the caller. Routes still authorize (`requireUser` and a policy check), so a route added later cannot be public by accident.
 
 ---
 
@@ -163,8 +174,10 @@ export default defineEventHandler((event) => {
 
 ### Client-Side Middleware
 
+Route middleware decides where the user is sent. It does not protect data: the server routes behind the page must enforce access themselves.
+
 ```ts
-// middleware/auth.ts — named middleware
+// app/middleware/auth.ts — named middleware
 export default defineNuxtRouteMiddleware((to, from) => {
   const { loggedIn } = useUserSession()
   if (!loggedIn.value) {
@@ -172,7 +185,7 @@ export default defineNuxtRouteMiddleware((to, from) => {
   }
 })
 
-// middleware/admin.ts
+// app/middleware/admin.ts
 export default defineNuxtRouteMiddleware((to) => {
   const { user } = useUserSession()
   if (user.value?.role !== 'admin') {
@@ -194,7 +207,7 @@ definePageMeta({
 ### Global Middleware
 
 ```ts
-// middleware/analytics.global.ts — .global suffix = runs on every route
+// app/middleware/analytics.global.ts — .global suffix = runs on every route
 export default defineNuxtRouteMiddleware((to) => {
   trackPageView(to.fullPath)
 })
@@ -207,7 +220,7 @@ export default defineNuxtRouteMiddleware((to) => {
 ### useState — SSR-Safe Shared State
 
 ```ts
-// composables/useCounter.ts
+// app/composables/useCounter.ts
 export function useCounter() {
   // useState creates SSR-safe, cross-component shared state
   const count = useState<number>('counter', () => 0)
@@ -220,8 +233,10 @@ export function useCounter() {
 
 ### Pinia in Nuxt
 
+Keep Pinia for client state with one owner; server data stays in `useFetch`/`useAsyncData`.
+
 ```ts
-// stores/user.ts — auto-imported by @pinia/nuxt module
+// app/stores/user.ts — auto-imported by the @pinia/nuxt module
 export const useUserStore = defineStore('user', () => {
   const user = ref<User | null>(null)
   const isLoggedIn = computed(() => !!user.value)

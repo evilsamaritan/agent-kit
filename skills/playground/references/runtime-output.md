@@ -56,7 +56,7 @@ Compiled SVG does not follow CSS variables when loaded through `<img>`: ship a l
 
 | Dependency | Used by | Connected preview | Durable, offline, or published output |
 |---|---|---|---|
-| Mermaid | `visualization-mermaid.js` | pinned module from `cdn.jsdelivr.net/npm` | vendor or bundle through the consuming repository ([mermaid-rendering.md](mermaid-rendering.md#dependencies-and-durability)) |
+| Mermaid | `visualization-mermaid.js` | pinned module from `cdn.jsdelivr.net/npm` | vendor or bundle through the consuming repository |
 | syntax highlighter | `visualization-code.js` | pinned module from `cdn.jsdelivr.net/npm`; source text stays readable if loading fails | vendor or bundle |
 | D2, PlantUML, Graphviz, or pre-rendered Mermaid | compiled SVG shown by `visualization-diagram.js` | compile locally (`diagrams`) with theme and compact variants ([compiled-diagrams.md](compiled-diagrams.md)) | the same SVG, inline or adjacent |
 | a utility CSS framework | task-specific content only | an opt-in browser build for a one-off prototype | compile through the repository's build |

@@ -1,37 +1,66 @@
 ---
 name: graphql
-description: "Design GraphQL schemas and execution. Use for resolvers, DataLoader/N+1, federation, subscriptions, codegen, and GraphQL security."
-user-invocable: true
+description: "Design GraphQL schemas and execution. Use for schema design, resolvers, DataLoader/N+1, pagination, errors and partial results, federation or composition, subscriptions, and GraphQL security (cost limits, trusted documents, authorization)."
 ---
 
 # GraphQL
 
+Determine the server library and version from the project's manifest or lockfile first: incremental delivery, trusted documents, cost directives, and error masking differ by server. Version-specific notes and spec status: [schema-patterns.md](references/schema-patterns.md#spec-and-server-status).
+
 ## Hard Rules
 
-- Non-nullable by default (`String!`) — nullable only when field can legitimately be absent
-- Input types for mutations — NEVER reuse output types as inputs
-- Mutation payloads return object + typed errors — NEVER throw for business errors
-- DataLoader per request — NEVER global (causes cross-request cache leaks)
-- Resolvers are thin — delegate to data sources/services, no business logic
-- No side effects in query resolvers — side effects belong in mutations only
-- Disable introspection in production — use trusted documents instead
-- `[Item!]!` for lists — non-null list of non-null items (can be empty `[]`)
+- **Input types for mutations** — never reuse output types as inputs.
+- **Expected business failures are data; unexpected failures are errors.** Model known outcomes (email taken, insufficient stock) as typed results in the payload; let everything else propagate to the top-level `errors` with a masked message. Never catch-all into a business code (`development` rule 6).
+- **Batch loaders are per request** — a global loader leaks cached data across callers.
+- **Resolvers are thin** — they map arguments, call the domain or service layer, and shape the result. Business rules and authorization decisions live in that layer.
+- **No side effects in query resolvers** — side effects belong in mutations.
+- **Every list is bounded** — connections clamp `first`/`last` to a documented maximum; queries are limited by depth and cost.
+- **`[Item!]!` for lists** — non-null list of non-null items (can be empty).
 
 ---
 
-## Schema Design Decision
+## Decision Points
 
-### Schema-First vs Code-First
+### Nullability
 
-- **Multiple teams, schema governance, federation?** → Schema-first. Write `.graphql` files, generate types. Schema is the contract.
-- **Single team, rapid iteration, TypeScript-native?** → Code-first (Pothos, Nexus, TypeGraphQL). Types derived from code, no schema drift.
-- **Default** → Schema-first. Easier review, clearer contracts, better tooling support.
+```
+Can this field fail or be missing independently of its parent?
+├─ no (id, own scalar columns, computed from the parent) → non-null
+└─ yes (remote service, separate store, permission-filtered, optional data) → nullable
+```
 
-### Schema Patterns
+A failed non-null field nulls its parent, and the null bubbles up to the nearest nullable ancestor — possibly the whole query. Nullable fields contain the damage. Output non-null → nullable is breaking for clients; plan it at design time.
+
+### Schema-first vs code-first
+
+- **Several teams, schema review as a governance step, or composition across services?** → Schema-first: `.graphql` files are the contract; generate types from them.
+- **One team, schema shaped by the implementation language's types?** → Code-first: a builder library in the server language derives the schema; review the printed schema in CI.
+- **Default** → schema-first; it makes contract changes visible in review.
+
+### Composition
+
+```
+Do several teams own parts of the graph and deploy independently?
+├─ yes → composed supergraph: each subgraph owns its types, a router plans queries
+└─ no → Do you wrap non-GraphQL sources (REST, RPC, databases) for one team?
+        ├─ yes → a gateway that generates a schema from those sources
+        └─ no → one schema in one service
+```
+
+Federation design, entity resolution, and router configuration: [federation-patterns.md](references/federation-patterns.md).
+
+### Introspection
+
+- **Public or partner API** → keep introspection on; protect with authorization, depth and cost limits, and rate limits.
+- **First-party clients only, with a trusted-document list enforced** → disable or restrict introspection in production; it adds little once ad-hoc queries are rejected.
+- Disabling introspection is obscurity, never a substitute for authorization and cost limits.
+
+---
+
+## Schema Patterns
 
 ```graphql
-# Type-first: define your domain model
-type User {
+type User implements Node {
   id: ID!
   email: String!
   name: String!
@@ -39,21 +68,19 @@ type User {
   createdAt: DateTime!
 }
 
-# Input types for mutations (never reuse output types)
 input CreateUserInput {
   email: String!
   name: String!
 }
 
-# Mutation response — always return the mutated object + errors
 type CreateUserPayload {
   user: User
-  errors: [UserError!]!
+  errors: [CreateUserError!]!
 }
 
-type UserError {
-  field: String!
-  code: UserErrorCode!
+type CreateUserError {
+  field: String
+  code: CreateUserErrorCode!
   message: String!
 }
 
@@ -62,113 +89,76 @@ type Mutation {
 }
 ```
 
-Prefer specific scalar types (`DateTime`, `URL`, `EmailAddress`) over `String` — validates at schema level.
+A union result (`union CreateUserResult = CreateUserSuccess | EmailTaken | InvalidInput`) is the alternative to an `errors` list; it makes each outcome a type the client switches on exhaustively. Choose one style per schema.
 
-### Interfaces & Unions
+Prefer specific scalars (`DateTime`, `URL`, `EmailAddress`) over `String`; they validate at the schema boundary. Interfaces for shared fields plus type-specific extensions; unions for results with no common fields.
 
-| Type | When | Requires Shared Fields |
-|------|------|----------------------|
-| Interface | Shared fields + type-specific extensions (`Node`, `Timestamped`) | Yes |
-| Union | Polymorphic results, no common fields (`SearchResult = User \| Post`) | No |
+### Global object identification
+
+`interface Node { id: ID! }` plus `Query.node(id: ID!): Node` lets clients refetch any object. Global ids are opaque (type + key, encoded) and stable. `node(id)` is an access path like any other: it must run the same authorization as the type's own query, or it exposes every object by id.
 
 ---
 
-## Resolver Patterns
+## Resolvers and Errors
 
 ```typescript
-const resolvers = {
-  Query: {
-    user: (_, { id }, ctx) => ctx.dataSources.users.findById(id),
+Mutation: {
+  createUser: async (_, { input }, ctx) => {
+    const result = await ctx.services.users.register(input, ctx.viewer)
+    switch (result.kind) {          // closed set of expected outcomes, checked exhaustively
+      case 'created':     return { user: result.user, errors: [] }
+      case 'email_taken': return { user: null, errors: [{ field: 'email', code: 'EMAIL_TAKEN', message: 'Email already registered' }] }
+    }
+    // any thrown error is unexpected: it reaches `errors` and is masked by the server
   },
-  User: {
-    // Field resolver — runs only when field is requested
-    orders: (user, args, ctx) =>
-      ctx.dataSources.orders.findByUserId(user.id, args),
-  },
-  Mutation: {
-    createUser: async (_, { input }, ctx) => {
-      try {
-        const user = await ctx.dataSources.users.create(input)
-        return { user, errors: [] }
-      } catch (e) {
-        return { user: null, errors: [{ field: 'email', code: 'EMAIL_TAKEN', message: e.message }] }
-      }
-    },
-  },
-}
+},
 ```
 
-Context (`ctx`) carries auth, dataSources, DataLoader instances. Field resolvers enable lazy loading — only compute when requested.
+**Errors and partial results:**
+- A response can carry both `data` and `errors`; clients handle partial data per field path.
+- Put a machine-readable code in `errors[].extensions.code`; never put stack traces or upstream messages in `message`. Enable the server's error masking for unexpected errors and log the original with the request id.
+- Over HTTP, parse and validation failures are request errors (4xx with the GraphQL-over-HTTP response media type); once execution starts, the status is 2xx and failures appear in `errors`. Check what the server and clients implement.
+- Mutations a client may retry take a client-supplied idempotency key in the input (contract: `api-design`).
 
 ---
 
-## N+1 Problem & DataLoader
+## N+1 and Batch Loading
 
 ```
-Query: users(first: 100)     → 1 DB query for users
-  └── User.orders             → 100 DB queries (one per user) ← N+1!
+Query: users(first: 100)     → 1 query for users
+  └── User.orders             → 100 queries (one per user) ← N+1
 ```
 
-**Solution — DataLoader (batching + caching per request):**
+Language-neutral pattern:
 
-```typescript
-// Create per-request — NEVER global
-const ordersByUserLoader = new DataLoader(async (userIds: string[]) => {
-  const orders = await db.orders.findMany({ where: { userId: { in: userIds } } })
-  const map = groupBy(orders, 'userId')
-  return userIds.map(id => map[id] || [])
-})
-
-// Resolver uses loader
-User: {
-  orders: (user, _, ctx) => ctx.loaders.ordersByUser.load(user.id)
-}
+```
+per request:
+  loader = BatchLoader(keys → fetch all rows WHERE parentId IN keys; return results in key order, empty for missing)
+resolver User.orders(user) → loader.load(user.id)
 ```
 
-DataLoader combines N `.load(id)` calls into 1 batched query per tick.
+The loader collects keys requested in one execution tick and issues one query. For paginated child fields, key the loader by `(parentId, args)` or use a windowed query (`ROW_NUMBER() OVER (PARTITION BY parent_id ...)`) so `first`/`after` are honored per parent.
 
 ---
 
-## Pagination (Relay Connection Spec)
+## Pagination
 
-Pattern: `Connection { edges: [Edge { node, cursor }], pageInfo }`. Args: `first/after` (forward), `last/before` (backward).
-
-- Use Connections for: paginated lists, infinite scroll, relay compatibility
-- Use simple lists `[Item!]!` for: small bounded collections (enum-like, user roles)
-
-> Full Connection type definitions and resolver implementation in `references/schema-patterns.md`.
-
----
-
-## Schema Composition Decision
-
-When combining multiple GraphQL services or data sources:
-
-- **Multiple teams, independent deploy cadence, domain boundaries?** → Federation (Apollo Federation, Cosmo). Each subgraph owns its domain, composed at runtime by a router.
-- **Single team, non-GraphQL sources (REST, gRPC, DB)?** → GraphQL Mesh. Wraps non-GraphQL sources into a unified graph.
-- **Single team, need fine-grained control over composition?** → Schema stitching (The Guild tools). Loosely coupled, manual setup, open-source.
-- **Default for microservices** → Federation. Industry standard for distributed GraphQL.
-
-> Federation architecture, subgraph design, entity resolution in `references/federation-patterns.md`.
+Relay connections (`edges { node cursor }`, `pageInfo`) for unbounded lists; plain `[Item!]!` for small bounded collections. Cursors follow `api-design`: opaque to clients, untrusted by the server — signed or validated, bound to the sort and filter. Implementation with clamping, cursor validation, and backward paging: [schema-patterns.md](references/schema-patterns.md#pagination--relay-implementation).
 
 ---
 
 ## Subscriptions
 
-Transport: `graphql-ws` (WebSocket) or SSE for simpler setups.
-
 ```graphql
 type Subscription {
   orderStatusChanged(orderId: ID!): Order!
-  newMessage(channelId: ID!): Message!
 }
 ```
 
-Rules:
-- Filter subscriptions server-side — do not push everything to the client
-- Use for high-frequency incremental updates (chat, status, dashboards)
-- For infrequent updates, prefer polling or SSE over WebSocket subscriptions
-- Clean up subscriptions on disconnect — memory leaks are the primary failure mode
+- Authorize at subscribe time against the resource, and again on each event when access can change; transport rules are in `realtime`.
+- Filter server-side; never push everything and filter on the client.
+- Use for frequent incremental updates; prefer polling or SSE for infrequent ones.
+- Clean up on disconnect; leaked listeners are the main failure mode.
 
 ---
 
@@ -176,48 +166,22 @@ Rules:
 
 | Control | Purpose |
 |---------|---------|
-| Depth limiting | Prevent deeply nested queries (max 10-15 levels) |
-| Cost analysis | Assign cost per field, reject over budget |
-| Trusted documents | Allowlisted queries in production (replaces open introspection) |
-| Introspection | Disable in production |
-| Field-level auth | `@auth(requires: ADMIN)` or resolver-level checks |
-| Input validation | Validate at custom scalar level + resolver level |
-| Rate limiting | Per-client query cost budgets, not just request count |
+| Authorization in the domain layer | Every field and `node(id)` path is protected by the service it calls, not by remembering to annotate the field |
+| Object-level checks | "Can this viewer see this record?" — not only "does this viewer have role X?" |
+| Depth and cost analysis at validation time | Reject expensive documents before execution; list fields multiply cost by `first` |
+| Alias and batch limits | Aliases and batched operations multiply work inside one request; count them in cost and cap them |
+| Trusted documents | Build-time manifest of allowed operations; server executes only known ids and rejects raw query text |
+| Rate limiting by cost | Budgets per client in cost units, not request count |
 
-**Trusted documents** (previously called "persisted queries"): clients send a hash instead of full query text. Build-time extraction from client code. Blocks arbitrary queries in production. GraphQL Foundation is standardizing this via the GraphQL-over-HTTP specification.
+**Trusted documents vs automatic persisted queries (APQ):** APQ is a bandwidth cache — any client can register any query by sending its hash and text. It is not an allowlist. Only a build-time manifest enforced at the server or router blocks arbitrary operations. Details: [schema-patterns.md](references/schema-patterns.md#trusted-documents).
 
----
-
-## Codegen
-
-Generate typed queries, mutations, subscriptions, and resolver types from schema. Schema-first: write `.graphql` files, generate TypeScript types.
-
-Client-side: typed hooks/functions for queries and mutations. Server-side: typed resolver signatures matching the schema.
+Directive-based auth (`@auth`, `@requiresScopes`) is a coarse, declarative gate on top of domain checks, never the only check. Patterns: [schema-patterns.md](references/schema-patterns.md#authorization).
 
 ---
 
-## @defer and @stream (Experimental)
+## Incremental Delivery
 
-`@defer` delays resolution of a fragment — useful when some fields are slow. `@stream` delivers list items incrementally. Both are draft spec (not yet ratified). Server support varies — check your server implementation before relying on these.
-
----
-
-## Context Adaptation
-
-### Frontend
-- Client-side schema types via codegen
-- Cache normalization, optimistic updates
-- Fragment colocation — component-level data requirements
-
-### Backend
-- Resolver implementation, DataLoader for N+1, field-level authorization
-- Schema composition for multi-service architectures
-- Trusted documents for production, introspection disabled
-
-### Architect
-- Schema-first vs code-first, schema governance across teams
-- Federation boundary decisions: when to split a subgraph
-- Query cost analysis for capacity planning
+`@defer` and `@stream` are not part of a ratified spec edition. Use them only when both the server and the client library support the same response format.
 
 ---
 
@@ -225,29 +189,28 @@ Client-side: typed hooks/functions for queries and mutations. Server-side: typed
 
 | Anti-Pattern | Why It Fails | Correct Approach |
 |-------------|-------------|-----------------|
-| God queries (deeply nested, wide) | Unbounded server load, timeouts | Depth + cost limiting |
-| N+1 without DataLoader | Linear DB queries per parent | DataLoader batching per request |
-| Side effects in query resolvers | Violates GraphQL semantics, breaks caching | Side effects in mutations only |
-| Schema-last design | Schema diverges from implementation | Schema-first, then implement resolvers |
-| `select *` in resolvers | Fetches unused columns from DB | Field selection or projections |
-| Global DataLoader | Cross-request cache leaks | Create DataLoader per request |
-| Throwing for business errors | Clients use try/catch, untyped errors | Mutation payload with typed errors |
-| Auto-generated schema from DB | Exposes internals, CRUD-guessable | Demand-oriented schema design |
-| Open introspection in production | Schema exposed to attackers | Disable introspection, use trusted documents |
+| Catch-all in mutations returning one business code | Outages look like user errors; internals leak | Typed expected outcomes; unexpected errors propagate, masked |
+| Non-null everywhere | One failing remote field nulls the whole response | Nullable for independently fallible fields |
+| Unbounded `first` | One query fetches the table | Clamp to a documented maximum |
+| Trusting decoded cursors | Clients forge positions or inject values | Signed or validated cursors |
+| APQ treated as an allowlist | Any client registers any query | Trusted-document manifest enforced at the server |
+| Authorization only in directives or middleware | New fields and `node(id)` are unprotected by default | Domain-layer checks; directives as a coarse gate |
+| N+1 without batching | One query per parent | Per-request batch loader |
+| Global loader | Cross-request cache leaks | Loader per request |
+| Side effects in query resolvers | Breaks caching and retries | Mutations only |
+| Schema generated from database tables | Exposes internals | Demand-oriented schema |
 
 ---
 
 ## Related Knowledge
 
-- **api-design** — protocol selection (REST vs GraphQL vs gRPC), API versioning, error contracts
-- **realtime** — WebSocket/SSE transport for GraphQL subscriptions
-- **security** — OWASP API security, input validation patterns
-- **auth** — field-level authorization, JWT/OAuth2 in GraphQL context
-- **performance** — query cost analysis, caching strategies
+- `api-design` — protocol selection, cursor rules, error contracts, idempotency keys
+- `realtime` — transport and authorization for subscriptions
+- `auth` — authorization models and object-level checks
+- `security` — input validation, API threat categories
+- `performance` — measuring resolver and query cost
 
 ## References
 
-- [schema-patterns.md](references/schema-patterns.md) — Custom scalars, directives, Relay Connection implementation, error handling, schema evolution
-- [federation-patterns.md](references/federation-patterns.md) — Federation subgraph design, entity resolution, router configuration, migration patterns
-
-Load references when you need detailed schema design guidance or federation architecture patterns.
+- [schema-patterns.md](references/schema-patterns.md) — mutation payloads, scalars, authorization, Relay implementation, schema evolution, cost and depth limits, trusted documents, spec and server status
+- [federation-patterns.md](references/federation-patterns.md) — subgraph design, entity resolution, router configuration, migration (Apollo Federation as the worked example)

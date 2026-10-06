@@ -1,16 +1,13 @@
 # Bottleneck Analysis Checklist
 
-Detailed per-layer audit checklist. Work through each layer relevant to the system under review.
+Per-layer audit checklist for compute, memory, I/O, and concurrency. Database, queue, cache, and serialization depth belongs to sibling skills; see the pointers below.
 
 ## Contents
 
 - [Compute](#compute)
 - [Memory](#memory)
 - [I/O and Network](#io-and-network)
-- [Database](#database)
-- [Message Queues](#message-queues)
-- [Caching](#caching)
-- [Serialization](#serialization)
+- [Database, Queues, Caching, Serialization](#database-queues-caching-serialization)
 - [Concurrency](#concurrency)
 
 ---
@@ -46,62 +43,19 @@ Detailed per-layer audit checklist. Work through each layer relevant to the syst
 - [ ] DNS resolution cached (not re-resolved per request)
 - [ ] TLS session reuse / resumption configured
 - [ ] Timeouts set for all I/O operations (connect, read, write, idle)
-- [ ] Retry policy has exponential backoff with jitter
-- [ ] Circuit breaker on external dependencies to prevent cascade failure
+- [ ] Retry and circuit-breaker policy follows `reliability` (idempotency, jitter, budgets)
 - [ ] Compression enabled where bandwidth-constrained (gzip, brotli, snappy, lz4)
 - [ ] Request/response payload size reasonable (no unnecessary fields)
 - [ ] Streaming used for large payloads instead of buffering entire body
 
-## Database
+## Database, Queues, Caching, Serialization
 
-- [ ] Indexes exist for all WHERE, JOIN, and ORDER BY columns in frequent queries
-- [ ] EXPLAIN / EXPLAIN ANALYZE run on critical queries — verify index scans
-- [ ] No N+1 query patterns (single query fetches related data, not a loop)
-- [ ] Connection pool size follows formula: `(cpu_cores * 2) + spindle_count`
-- [ ] Transactions are short-lived (no long-running locks)
-- [ ] Batch operations used for bulk inserts/updates (not row-by-row)
-- [ ] Prepared statements / parameterized queries used (plan reuse + security)
-- [ ] Query results limited (LIMIT clause or pagination, no unbounded SELECTs)
-- [ ] Schema migrations do not hold exclusive locks for extended periods
-- [ ] Read replicas used for read-heavy workloads where consistency allows
-- [ ] Partitioning / sharding strategy appropriate for data volume (if applicable)
-- [ ] Slow query log enabled and monitored
+Measure first (slow-query log, queue lag, cache hit rate and cost, serialization share of the profile), then fix in the owning skill:
 
-## Message Queues
-
-Applies to Kafka, RabbitMQ, NATS, SQS, Pulsar, Redis Streams, and similar.
-
-- [ ] Producer batching configured (batch size, linger time)
-- [ ] Compression enabled for high-volume topics (snappy, lz4, zstd)
-- [ ] Consumer parallelism matches partition / shard count
-- [ ] Acknowledgment strategy appropriate (at-least-once vs exactly-once tradeoffs)
-- [ ] Backpressure handling defined (what happens when consumer cannot keep up)
-- [ ] Dead letter queue configured for poison messages
-- [ ] Consumer group rebalancing latency acceptable
-- [ ] No synchronous processing blocking the consumer poll loop
-- [ ] Offset / checkpoint commit frequency balances durability and performance
-- [ ] Message serialization efficient (Protobuf / Avro vs JSON for high throughput)
-
-## Caching
-
-- [ ] Cache hit ratio measured and > 80% for primary caches
-- [ ] Eviction policy matches access pattern (LRU for recency, LFU for frequency)
-- [ ] TTL aligned with data freshness requirements
-- [ ] Cache stampede protection (singleflight, probabilistic early expiry, locking)
-- [ ] Cache warming strategy for cold starts / deployments
-- [ ] Cache key design avoids collisions and is deterministic
-- [ ] Multi-tier caching where appropriate (L1 in-process, L2 distributed)
-- [ ] Cache invalidation strategy is explicit (write-through, write-behind, event-driven)
-- [ ] Serialization overhead for distributed cache is acceptable
-- [ ] Memory limit set on cache to prevent OOM
-
-## Serialization
-
-- [ ] Serialization format matches use case (JSON for readability, Protobuf/Avro for performance)
-- [ ] No redundant serialization-deserialization cycles in pipeline
-- [ ] Streaming parsers used for large payloads (not loading entire payload into memory)
-- [ ] Schema evolution strategy defined (backward/forward compatibility)
-- [ ] String encoding efficient (UTF-8, avoid unnecessary conversions)
+- Queries, indexes, N+1, transactions, pool size on the server side → `database`
+- Broker batching, consumer parallelism, backpressure, DLQ → `message-queues` and `background-jobs`
+- Hit rate, eviction, stampede protection, invalidation → `caching`
+- Payload formats and schema evolution → `api-design`
 
 ## Concurrency
 
@@ -110,6 +64,5 @@ Applies to Kafka, RabbitMQ, NATS, SQS, Pulsar, Redis Streams, and similar.
 - [ ] Lock granularity appropriate (not holding locks across I/O)
 - [ ] Lock-free data structures used where contention is high
 - [ ] Async/await chains are not excessively deep (promise/future/task overhead)
-- [ ] Graceful shutdown drains in-flight requests before exiting
-- [ ] Resource cleanup on shutdown (close connections, flush buffers, cancel timers)
+- [ ] Resource cleanup on shutdown (timers cancelled, connections closed); shutdown semantics in `reliability`
 - [ ] Deadlock prevention (consistent lock ordering, timeouts on lock acquisition)

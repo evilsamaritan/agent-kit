@@ -3,6 +3,7 @@
 ## Contents
 
 - [Runtime Comparison](#runtime-comparison)
+- [Language Feature Support](#language-feature-support)
 - [HTTP Servers](#http-servers)
 - [File I/O](#file-io)
 - [Error Handling](#error-handling)
@@ -18,16 +19,38 @@
 
 | Capability | Node.js | Deno | Bun |
 |---|---|---|---|
-| **TypeScript support** | Native type-stripping (v22.18+), `tsx`, or `ts-node` | Native -- runs `.ts` directly | Native -- runs `.ts` directly |
-| **Package manager** | npm, yarn, pnpm | `deno add` (JSR + npm) | `bun install` (npm-compatible, ~25x faster) |
-| **Module system** | ESM + CJS (`"type": "module"`) | ESM-first, CJS via compat | ESM + CJS (auto-detected) |
-| **Built-in test runner** | `node:test` (v18+) | `Deno.test` + `deno test` | `bun test` (Jest-compatible) |
-| **HTTP server** | `node:http` or frameworks | `Deno.serve()` (Web API) | `Bun.serve()` (Web API) |
-| **Permission model** | Unrestricted | Granular `--allow-*` flags | Unrestricted |
-| **Config file** | `package.json` + `tsconfig.json` | `deno.json` (unified) | `package.json` + `tsconfig.json` |
-| **Standard APIs** | Node APIs + partial Web APIs | Web APIs + `Deno.*` namespace | Web APIs + `Bun.*` namespace + Node APIs |
+| **TypeScript** | Type stripping (22.18+) for erasable syntax; `tsx` or a build step otherwise | Runs `.ts` directly | Runs `.ts` directly |
+| **Package manager** | npm, pnpm, Yarn | `deno add` (JSR and npm) | `bun install` (npm-compatible) |
+| **Modules** | ESM and CJS (`"type": "module"`) | ESM first, CJS through compatibility | ESM and CJS, auto-detected |
+| **Test runner** | `node:test` | `Deno.test` | `bun test` (Jest-style API) |
+| **HTTP server** | `node:http` or a framework | `Deno.serve()` (Web API) | `Bun.serve()` (Web API) |
+| **Permissions** | Unrestricted by default; opt-in `--permission` model, stable since 22.13 and 23.5, documented as a seat belt rather than protection against malicious code | Deny by default, granular `--allow-*` flags | Unrestricted |
+| **Config** | `package.json` and `tsconfig.json` | `deno.json` or `package.json` | `package.json` and `tsconfig.json` |
+| **Standard APIs** | Node APIs plus most Web APIs | Web APIs plus `Deno.*` | Web APIs, `Bun.*`, and most Node APIs |
 
-**Choosing a runtime:** Node.js for maximum ecosystem compatibility. Deno for security-first and TypeScript-native workflows. Bun for raw performance and fast development cycles. All three are production-ready.
+Choose by questions, not slogans:
+
+- What does the deployment platform run? Managed platforms often support one runtime well.
+- Which native addons and npm packages does the project need? Compatibility on Deno and Bun is high but not complete; test the ones that matter.
+- Is least-privilege execution required for third-party code? Deno's model is built in; Node's is opt-in.
+- Does the same code need to run on several runtimes? Stay on Web Standard APIs.
+- What does the team already operate and monitor? Tooling, profilers, and debuggers differ.
+
+---
+
+## Language Feature Support
+
+Standard features reach runtimes at different times. Check the target runtime's documentation (or compatibility tables) rather than this list; as of 2026-10 (MDN browser-compat data, Node.js release notes, TC39 finished proposals):
+
+| Feature | Notes |
+|---------|-------|
+| `Temporal` | Finished TC39 proposal, slated for ES2027. Shipped in Chromium 144 and Firefox 139; Safari lists it only in Technology Preview; Node.js enables it by default from version 26, earlier versions need a flag or a polyfill; Deno 2.7 and Bun 1.4. Use a polyfill where a target lacks it |
+| `Intl.DurationFormat` | Standard. Shipped in Chromium 129, Firefox 136, and Safari 16.4; Node.js follows its V8 version. Feature-detect (`typeof Intl.DurationFormat`) and fall back to a formatjs polyfill or manual formatting; pair with `Temporal.Duration` (or a plain duration object) as input. Formatting rules are in `i18n` |
+| `using` / `await using` | Finished TC39 proposal, slated for ES2027. Chromium 134, Firefox 141, Node.js 24, Deno, and Bun; Safari lists it only in Technology Preview, so Safari and Node before 24 need transpilation (TypeScript 5.2+ lowers it) |
+| `Promise.withResolvers`, `Promise.try`, `Object.groupBy`, `Set` methods, `Array.fromAsync` | Available in current runtimes; absent in old LTS lines. Check the Node.js line in `engines` |
+| Iterator helpers (`.map`, `.filter`, `.take` on iterators) | Available in current runtimes |
+
+When the lowest supported runtime lacks a feature: transpile through the build tool when the feature is syntax (`using`), and polyfill when it is an API (`Temporal`). Do not write both paths by hand.
 
 ---
 
@@ -43,7 +66,7 @@ type Handler = (request: Request) => Response | Promise<Response>;
 
 const handler: Handler = (req) => {
   const url = new URL(req.url);
-  if (url.pathname === "/health") return new Response("ok");
+  if (url.pathname === "/livez") return new Response("ok"); // probe endpoints: `reliability`
   return new Response("Not Found", { status: 404 });
 };
 ```
@@ -78,7 +101,7 @@ Bun.serve({
 });
 ```
 
-**Portable frameworks:** Hono, h3, and Elysia work across all three runtimes with the same `Request`/`Response` interface.
+A framework that exposes `Request`/`Response` (for example Hono or h3) runs on several runtimes unchanged; check each one's runtime adapters.
 
 ---
 
@@ -94,8 +117,7 @@ For cross-runtime code, use the Web Streams API or conditional imports. For sing
 import { readFile, writeFile, mkdir, rename } from "node:fs/promises";
 import { randomUUID } from "node:crypto";
 
-// Always use node: prefix for builtins
-// Always use fs/promises (not callback API)
+// Use the node: prefix for builtins and the promise API (fs/promises)
 
 async function ensureDir(dir: string): Promise<void> {
   await mkdir(dir, { recursive: true });
@@ -181,51 +203,25 @@ type Result<T, E = Error> =
 
 ## Testing
 
-### Node.js (`node:test`)
+Each runtime ships a runner: `node:test` with `node:assert/strict`, `Deno.test` with `jsr:@std/assert`, and `bun:test` (Jest-style `expect`). Strategy, fixtures, and mocking policy are in `testing`. Use typed fakes instead of casts:
 
 ```typescript
-import { describe, it, mock } from "node:test";
+import { describe, it } from "node:test";
 import assert from "node:assert/strict";
+
+class FakeDb implements UserDb {
+  async query() { return [{ id: "1", name: "Alice" }]; }
+}
 
 describe("UserService", () => {
   it("fetches user by id", async () => {
-    const mockDb = { query: mock.fn(() => Promise.resolve([{ id: "1", name: "Alice" }])) };
-    const service = new UserService(mockDb as any);
+    const service = new UserService(new FakeDb());
     assert.equal((await service.getById("1")).name, "Alice");
   });
 });
 ```
 
-### Deno (`Deno.test`)
-
-```typescript
-import { assertEquals } from "jsr:@std/assert";
-
-Deno.test("fetches user by id", async () => {
-  const user = await service.getById("1");
-  assertEquals(user.name, "Alice");
-});
-
-// Deno-specific: permission-scoped tests
-Deno.test({ name: "reads config", permissions: { read: ["./config.json"] }, async fn() {
-  const data = await Deno.readTextFile("./config.json");
-  assertEquals(typeof data, "string");
-}});
-```
-
-### Bun (`bun:test` -- Jest-compatible)
-
-```typescript
-import { describe, it, expect, mock } from "bun:test";
-
-describe("UserService", () => {
-  it("fetches user by id", async () => {
-    const mockDb = { query: mock(() => Promise.resolve([{ id: "1", name: "Alice" }])) };
-    const service = new UserService(mockDb as any);
-    expect((await service.getById("1")).name).toBe("Alice");
-  });
-});
-```
+Deno adds permission-scoped tests (`Deno.test({ permissions: { read: ["./config.json"] }, ... })`). In Node and Bun, `mock.fn()` and `mock()` create spies; type them against the interface they replace.
 
 ---
 
@@ -346,54 +342,37 @@ for await (const chunk of result) {
 
 ## Process Lifecycle
 
-### Graceful shutdown (Node.js)
+Shutdown policy (order, deadlines, what readiness reports) is owned by `reliability`, and the code form by `backend`. The runtime-specific part is how each one stops accepting work and waits for in-flight requests:
+
+| | Signal API | Stop accepting and drain |
+|---|---|---|
+| Node.js | `process.on("SIGTERM", ...)` | `server.close(callback)` stops new connections, closes idle keep-alive sockets (Node 19 and later), and waits for active ones |
+| Deno | `Deno.addSignalListener("SIGTERM", ...)` | `await server.shutdown()` stops accepting and waits for in-flight requests; aborting the `Deno.serve` signal is a non-graceful stop |
+| Bun | `process.on("SIGTERM", ...)` | `await server.stop()` waits for in-flight requests; `server.stop(true)` closes them immediately |
+
+Order in every runtime: stop accepting, wait for in-flight work (with a deadline), close downstream clients, then exit. Exiting before the wait finishes drops requests.
 
 ```typescript
-const server = app.listen(3000);
+// Node.js
+import { once } from "node:events";
 
 async function shutdown(signal: string) {
-  console.log(`${signal} received, shutting down`);
-  server.close();                          // Stop accepting connections
-  const timeout = setTimeout(() => process.exit(1), 30_000);
-  await cleanup();                         // Drain DB, cache, etc.
-  clearTimeout(timeout);
+  const deadline = setTimeout(() => process.exit(1), 30_000);
+  deadline.unref();
+  server.close();                // also closes idle keep-alive sockets (Node 19+)
+  await once(server, "close");   // in-flight requests finished
+  await closeClients();          // database, cache, queues
   process.exit(0);
 }
+process.on("SIGTERM", () => void shutdown("SIGTERM"));
+process.on("SIGINT", () => void shutdown("SIGINT"));
 
-process.on("SIGTERM", () => shutdown("SIGTERM"));
-process.on("SIGINT", () => shutdown("SIGINT"));
-process.on("unhandledRejection", (reason) => {
-  console.error("Unhandled rejection:", reason);
-  process.exit(1);
-});
-```
-
-### Graceful shutdown (Deno)
-
-```typescript
-const ac = new AbortController();
-
-const server = Deno.serve({ port: 3000, signal: ac.signal }, handler);
-
-Deno.addSignalListener("SIGTERM", () => {
-  console.log("SIGTERM received");
-  ac.abort();
-});
-
-await server.finished;
-```
-
-### Graceful shutdown (Bun)
-
-```typescript
-const server = Bun.serve({
-  port: 3000,
-  fetch: handler,
-});
-
-process.on("SIGTERM", () => {
-  console.log("SIGTERM received");
-  server.stop();
+// Bun
+process.on("SIGTERM", async () => {
+  await server.stop();           // drain first
+  await closeClients();
   process.exit(0);
 });
 ```
+
+Unhandled rejections: Node.js terminates by default. Log through `process.on("unhandledRejection", ...)` only to record and exit non-zero, never to continue.

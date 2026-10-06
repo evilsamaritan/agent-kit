@@ -19,7 +19,7 @@ The operating system owns the process. It starts, pauses, freezes, and kills the
 | Coroutines, Flow, sealed types, KMP source sets | `kotlin` |
 | Promises, event loop, TypeScript | `javascript` |
 | Hooks and component patterns shared with React Native | `react` |
-| Screen readers, touch targets, font-scale compliance | `accessibility` |
+| Screen readers, touch targets, font-scale compliance | `accessibility` (`references/native.md` for iOS and Android semantics) |
 | Flows, onboarding, permission-priming copy, IA | `design` |
 | Threat model, secrets beyond the device, pinning policy | `security` |
 | OAuth/OIDC from a native app, token refresh, MFA | `auth` |
@@ -29,6 +29,10 @@ The operating system owns the process. It starts, pauses, freezes, and kills the
 | Crash, ANR, and telemetry pipelines | `observability` |
 | Live sockets, presence, CRDT collaboration | `realtime` |
 | Resumable upload protocols, signed URLs | `file-storage` |
+| Backward-compatible APIs for long-lived app versions | `api-design` |
+| Idempotency keys and deduplication (claim first, then process) | `message-queues` |
+| Store billing: in-app purchases, subscription entitlements, restore, refunds | `payments` (store billing) |
+| Retry policy: which errors, backoff, budgets | `reliability` |
 
 ## Decision tree
 
@@ -143,8 +147,8 @@ Depth: [lifecycle-and-restoration.md](references/lifecycle-and-restoration.md).
 
 - Make the local store the source of truth for the UI: screens read local data; the network fills the store. E.g., the list renders cached rows instantly, then updates when a refresh lands.
 - Apply a write locally and append an outbox entry in the same transaction; a sync worker drains the outbox. A crash between the two must be impossible.
-- Give each outbox entry a client-generated idempotency key the server deduplicates on. E.g., a create retried after a timeout must not create a second order.
-- Retry transient failures with exponential backoff, jitter, and a cap on attempts or age; mark permanent failures (validation, forbidden) as failed and show them. Retrying a permanent error forever drains battery.
+- Give each outbox entry a client-generated idempotency key the server deduplicates on (pattern: `message-queues`, idempotency-patterns). E.g., a create retried after a timeout must not create a second order.
+- Retry transient failures (timeouts, connection resets, 502/503/504, 408, 429) with full-jitter backoff, and a cap on attempts or age, per the `reliability` policy; mark permanent failures (validation, forbidden) as failed and show them. Retrying a permanent error forever drains battery.
 - Trigger sync on connectivity regained, app foreground, local write, and a scheduled background job — not on a tight polling loop.
 - Choose a conflict policy per entity with the decision tree above, and record it next to the entity.
 - Migrate the local schema with versioned migrations tested from every shipped version; reserve destructive recreation for pure caches.
@@ -199,7 +203,7 @@ Online-only apps still cache last-known reads, render an explicit offline state,
 - **Network:** put a timeout on every request; defer large transfers on metered or low-data connections; use chunked, resumable transfers for large files.
 - **Storage:** handle write failures on a full disk; put caches where the OS may purge them; keep user data out of cache directories.
 - **Screens and input:** lay out by window size class, not device model; handle insets, cutouts, foldables, split screen, keyboard and pointer input.
-- **Text and accessibility:** support the largest font scales and screen readers; compliance detail lives in `accessibility`.
+- **Text and accessibility:** support the largest font scales and screen readers; compliance detail lives in `accessibility` (`references/native.md`).
 - **Startup:** set a cold-start budget and measure it; defer non-critical SDK and analytics init; render from local cache before the first network response.
 - **Low-end devices:** test on the slowest device in the support matrix, not the team's flagship.
 
@@ -290,27 +294,12 @@ Not persisted: progress counters, animation state, the picker's temporary URI gr
 
 ## Related Knowledge
 
-- `development` — ownership, async lifetime, and change practice; mobile applies them to lifecycle scopes
-- `architecture` — module boundaries and data ownership between the app and its services
-- `kotlin` — coroutines, Flow, KMP mechanics behind Android and shared code
-- `javascript` — async model and TypeScript behind React Native
-- `react` — component and hook patterns shared with React Native
-- `accessibility` — screen readers, font scaling, touch targets
-- `design` — flows, onboarding, permission priming, empty and offline states
-- `security` — threat modeling, secrets, supply chain of mobile SDKs
-- `auth` — native OAuth/OIDC with PKCE, token storage and refresh, passkeys
-- `testing` — strategy, fakes, flake diagnosis
-- `performance` — startup, jank, memory profiling
-- `release-engineering` — feature flags, staged rollout, versioning
-- `observability` — crash, hang, and client telemetry pipelines
-- `realtime` — sockets, presence, CRDTs for collaborative data
-- `file-storage` — resumable uploads, signed URLs
-- `api-design` — backward-compatible APIs for long-lived app versions, idempotency contracts
+The Scope table above is the router to neighbouring skills; `development` governs code practice, and `architecture` the app/backend boundary and outbox pattern.
 
 ## References
 
 - [lifecycle-and-restoration.md](references/lifecycle-and-restoration.md) — lifecycle guarantees, scope hierarchy, restoration design, async ownership, worked-scenario implementation, process-death testing
 - [offline-sync.md](references/offline-sync.md) — outbox, idempotency, ordering, backoff, delta sync, conflict policies, local migrations, sync UX
-- [android.md](references/android.md) — Android lifecycle, saved state, background work, push, permissions, app links, Keystore, Play releases, test commands
+- [android.md](references/android.md) — Android lifecycle, saved state, background work, push, permissions, app links, Keystore, Gradle plugin setup, Play releases, test commands
 - [ios.md](references/ios.md) — iOS scenes, restoration, background tasks and transfer sessions, APNs, permissions, universal links, Keychain, App Store releases, test commands
 - [cross-platform.md](references/cross-platform.md) — how the patterns map onto React Native, Flutter, Kotlin Multiplatform, and Compose Multiplatform

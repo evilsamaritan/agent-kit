@@ -1,14 +1,17 @@
 # Kafka-Protocol Patterns
 
-Producer/consumer configuration, exactly-once semantics, schema registry, and Kafka Connect. Applies to any Kafka-protocol-compatible broker (Apache Kafka, Redpanda, WarpStream, etc.).
+Producer/consumer configuration, rebalance protocols, transactions, schema registry, and Kafka Connect. Applies to Kafka-protocol-compatible brokers (Apache Kafka, Redpanda, WarpStream, and others); compatible brokers implement different subsets, so check the broker and client versions in use.
+
+**Version notes (Apache Kafka):** 4.0 removed ZooKeeper (KRaft is the only metadata mode) and made the new consumer rebalance protocol generally available; share groups were early access in 4.0, preview in 4.1, and production-ready in 4.2. Client libraries adopt these features at different times.
 
 ## Contents
 
 - [Producer Configuration](#producer-configuration)
 - [Consumer Configuration](#consumer-configuration)
-- [Exactly-Once Semantics](#exactly-once-semantics)
+- [Transactions (Kafka-to-Kafka Exactly-Once)](#transactions-kafka-to-kafka-exactly-once)
 - [Schema Registry](#schema-registry)
 - [Kafka Connect](#kafka-connect)
+- [Share Groups](#share-groups)
 - [Topic Design](#topic-design)
 - [Operational Patterns](#operational-patterns)
 
@@ -82,19 +85,26 @@ group.instance.id=order-processor-1     # Static membership (reduces rebalances)
 
 # Offset management
 auto.offset.reset=earliest              # Start from beginning if no committed offset
-enable.auto.commit=false                # Manual commit for exactly-once
+enable.auto.commit=false                # Commit after processing: at-least-once (duplicates possible)
 
 # Performance
 max.poll.records=500                    # Records per poll()
 max.poll.interval.ms=300000             # 5 min max processing time per batch
 fetch.min.bytes=1024                    # Wait for 1KB before fetching
 fetch.max.wait.ms=500                   # Max wait for fetch.min.bytes
-
-# Rebalance strategy
-partition.assignment.strategy=org.apache.kafka.clients.consumer.CooperativeStickyAssignor
 ```
 
-### Consumer Pattern
+### Rebalance Protocol Generations
+
+| Setting | Classic protocol (`group.protocol=classic`) | Consumer protocol (`group.protocol=consumer`, Kafka 4.0+ brokers) |
+|---|---|---|
+| Assignment | Client-side assignor: `partition.assignment.strategy=...CooperativeStickyAssignor` | Broker-side; the client may name one with `group.remote.assignor` |
+| Rebalance behavior | Group-wide, cooperative with the sticky assignor | Incremental per member, no global pause |
+| Client settings not used | — | `partition.assignment.strategy`, `session.timeout.ms`, `heartbeat.interval.ms` (set on the broker instead) |
+
+Check which protocol your client defaults to; setting classic-only properties under the consumer protocol is rejected or ignored depending on the client.
+
+### Consumer Pattern (at-least-once)
 
 ```java
 KafkaConsumer<String, Order> consumer = new KafkaConsumer<>(props);
@@ -102,65 +112,88 @@ consumer.subscribe(List.of("orders"));
 
 while (running) {
     ConsumerRecords<String, Order> records = consumer.poll(Duration.ofMillis(1000));
+    List<Future<RecordMetadata>> pending = new ArrayList<>();
 
     for (ConsumerRecord<String, Order> record : records) {
         try {
-            processOrder(record.value());
-            // Don't commit here -- batch commit below
+            processOrder(record.value());                    // idempotent: see idempotency-patterns.md
         } catch (RetryableException e) {
-            // Send to retry topic with backoff
-            retryProducer.send(new ProducerRecord<>("orders.retry", record.key(), record.value()));
+            pending.add(producer.send(toRetryTopic(record, e)));
         } catch (PermanentException e) {
-            // Send to DLQ
-            dlqProducer.send(new ProducerRecord<>("orders.dlq", record.key(), record.value()));
+            pending.add(producer.send(toDeadLetterTopic(record, e)));
         }
     }
 
-    // Commit after processing entire batch
-    consumer.commitSync();
+    // Wait for every retry/dead-letter publish to be acknowledged before committing.
+    // If one fails, seek back to the committed offsets (or stop the consumer);
+    // otherwise the next commit skips these records. Duplicates are absorbed by idempotency.
+    try {
+        for (Future<RecordMetadata> f : pending) {
+            f.get();
+        }
+        consumer.commitSync();
+    } catch (ExecutionException e) {
+        Map<TopicPartition, OffsetAndMetadata> committed = consumer.committed(consumer.assignment());
+        for (TopicPartition tp : consumer.assignment()) {
+            OffsetAndMetadata om = committed.get(tp);
+            if (om != null) consumer.seek(tp, om.offset());
+            else consumer.seekToBeginning(List.of(tp));   // or apply auto.offset.reset policy
+        }
+    }
 }
 ```
 
+Retry topics delay processing without blocking the main partition: the retry consumer reads the record's due time from a header and pauses that partition (`consumer.pause`) until it is due, instead of sleeping inside the poll loop.
+
 ---
 
-## Exactly-Once Semantics
+## Transactions (Kafka-to-Kafka Exactly-Once)
+
+Transactions make consume-transform-produce between Kafka topics atomic: output records and input offsets commit together. They do not cover external effects (database writes, HTTP calls), which still need idempotency.
 
 ### Transactional Producer-Consumer
 
 ```java
-// Producer setup
-props.put("transactional.id", "order-processor-txn");
+// One stable transactional.id per producer instance (e.g. service name + instance ordinal).
+// Fencing uses the consumer group metadata, so ids need not map to input partitions.
+props.put("transactional.id", "order-enricher-" + instanceOrdinal);
 producer.initTransactions();
 
-// Consume-transform-produce loop
 while (running) {
     ConsumerRecords<String, Order> records = consumer.poll(Duration.ofMillis(1000));
+    if (records.isEmpty()) continue;
 
     producer.beginTransaction();
     try {
         for (ConsumerRecord<String, Order> record : records) {
-            ProcessedOrder result = transform(record.value());
-            producer.send(new ProducerRecord<>("processed-orders", record.key(), result));
+            producer.send(new ProducerRecord<>("orders.enriched", record.key(), enrich(record.value())));
         }
-
-        // Commit consumer offsets within the same transaction
-        Map<TopicPartition, OffsetAndMetadata> offsets = currentOffsets(records);
-        producer.sendOffsetsToTransaction(offsets, consumer.groupMetadata());
-
+        producer.sendOffsetsToTransaction(nextOffsets(records), consumer.groupMetadata());
         producer.commitTransaction();
-    } catch (Exception e) {
+    } catch (ProducerFencedException | InvalidProducerEpochException e) {
+        producer.close();          // another instance took over this transactional.id
+        throw e;                   // stop this instance; do not continue with a fenced producer
+    } catch (KafkaException e) {
         producer.abortTransaction();
-        // Consumer will re-read from last committed offset
+        // The consumer's in-memory position has already advanced past these records.
+        // Rewind to the last committed offsets so the aborted batch is processed again.
+        Map<TopicPartition, OffsetAndMetadata> committed = consumer.committed(consumer.assignment());
+        for (TopicPartition tp : consumer.assignment()) {
+            OffsetAndMetadata om = committed.get(tp);
+            if (om != null) consumer.seek(tp, om.offset());
+            else consumer.seekToBeginning(List.of(tp));   // or per auto.offset.reset
+        }
     }
 }
 ```
 
-### Exactly-Once Checklist
-1. Idempotent producer: `enable.idempotence=true`
-2. Transactional producer: set `transactional.id`
-3. Manual offset commits within transaction
-4. Consumer `isolation.level=read_committed`
-5. Downstream writes must be idempotent (dedup key in DB)
+### Checklist
+1. Idempotent producer: `enable.idempotence=true` (default in current clients)
+2. Stable `transactional.id` per producer instance
+3. Offsets committed through `sendOffsetsToTransaction`, never `commitSync`
+4. Downstream consumers use `isolation.level=read_committed`
+5. On abort, seek back to committed offsets; on fencing, close the producer
+6. Effects outside Kafka are idempotent ([idempotency-patterns.md](idempotency-patterns.md))
 
 ---
 
@@ -176,8 +209,8 @@ while (running) {
   "fields": [
     {"name": "order_id", "type": "string"},
     {"name": "user_id", "type": "string"},
-    {"name": "amount", "type": "double"},
-    {"name": "currency", "type": "string", "default": "USD"},
+    {"name": "amount", "type": {"type": "bytes", "logicalType": "decimal", "precision": 18, "scale": 2}},
+    {"name": "currency", "type": "string"},
     {"name": "metadata", "type": ["null", "string"], "default": null}
   ]
 }
@@ -185,14 +218,15 @@ while (running) {
 
 ### Compatibility Modes
 
-| Mode | Add Field | Remove Field | Change Type | Use When |
-|------|-----------|-------------|-------------|----------|
-| BACKWARD (default) | With default | Yes | No | Consumers upgrade first |
-| FORWARD | Yes | With default | No | Producers upgrade first |
-| FULL | With default | With default | No | Independent upgrades |
-| NONE | Yes | Yes | Yes | Development only |
+| Mode | Checked against | Add Field | Remove Field | Use When |
+|------|-----------------|-----------|-------------|----------|
+| BACKWARD (common registry default) | Latest version | With default | Yes | Consumers upgrade first |
+| FORWARD | Latest version | Yes | With default | Producers upgrade first |
+| FULL | Latest version | With default | With default | Independent upgrades |
+| BACKWARD_TRANSITIVE, FORWARD_TRANSITIVE, FULL_TRANSITIVE | All registered versions | As above | As above | Consumers replay history spanning several versions |
+| NONE | — | Yes | Yes | Development only |
 
-**Rule:** Use FULL compatibility in production. Every field addition needs a default. Every removal needs the field to already have a default.
+**Rule:** choose by upgrade order and replay. A replayable topic whose retention spans several schema versions needs a transitive mode; a non-transitive check only proves compatibility with the latest version. Money is a decimal logical type or integer minor units with a currency — never `float`/`double`.
 
 ### Schema Registry API
 
@@ -248,7 +282,6 @@ curl http://schema-registry:8081/subjects
     "connector.class": "io.confluent.connect.elasticsearch.ElasticsearchSinkConnector",
     "topics": "processed-orders",
     "connection.url": "http://elasticsearch:9200",
-    "type.name": "_doc",
     "key.ignore": "false",
     "schema.ignore": "false",
     "behavior.on.null.values": "delete",
@@ -261,29 +294,17 @@ curl http://schema-registry:8081/subjects
 
 ## Share Groups
 
-Share groups (KIP-932) provide queue-like semantics on top of Kafka topics. Unlike consumer groups where each partition is assigned to exactly one consumer, share groups allow multiple consumers to process from the same partitions concurrently.
-
-### Key Characteristics
+Share groups (KIP-932, "queues for Kafka") give queue-like consumption on a topic: any member can receive records from any partition, each record is acknowledged individually (accept, release, reject), and the broker counts delivery attempts. Status: early access in Kafka 4.0, preview in 4.1, production-ready in 4.2; client support outside the Java client varies, so check your client before designing around them.
 
 | Feature | Consumer Groups | Share Groups |
 |---------|----------------|--------------|
-| Partition assignment | 1 consumer per partition | Any consumer reads any partition |
-| Acknowledgment | Offset-based (batch) | Per-record |
-| Ordering | Per-partition guaranteed | No ordering guarantee |
-| Delivery counting | Manual (via headers) | Built-in (max delivery attempts) |
-| Use case | Stream processing | Task queues, work distribution |
+| Partition assignment | One member per partition | Members share partitions |
+| Acknowledgment | Offset commit (batch) | Per record |
+| Ordering | Per partition | None |
+| Delivery counting | Application-level (headers) | Built in, with a delivery limit |
+| Use case | Ordered stream processing, stateful processing | Task-style work, scaling beyond the partition count |
 
-### When to Use Share Groups
-
-- Task-queue workloads where ordering does not matter
-- Scaling consumers beyond partition count
-- Work distribution where any consumer can process any record
-
-### When to Keep Consumer Groups
-
-- Ordered stream processing (per-partition ordering required)
-- Stateful processing (aggregations, windowing)
-- Kafka Streams / Flink applications
+Keep consumer groups for ordered or stateful processing (aggregations, windowing, stream-processing frameworks).
 
 ---
 
@@ -299,7 +320,7 @@ Example: orders.payment.completed
 
 ### Partition Count Guidelines
 - Start with `max(expected_throughput_MB/s, expected_consumer_count)`
-- Can increase partitions but NEVER decrease (breaks key-based ordering)
+- Partitions can be added but never removed; adding them changes which partition a key maps to, so per-key ordering breaks across the change — size up front for keyed topics
 - Common starting points: 6 for low volume, 12-24 for medium, 50+ for high
 
 ### Retention Settings
@@ -332,6 +353,8 @@ kafka-consumer-groups.sh --bootstrap-server broker:9092 \
 ```
 
 ### Alerting Thresholds
+
+Starting points; tune to your throughput and latency objectives.
 
 | Metric | Warning | Critical |
 |--------|---------|----------|

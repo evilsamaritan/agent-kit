@@ -9,10 +9,11 @@ Advisory reference for contested placement decisions. When the decision tree in 
 | Scenario | Layer | Segment | Rationale |
 |----------|-------|---------|-----------|
 | Component reusable but domain-specific (e.g., `UserAvatar`) | `entities/<name>` | `ui/` | Domain-specific = not shared. Belongs to the entity it represents. |
-| Code used in two or more features | `entities/` or `shared/` | `model/` or `lib/` | Never duplicate across features. Extract upward: `entities/` if domain-aware, `shared/` if domain-free. |
+| Code used in only one page | `pages/<name>` | any | Start in the page. Extract on second use by another slice. |
+| Code used in two or more features | `entities/` or `shared/` | `model/` or `lib/` | If it is the same knowledge, extract upward: `entities/` if domain-aware, `shared/` if domain-free. If it only looks alike and changes for different reasons, keep both copies. |
 | Authorization / permissions logic | `entities/` | `model/` | Permissions are a domain concern tied to the User/Role entity, not a feature action. |
 | Third-party SDK wrapper (e.g., Stripe, Sentry) | `shared/` | `api/` or `lib/` | Wrappers have no domain knowledge — they belong in `shared/`. `api/` for network calls, `lib/` for pure adapters. |
-| Global state / store root | `entities/` (domain state) or `shared/` (domain-free) | `model/` | Store slices that describe domain objects belong in the owning entity. App-level state (UI theme, locale) belongs in `shared/config/` or `app/`. |
+| Global state / store root | `entities/` (domain state) or `shared/` (domain-free) | `model/` | A store and the operations that keep its invariants live together in the owning entity; features call those operations rather than writing the state. App-level state (UI theme, locale) belongs in `shared/config/` or `app/`. |
 | Form validation schemas | Same layer as the form | `model/` | A schema follows its form. If the schema is reused across features, move to `entities/model/` (if domain-specific) or `shared/lib/` (if generic). |
 | TypeScript types and interfaces | Same layer as the owning concept | `model/` | Types are not special — they belong to the slice that owns the concept. Don't create a `types/` layer. |
 | Test utilities and test helpers | `shared/lib/` (shared helpers) or co-located | `lib/` | Generic test helpers (factories, matchers) → `shared/lib/`. Slice-specific test helpers → co-locate in the slice next to the code under test. |
@@ -29,6 +30,6 @@ Advisory reference for contested placement decisions. When the decision tree in 
 ## Rules That Override the Table
 
 1. **"Reusable" does not mean `shared/`** — if it's reusable AND domain-specific, it belongs in `entities/`. `shared/` is for domain-free code only.
-2. **Two features sharing code is a signal** — do not duplicate. The shared code almost always belongs in `entities/` (if domain) or `shared/` (if not).
-3. **The owning layer is the lowest layer that can hold it** — if `shared/` can hold it (no domain knowledge required), it goes there. If it needs domain knowledge, it goes to `entities/`. If it needs business logic, it goes to `features/`.
+2. **Two features sharing the same knowledge is a signal** — extract it, usually to `entities/` (if domain) or `shared/` (if not). Extract when it is the same knowledge, not the same shape; similar-looking code with different reasons to change stays separate.
+3. **Extraction picks the lowest layer that can hold the code** — when code is extracted on its second use, it goes to `shared/` if it is domain-free, `entities/` if it is domain-aware, and `features/` if it is a user flow. Code used by one page stays in that page.
 4. **Types follow the concept, not the file type** — TypeScript interfaces describing a `Product` belong in `entities/product/model/`, not in a global `types/` directory.

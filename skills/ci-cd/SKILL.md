@@ -20,11 +20,11 @@ Patterns for designing and reviewing continuous integration and delivery pipelin
 - Build observability — timing, cache hit rate, flake rate
 
 **This skill does not cover:**
-- Release strategy (semver, canary, feature flags) → `release-engineering`
-- Docker image building → `docker`
-- Kubernetes deployment → `kubernetes`
+- Release strategy (semver, canary, feature flags, rollback) → `release-engineering`; the pipeline only triggers it
+- Dockerfile and image content → `docker`
+- Kubernetes manifests and rollout mechanics → `kubernetes`
 - Testing framework choice → `testing`
-- Secrets at runtime → `security`
+- Supply-chain controls and runtime secrets → `security`; the pipeline only wires them in
 
 ## Decision tree — pipeline shape
 
@@ -35,40 +35,40 @@ Single package, single test suite?
 Monorepo with independent packages?
   selective pipeline: detect changed packages → fan out per package → merge results
 
-Release-triggered artifacts (npm / docker image / binary)?
-  separate release pipeline on tag/workflow_dispatch; never auto-release from PR
+Release artifacts (package, image, binary)?
+  release workflow on tag or manual dispatch, reusing the artifact CI already built; never release from a PR
 ```
 
 ## Core pipeline structure
 
 Stages, outermost first:
 
-1. **Fast fail** — lint, format check, type check. Runs in under a minute.
-2. **Unit tests** — per package or per language. Parallelizable.
-3. **Integration / e2e tests** — longer, sometimes flaky. Run on main + release, optional on PR.
-4. **Build** — artifacts (container images, binaries, bundles). Reproducible.
-5. **Publish** — push to registry / artifact store. Gated on branch.
-6. **Deploy** — separate pipeline, not CI. See `release-engineering`.
+1. **Fast fail** — lint, format check, type check. Aim for about a minute.
+2. **Unit tests** — per package or language, in parallel.
+3. **Integration / e2e tests** — longer, sometimes flaky. Run on main and release, optional on PR.
+4. **Build** — immutable artifacts (images, binaries, bundles), reproducible from the commit.
+5. **Scan and publish** — SBOM and vulnerability gate, then push to the registry on main and tags only.
+6. **Deploy** — consumes the published artifact by digest, as a gated stage or a separate workflow triggered by the artifact. CI never rebuilds for deploy; strategy and rollback belong to `release-engineering`.
 
-**Rule:** fast-fail stages gate slower stages. No point running e2e tests if lint is broken.
+**Rule:** fast-fail stages gate slower stages. Order cheap-to-expensive: lint, type-check, test, build. Install dependencies from the lockfile with the package manager's frozen mode (a changed lockfile fails the job instead of being rewritten); flags per manager are in [pipeline-patterns.md](references/pipeline-patterns.md#frozen-installs). Pipeline stages and a worked GitLab example are in the same file.
 
 ## Caching — what to cache
 
-| cache | hit rate target | key |
-|-------|-----------------|-----|
-| package manager cache (npm/pnpm/cargo/go) | > 90% | lockfile hash |
-| build output (compiled artifacts) | > 70% | source hash per package |
-| test cache (if supported by runner) | > 50% | source + test hash |
-| container layer cache | varies | Dockerfile + COPY targets |
+| cache | key |
+|-------|-----|
+| package manager download cache | lockfile hash |
+| build and task outputs | content hash of task inputs per package |
+| container layers | Dockerfile + COPY inputs |
 
 **Rules:**
-- Key cache by lockfile hash, not branch name — shared across branches.
-- Never cache build outputs across different OS / arch / runtime versions.
-- Cache restore is best-effort; never require it. A cache miss = slower build, not broken build.
+- Key by lockfile hash, not branch name, so branches share the cache.
+- Include OS, architecture, and runtime version in the key; never share across them.
+- Restore is best-effort: a miss means a slower build, never a broken one.
+- Track hit rate and investigate drops.
 
 ## Matrix builds
 
-Common axes: OS (linux/macos/windows), runtime version (node 20/22, python 3.11/3.12), arch (x64/arm64).
+Common axes: OS, runtime version (the supported range of the language), architecture.
 
 - **Default:** test on the *minimum supported* version and the *latest* version. Middle versions optional.
 - **Fail-fast off** for release-critical matrices — you want to see all failures, not just the first.
@@ -76,47 +76,50 @@ Common axes: OS (linux/macos/windows), runtime version (node 20/22, python 3.11/
 
 ## Monorepo CI
 
-Four axes:
+1. **Change detection** — graph-aware affected detection (the build tool's `affected` command), not bare path filters, when packages depend on each other. Share task outputs through a remote task cache.
+2. **Selective runs** — affected packages plus their dependents.
+3. **Shared steps** — setup, lint config, and cache restore in composite actions or includes.
+4. **Parallelism budget** — control concurrency to fit runner capacity.
 
-1. **Change detection** — which packages are affected by the diff? `turbo run --filter=[HEAD^]` / `nx affected` / custom.
-2. **Selective runs** — only run checks for affected packages + their reverse dependencies.
-3. **Shared steps** — lint config, setup, cache restore — factored into composite actions / includes.
-4. **Parallelism budget** — don't run 30 jobs on a 5-minute-timeout runner cluster; control concurrency.
+Details and per-platform examples: [monorepo-ci.md](references/monorepo-ci.md).
 
 ## PR vs main vs release
 
 | trigger | runs |
 |---------|------|
-| PR opened/updated | fast-fail + unit tests + changed-package build |
-| merge to main | everything above + integration + container build (no publish) |
-| tag / release workflow | everything above + publish + release notes |
+| PR opened/updated | fast-fail + unit tests + affected build, no publish |
+| merge to main | PR checks + integration + build, scan, and publish the immutable artifact |
+| tag / release workflow | promote the main artifact; publish packages; release notes |
 
-Don't run the release pipeline on every push. Don't run e2e on every PR unless the team has the runner budget.
+Don't run the release pipeline on every push. Don't run e2e on every PR unless the runner budget allows.
 
 ## Security — must-haves
 
-- **Scope tokens minimally.** `GITHUB_TOKEN` → `permissions:` block per job. Default is too broad.
-- **Pin third-party actions by SHA**, not by version tag (`@v3`). Tags can be moved.
-- **Never print secrets.** Mask at the runner level; also scrub in custom logging.
-- **No secrets in fork PRs.** PRs from forks don't get access to secrets by default; don't override this casually.
-- **Signed commits / tags if release-critical.** Require signature verification in the release gate.
+- **Prefer OIDC federation over stored cloud keys** and long-lived registry tokens.
+- **Never interpolate untrusted event fields into shell** (PR title, branch name, issue body); pass them via environment variables. Avoid `pull_request_target` with a checkout of PR code.
+- **Scope tokens minimally** — explicit per-job permissions; the default is too broad.
+- **Pin third-party actions and images** by full SHA or digest, and keep pins current with an update bot.
+- **Install with a frozen lockfile** so CI builds exactly what was reviewed.
+- **Wire scanning as gates, policy stays in `security`**: SAST on every push, dependency and secret scanning on every push, DAST against a deployed review or staging environment; see [pipeline-patterns.md](references/pipeline-patterns.md#supply-chain-in-ci).
+- **Never print secrets.** Mask at the runner level and scrub custom logging.
+- **No secrets in fork PRs.** Do not override the default.
+- **Lint pipelines** with a workflow linter and a workflow security scanner in CI.
+- **Signed commits or tags** and signature verification in the release gate where release-critical.
 
 ## Observability — what to watch
 
 - **Pipeline duration P50/P95** — regressions are a dev-experience tax.
-- **Cache hit rate per cache.** Dropping = investigate.
-- **Flake rate per test job.** Flaky test > flaky build.
-- **Queue time** — if jobs wait > 5 min for a runner, scale up or slice smaller.
+- **Cache hit rate per cache** — drops need investigation.
+- **Flake rate per test job** — fix flaky tests rather than retrying.
+- **Queue time** — long waits mean scale up or slice smaller.
 
 ## Context adaptation
 
-**As implementer:** start with the simplest linear pipeline; add caching and parallelism when wall-clock hurts. Don't pre-optimize.
+**Implementer:** start with the simplest linear pipeline; add caching and parallelism when wall-clock hurts.
 
-**As reviewer:** check for over-broad token scopes, unpinned third-party actions, missing PR-vs-main distinction, missing cache key specificity.
+**Reviewer:** check token scopes, unpinned actions, untrusted input in scripts, missing PR-vs-main distinction, cache keys.
 
-**As operator:** pipeline breakage is your on-call problem. SLO the pipeline (e.g. "< 10 min p95, < 5% flake rate") and manage it like any service.
-
-**As architect:** pipeline shape mirrors architecture. Microservice per package → fan-out CI. Shared lib with reverse deps → topological CI.
+**Operator:** pipeline breakage is on-call; set a duration and flake target and track it like a service.
 
 ## Anti-patterns
 
@@ -129,15 +132,16 @@ Don't run the release pipeline on every push. Don't run e2e on every PR unless t
 
 ## Related Knowledge
 
-- `release-engineering` — semver, feature flags, rollout strategy
-- `docker` — image building and caching
+- `release-engineering` — versioning, rollout strategy, rollback, trusted publishing
+- `docker` — Dockerfiles, image builds, monorepo images
 - `kubernetes` — deploy targets
-- `security` — supply chain, SBOM, signing
+- `security` — supply chain, SBOM, signing, secrets
 - `testing` — what runs in which stage
+- `reliability` — SLOs for the delivery path
 
 ## References
 
-- [pipeline-patterns.md](references/pipeline-patterns.md) — structural patterns for pipelines
+- [pipeline-patterns.md](references/pipeline-patterns.md) — vendor-neutral stages, caching, secrets, OIDC, supply chain in CI
 - [github-actions.md](references/github-actions.md) — GitHub Actions specifics
 - [gitlab-ci.md](references/gitlab-ci.md) — GitLab CI specifics
-- [monorepo-ci.md](references/monorepo-ci.md) — change detection, selective runs, shared steps
+- [monorepo-ci.md](references/monorepo-ci.md) — change detection, remote task caches, per-package deploy

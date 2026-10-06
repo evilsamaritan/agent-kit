@@ -37,7 +37,7 @@ Use a graph diagram because the relationship grammar fits, not because the sourc
 
 ## Notes on specific views
 
-**Sequence at compact width.** Use one continuous rail and dense rows: `sender → receiver` as muted metadata, the verb or action as primary text, roughly 8–12px vertical padding per row. Do not keep desktop lane height, a card per message, or participant-colored prose. Mark failure or unknown status separately and write self-messages explicitly (`Room Manager ↻ self`).
+**Sequence at compact width.** Use one continuous rail and dense rows: `sender → receiver` as muted metadata, the verb or action as primary text, roughly 8–12px vertical padding per row. Do not keep desktop lane height, a card per message, or participant-colored prose. Mark failure or unknown status separately and write self-messages explicitly (`Scheduler ↻ self`).
 
 **Ownership with several relations at compact width.** Keep the ownership blocks and replace the edge geometry with one relationship list. Every row names `source → target`, then the verb, then any proposed, unknown, asynchronous, or failure status. Fragments such as `command up` or `status down` identify nothing once the layout has reflowed.
 

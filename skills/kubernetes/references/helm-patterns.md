@@ -1,5 +1,7 @@
 # Helm Chart Patterns
 
+Check the installed Helm major version first (`helm version`); commands below note where Helm 3 and Helm 4 differ.
+
 ## Table of Contents
 
 - [Chart Structure](#chart-structure)
@@ -9,6 +11,7 @@
 - [Hooks](#hooks)
 - [Testing](#testing)
 - [Common Commands](#common-commands)
+- [Helm 3 vs 4](#helm-3-vs-4)
 
 ---
 
@@ -24,7 +27,8 @@ my-chart/
 │   ├── _helpers.tpl        # Template helpers (named templates)
 │   ├── deployment.yaml     # Deployment manifest
 │   ├── service.yaml        # Service manifest
-│   ├── ingress.yaml        # Ingress (conditional)
+│   ├── httproute.yaml      # Gateway API HTTPRoute (conditional)
+│   ├── ingress.yaml        # Ingress (optional, legacy)
 │   ├── hpa.yaml            # HPA (conditional)
 │   ├── configmap.yaml      # ConfigMap
 │   ├── secret.yaml         # Secret (if not using external)
@@ -47,11 +51,13 @@ version: 0.1.0          # Chart version
 appVersion: "1.2.3"     # Application version
 
 dependencies:
-  - name: postgresql
-    version: "15.x"
-    repository: "https://charts.bitnami.com/bitnami"
-    condition: postgresql.enabled
+  - name: <subchart>
+    version: "<exact-or-bounded-version>"
+    repository: "<subchart-repository>"      # OCI (oci://...) or an HTTPS chart repo you control or trust
+    condition: <subchart>.enabled
 ```
+
+Pin subchart versions and commit `Chart.lock`. Do not depend on third-party database charts for production; run databases through an operator or a managed service, and use a subchart only for dev and test.
 
 ---
 
@@ -84,34 +90,28 @@ resources:
     memory: 512Mi
 
 # Probes
-readinessProbe:
+readinessProbe:                # separate /readyz and /livez; liveness is optional (see `reliability`)
   httpGet:
-    path: /healthz
+    path: /readyz
     port: http
-  initialDelaySeconds: 5
   periodSeconds: 5
 
-livenessProbe:
-  httpGet:
-    path: /healthz
-    port: http
-  initialDelaySeconds: 15
-  periodSeconds: 10
+livenessProbe: {}              # set only when a restart fixes the failure; never check dependencies
 
-# Ingress
-ingress:
+# Routing: Gateway API by default, Ingress optional
+httpRoute:
   enabled: true
-  className: nginx
-  annotations:
-    cert-manager.io/cluster-issuer: letsencrypt-prod
-  hosts:
-    - host: api.example.com
-      paths:
-        - path: /
-          pathType: Prefix
-  tls:
-    - secretName: api-tls
-      hosts: [api.example.com]
+  parentRefs:
+    - name: main-gateway
+      namespace: infra
+  hostnames: [api.example.com]
+
+ingress:
+  enabled: false
+  className: ""                # your ingress class
+  annotations: {}
+  hosts: []
+  tls: []
 
 # Service
 service:
@@ -128,10 +128,6 @@ secrets:
   dbPassword:
     secretName: db-credentials
     key: password
-
-# Feature flags
-postgresql:
-  enabled: false  # Use external DB by default
 
 serviceAccount:
   create: true
@@ -227,7 +223,9 @@ spec:
 {{- end }}
 ```
 
-### Environment Variables from Values
+### Environment Variables and Secrets from Values
+
+Plain config goes in env; secrets are mounted as files (an existing Secret named in values), as `manifests-patterns.md` recommends.
 
 ```yaml
 # In deployment.yaml container spec
@@ -236,64 +234,52 @@ env:
   - name: {{ $key }}
     value: {{ $value | quote }}
   {{- end }}
-  {{- if .Values.secrets.dbPassword }}
-  - name: DB_PASSWORD
-    valueFrom:
-      secretKeyRef:
-        name: {{ .Values.secrets.dbPassword.secretName }}
-        key: {{ .Values.secrets.dbPassword.key }}
-  {{- end }}
+{{- if .Values.secrets.dbPassword }}
+volumeMounts:
+  - { name: db-password, mountPath: /run/secrets/db, readOnly: true }
+{{- end }}
+# In the pod spec
+{{- if .Values.secrets.dbPassword }}
+volumes:
+  - name: db-password
+    secret:
+      secretName: {{ .Values.secrets.dbPassword.secretName }}
+      items:
+        - { key: {{ .Values.secrets.dbPassword.key }}, path: password }
+{{- end }}
 ```
 
-### Ingress with Multiple Hosts
+### HTTPRoute (default routing)
 
 ```yaml
-{{- if .Values.ingress.enabled }}
-apiVersion: networking.k8s.io/v1
-kind: Ingress
+{{- if .Values.httpRoute.enabled }}
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
 metadata:
   name: {{ include "my-app.fullname" . }}
   labels:
     {{- include "my-app.labels" . | nindent 4 }}
-  {{- with .Values.ingress.annotations }}
-  annotations:
-    {{- toYaml . | nindent 4 }}
-  {{- end }}
 spec:
-  ingressClassName: {{ .Values.ingress.className }}
-  {{- if .Values.ingress.tls }}
-  tls:
-    {{- range .Values.ingress.tls }}
-    - secretName: {{ .secretName }}
-      hosts:
-        {{- range .hosts }}
-        - {{ . | quote }}
-        {{- end }}
-    {{- end }}
-  {{- end }}
+  parentRefs:
+    {{- toYaml .Values.httpRoute.parentRefs | nindent 4 }}
+  hostnames:
+    {{- toYaml .Values.httpRoute.hostnames | nindent 4 }}
   rules:
-    {{- range .Values.ingress.hosts }}
-    - host: {{ .host | quote }}
-      http:
-        paths:
-          {{- range .paths }}
-          - path: {{ .path }}
-            pathType: {{ .pathType }}
-            backend:
-              service:
-                name: {{ include "my-app.fullname" $ }}
-                port:
-                  number: {{ $.Values.service.port }}
-          {{- end }}
-    {{- end }}
+    - matches:
+        - path: { type: PathPrefix, value: / }
+      backendRefs:
+        - name: {{ include "my-app.fullname" . }}
+          port: {{ .Values.service.port }}
 {{- end }}
 ```
+
+An Ingress template stays optional behind `ingress.enabled` for clusters that have not migrated; it follows the same `range` pattern over `.Values.ingress.hosts` and `.Values.ingress.tls`.
 
 ---
 
 ## Hooks
 
-### Pre-Install / Pre-Upgrade Migration
+Hooks run Jobs or Pods at points in a release. **A `pre-install` or `pre-upgrade` hook runs before the chart's regular resources exist or are updated**: a hook Job cannot rely on a ConfigMap, Secret, or ServiceAccount created by the same chart in that run, unless those are hooks too (with lower weights) or already exist.
 
 ```yaml
 apiVersion: batch/v1
@@ -314,13 +300,17 @@ spec:
           command: ["npm", "run", "migrate"]
 ```
 
-### Hook Ordering
+Weights order hooks of the same type (lowest first); they do not order across hook types.
 
-| Weight | Hook | Purpose |
-|--------|------|---------|
-| -5 | pre-install | Create external resources |
-| 0 | pre-install | Run migrations |
-| 5 | post-install | Seed data, send notifications |
+| Phase | Hook | Typical use |
+|-------|------|-------------|
+| Before resources are applied | `pre-install`, `pre-upgrade` | Schema migrations (backward-compatible only: see `database`), prerequisite checks |
+| After resources are applied | `post-install`, `post-upgrade` | Seed data, notifications |
+| Release removal | `pre-delete`, `post-delete` | Cleanup, deregistration |
+| Rollback | `pre-rollback`, `post-rollback` | Restore steps |
+| On demand | `test` | `helm test` |
+
+Run migrations as a hook only when they are safe against the old version still serving traffic during the rollout; otherwise run them as a separate pipeline step.
 
 ---
 
@@ -340,9 +330,9 @@ spec:
   restartPolicy: Never
   containers:
     - name: wget
-      image: busybox
+      image: busybox:1.37
       command: ['wget']
-      args: ['{{ include "my-app.fullname" . }}:{{ .Values.service.port }}/healthz']
+      args: ['{{ include "my-app.fullname" . }}:{{ .Values.service.port }}/readyz']
 ```
 
 ```bash
@@ -354,24 +344,32 @@ helm test my-release
 ## Common Commands
 
 ```bash
-# Install / upgrade
+# Install / upgrade: --wait and --timeout decide failure behaviour; without them
+# Helm returns as soon as resources are submitted
 helm upgrade --install my-release ./my-chart \
   -f values-production.yaml \
   --set image.tag=1.2.3 \
-  --namespace production \
-  --create-namespace
+  --namespace production --create-namespace \
+  --wait --timeout 5m --rollback-on-failure      # Helm 3: --atomic (implies --wait)
 
 # Dry run + diff
-helm upgrade --install my-release ./my-chart --dry-run --debug
-helm diff upgrade my-release ./my-chart  # requires helm-diff plugin
+helm upgrade --install my-release ./my-chart --dry-run=server --debug
+helm diff upgrade my-release ./my-chart          # requires the helm-diff plugin
 
-# Rollback
-helm rollback my-release 1  # revision number
-helm history my-release      # see revisions
+# Rollback and history
+helm history my-release
+helm rollback my-release 1 --wait --timeout 5m
 
-# Template rendering (debug)
+# Render and lint
 helm template my-release ./my-chart -f values-production.yaml
-
-# Lint
 helm lint ./my-chart -f values-production.yaml
 ```
+
+---
+
+## Helm 3 vs 4
+
+- Helm 4 renames `--atomic` to `--rollback-on-failure` and `--force` to `--force-replace`; the old flags still work with deprecation warnings for now. Use the spelling of the major version in your CI image.
+- Helm 4 can use server-side apply: new releases default to it, while existing releases keep the apply method they were created with (Helm 3 releases stay on client-side apply until `--server-side` is passed).
+- Rollback is best effort and can fail when a revision conflicts with current cluster state; verify after rolling back.
+- Pin the Helm version in CI and re-test the chart's hooks and `--wait` behaviour when moving majors.

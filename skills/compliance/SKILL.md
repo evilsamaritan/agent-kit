@@ -1,224 +1,185 @@
 ---
 name: compliance
-description: "Assess regulatory and operational obligations. Use for GDPR, EU AI Act, SOC2, HIPAA, PCI-DSS, COPPA, privacy, consent, PII, residency, or audit evidence."
+description: "Assess privacy, data-protection, and audit obligations. Use for GDPR and UK GDPR, CCPA/CPRA, ePrivacy cookies and consent, PII, retention and erasure, data residency, EU AI Act risk classification, COPPA, and SOC2 evidence."
 user-invocable: true
 ---
 
-# Compliance — Regulatory & Privacy Engineering
+# Compliance: Privacy and Regulatory Engineering
 
-## Which Framework Applies?
+Turns legal obligations into engineering requirements: what to collect, on what basis, how long to keep it, how to prove it. This is engineering guidance, not legal advice; confirm interpretation with counsel for the jurisdiction. Dates, fines, and regime status change: check [enforcement-trends.md](references/enforcement-trends.md) and the regulation's current status before stating a deadline. No calendar dates are stated in this file.
+
+## Scope and boundaries
+
+**Owns:** privacy engineering (lawful basis, consent, data subject rights, retention, erasure, transfers), PII classification, audit-evidence design, EU AI Act classification and obligations at the engineering level, children's data.
+
+**Does not own:**
+- Security controls and audits → `security`
+- Auth design → `auth`
+- Payment card scope reduction, SAQ choice, cardholder-data controls → `payments`
+- Log redaction mechanics → `observability` (the redaction rule is defined there)
+- Schema, retention jobs, and encryption at rest → `database`
+
+## Which framework applies?
 
 ```
-What data are you processing?
-├── Personal data of EU residents → GDPR (+ EU AI Act if AI involved)
-├── AI system deployed in EU market → EU AI Act risk classification
-├── Health records (US) → HIPAA
-├── Payment card data → PCI-DSS
-├── Children's data (US, under 13) → COPPA
-├── Children's data (EU, varies by state) → GDPR with parental consent
-├── B2B SaaS needing trust certification → SOC2
-├── Cross-border data transfers → GDPR Ch. V + local sovereignty laws
-└── Multiple jurisdictions → Layer frameworks (GDPR + AI Act + local law)
+What are you processing, and where?
+├── Personal data of people in the EU/EEA → GDPR (+ EU AI Act if AI is involved)
+├── Personal data of people in the UK → UK GDPR (+ Data Protection Act)
+├── Residents of US states with privacy laws → CCPA/CPRA and other state laws
+├── Cookies, trackers, or electronic marketing in the EU/UK → ePrivacy rules (consent before non-essential storage or access)
+├── AI system placed on or used in the EU market → EU AI Act risk classification
+├── Health records (US) → HIPAA: identify it, involve a specialist; engineering controls overlap with `security`
+├── Payment card data → PCI-DSS (scope reduction, SAQ choice, CDE controls, dated levels: `payments`, references/regulatory-and-rails.md)
+├── Children's data → COPPA (US, under 13); GDPR parental consent (EU, age threshold varies by member state)
+├── B2B trust certification → SOC2 (see below)
+├── Cross-border transfers → GDPR Chapter V (and local rules)
+└── Several jurisdictions → layer the frameworks; the strictest applicable rule sets the design
 ```
 
-**Overlap rule:** frameworks stack — a healthcare AI system processing EU data must satisfy GDPR + EU AI Act + HIPAA simultaneously.
-
----
+Frameworks stack: a healthcare AI system with EU data must satisfy GDPR, the AI Act, and HIPAA together.
 
 ## GDPR
 
-### Lawful Basis Decision Tree
+### Lawful basis
 
 ```
 Processing personal data?
-├── User explicitly agreed → Consent (freely given, specific, revocable)
-├── Fulfilling a contract → Contract (only what's necessary for the service)
-├── Required by law → Legal obligation (tax records, fraud prevention)
-├── Protecting someone's life → Vital interests (medical emergency, rare)
-├── Public authority task → Public task (government bodies)
-└── Business has legitimate need → Legitimate interest (must pass balancing test)
-    └── Does user's right outweigh business need? → Use consent instead
+├── Person explicitly agreed → Consent (freely given, specific, informed, revocable)
+├── Needed to deliver a contract → Contract (only what the service requires)
+├── Required by law → Legal obligation
+├── Protecting someone's life → Vital interests (rare)
+├── Public authority task → Public task
+└── Business has a legitimate need → Legitimate interest
+    └── Document the balancing test. If the person's rights outweigh the need, you cannot rely
+        on this basis: choose another valid basis or do not process. Consent is not an automatic fallback.
 ```
 
-### Data Subject Rights
+Document the basis for every data field and purpose.
 
-| Right | Implementation | Deadline |
-|-------|---------------|----------|
-| Access (Art. 15) | Export all user data in machine-readable format | 30 days |
-| Rectification (Art. 16) | Allow users to correct their data | 30 days |
-| Erasure (Art. 17) | Delete all user data ("right to be forgotten") | 30 days |
-| Portability (Art. 20) | Export in JSON/CSV, include derived data | 30 days |
-| Restriction (Art. 18) | Stop processing, keep stored | 30 days |
-| Objection (Art. 21) | Stop processing for direct marketing immediately | Immediate |
+### Special-category data (Art. 9)
 
-### Data Breach Notification
+Health, biometric and genetic data, racial or ethnic origin, political or religious belief, union membership, sex life or orientation. Processing is prohibited unless an Art. 9 condition applies (for example explicit consent), in addition to an Art. 6 basis. Treat as Critical in PII classification.
 
-- **Supervisory authority:** within 72 hours of becoming aware (Art. 33)
-- **Data subjects:** without undue delay if high risk to rights/freedoms (Art. 34)
-- **Document all breaches** — even those not reported (accountability principle)
+### DPIA, records, processors, DPO
 
-### Enforcement
+- **DPIA (Art. 35)** is required for processing likely to be high risk: systematic profiling with significant effects, large-scale special-category data, large-scale monitoring of public areas, and new technology with high impact. Do it before launch; template in the AI Act reference.
+- **Records of processing (Art. 30):** purposes, data categories, recipients, transfers, retention, security measures. Keep them current; exemptions for small organizations are narrow.
+- **Processors:** every vendor that processes personal data on your behalf needs a data processing agreement (Art. 28), a security review, and a place in the records. Sub-processor changes need notice.
+- **DPO:** required for public bodies and for core activities involving large-scale monitoring or special-category data; otherwise optional but useful.
 
-Active and accelerating. See [enforcement-trends.md](references/enforcement-trends.md) for current figures.
+### Data subject rights
 
----
+Respond within **one month**, extendable by two further months for complex or numerous requests, with notice. Verify the requester's identity before disclosing or erasing anything.
+
+| Right | Implementation |
+|-------|---------------|
+| Access (Art. 15) | Export the person's data in a readable form |
+| Rectification (Art. 16) | Let users correct data |
+| Erasure (Art. 17) | Delete or anonymize across all systems, unless an exception applies (legal obligation, legal claims) |
+| Restriction (Art. 18) | Stop processing, keep stored |
+| Portability (Art. 20) | Machine-readable export of data provided by the person |
+| Objection (Art. 21) | Stop processing for direct marketing without delay |
+| Automated decisions (Art. 22) | Human review and the ability to contest significant automated decisions |
+
+### Breach notification
+
+- Supervisory authority within 72 hours of becoming aware (Art. 33), unless unlikely to result in risk.
+- Affected persons without undue delay if high risk (Art. 34).
+- Document every breach, including unreported ones.
 
 ## EU AI Act
 
-Phased enforcement — prohibited practices first, then GPAI, then high-risk. See [enforcement-trends.md](references/enforcement-trends.md) for dates.
+Phased obligations by category. Dates and the current status of any postponement: [enforcement-trends.md](references/enforcement-trends.md) and [ai-act-compliance.md](references/ai-act-compliance.md).
 
-### Risk Classification
-
-| Risk Level | Examples | Requirements |
+| Risk level | Examples | Requirements |
 |------------|----------|-------------|
-| Unacceptable | Social scoring, manipulative AI, untargeted facial scraping, emotion recognition at work/school | Banned |
-| High-risk | AI in hiring, credit scoring, medical devices, education grading, law enforcement | Conformity assessment, human oversight, transparency, data governance |
-| Limited risk | Chatbots, deepfake generators | Transparency obligations (disclose AI use) |
-| Minimal risk | Spam filters, AI in games | No specific obligations |
+| Unacceptable | Social scoring, manipulative AI, untargeted facial scraping, emotion recognition at work or school | Banned |
+| High-risk | Hiring, credit scoring, education grading, biometrics, critical infrastructure, law enforcement | Risk management, data governance, documentation, logging, human oversight, accuracy and robustness, conformity assessment, registration |
+| Limited risk | Chatbots, synthetic-content generators | Transparency to users: disclose AI interaction, mark synthetic content (Art. 50) |
+| Minimal risk | Spam filters, game AI | No specific obligations |
 
-### High-Risk AI Compliance Checklist
+Transparency has two parts: Art. 13 requires providers of high-risk systems to give deployers usable instructions; Art. 50 requires telling people they are interacting with AI and labelling synthetic content.
 
-- [ ] Risk management system documenting identified risks and mitigation
-- [ ] Data governance: training data quality, bias testing, representativeness
-- [ ] Technical documentation: architecture, performance metrics, limitations
-- [ ] Record-keeping: automatic logging of system operation
-- [ ] Human oversight: ability to intervene, override, or shut down
-- [ ] Accuracy, robustness, cybersecurity measures
-- [ ] Transparency: inform users they are interacting with AI
-- [ ] Registration in EU database before market deployment
+## PII classification
 
-Deep dive: [ai-act-compliance.md](references/ai-act-compliance.md)
-
----
-
-## PII Classification
-
-| Level | Data Types | Handling |
+| Level | Data types | Handling |
 |-------|-----------|----------|
-| Critical | SSN, passport, payment cards, health records, biometric | Encrypt at rest + transit, mask in logs, restrict access, audit all access |
-| High | Email, phone, full name + address, DOB | Encrypt at rest, pseudonymize where possible, access controls |
+| Critical | National IDs, payment cards, health, biometric, special-category | Encrypt at rest and in transit, never in logs, restrict and audit all access |
+| High | Email, phone, full name plus address, date of birth | Encrypt at rest, pseudonymize where possible, access controls |
 | Medium | IP address, device ID, cookie ID | Minimize retention, anonymize in analytics |
-| Low | Aggregated stats, anonymous IDs | Standard handling, no special controls |
+| Low | Aggregates, anonymous IDs | Standard handling |
 
----
-
-## Cross-Border Data Transfers
+## Cross-border transfers
 
 ```
-Transferring data outside origin jurisdiction?
-├── EU → EU/EEA → No restriction
-├── EU → Adequacy country (US DPF, UK, Japan, etc.) → Permitted under adequacy decision
-├── EU → Non-adequate country → Need transfer mechanism:
-│   ├── Standard Contractual Clauses (SCCs) + Transfer Impact Assessment
-│   ├── Binding Corporate Rules (BCRs) for intra-group transfers
+Moving personal data out of its origin jurisdiction?
+├── Within the same regime (for example EU/EEA) → no transfer restriction
+├── Destination has an adequacy decision → permitted; check the decision's scope and current status
+├── Otherwise a transfer mechanism is needed:
+│   ├── Standard Contractual Clauses + transfer impact assessment
+│   ├── Binding Corporate Rules (intra-group)
 │   ├── Explicit consent (narrow, last resort)
-│   └── Derogations (Art. 49) — contract necessity, public interest
-├── US → Countries of concern → DOJ bulk data rule restricts sensitive data
-└── China/Vietnam/India → Outbound → Local data localization requirements apply
+│   └── Art. 49 derogations (necessity, public interest)
+└── Local data-localization or export-restriction law → map and apply it
 ```
 
-**Data sovereignty principle:** understand where data is stored, processed, and who can access it under local law.
+Know where data is stored, processed, and who can access it under local law. Current adequacy list and national export rules change: see enforcement-trends.
 
----
+## Privacy by design
 
-## Privacy by Design Principles
+Minimization, purpose limitation, storage limitation, pseudonymization, strict defaults, transparency without dark patterns.
 
-1. **Data minimization** — collect only what you need
-2. **Purpose limitation** — use data only for stated purpose
-3. **Storage limitation** — delete when no longer needed
-4. **Pseudonymization** — replace identifiers where possible
-5. **Default privacy** — strictest settings by default
-6. **Transparency** — clear privacy notices, no dark patterns
+## Audit trail design
 
----
+Immutable (append-only), complete (who, what, when, where, why), tamper-evident, searchable, and retained longer than the data it audits. Keep personal data out of the immutable log (pseudonymous actor IDs, or per-subject keys that can be destroyed on erasure). Field list and patterns: [compliance-patterns.md](references/compliance-patterns.md).
 
-## Audit Trail Design Principles
+## Consent
 
-- **Immutable** — append-only, no updates or deletes
-- **Complete** — who, what, when, where, why
-- **Tamper-evident** — hash chains or write-once storage
-- **Searchable** — indexed by actor, resource, action, timestamp
-- **Retained** — beyond the data it audits (audit logs outlive deleted data)
+Granular per purpose; rejecting as easy as accepting; revocable; versioned against the policy shown; evidenced by an append-only record of each decision. For cookies and trackers, the stored decision must gate loading client-side before any non-essential tracker runs. Event model: [compliance-patterns.md](references/compliance-patterns.md).
 
----
+## Children's privacy
 
-## Consent Management
+- **COPPA (US):** verifiable parental consent for under 13, separate parental consent before disclosing a child's data to third parties (for example for advertising), apart from consent for the core service; amended Rule details in enforcement-trends.
+- **GDPR (EU):** age of digital consent set by member states; parental consent below it; child-friendly notices.
+- If a service could attract children, design age-gating and parental controls from the start.
 
-- **Granular** — separate consent per purpose (analytics, marketing, personalization)
-- **Symmetric** — reject must be as easy as accept (no dark patterns)
-- **Revocable** — users can withdraw consent at any time
-- **Versioned** — track which privacy policy version was consented to
-- **Evidenced** — store timestamp, IP, user agent, policy version
+## SOC2
 
----
-
-## Children's Privacy
-
-- **COPPA (US):** parental consent required for children under 13. Separate consent for advertising vs. core service. Age verification for mixed-audience sites.
-- **GDPR (EU):** member states set age of consent between 13-16. Parental consent below threshold. Clear, child-friendly privacy notices.
-- **Design principle:** if your service could attract children, build age-gating and parental controls from day one.
-
----
+An attestation report from an independent auditor on controls against the Trust Services Criteria; it is not a law or a certificate. Engineering work is evidence: access control and reviews, change management, monitoring, incident response, availability. Evidence table: [compliance-patterns.md](references/compliance-patterns.md).
 
 ## Context Adaptation
 
-### Frontend
-- Cookie consent: granular (necessary, analytics, marketing), one-click reject equal to accept
-- Privacy controls dashboard (manage consents, download data, delete account)
-- Consent-gated tracking (load analytics only after consent)
-- AI disclosure: inform users when interacting with AI systems
-- Age-gating UI for services that may attract children
-
-### Backend
-- PII masking in logs (redact email, phone, names)
-- Data retention policy automation (scheduled deletion jobs)
-- Audit logging middleware (capture all state changes)
-- Data export/deletion APIs (GDPR subject access requests)
-- Data breach notification workflow (72-hour timer)
-- AI system logging: automatic record-keeping for high-risk AI systems
-
-### Infrastructure
-- Data residency controls (region-pinned storage for sovereignty)
-- Cross-border transfer mechanism enforcement (SCCs, adequacy checks)
-- Encryption requirements (at rest: AES-256, in transit: TLS 1.2+)
-
-### ML/AI
-- AI Act risk classification for any AI/ML system
-- DPIA for high-risk AI processing
-- Training data documentation: provenance, quality, bias assessment
-- Human oversight mechanisms: confidence thresholds, escalation paths
-- Model card / transparency documentation
-
----
-
-## Related Knowledge
-
-- **security** skill — application security audits, threat modeling, secrets management, OWASP Top 10
-- **auth** skill — OAuth2/OIDC, JWT, session management, MFA — authentication controls that underpin compliance requirements
-- **database** skill — data retention automation, encryption at rest, audit log schema design
-
----
+- **Frontend:** consent UI with equal reject and accept, privacy dashboard, consent-gated tracking, AI disclosure, age-gating.
+- **Backend:** retention automation, data export and erasure APIs with identity verification, breach workflow with the 72-hour clock, AI system logging.
+- **Infrastructure:** region-pinned storage, transfer-mechanism enforcement, encryption.
+- **ML/AI:** risk classification, DPIA, training-data documentation, human oversight, model documentation.
 
 ## Anti-Patterns
 
 | Anti-Pattern | Why It Fails | Correct Approach |
 |-------------|-------------|-----------------|
-| Logging PII in plaintext | Compliance violation, data breach risk | Mask/redact PII in all log output |
-| No data retention policy | Data grows forever, impossible to comply with erasure | Define retention periods, automate deletion |
-| All-or-nothing consent | GDPR requires granular consent per purpose | Separate consent for analytics, marketing, etc. |
-| Cookie wall (reject = no access) | GDPR: consent must be freely given | Allow full access regardless of consent choice |
-| Audit logs in mutable storage | Tampering risk, fails compliance audit | Append-only store (write-once storage) |
-| Storing data without lawful basis | GDPR violation from day one | Document lawful basis for every data field |
-| Deploying AI without risk assessment | EU AI Act violation for high-risk systems | Classify risk level, document, assess before deploy |
-| Assuming one jurisdiction | Cross-border transfers trigger additional obligations | Map data flows, apply transfer mechanisms |
-| Treating compliance as one-time | Regulations evolve, enforcement intensifies | Continuous monitoring, periodic reassessment |
+| PII in plaintext logs | Violation and breach risk | Redaction rule in `observability` |
+| No retention policy | Data grows forever, erasure impossible | Define periods per applicable law; automate |
+| All-or-nothing consent | Consent must be granular | One decision per purpose |
+| Cookie wall | Consent must be freely given | Full access regardless of choice, where required |
+| Audit logs in mutable storage | Tampering risk | Append-only |
+| Data without a recorded lawful basis | Violation from day one | Basis per field and purpose |
+| Legitimate interest as a fallback for failed consent | Basis cannot be swapped after the fact | Choose the basis before collecting |
+| Erasure that ignores backups, processors, and search indexes | Incomplete erasure, no evidence | Per-system erasure checklist with status |
+| Deploying AI without classification | Obligations missed | Classify before deploy |
+| Assuming one jurisdiction | Transfer and local obligations missed | Map data flows |
+| Compliance as a one-time project | Rules and enforcement change | Continuous review, evidence-based |
 
----
+## Related Knowledge
+
+- `security` — controls, audits, secrets
+- `auth` — authentication that underpins access controls
+- `database` — retention jobs, encryption, audit schema
+- `observability` — log redaction and telemetry retention
+- `payments` — PCI scope reduction and SAQ; dated levels, current SAQ A eligibility, and PSD3/PSR status in payments/references/regulatory-and-rails.md
 
 ## References
 
-- [compliance-patterns.md](references/compliance-patterns.md) — GDPR implementation (data export, erasure, consent management), SOC2 evidence collection, PII detection patterns, audit trail architecture, data retention automation
-- [ai-act-compliance.md](references/ai-act-compliance.md) — EU AI Act risk classification details, conformity assessment process, DPIA templates, AI transparency requirements, GDPR-AI Act intersection
-- [enforcement-trends.md](references/enforcement-trends.md) — Volatile enforcement data: GDPR fine amounts, EU AI Act enforcement dates, regulatory trends, cross-border transfer developments (update periodically)
-
-Load references when you need implementation code for audit trails, data export, consent management, or AI compliance.
+- [compliance-patterns.md](references/compliance-patterns.md) — audit-event fields, consent event model, erasure checklist, retention table, export, SOC2 evidence
+- [ai-act-compliance.md](references/ai-act-compliance.md) — EU AI Act classification, requirements, conformity, DPIA template
+- [enforcement-trends.md](references/enforcement-trends.md) — volatile dates, fines, regime status (check and update)

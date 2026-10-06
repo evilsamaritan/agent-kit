@@ -91,27 +91,31 @@ function validateJwt(req, res, next) {
     clockTolerance: 30,        // 30 second clock skew tolerance
   }, (err, decoded) => {
     if (err) {
-      const status = err.name === 'TokenExpiredError' ? 401 : 403;
-      return res.status(status).json({ error: err.message });
+      // Every failed validation (expired, bad signature, wrong audience) is 401 — RFC 6750
+      log.info({ reason: err.name, requestId: req.id }, 'token rejected');
+      res.set('WWW-Authenticate', 'Bearer error="invalid_token"');
+      return res.status(401).json({ error: 'invalid_token' });   // generic body, no library message
     }
     req.user = decoded;
     next();
   });
 }
+// 403 (with error="insufficient_scope") is returned later, by the authorization check.
 ```
+
+The sample uses one Node library as an example; the same options exist in every JOSE library.
 
 ### Validation Checklist
 
-1. Parse header -- extract `alg` and `kid`
-2. Reject `alg: "none"` -- always require a valid algorithm
-3. Fetch public key by `kid` from JWKS (cached)
-4. Verify signature using the public key
-5. Check `exp` > now (with clock skew tolerance of 30-60s)
-6. Check `nbf` <= now (if present)
-7. Check `iss` matches expected issuer exactly
-8. Check `aud` contains your service identifier
-9. Check required scopes/roles for the specific endpoint
-10. Extract `sub` for user identification
+1. Pin the accepted algorithms and key type in configuration; reject any token whose `alg` is not on the list (including `none`) -- never let the header choose
+2. Select the key by `kid` from the issuer's JWKS (cached; refetch once on unknown `kid`, rate-limited)
+3. Verify the signature
+4. Check `exp` > now and `nbf` <= now, with 30-60s clock skew
+5. Check `iss` matches the expected issuer exactly
+6. Check `aud` contains this service's identifier
+7. Check the token type: access tokens in the RFC 9068 profile carry `typ: at+jwt`; never accept an ID token as an access token
+8. Check required scopes or claims for the operation
+9. Use `sub` (with `iss`) as the caller identity
 
 ---
 
@@ -120,7 +124,7 @@ function validateJwt(req, res, next) {
 ### Rotation Strategy
 
 ```
-1. Generate new key pair (kid = "key-2025-03")
+1. Generate a new key pair with a new unique `kid`
 2. Add new public key to JWKS endpoint (both old and new keys present)
 3. Wait for JWKS cache TTL to expire across all services (~2x cache TTL)
 4. Start signing new tokens with the new key
@@ -142,65 +146,76 @@ Standard JSON Web Key Set at `/.well-known/jwks.json`: array of `keys` objects w
 
 ```sql
 CREATE TABLE refresh_tokens (
-  token_id       UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  token_hash     BYTEA NOT NULL UNIQUE,          -- SHA-256 hash of the token
-  family_id      UUID NOT NULL,                   -- groups all tokens in a rotation chain
-  user_id        UUID NOT NULL REFERENCES users(id),
-  client_id      TEXT NOT NULL,
-  scopes         TEXT[],
-  expires_at     TIMESTAMPTZ NOT NULL,
-  created_at     TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-  revoked_at     TIMESTAMPTZ,                     -- NULL = active
-  replaced_by    UUID REFERENCES refresh_tokens(token_id)  -- chain tracking
+  token_id          UUID PRIMARY KEY,
+  token_hash        BYTEA NOT NULL UNIQUE,          -- SHA-256 of the token value
+  family_id         UUID NOT NULL,                  -- one login = one family
+  family_expires_at TIMESTAMPTZ NOT NULL,           -- absolute limit, fixed at login, never extended
+  user_id           UUID NOT NULL REFERENCES users(id),
+  client_id         TEXT NOT NULL,
+  scopes            TEXT[] NOT NULL,
+  expires_at        TIMESTAMPTZ NOT NULL,           -- idle limit for this token
+  created_at        TIMESTAMPTZ NOT NULL DEFAULT now(),
+  revoked_at        TIMESTAMPTZ,                    -- NULL = active
+  replaced_by       UUID REFERENCES refresh_tokens(token_id) DEFERRABLE INITIALLY DEFERRED
 );
 
 CREATE INDEX idx_refresh_family ON refresh_tokens(family_id);
-CREATE INDEX idx_refresh_user ON refresh_tokens(user_id);
 ```
 
 ### Rotation Logic
 
 ```python
-def rotate_refresh_token(old_token_value):
-    old_hash = sha256(old_token_value)
-    old_token = db.find_by_hash(old_hash)
+GRACE = timedelta(seconds=20)
 
-    if old_token is None:
-        raise InvalidTokenError("Token not found")
-
-    if old_token.revoked_at is not None:
-        # REUSE DETECTED -- revoke entire family
-        db.revoke_family(old_token.family_id)
-        alert_security_team(old_token.user_id, "refresh_token_reuse")
-        raise SecurityError("Token reuse detected, family revoked")
-
-    if old_token.expires_at < now():
-        raise ExpiredTokenError("Refresh token expired")
-
-    # Generate new token pair
-    new_refresh_value = generate_secure_random(32)
-    new_token = RefreshToken(
-        token_hash=sha256(new_refresh_value),
-        family_id=old_token.family_id,    # same family
-        user_id=old_token.user_id,
-        client_id=old_token.client_id,
-        scopes=old_token.scopes,
-        expires_at=now() + REFRESH_TOKEN_LIFETIME,
-    )
-
-    # Revoke old, insert new (atomic transaction)
+def rotate_refresh_token(presented: str):
+    presented_hash = sha256(presented)
+    reuse_detected = False
     with db.transaction():
-        db.revoke(old_token.token_id, replaced_by=new_token.token_id)
-        db.insert(new_token)
+        old = db.one("SELECT * FROM refresh_tokens WHERE token_hash = %s FOR UPDATE", presented_hash)
+        if old is None:
+            raise InvalidGrant()
 
-    access_token = generate_access_token(old_token.user_id, old_token.scopes)
+        if old.revoked_at is not None:
+            # Retry of a request that already rotated: within the grace window, hand back the
+            # successor issued for it (re-issue a value for that same row, or return a cached response)
+            if old.replaced_by and now() - old.revoked_at <= GRACE:
+                return reissue_successor(old.replaced_by)
+            db.execute("UPDATE refresh_tokens SET revoked_at = now() WHERE family_id = %s AND revoked_at IS NULL", old.family_id)
+            reuse_detected = True          # leave the block normally so the revocation commits
+        elif old.expires_at <= now() or old.family_expires_at <= now():
+            raise InvalidGrant()           # nothing written, so the rollback loses nothing
+        else:
+            new_value = random_token(32)
+            new_id = uuid4()
+            db.execute(
+                "INSERT INTO refresh_tokens (token_id, token_hash, family_id, family_expires_at, user_id, client_id, scopes, expires_at) "
+                "VALUES (%s, %s, %s, %s, %s, %s, %s, %s)",
+                new_id, sha256(new_value), old.family_id, old.family_expires_at,
+                old.user_id, old.client_id, old.scopes,
+                min(now() + IDLE_LIFETIME, old.family_expires_at),     # sliding, capped by the absolute limit
+            )
+            updated = db.execute(
+                "UPDATE refresh_tokens SET revoked_at = now(), replaced_by = %s WHERE token_id = %s AND revoked_at IS NULL",
+                new_id, old.token_id,
+            )
+            if updated.rowcount != 1:
+                raise ConcurrentRotation()   # transaction rolls back; caller retries once
 
-    return access_token, new_refresh_value
+    if reuse_detected:
+        security_event(old.user_id, "refresh_token_reuse")
+        raise InvalidGrant()
+
+    return issue_access_token(old.user_id, old.scopes), new_value
 ```
+
+- The row lock (or the conditional `UPDATE ... WHERE revoked_at IS NULL` checked for one affected row) makes two concurrent refreshes produce one winner.
+- The successor is inserted before the old row points to it, so the foreign key holds (and the constraint is deferred as a second guard).
+- `family_expires_at` is copied, never recomputed: rotation slides the idle limit but not the absolute one.
+- The family revocation must commit: raising inside the transaction rolls it back and leaves the stolen family active. Record the outcome, leave the block, then report and reject.
 
 ### Grace Period
 
-Allow the old refresh token to work for 15-30s after rotation to handle network retries. If the revoked token is used within the grace period, return the same replacement tokens. Outside the grace period, treat as reuse and revoke the entire token family.
+A client that lost the response to a successful refresh retries with the old token. Within a short window (15-30s) after rotation, treat that as a retry and return the successor issued for it; because only hashes are stored, either cache the successful response for the window, keyed by the old token hash, or mint a new value for the successor row. Outside the window, reuse means theft: revoke the family.
 
 ---
 
@@ -249,12 +264,13 @@ UPDATE users SET token_version = token_version + 1 WHERE id = $user_id;
 | Platform | Access Token | Refresh Token |
 |----------|-------------|---------------|
 | Server-rendered web | Server-side session (Redis/DB) | Server-side session; `httpOnly+Secure+SameSite=Lax` cookie |
-| SPA | In-memory (closure/module scope) | `httpOnly+Secure+SameSite=Strict` cookie via BFF |
+| Browser app with a BFF (default) | Held by the BFF server | Held by the BFF server; browser gets only a session cookie |
+| SPA without a BFF (fallback) | In memory only | Rotated on every use with reuse detection; sender-constrained (DPoP) where supported; never web storage |
 | Mobile | Keychain (iOS) / Keystore (Android) | Keychain / Keystore |
 
 ### Backend-for-Frontend (BFF) Pattern
 
-BFF stores tokens server-side, sets httpOnly session cookie to browser, proxies API calls with access token. Most secure for SPAs: tokens never reach the browser.
+The BFF runs the OAuth flow as a confidential client, keeps tokens server-side, gives the browser an `__Host-` httpOnly session cookie, and proxies API calls with the access token. Tokens never reach the browser, so XSS cannot exfiltrate them (it can still act within the session while the page is open). Cookie auth requires CSRF protection: `SameSite` plus a CSRF token or an `Origin` check on state-changing requests.
 
 ---
 
@@ -333,7 +349,7 @@ Set `strict: True`, `wantAssertionsSigned: True`, `wantMessagesSigned: True`, `r
 
 ### SAML-to-OIDC Bridge
 
-For greenfield apps needing enterprise SAML: use Auth0/Keycloak as a bridge. Your app only implements OIDC; the bridge handles SAML complexity. Add new enterprise IdPs by configuring the bridge, not changing app code.
+For greenfield apps needing enterprise SAML: put a broker IdP (hosted or self-hosted) in front that accepts SAML and issues OIDC. The app implements only OIDC; new enterprise IdPs are configured in the broker, not in app code.
 
 ---
 
@@ -381,7 +397,7 @@ def validate_api_key(provided_key):
 | `name` | `__Host-session` | `__Host-` prefix enforces Secure + no Domain |
 | `httpOnly` | `true` | No JavaScript access |
 | `secure` | `true` | HTTPS only |
-| `sameSite` | `lax` | CSRF protection |
+| `sameSite` | `lax` (or `strict`) | Reduces CSRF; still add a CSRF token or Origin check for state-changing requests |
 | `maxAge` | 24h | Session duration |
 | `store` | Redis/DB | Server-side storage |
 

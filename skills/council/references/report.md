@@ -1,6 +1,6 @@
 # Council Artifacts
 
-Every session writes two files to the current working directory.
+Every session writes two files, by default to the working directory. The procedure that writes them is step 5 of [run.md](../workflows/run.md).
 
 ```
 council-report-<YYYYMMDD-HHMMSS>.html       # visual briefing
@@ -13,17 +13,9 @@ Same timestamp for both files. ISO-style timestamps so filename sort = chronolog
 
 ## HTML report — use the template
 
-**Do not hand-author the HTML.** A finished template lives at `assets/report-template.html`. Read it, substitute the placeholders below, and write the result to `council-report-<timestamp>.html`. That's the entire job.
+**Do not hand-author the HTML.** A finished template lives at [assets/report-template.html](../assets/report-template.html). Read it, substitute the placeholders below, and write the result to `council-report-<timestamp>.html`.
 
 This is deliberate: every council report must look identical across sessions so the user can scan a series of them without recalibrating. No redesign. No per-session personality. No "let me improve the layout this time."
-
-### Steps
-
-1. `Read` `assets/report-template.html`
-2. Replace every `{{PLACEHOLDER}}` with the matching content (see substitution table below)
-3. HTML-escape user-supplied text **before** substitution (advisor responses, the framed question, anything that came from a sub-agent)
-4. `Write` the result to `council-report-<timestamp>.html` in the user's current working directory
-5. Report the file path in chat — do **not** auto-open with `open` or `xdg-open`
 
 ### Substitution table
 
@@ -32,11 +24,11 @@ This is deliberate: every council report must look identical across sessions so 
 | `{{TITLE}}` | First 60 chars of the framed question, single line, ellipsis if truncated | yes |
 | `{{TIMESTAMP_HUMAN}}` | Human-readable date+time, e.g. `17 May 2026 · 13:52` (appears in header and footer) | no |
 | `{{FRAMED_QUESTION_HTML}}` | Framed question, paragraphs preserved as `<p>...</p>` | yes (then wrap in `<p>`) |
-| `{{VERDICT_AGREES_HTML}}` | Chairman's "Where the council agrees" body, as `<p>` paragraphs | yes |
-| `{{VERDICT_CLASHES_HTML}}` | Chairman's "Where the council clashes" body | yes |
-| `{{VERDICT_BLIND_SPOTS_HTML}}` | Chairman's "Blind spots the council caught" body | yes |
-| `{{VERDICT_RECOMMENDATION_HTML}}` | Chairman's "The recommendation" body | yes |
-| `{{VERDICT_NEXT_STEP_HTML}}` | Chairman's "The one thing to do first" body — **must be one item, not a list** | yes |
+| `{{VERDICT_AGREES_HTML}}` | Chair's "Where the council agrees" body, as `<p>` paragraphs | yes |
+| `{{VERDICT_CLASHES_HTML}}` | Chair's "Where the council clashes" body | yes |
+| `{{VERDICT_BLIND_SPOTS_HTML}}` | Chair's "Blind spots the council caught" body | yes |
+| `{{VERDICT_RECOMMENDATION_HTML}}` | Chair's "The recommendation" body | yes |
+| `{{VERDICT_NEXT_STEP_HTML}}` | Chair's "The one thing to do first" body — **must be one item, not a list** | yes |
 | `{{ALIGNED_ON}}` | One-sentence summary of consensus points (derived from "agrees") | yes |
 | `{{DIVERGED_ON}}` | One-sentence summary of clash points (derived from "clashes") | yes |
 | `{{RESPONSE_CONTRARIAN_HTML}}` | Full Contrarian response, paragraphs as `<p>` | yes |
@@ -81,7 +73,7 @@ Concatenate all 5 blocks into `{{PEER_REVIEW_BLOCKS_HTML}}`. The anonymization m
 
 ## Editing the template
 
-The template lives at `assets/report-template.html`. If you genuinely need to change the design (rare — see hard rules in SKILL.md), edit the template itself, not the report. Anything that lives in the template applies to every future council session uniformly.
+The template lives at `assets/report-template.html`. If you genuinely need to change the design (rare), edit the template itself, not the report. Anything that lives in the template applies to every future council session uniformly.
 
 Don't add:
 - Navigation bars, sidebars, tables of contents
@@ -90,7 +82,7 @@ Don't add:
 - Auto-theme switching, `prefers-color-scheme` media queries
 - JavaScript dependencies (the template uses native `<details>` only)
 
-The aesthetic target: a professional briefing memo. McKinsey deck, calm reading view. Not a SaaS landing page. Not a code editor. Not a portfolio.
+The aesthetic target: a calm, professional briefing memo. Not a landing page, a code editor, or a portfolio.
 
 ---
 
@@ -111,7 +103,7 @@ The transcript is utilitarian — plain Markdown, no template needed. It's the a
 
 ### Context used
 
-- <file paths read during step 1 context scan>
+- <file paths read while framing the question>
 
 ---
 
@@ -160,15 +152,14 @@ The transcript is utilitarian — plain Markdown, no template needed. It's the a
 
 ---
 
-## Chairman synthesis
+## Chair synthesis
 
-<full chairman output verbatim — preserve the 5 fixed headers>
+<full chair output verbatim — preserve the 5 fixed headers>
 
 ---
 
-*Council methodology: Andrej Karpathy. Adaptation: agent-kit council skill.*
 ```
 
-The transcript reveals the anonymization mapping. The HTML report does NOT — the mapping is an audit detail, not user-facing. Preserve the chairman's output verbatim. Don't reformat — the verdict structure is part of the methodology.
+The transcript reveals the anonymization mapping. The HTML report does NOT — the mapping is an audit detail, not user-facing. Preserve the chair's output verbatim. Don't reformat — the verdict structure is part of the methodology.
 
-If the user re-councils the same decision later, future Claude reads past transcripts during the step 1 context scan and avoids re-counciling identical ground.
+When the same decision comes back, the framing step reads earlier transcripts so the council does not repeat settled ground.

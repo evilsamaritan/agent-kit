@@ -1,239 +1,106 @@
 ---
 name: i18n
-description: "Implement internationalization and localization. Use for ICU messages, plurals, RTL, Intl APIs, dates, language routing, and translation workflows."
+description: "Implement internationalization and localization (i18n, l10n): message catalogs, ICU plurals and select, locale negotiation and routing, RTL and bidi text, date/number/currency formatting, translation workflows. JavaScript Intl details are in a reference; hreflang is in seo, layout properties in css."
 user-invocable: true
 ---
 
 # Internationalization
 
-Expert-level i18n/l10n knowledge. ICU MessageFormat (1.0 + 2.0), CLDR pluralization, RTL, Intl APIs, Temporal, translation workflows.
+Separate what users read (messages) and how values look (formatting) from code, and decide the locale in one place. The rules below are stack-independent; library and runtime specifics are in references. Determine the project's stack and library versions first (manifest or lockfile).
 
-**Critical rules:** Never concatenate translatable strings. Never assume only `one`/`other` plural forms. Never use physical CSS properties for bidi layouts. Always set `lang` and `dir` attributes on `<html>`.
+**Hard rules:** Never concatenate translatable strings. Never assume plural forms are only `one` and `other`. Never hardcode date, number, or currency formats. Set `lang` and `dir` on the document. Isolate user-generated text in mixed-direction contexts.
 
----
-
-## I18n Library Decision Tree
-
-- Need ICU MessageFormat syntax natively? --> FormatJS-family libraries
-- Need plugin ecosystem + namespace lazy-loading? --> i18next-family libraries
-- Need compile-time extraction + type safety? --> Libraries with CLI extraction (e.g., FormatJS CLI, typesafe-i18n)
-- Server-side only, simple key-value? --> Lightweight solutions (gettext, raw Intl APIs)
-- Want MF2 syntax today? --> Check if your library has MF2 plugin/support; polyfill if needed
-
----
-
-## ICU MessageFormat Syntax
-
-### MessageFormat 1.0 (stable standard)
-
-| Type | Syntax | Example |
-|------|--------|---------|
-| Simple | `{name}` | `Hello, {name}!` |
-| Plural | `{count, plural, one {# item} other {# items}}` | `You have 3 items` |
-| Select | `{gender, select, male {He} female {She} other {They}}` | `She liked your post` |
-| Ordinal | `{rank, selectordinal, one {#st} two {#nd} few {#rd} other {#th}}` | `3rd place` |
-| Nested | `{gender, select, male {{count, plural, ...}} ...}` | Combine select + plural |
-| Date | `{date, date, medium}` | `Jan 15, 2026` |
-| Number | `{amount, number, currency}` | `€1,234.56` |
-
-`#` inside plural/selectordinal resolves to the matched number. Always use `#` instead of re-referencing the variable.
-
-### MessageFormat 2.0 (MF2) -- approved Unicode standard
-
-MF2 is the Unicode Consortium successor to MF1. The spec is approved and stable. ICU includes draft Java implementation; JS/C++ are in tech preview. `Intl.MessageFormat` TC39 proposal exists but is not advancing yet.
+## Decision tree
 
 ```
-# MF2 syntax uses .local/.input declarations and {{...}} patterns
-.input {$count :number}
-.match $count
-one   {{You have {$count} item}}
-*     {{You have {$count} items}}
+Where do messages come from?
+├── Semantic keys (auth.login.title)      → stable across copy edits; needs a source-language catalog and translator context
+├── Source text as the key (gettext)      → fast to write; any edit to the source text invalidates its translations
+└── Generated IDs (hash of text + context) → extraction tooling assigns IDs; stable per text, opaque in review
+    Pick one per project and keep it.
 
-# Custom functions -- extensible formatting
-.local $exp = {$date :datetime dateStyle=long}
-{{Expires on {$exp}}}
+When are catalogs loaded?
+├── Runtime (fetched per locale/namespace) → translators ship without a rebuild; watch payload and loading states
+└── Compile-time (bundled, tree-shaken)    → smaller and type-checkable; a new locale or fix needs a build
+
+Who decides the locale?
+├── Public, indexable pages → URL (path or subdomain), so pages are shareable and crawlable (seo owns hreflang)
+├── Signed-in users         → stored profile preference, overriding the request header
+└── First visit             → locale negotiation (below), then persist the choice
+
+Who formats numbers, dates, currency, lists, relative time?
+└── The platform's CLDR/ICU-backed locale APIs, never hand-written patterns.
 ```
 
-**MF2 vs MF1:** explicit declarations, custom function registry, better error model (fallback values instead of exceptions), `{#tag}...{/tag}` markup for rich text. Use MF1 for existing projects. Consider MF2 for new projects if your i18n library and TMS support it.
+Non-web stacks use the same rules with their platform's ICU or CLDR-backed APIs and catalog formats (for example ICU4J and Android string resources on the JVM, String Catalogs on Apple platforms, ARB in Flutter, Babel or gettext in Python, `x/text` in Go). Library names and JavaScript specifics: [javascript-intl.md](references/javascript-intl.md), [i18next.md](references/i18next.md), [formatjs.md](references/formatjs.md), [frameworks.md](references/frameworks.md).
 
----
+## Locale negotiation
 
-## CLDR Pluralization Rules
+1. Treat locales as BCP 47 tags (`en`, `pt-BR`, `zh-Hant`).
+2. Order of authority: explicit user choice, then URL, then stored profile, then `Accept-Language` (honor q-values), then default. Do not infer language from IP location.
+3. Match the best supported locale and fall back along a chain (`pt-BR` to `pt` to the default); never show raw keys when a translation is missing.
+4. Persist the resolved choice (profile and URL), not only `localStorage`, so it survives a new device.
+5. Locale controls language and formatting separately when needed: a user may want English text with a European date format.
 
-| Category | Languages that use it | Example numbers |
-|----------|-----------------------|-----------------|
-| `zero` | Arabic, Latvian, Welsh | 0 |
-| `one` | English, French, Portuguese, German | 1 |
-| `two` | Arabic, Hebrew, Slovenian | 2 |
-| `few` | Czech, Polish, Russian, Arabic | 2-4 (Czech), 3-10 (Arabic) |
-| `many` | Polish, Russian, Arabic, Welsh | 5-20 (Polish), 11-99 (Arabic) |
-| `other` | **All languages** (required) | Everything else |
+## Messages
 
-English: `one` + `other`. Polish: `one` + `few` + `many` + `other`. Arabic: all six. Never assume only `one`/`other`.
+ICU MessageFormat 1.0 is the established standard in most libraries.
 
----
+| Type | Syntax |
+|------|--------|
+| Argument | `Hello, {name}!` |
+| Plural | `{count, plural, one {# item} other {# items}}` |
+| Select | `{gender, select, female {She} male {He} other {They}}` |
+| Ordinal | `{rank, selectordinal, one {#st} two {#nd} few {#rd} other {#th}}` |
+| Date | `{date, date, medium}` |
+| Number or currency | `{amount, number, ::currency/EUR}` (skeleton form: the currency code travels in the message) |
 
-## Intl APIs Quick Reference
+`#` inside plural resolves to the formatted number; use it instead of repeating the variable. A select needs `other`. A single apostrophe before `{` or `}` starts quoted text in ICU: write `''` for a literal apostrophe next to arguments (`l''{name}`). Rich text uses tags or placeholders mapped to components, never string splicing.
 
-```js
-// Date formatting -- locale-aware
-new Intl.DateTimeFormat('de-DE', { dateStyle: 'long' }).format(date)
-// --> "15. Januar 2026"
+MessageFormat 2.0 is the Unicode successor with explicit declarations and better error handling. Decision: keep MF1 for existing catalogs; adopt MF2 for new work only when the library, translation tooling, and runtime support it. Syntax and implementation status: [i18n-patterns.md](references/i18n-patterns.md).
 
-// Number formatting -- currency
-new Intl.NumberFormat('ja-JP', { style: 'currency', currency: 'JPY' }).format(1234)
-// --> "Y=1,234"
+## Plurals
 
-// Intl.NumberFormat v3 (Baseline 2023): roundingMode, roundingIncrement,
-// roundingPriority, trailingZeroDisplay, signDisplay: "negative"
-new Intl.NumberFormat('en-IE', {
-  style: 'currency', currency: 'EUR',
-  trailingZeroDisplay: 'stripIfInteger',  // "€20" instead of "€20.00"
-  roundingMode: 'halfExpand',
-  signDisplay: 'negative',
-}).format(19.99);
-// Essential for price formatting ("19.99" vs "19.9900"), currency display,
-// scientific notation.
+Plural categories (`zero`, `one`, `two`, `few`, `many`, `other`) come from CLDR locale data; `other` is required everywhere and which others exist depends on the language (English two, Polish four, Arabic six). Do not infer them from numbers: `one` is not "exactly 1" (French and Portuguese include 0 in `one`). Get categories from the platform (`Intl.PluralRules` in JavaScript) instead of hand-written tables, give translators every category their language needs, and never write `item(s)`.
 
-// Relative time
-new Intl.RelativeTimeFormat('en', { numeric: 'auto' }).format(-1, 'day')
-// --> "yesterday"
+## Direction (RTL and bidi)
 
-// List formatting
-new Intl.ListFormat('en', { type: 'conjunction' }).format(['A', 'B', 'C'])
-// --> "A, B, and C"
+Set `<html lang dir>` (both). Use CSS logical properties so layouts mirror automatically (the `css` skill owns them). Mirror directional icons (arrows, progress), not universal ones (check marks). Wrap user-generated or mixed-direction text in an isolating element (`<bdi>`, `dir="auto"`, or `unicode-bidi: isolate`) so a name or number cannot reorder surrounding text. Numerals and calendars vary by locale (numbering system and calendar come from the locale tag or `-u-` extensions); let the platform format them. RTL patterns: [i18n-patterns.md](references/i18n-patterns.md).
 
-// Duration formatting (Baseline Newly Available)
-new Intl.DurationFormat('en', { style: 'long' })
-  .format({ hours: 1, minutes: 30, seconds: 15 })
-// --> "1 hour, 30 minutes, 15 seconds"
+## Translation workflow
 
-// Collation -- locale-aware sorting
-['ae', 'a', 'z'].sort(new Intl.Collator('de').compare)
+Extract, send to a translation system, translate and review, pull, validate (missing keys, placeholder and ICU syntax consistency), build. Give translators context (descriptions, screenshots, character limits); use machine or LLM drafts with human review for user-facing text and human translation for legal or regulated text. Detail: [i18n-patterns.md](references/i18n-patterns.md).
 
-// Segmenter -- word/sentence/grapheme boundaries (Baseline)
-[...new Intl.Segmenter('ja', { granularity: 'word' }).segment('text')]
-```
+## Anti-patterns
 
-### Temporal API + Intl formatting
+1. **String concatenation**: breaks word order. Use message arguments.
+2. **Hardcoded formats**: `MM/DD/YYYY` is not universal; use locale formatters.
+3. **`count + " item(s)"`**: wrong for most languages; use plural messages.
+4. **Physical CSS properties with RTL**: use logical properties.
+5. **Locale only in `localStorage`**: lost on a new device; persist in profile and URL.
+6. **Manual durations and relative times** (`${h}h ${m}m`): formats vary by locale.
+7. **Missing `lang`**: breaks screen reader pronunciation, spell checking, and hyphenation.
+8. **Ad-hoc timezone arithmetic**: store UTC instants and format with an explicit time zone.
+9. **Splitting a sentence across messages** so translators cannot reorder it.
 
-Temporal (shipping in major browsers) replaces `Date` with immutable, timezone-aware types. Format Temporal objects with `Intl.DateTimeFormat`:
+## Context adaptation
 
-```js
-const zdt = Temporal.Now.zonedDateTimeISO('Europe/Berlin');
-new Intl.DateTimeFormat('de-DE', { dateStyle: 'long', timeStyle: 'short' })
-  .format(zdt);  // locale-aware output
+- **Frontend:** translate at the component boundary, lazy-load catalogs by route or namespace, keep `lang` and `dir` in sync with the locale.
+- **Backend:** negotiate the locale per request, return translated user-facing text but stable codes for enums, localize emails per locale, send dates as ISO 8601 and let clients format.
 
-// Store as ISO 8601, display in user timezone
-const stored = Temporal.Instant.from('2026-01-15T14:30:00Z');
-const local = stored.toZonedDateTimeISO(userTimeZone);
-```
+## Related knowledge
 
----
-
-## RTL Support Essentials
-
-```css
-/* Use CSS logical properties -- works for both LTR and RTL */
-.card {
-  margin-inline-start: 1rem;    /* NOT margin-left */
-  padding-inline-end: 0.5rem;   /* NOT padding-right */
-  border-inline-start: 3px solid;/* NOT border-left */
-  text-align: start;            /* NOT text-align: left */
-}
-
-/* Flexbox and Grid auto-reverse with dir="rtl" -- no changes needed */
-
-/* Directional icons need flipping */
-[dir="rtl"] .icon-arrow { transform: scaleX(-1); }
-```
-
-**Key rules:**
-- Set `<html lang="ar" dir="rtl">` -- both attributes required
-- Logical properties: `inline-start/end` = horizontal, `block-start/end` = vertical
-- Flip directional icons, keep universal icons (checkmark, X) unflipped
-- Test with pseudo-localization: `[!!!Thish ish a tesht!!!]`
-
----
-
-## Key Naming Conventions
-
-```
-# Hierarchical -- namespace.component.element.state
-auth.login.title           = "Sign In"
-auth.login.button.submit   = "Log In"
-auth.login.error.invalid   = "Invalid credentials"
-
-# Rules:
-# - Use dots for hierarchy, never camelCase keys
-# - Namespace by feature/page, not by component type
-# - Keep keys descriptive: auth.login.title NOT t1
-# - Prefix shared keys: common.save, common.cancel
-```
-
----
-
-## Translation Workflow
-
-| Stage | Action |
-|-------|--------|
-| EXTRACT | Source code --> message catalog (CLI extraction) |
-| SEND | Upload source strings to TMS |
-| TRANSLATE | Human, MT, or AI-assisted translation + review |
-| PULL | Download translated files (CI job or webhook) |
-| VALIDATE | Check missing keys, format errors, placeholder consistency |
-| BUILD | Compile messages, split by route, deploy |
-
-**AI-assisted translation:** LLMs produce high-quality translations for common languages. Use hybrid workflow: MT/LLM first pass, human review for quality-critical content. TMS platforms increasingly integrate AI translation with terminology enforcement and translation memory.
-
----
-
-## Context Adaptation
-
-### Frontend
-- Wrap text in translation function calls at component level
-- RTL layout: use CSS logical properties, test with `dir="rtl"` on `<html>`
-- Locale switching: store in URL (`/en/about`), sync with `<html lang>` and `dir`
-- Lazy-load translations: split by route/namespace, load on navigation
-- Duration display: use `Intl.DurationFormat` instead of manual formatting
-- Dates: use Temporal API + `Intl.DateTimeFormat` for timezone-safe display
-
-### Backend
-- Locale detection: `Accept-Language` header, user preference in DB, URL, fallback chain
-- API responses: return translated content for user-facing fields, keep keys for enums
-- Email localization: template per locale, shared layout, locale from user profile
-- Dates in APIs: use ISO 8601 / Temporal instants -- let clients format for display
-
-### Accessibility
-- `lang` attribute on `<html>` and on inline language switches (`<span lang="fr">`)
-- Screen readers use `lang` to select pronunciation engine
-- Ensure translated alt text, ARIA labels, and error messages
-- RTL + screen reader: logical reading order must match visual order
-
----
-
-## Anti-Patterns
-
-1. **String concatenation** -- `"Hello, " + name + "!"` breaks in languages with different word order. Use ICU: `Hello, {name}!`
-2. **Hardcoded date/number formats** -- `MM/DD/YYYY` is US-only. Use `Intl.DateTimeFormat` with locale
-3. **Ignoring pluralization** -- `count + " item(s)"` is wrong for most languages. Use ICU plural rules
-4. **CSS physical properties with RTL** -- `margin-left` breaks RTL. Use `margin-inline-start`
-5. **localStorage-only locale** -- loses locale on new device/browser. Persist in user profile + URL
-6. **Manual duration formatting** -- `${h}h ${m}m` varies by locale. Use `Intl.DurationFormat`
-7. **Missing `lang` attribute** -- breaks screen reader pronunciation, harms SEO
-8. **Using `Date` for cross-timezone display** -- timezone bugs. Use Temporal API with explicit zones
-
----
-
-## Related Knowledge
-
-- **html/css** -- CSS logical properties for RTL, `lang` attribute, `dir` attribute
-- **accessibility** -- screen reader language switching, translated ARIA labels
-- **frontend** -- component-level i18n integration, locale-aware routing
-- **web** -- Temporal API, Intl APIs, browser compatibility
+- `css`: logical properties for RTL
+- `html`: `lang`, `dir`, `<bdi>`
+- `seo`: hreflang and localized sitemaps
+- `accessibility`: language of parts, translated ARIA labels
+- `javascript`: Temporal and Intl runtime notes
+- `frontend`: component-level integration and locale-aware routing
 
 ## References
 
-Load on demand for detailed patterns and implementation guides:
-
-- `references/i18n-patterns.md` -- library configuration examples (i18next, FormatJS), ICU MessageFormat advanced examples, MF2 syntax and migration, RTL CSS patterns, pseudo-localization testing, framework integration (Next.js, Vue)
+- [i18n-patterns.md](references/i18n-patterns.md): advanced ICU messages, MF2 syntax and status, RTL patterns, translation pipeline, pseudo-localization, tests
+- [javascript-intl.md](references/javascript-intl.md): Intl APIs, Temporal, DurationFormat with support notes
+- [i18next.md](references/i18next.md): i18next configuration, namespaces, plurals and context
+- [formatjs.md](references/formatjs.md): FormatJS and react-intl setup and extraction
+- [frameworks.md](references/frameworks.md): Next.js and Vue integration

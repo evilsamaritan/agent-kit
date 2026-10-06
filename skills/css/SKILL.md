@@ -17,7 +17,7 @@ Modern layout and visual systems. Logical properties by default. No `outline: no
 - Focus indicators **always visible** — if you remove the native outline, replace it
 - Use logical properties: `margin-inline`, `padding-block`, `inset-inline-start` — not `margin-left`/`right`
 - Color in `oklch()` when defining new palettes — perceptually uniform, gamut-aware
-- Respect `prefers-reduced-motion` for any animation > 100ms
+- Handle `prefers-reduced-motion` per animation: drop large movement, keep or soften small opacity and color changes
 - Token-first: semantic custom properties, not magic numbers
 - Every theme pair should use `light-dark()` or a single `color-scheme: light dark` strategy — not two entire sheets
 
@@ -90,76 +90,35 @@ Modern layout and visual systems. Logical properties by default. No `outline: no
 
 ## Modern CSS Features
 
-| Feature | What it does | Status (early 2026) |
-|---------|-------------|---------------------|
-| `:has()` | Parent selector — style parent by children | Baseline 2024 |
-| CSS nesting | `& .child { }` inside parent rule | Baseline 2024 |
-| `color-mix()` | Blend colors in any color space | Baseline 2024 |
-| `@starting-style` | Define initial state for entry animations | Baseline 2024 |
-| Popover API `::backdrop` | Top-layer popovers with backdrop | Baseline 2024 |
-| `light-dark()` | Pick value by `color-scheme` | Baseline 2024 |
-| `text-wrap: balance/pretty` | Even line lengths, avoid orphans | Baseline 2024 |
-| Container queries | Size queries relative to container | Baseline 2023 |
-| Cascade layers (`@layer`) | Explicit specificity ordering | Baseline 2023 |
-| `@scope` | Limit style reach to a DOM subtree | Baseline late 2025 |
-| View Transitions (same-doc) | Animate DOM state changes | Baseline 2024 |
-| View Transitions (cross-doc) | Animate MPA navigations | Chromium, Safari TP |
-| Anchor positioning | Position relative to anchors | Chromium + Safari; Firefox behind flag |
-| Scroll-driven animations | `animation-timeline: scroll()`/`view()` | Chromium + Firefox; Safari partial |
-| `text-box-trim` | Trim text leading/trailing whitespace | Chromium + Safari |
-| `interpolate-size: allow-keywords` | Animate to/from `auto`/`min-content` | Chromium only (experimental) |
+Decide per feature; examples, patterns, and the dated support table are in [modern-css.md](references/modern-css.md).
 
-```css
-/* :has() — style parent when child matches */
-.form-group:has(:invalid) { border-color: var(--color-error); }
+| Need | Use |
+|------|-----|
+| Style a parent or sibling from child state (invalid group, empty list) | `:has()` |
+| Component-level styles inside a rule | Native nesting, under three levels |
+| Component adapts to its container, not the viewport | Container queries (`container-type: inline-size`) |
+| Predictable specificity across resets, vendor CSS, components, utilities | `@layer`; unlayered CSS beats all layers |
+| Limit a style's reach to a subtree | `@scope` |
+| Light and dark values together | `color-scheme` plus `light-dark()` |
+| Derive hover, muted, or alpha variants from a base color | `color-mix()` or relative color syntax in `oklch()` |
+| Balanced headings, fewer orphans | `text-wrap: balance` / `pretty` |
+| Popups, tooltips, menus | Popover API with anchor positioning (`position-area`) |
+| Entry animation, animate to and from `display: none` | `@starting-style` + `transition-behavior: allow-discrete` |
+| Animate to or from `auto` | `interpolate-size` (limited support, guard) |
 
-/* Nesting — cleaner component styles */
-.card {
-  padding: var(--space-m);
-  & .title { font-size: 1.25rem; }
-  &:hover { box-shadow: var(--shadow-m); }
-
-  @media (prefers-reduced-motion: no-preference) {
-    transition: box-shadow 200ms;
-  }
-}
-
-/* text-wrap — typographic control */
-h1 { text-wrap: balance; }   /* Even lines for headings */
-p  { text-wrap: pretty;  }   /* Avoid orphans in paragraphs */
-
-/* Container queries — component-level responsive */
-.grid { container-type: inline-size; }
-@container (min-width: 40rem) {
-  .card { grid-template-columns: 1fr 2fr; }
-}
-```
-
-→ Deeper patterns: `references/modern-css.md`.
+**Support rule:** use Baseline widely available features freely; check the project's browserslist and current Baseline data for newer ones; guard anything else with `@supports` and make the fallback a complete design.
 
 ---
 
 ## Cascade Layers
 
-Make specificity explicit instead of fighting `!important`.
-
-```css
-@layer reset, tokens, base, components, utilities;
-
-@layer reset       { /* normalize */ }
-@layer tokens      { :root { --color-primary: ... } }
-@layer base        { body { font-family: ... } }
-@layer components  { .card { ... } }
-@layer utilities   { .u-hidden { display: none !important; } }
-```
-
-Later layers win over earlier ones regardless of selector specificity. Unlayered styles win over all layers — reserve them for truly critical overrides.
+Make specificity explicit instead of fighting `!important`: declare the order once (`@layer reset, tokens, base, components, utilities;`) and assign styles to layers. Later layers win regardless of selector specificity; unlayered styles beat all layers, so reserve them for truly critical overrides. Third-party CSS goes in its own layer. Examples: `modern-css.md`.
 
 ---
 
 ## Accessibility Boundary
 
-CSS owns visible-focus, reduced-motion, color contrast, and target size.
+CSS implements visible focus, reduced motion, contrast, and target size; the thresholds and testing come from `accessibility`.
 
 ```css
 :focus-visible {
@@ -167,16 +126,11 @@ CSS owns visible-focus, reduced-motion, color contrast, and target size.
   outline-offset: 2px;
 }
 
-@media (prefers-reduced-motion: reduce) {
-  *, *::before, *::after {
-    animation-duration: 0.01ms !important;
-    transition-duration: 0.01ms !important;
-    scroll-behavior: auto !important;
-  }
-}
-
-button { min-block-size: 44px; min-inline-size: 44px; } /* WCAG 2.2 target size */
+/* 24px is the WCAG 2.2 AA minimum target size; 44px is the recommended size */
+button { min-block-size: 44px; min-inline-size: 44px; }
 ```
+
+Reduced motion is decided per animation (remove large movement, keep gentle opacity changes); a global duration reset is a last resort. Patterns: `animation.md`.
 
 ARIA patterns, roles, and keyboard handling are **not** CSS — see `accessibility`.
 
@@ -185,21 +139,13 @@ ARIA patterns, roles, and keyboard handling are **not** CSS — see `accessibili
 ## Animation
 
 - Prefer CSS transitions for state changes; `@keyframes` for named sequences
-- `@starting-style` for entry animations on elements that enter the DOM
-- `transition-behavior: allow-discrete` when animating to/from `display: none`
-- View Transitions API for route-level animation — `document.startViewTransition()`
-- Animate `transform` and `opacity` (compositor) — avoid animating layout properties
+- `@starting-style` for entry: write the end state as the base style, and the entry state inside `@starting-style`
+- `transition-behavior: allow-discrete` when animating to or from `display: none`
+- View Transitions for route-level and state-change animation (CSS syntax here, JavaScript API in `web`)
+- Animate `transform` and `opacity` (compositor); avoid animating layout properties
+- Reach for an animation library only for timelines, layout/exit animation, SVG morphing, or spring physics
 
-```css
-.card {
-  opacity: 0;
-  transition: opacity 300ms;
-  @starting-style { opacity: 0; }
-  &.is-visible { opacity: 1; }
-}
-```
-
-→ Full animation patterns and libraries: `references/animation.md`.
+→ Full patterns, scroll-driven animations, and reduced-motion handling: `references/animation.md`.
 
 ---
 
@@ -221,10 +167,11 @@ ARIA patterns, roles, and keyboard handling are **not** CSS — see `accessibili
 ## Related Knowledge
 
 - **html** — semantic elements that these styles target
-- **accessibility** — WCAG, ARIA, keyboard navigation, screen-reader support
+- **accessibility** — WCAG thresholds, ARIA, keyboard navigation, screen-reader support
+- **development** — token and variant discipline: one source of truth for design values
 - **i18n** — logical properties, `dir`, writing modes for RTL/vertical scripts
-- **seo** — CLS impact of layout shifts; font-loading strategies
-- **web** — View Transitions, Popover API, CloseWatcher, scroll-linked animations integration
+- **performance** — Core Web Vitals definitions, thresholds, and measurement (layout shift, font loading); **seo** — vitals as a ranking signal
+- **web** — View Transitions JavaScript API, Popover and dialog behavior, scripting
 - **design** — when the underlying decision is about design systems or UX, not CSS
 
 ---
@@ -234,5 +181,5 @@ ARIA patterns, roles, and keyboard handling are **not** CSS — see `accessibili
 Load on demand for depth:
 
 - `references/layout-patterns.md` — Grid templates, Flexbox patterns, holy grail, sidebar, card grids, aspect-ratio, gap
-- `references/modern-css.md` — cascade layers, container queries, `:has()` patterns, nesting, `@scope`, view transitions, anchor positioning, scroll-driven animations, color functions, CSS math functions
-- `references/animation.md` — CSS transitions, `@keyframes`, `@starting-style`, scroll-driven animations, View Transitions API, Motion, GSAP, anime.js, WAAPI, `prefers-reduced-motion`, performance rules
+- `references/modern-css.md` — cascade layers, container queries, `:has()`, nesting, `@scope`, typography, color and math functions, popover and anchor positioning, dated browser-support table
+- `references/animation.md` — transitions, `@keyframes`, `@starting-style`, scroll-driven animations, View Transitions, WAAPI, when a library earns its weight, `prefers-reduced-motion`, performance rules

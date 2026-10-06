@@ -13,7 +13,7 @@
 
 ## Structured Concurrency
 
-Every coroutine must belong to a `CoroutineScope`. When the scope cancels, all children cancel. When a child fails, the parent fails (unless `SupervisorJob`).
+Every coroutine belongs to a `CoroutineScope` that owns it (`development` rule 5): the scope's end cancels its children, and a failing child fails the parent unless a `SupervisorJob` is in between.
 
 ```kotlin
 // Scope tied to lifecycle — e.g., ViewModel, Service
@@ -40,8 +40,13 @@ suspend fun fetchUserWithPosts(userId: String): UserWithPosts = coroutineScope {
 suspend fun fetchDashboard(): Dashboard = supervisorScope {
     val profile = async { fetchProfile() }        // required
     val recommendations = async {                  // optional
-        try { fetchRecommendations() }
-        catch (e: Exception) { emptyList() }       // graceful degradation
+        try {
+            fetchRecommendations()
+        } catch (e: CancellationException) {
+            throw e                                // cancellation is not a failure to absorb
+        } catch (e: Exception) {
+            emptyList()                            // graceful degradation
+        }
     }
     Dashboard(profile.await(), recommendations.await())
 }
@@ -71,31 +76,36 @@ val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default + handler)
 // Structured error handling in async
 suspend fun <T> retryWithBackoff(
     times: Int = 3,
-    initialDelay: Long = 100,
-    factor: Double = 2.0,
+    baseDelay: Long = 100,
+    maxDelay: Long = 10_000,
+    retryOn: (Exception) -> Boolean,  // required: the caller decides which errors are retryable
     block: suspend () -> T,
 ): T {
-    var currentDelay = initialDelay
+    // Retry policy (which errors, full jitter, budget, overall deadline, idempotency, one layer) is owned by `reliability`;
+    // bound the whole call with withTimeout(totalMs) { retryWithBackoff(...) { ... } }
     repeat(times - 1) {
         try {
             return block()
         } catch (e: Exception) {
             if (e is CancellationException) throw e  // NEVER swallow cancellation
-            logger.warn("Attempt ${it + 1} failed, retrying in ${currentDelay}ms", e)
-            delay(currentDelay)
-            currentDelay = (currentDelay * factor).toLong()
+            if (!retryOn(e)) throw e
+            val bound = minOf(maxDelay, baseDelay shl it)  // full jitter: random(0, min(cap, base * 2^attempt))
+            val wait = Random.nextLong(bound + 1)
+            logger.warn("Attempt ${it + 1} failed, retrying in ${wait}ms", e)
+            delay(wait)
         }
     }
     return block() // Last attempt — let exception propagate
 }
 
-// Result wrapper for coroutines
+// Result wrapper for coroutines. Named `attempt` because the standard `runCatching` also
+// catches CancellationException, which breaks cancellation when used around suspending calls.
 sealed interface Outcome<out T> {
     data class Success<T>(val value: T) : Outcome<T>
     data class Failure(val error: Throwable) : Outcome<Nothing>
 }
 
-suspend fun <T> runCatching(block: suspend () -> T): Outcome<T> =
+suspend fun <T> attempt(block: suspend () -> T): Outcome<T> =
     try {
         Outcome.Success(block())
     } catch (e: CancellationException) {
@@ -115,12 +125,13 @@ suspend fun <T> runCatching(block: suspend () -> T): Outcome<T> =
 // Cooperative cancellation — check isActive or use suspending functions
 suspend fun processItems(items: List<Item>) {
     for (item in items) {
-        ensureActive()  // Throws CancellationException if cancelled
+        currentCoroutineContext().ensureActive()  // Throws CancellationException if cancelled
         process(item)
     }
 }
 
-// withTimeout — cancels if too slow
+// withTimeout — cancels if too slow. It throws TimeoutCancellationException, a
+// CancellationException subclass: a retry loop that rethrows cancellation will not retry it.
 val result = withTimeout(5_000) {
     fetchFromSlowApi()
 }
@@ -208,18 +219,19 @@ val sharedFlow: SharedFlow<Event> = flow
 ```kotlin
 // Use kotlinx-coroutines-test
 @Test
-fun `test with virtual time`() = runTest {
+fun `collector sees every state`() = runTest {
     val flow = MutableStateFlow(0)
     val values = mutableListOf<Int>()
 
-    // backgroundScope — auto-cancelled when test completes
-    backgroundScope.launch {
+    // Unconfined collector starts at once and sees each assignment. With the default
+    // StandardTestDispatcher it would not run until the scheduler advances, and a
+    // StateFlow conflates, so only the last value would be collected.
+    backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) {
         flow.collect { values.add(it) }
     }
 
     flow.value = 1
     flow.value = 2
-    advanceUntilIdle()
     assertEquals(listOf(0, 1, 2), values)
 }
 
@@ -247,7 +259,7 @@ fun `test with injected dispatcher`() = runTest {
     // Tests run synchronously, deterministically
 }
 
-// Turbine — Flow testing library
+// Turbine — Flow testing library; prefer it to a hand-written collector for emission order
 @Test
 fun `test flow emissions`() = runTest {
     val flow = userRepository.observeUser("123")
@@ -277,11 +289,8 @@ suspend fun incrementSafely() {
 // Semaphore — limit concurrency
 val semaphore = Semaphore(10) // Max 10 concurrent operations
 
-suspend fun rateLimitedFetch(url: String): Response {
-    semaphore.withPermit {
-        return httpClient.get(url)
-    }
-}
+suspend fun limitedFetch(url: String): Response =
+    semaphore.withPermit { httpClient.get(url) }
 
 // Fan-out / fan-in with channels
 suspend fun processInParallel(items: List<Item>, concurrency: Int = 4) = coroutineScope {
@@ -301,7 +310,7 @@ suspend fun processInParallel(items: List<Item>, concurrency: Int = 4) = corouti
 }
 
 // State owner pattern — single coroutine owns mutable state via Channel
-// (actor {} is deprecated; use Channel + launch instead)
+// (actor {} is annotated @ObsoleteCoroutinesApi; use Channel + launch instead)
 sealed interface CounterMsg {
     data object Increment : CounterMsg
     data class GetCount(val response: CompletableDeferred<Int>) : CounterMsg

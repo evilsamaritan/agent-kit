@@ -1,6 +1,6 @@
 # Shell and Components
 
-This reference owns the canonical shell contract and the vocabulary of content components that `visualization-shell.css` provides. Read it before writing any artifact markup: if a component exists here, use it; do not invent a parallel class. The pattern gallery [_preview.html](../assets/_preview.html) shows every component rendered; this file is the index, so the gallery rarely needs to be read as source.
+This reference owns the canonical shell contract and the vocabulary of content components that `visualization-shell.css` provides. Read it before writing any artifact markup: if a component exists here, use it; do not invent a parallel class. The markup for each component is given here; the canonical compositions are `assets/visualization-page.html` and `assets/visualization-shell.html`.
 
 `scripts/check-shell-contract.mjs` verifies that this file and the stylesheet describe the same classes.
 
@@ -143,7 +143,7 @@ The six category modifiers mean the same thing everywhere; their palette and mea
 | `viz-mermaid` (`__output` is generated) | supported diagrams in a project that selects Mermaid browser rendering | see [mermaid-rendering.md](mermaid-rendering.md) |
 | `viz-compiled`, `__caption`, `__output`, `__description`, `__error` | precompiled Mermaid, D2, PlantUML, or Graphviz SVG with theme and compact variants | see [compiled-diagrams.md](compiled-diagrams.md) |
 | `viz-relationship-list`, `__route`, `__label`, `__status` + `--risk` `--unknown` | compact or textual projection of edges | `<li><span class="viz-relationship-list__route">A → B</span><span class="viz-relationship-list__label">depends on</span></li>` |
-| `viz-message-list` | compact projection of a sequence | `<ol class="viz-message-list"><li><div><strong>Client → Shell</strong><small>open(gameId)</small></div></li></ol>` |
+| `viz-message-list` | compact projection of a sequence | `<ol class="viz-message-list"><li><div><strong>Client → Shell</strong><small>open(orderId)</small></div></li></ol>` |
 | `viz-diagram`, `viz-node` + category modifiers, `viz-edge` + `--primary` `--indirect` `--annotation` `--risk` | hand-written inline SVG whose geometry carries meaning, and charts | `<svg class="viz-diagram" viewBox="…" role="img">` with `rect.viz-node`, `path.viz-edge` |
 
 `viz-connector` is only for a simple chain. Anything that branches, joins, or loops uses the selected diagram renderer or one SVG coordinate system; never rebuild routing from borders and absolutely positioned fragments.
@@ -172,8 +172,8 @@ The six category modifiers mean the same thing everywhere; their palette and mea
 
 ```html
 <div class="viz-code" data-viz-code data-viz-language="typescript">
-  <div class="viz-code__bar"><span>src/runtime/module.ts · GameModule</span><span>proposed</span></div>
-  <div class="viz-code__scroll"><pre><code><span class="viz-code__line" data-line="1"><span>export interface GameModule {</span></span>
+  <div class="viz-code__bar"><span>src/runtime/module.ts · CatalogModule</span><span>proposed</span></div>
+  <div class="viz-code__scroll"><pre><code><span class="viz-code__line" data-line="1"><span>export interface CatalogModule {</span></span>
 <span class="viz-code__line viz-code__line--focus" data-line="2"><span>  mount(ports: Ports): Mounted</span></span></code></pre></div>
 </div>
 ```
@@ -200,7 +200,7 @@ Put additional CSS after the shared stylesheet, scope it to the content region, 
 Artifacts carry a copy of the shell, so copies drift. The shell root records the revision it was built from in `data-viz-shell-revision`; the assets carry the same number in a header comment. The revision increases whenever a class, hook, or token is removed or renamed. To bring an old artifact up to date, copy the shared assets (and the composition it started from) again and re-run the check:
 
 ```bash
-node scripts/check-shell-contract.mjs path/to/artifact.html
+node <skill-dir>/scripts/check-shell-contract.mjs path/to/artifact.html
 ```
 
 The check reports missing hooks, duplicate IDs, broken navigation targets, browser diagram blocks without accessible titles, a missing live-render loading gate, compiled diagrams without source links or complete theme/view pairs, code regions without a language, `viz-` classes the shell does not define, and an outdated revision.

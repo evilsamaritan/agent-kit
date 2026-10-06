@@ -7,20 +7,15 @@ What kind of animation?
 ├── Simple state transitions (hover, focus, show/hide)
 │   └── CSS transitions + @starting-style
 ├── Scroll-based effects (parallax, reveal, progress)
-│   └── CSS scroll-driven animations (animation-timeline)
+│   └── CSS scroll-driven animations (animation-timeline), guarded by @supports
 │       └── Fallback: IntersectionObserver + CSS class toggle
-├── Page/route transitions
-│   └── View Transitions API
-│       └── Fallback: CSS class toggle or Motion layout animations
-├── Complex sequences, timeline-based
-│   ├── Declarative (React/Vue/framework) → Motion
-│   └── Imperative, cross-framework → GSAP
-├── SVG morphing, path animation
-│   └── GSAP (MorphSVG) or anime.js
-├── Gesture-based (drag, swipe, pinch)
-│   └── Motion (gesture support built-in)
-└── Simple programmatic animation (no library)
-    └── Web Animations API (WAAPI)
+├── Page/route/state transitions
+│   └── View Transitions (same-document; cross-document where supported)
+│       └── Fallback: no animation, or a CSS class toggle
+├── Programmatic animation, playback control
+│   └── Web Animations API (WAAPI)
+└── Needs a library? (see "When a library earns its weight")
+    └── Timeline orchestration, layout/exit animation, SVG morphing, springs
 ```
 
 ---
@@ -55,10 +50,14 @@ By default, `display` and `visibility` are not transitionable. `allow-discrete` 
 .dialog[open] {
   display: block;
   opacity: 1;
+
+  @starting-style {
+    opacity: 0;   /* without this the entry jumps; only the exit animates */
+  }
 }
 ```
 
-**Browser support:** Baseline 2024 (Chrome 117+, Firefox 129+, Safari 17.4+). ~88% global support as of 2025.
+Support: see [modern-css.md](modern-css.md#browser-support).
 
 ---
 
@@ -113,13 +112,18 @@ Defines the initial style for an element's first rendered frame, enabling entry 
 }
 ```
 
-**Top-layer elements** (dialogs, popovers) — also include `overlay` in `transition` to ensure the element exits the top layer only after the transition completes.
+**Top-layer elements** (dialogs, popovers) — also include `overlay` in `transition` so the element leaves the top layer only after the transition completes. `overlay` ships only in Chromium; elsewhere the declaration is ignored and the exit animation may not play, which is still a complete (instant) design.
 
 ```css
-dialog[open] {
-  opacity: 1;
+dialog {
+  opacity: 0;
+  /* On the base rule, so the transition still applies when [open] is removed */
   transition: opacity 300ms ease, display 300ms allow-discrete,
               overlay 300ms allow-discrete;
+}
+
+dialog[open] {
+  opacity: 1;
 
   @starting-style {
     opacity: 0;
@@ -127,7 +131,7 @@ dialog[open] {
 }
 ```
 
-**Browser support:** Baseline 2024 (Chrome 117+, Firefox 129+, Safari 17.4+). ~88% global support as of 2025. Progressive enhancement by nature — unsupported browsers show elements instantly without animation.
+Progressive enhancement by nature — unsupported browsers show elements instantly without animation. Support: [modern-css.md](modern-css.md#browser-support).
 
 ---
 
@@ -212,17 +216,13 @@ Always wrap in `@supports` for progressive enhancement:
 }
 ```
 
-**Browser support (2025-2026):**
-- Chrome 115+, Edge 115+ — full support
-- Firefox 110+ (partial, improving)
-- Safari 18+ — added support
-- Use `@supports` guard for production; ~80% global support
+Not supported in every stable browser (see [modern-css.md](modern-css.md#browser-support)): keep the `@supports` guard, and make the unanimated state a complete design, not a broken one.
 
 ---
 
-## View Transitions API
+## View Transitions
 
-Animate between DOM states or page navigations with a cross-fade by default.
+Animate between DOM states or page navigations with a cross-fade by default. This section owns the CSS syntax. The JavaScript API (lifecycle promises, transition types, skipping, framework integration) → `web`.
 
 ### Same-Document Transitions
 
@@ -280,7 +280,7 @@ Named elements get their own `::view-transition-old(hero)` / `::view-transition-
 
 ### Cross-Document Transitions (MPA)
 
-Enable for multi-page apps by opting in via meta or CSS:
+Enable for same-origin multi-page apps by opting in with CSS on both pages:
 
 ```css
 /* Opt in to cross-document view transitions */
@@ -291,18 +291,7 @@ Enable for multi-page apps by opting in via meta or CSS:
 
 No JavaScript needed — the browser handles snapshot capture across navigations automatically.
 
-**Browser support (2025):**
-- Same-document: Baseline Newly Available (October 2025). Chrome 111+, Edge 111+, Firefox 133+, Safari 18+. Safe to use with fallback.
-- Cross-document: Chrome 126+, Edge 126+, Safari 18.2+. Firefox not yet supported. Use `@supports` guard.
-
-```css
-/* Progressive enhancement for cross-doc */
-@supports (view-transition-name: none) {
-  @view-transition {
-    navigation: auto;
-  }
-}
-```
+The opt-in is ignored by browsers without cross-document support, so pages simply navigate without animation. Support: [modern-css.md](modern-css.md#browser-support).
 
 ---
 
@@ -331,156 +320,7 @@ Controls how multiple animations compositing on the same property interact.
 }
 ```
 
-**Browser support:** Baseline 2023. All major browsers. Safe to use.
-
----
-
-## Motion (formerly Framer Motion)
-
-**Version:** 12.x (latest as of 2026)
-**Import:** `motion/react` (React), `motion/vue` (Vue), `motion` (vanilla JS)
-
-Motion's hybrid engine runs animations using the Web Animations API and ScrollTimeline natively at 120fps, falling back to JavaScript for spring physics, interruptible keyframes, and gesture tracking.
-
-### Core Usage (React)
-
-```jsx
-import { motion, AnimatePresence } from 'motion/react';
-
-// Basic animation
-<motion.div
-  initial={{ opacity: 0, y: 20 }}
-  animate={{ opacity: 1, y: 0 }}
-  transition={{ duration: 0.3 }}
-/>
-
-// Exit animation
-<AnimatePresence>
-  {isVisible && (
-    <motion.div
-      initial={{ opacity: 0 }}
-      animate={{ opacity: 1 }}
-      exit={{ opacity: 0 }}
-    />
-  )}
-</AnimatePresence>
-
-// Gesture animations
-<motion.button
-  whileHover={{ scale: 1.05 }}
-  whileTap={{ scale: 0.95 }}
-  drag="x"
-  dragConstraints={{ left: -100, right: 100 }}
-/>
-```
-
-### Layout Animations
-
-Automatically animate layout changes using FLIP under the hood:
-
-```jsx
-<motion.div layout />
-
-// Shared layout between routes/components
-<motion.img layoutId="hero-image" src={src} />
-```
-
-### Scroll Animations
-
-```jsx
-import { useScroll, useTransform, motion } from 'motion/react';
-
-function ParallaxSection() {
-  const { scrollYProgress } = useScroll();
-  const y = useTransform(scrollYProgress, [0, 1], ['0%', '-50%']);
-
-  return <motion.div style={{ y }} />;
-}
-```
-
-### Reduced Motion
-
-Motion respects `prefers-reduced-motion` automatically. Override with `useReducedMotion()`:
-
-```jsx
-import { useReducedMotion } from 'motion/react';
-
-function Component() {
-  const shouldReduceMotion = useReducedMotion();
-  return (
-    <motion.div
-      animate={{ opacity: 1, x: shouldReduceMotion ? 0 : 100 }}
-    />
-  );
-}
-```
-
-**Strengths:** declarative API, layout animations, exit animations, gesture support, spring physics by default
-**Limitations:** React/Vue only (no Svelte/Angular first-party), bundle cost (~30-50kb)
-
----
-
-## GSAP
-
-**License change (2024-2025):** The entire GSAP ecosystem is now free — including previously paid plugins (ScrollTrigger, ScrollSmoother, Flip, MorphSVG, DrawSVG, SplitText). The standard "no charge" license applies to all products. Commercial use is permitted.
-
-### Core API
-
-```js
-import { gsap } from 'gsap';
-import { ScrollTrigger } from 'gsap/ScrollTrigger';
-
-gsap.registerPlugin(ScrollTrigger);
-
-// Tween
-gsap.to('.box', { x: 200, duration: 1, ease: 'power2.out' });
-
-// Timeline
-const tl = gsap.timeline();
-tl.from('.title', { opacity: 0, y: 30 })
-  .from('.subtitle', { opacity: 0, y: 20 }, '-=0.2')
-  .from('.cta', { opacity: 0, scale: 0.9 }, '-=0.1');
-```
-
-### ScrollTrigger
-
-```js
-gsap.to('.panel', {
-  xPercent: -100 * (panels.length - 1),
-  ease: 'none',
-  scrollTrigger: {
-    trigger: '.panels-container',
-    pin: true,
-    scrub: 1,
-    snap: 1 / (panels.length - 1),
-    end: () => '+=' + document.querySelector('.panels-container').offsetWidth,
-  },
-});
-```
-
-**Key ScrollTrigger options:**
-- `pin: true` — pin element in place while scrolling
-- `scrub: 1` — link animation to scroll position (number = smoothing lag in seconds)
-- `snap` — snap to animation waypoints
-- `markers: true` — debug mode (remove before production)
-
-### Text Animation with SplitText
-
-```js
-import { SplitText } from 'gsap/SplitText';
-gsap.registerPlugin(SplitText);
-
-const split = new SplitText('.headline', { type: 'words,chars' });
-gsap.from(split.chars, {
-  opacity: 0,
-  y: 40,
-  stagger: 0.02,
-  ease: 'back.out',
-});
-```
-
-**Strengths:** powerful timeline control, ScrollTrigger, SVG morphing, text animation, works with any framework or vanilla JS
-**Limitations:** larger bundle than Motion or anime.js, requires plugin registration
+Widely supported.
 
 ---
 
@@ -544,55 +384,16 @@ element.animate(
 
 ---
 
-## anime.js
+## When a library earns its weight
 
-**Version:** 4.x (released April 2025, latest 4.3.x as of late 2025)
-**Size:** ~17kb (modular — import only what you need)
-**License:** MIT
+Prefer CSS transitions, keyframes, view transitions, scroll-driven timelines, and WAAPI. Add an animation library when you need one of:
 
-v4 is a full rewrite: modular API, native TypeScript, WAAPI integration, scroll-linked animations, draggables, additive animations.
+- **Timeline orchestration** — many animations sequenced, staggered, or scrubbed together
+- **Layout and exit animation** — animating elements as they reorder or leave the tree, which CSS cannot do without view transitions
+- **SVG morphing or path animation**
+- **Spring physics or gesture-driven motion** (drag, swipe, interruptible animation)
 
-```js
-import { animate, stagger } from 'animejs';
-
-// Basic animation
-animate('.box', {
-  x: 200,
-  opacity: [0, 1],
-  duration: 600,
-  ease: 'outExpo',
-});
-
-// Stagger
-animate('.item', {
-  translateY: [-20, 0],
-  opacity: [0, 1],
-  delay: stagger(80),
-});
-
-// Timeline
-import { createTimeline } from 'animejs';
-
-const tl = createTimeline();
-tl.add('.title', { opacity: [0, 1], y: [20, 0] })
-  .add('.subtitle', { opacity: [0, 1] }, 200);
-```
-
-### SVG Path Animation
-
-```js
-import { animate, createMotionPath } from 'animejs';
-
-animate('.dot', {
-  ...createMotionPath('#path'),
-  duration: 2000,
-  ease: 'linear',
-  loop: true,
-});
-```
-
-**Strengths:** lightweight, MIT license, SVG morphing, stagger effects, TypeScript-native in v4, scroll-linked animations
-**Limitations:** smaller ecosystem than GSAP, fewer built-in physics options than Motion
+Before adopting one, check its current maintenance, license, bundle cost, and framework fit. Whatever the library, handle reduced motion yourself unless its documentation says it does: some libraries honor `prefers-reduced-motion` automatically, others need a `matchMedia` check that skips or shortens animations.
 
 ---
 
@@ -600,26 +401,9 @@ animate('.dot', {
 
 **Non-negotiable.** Users enable reduced motion for vestibular disorders, epilepsy, cognitive load, or personal preference. Ignoring this is an accessibility violation.
 
-### CSS Global Reset
+### Per-Animation Pattern (primary)
 
-Apply as a baseline reset:
-
-```css
-@media (prefers-reduced-motion: reduce) {
-  *,
-  *::before,
-  *::after {
-    animation-duration: 0.01ms !important;
-    animation-iteration-count: 1 !important;
-    transition-duration: 0.01ms !important;
-    scroll-behavior: auto !important;
-  }
-}
-```
-
-### Per-Animation Pattern (Preferred)
-
-Rather than killing all motion, replace with a subtle or instant alternative:
+Decide per animation: remove large movement (slides, parallax, zoom, autoplay loops) and keep or soften small opacity or color changes, which rarely cause harm. Write the motion inside `no-preference`, or replace it with a gentler alternative:
 
 ```css
 @keyframes slide-in {
@@ -632,6 +416,21 @@ Rather than killing all motion, replace with a subtle or instant alternative:
 
   @media (prefers-reduced-motion: reduce) {
     animation: fade-in 150ms ease; /* softer alternative */
+  }
+}
+```
+
+### Blunt reset (last resort)
+
+When an existing codebase has too many animations to audit, a global reset is better than nothing, but it also kills harmless feedback and can break code that waits for `transitionend`:
+
+```css
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
   }
 }
 ```
@@ -657,17 +456,11 @@ window.matchMedia('(prefers-reduced-motion: reduce)').addEventListener('change',
 });
 ```
 
-### Motion Library Handling
-
-- **Motion:** respects `prefers-reduced-motion` automatically; use `useReducedMotion()` hook for fine control
-- **GSAP:** does NOT handle this automatically — check manually or use `gsap.globalTimeline.pause()`
-- **anime.js:** does NOT handle this automatically — check via `matchMedia` and conditionally skip
-
 ---
 
 ## Performance Rules
 
-**The GPU compositor handles only `transform` and `opacity`.** Everything else triggers layout or paint — avoid animating these properties.
+**The compositor mainly handles `transform` and `opacity`.** Most other properties trigger layout or paint — avoid animating those.
 
 | Property | Cost | Alternative |
 |----------|------|-------------|
@@ -699,7 +492,7 @@ Hints the browser to promote an element to its own compositor layer before anima
 
 ### Additional Rules
 
-- Limit simultaneous animations to under ~100 DOM elements
+- Keep the number of simultaneously animating elements small and measure on target devices
 - Use `contain: layout` on animated containers to limit reflow scope
 - Avoid `requestAnimationFrame` loops that read then write layout properties in the same frame (layout thrashing)
 - Batch DOM reads before DOM writes
@@ -713,33 +506,15 @@ Hints the browser to promote an element to its own compositor layer before anima
 | Anti-Pattern | Problem | Fix |
 |-------------|---------|-----|
 | Animating `width`, `height`, `top`, `left` | Triggers layout and paint, causes jank | Use `transform: translate/scale` |
-| No `prefers-reduced-motion` check | Accessibility violation; can cause harm | Add `@media (prefers-reduced-motion: reduce)` reset |
+| No `prefers-reduced-motion` handling | Accessibility violation; can cause harm | Handle it per animation (see above) |
 | JS animation for CSS-achievable effects | JS animates on main thread; CSS can use GPU compositor | Use CSS transitions/keyframes for simple state changes |
 | `will-change` on everything | Wastes GPU memory, can degrade performance | Apply only to elements about to animate, remove after |
 | Auto-playing looping animations | Cognitive load, distraction, battery drain | Pause by default; play on user interaction or viewport entry |
 | `setTimeout` / `setInterval` for animation | Imprecise timing, misses frame budget | Use `requestAnimationFrame` or CSS |
 | Animating too many elements simultaneously | Frame drops, especially on mobile | Virtual windows, stagger, limit concurrent animations |
 | `view-transition-name` collision | Two elements with same name breaks the transition | Assign unique names; use JS to set dynamically if needed |
-| GSAP without `prefers-reduced-motion` check | GSAP does not auto-respect this | Check `matchMedia` and skip or reduce animations |
+| Library animation without a `prefers-reduced-motion` check | Many libraries do not honor it automatically | Check `matchMedia` and skip or reduce animations |
 | Leaving `will-change` on after animation | Permanent GPU layer promotion wastes memory | Remove `will-change` after animation completes |
-
----
-
-## Quick Reference: Library Comparison
-
-| | Motion | GSAP | anime.js v4 | WAAPI |
-|--|--------|------|-------------|-------|
-| **Bundle** | ~30-50kb | ~60kb+ | ~17kb | 0kb |
-| **License** | MIT | Free (no-charge) | MIT | — |
-| **Framework** | React, Vue, JS | Any | Any | Any |
-| **Spring physics** | Yes (default) | No (easing only) | Yes (v4) | No |
-| **Timeline** | Yes | Yes (powerful) | Yes | No |
-| **Scroll trigger** | Yes (scroll hooks) | Yes (plugin) | Yes (v4) | No |
-| **Layout animations** | Yes (FLIP) | Yes (Flip plugin) | No | No |
-| **Exit animations** | Yes (AnimatePresence) | No | No | No |
-| **SVG morphing** | No | Yes (MorphSVG) | Yes | No |
-| **Reduced motion** | Auto | Manual | Manual | Manual |
-| **TypeScript** | Yes | Yes | Yes (native v4) | Yes (native) |
 
 ---
 
@@ -753,6 +528,3 @@ Hints the browser to promote an element to its own compositor layer before anima
 - [Now in Baseline: animating entry effects — web.dev](https://web.dev/blog/baseline-entry-animations)
 - [animation-composition — MDN](https://developer.mozilla.org/en-US/docs/Web/CSS/Reference/Properties/animation-composition)
 - [Web Animations API — MDN](https://developer.mozilla.org/en-US/docs/Web/API/Web_Animations_API)
-- [Motion documentation](https://motion.dev/docs)
-- [GSAP pricing (now free)](https://gsap.com/pricing/)
-- [anime.js v4 — What's new](https://github.com/juliangarnier/anime/wiki/What's-new-in-Anime.js-V4)

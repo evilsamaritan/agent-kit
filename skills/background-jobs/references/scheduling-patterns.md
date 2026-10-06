@@ -6,8 +6,8 @@
 - [Delay Queues](#delay-queues) — Future execution, cancellable delays
 - [Rate-Limited Processing](#rate-limited-processing) — Rate limit vs throttle vs debounce decision
 - [Debounce and Throttle Patterns](#debounce-and-throttle-patterns) — Collapse rapid triggers, steady processing
-- [Batch Timing Patterns](#batch-timing-patterns) — Time-based batching, SQS/Lambda, Sidekiq Pro
-- [Cloud-Native Scheduling](#cloud-native-scheduling) — AWS EventBridge+SQS+Lambda, GCP Cloud Scheduler+Tasks
+- [Batch Timing Patterns](#batch-timing-patterns) — Time-based batching, managed-queue batch windows
+- [Cloud-Native Scheduling](#cloud-native-scheduling) — AWS EventBridge Scheduler + SQS + Lambda, GCP Cloud Scheduler + Cloud Tasks
 
 ---
 
@@ -34,7 +34,7 @@
 
 ### Framework Implementations
 
-**BullMQ — Job Schedulers (v5+)**
+**BullMQ — Job Schedulers**
 
 ```typescript
 await queue.upsertJobScheduler('daily-report', {
@@ -50,6 +50,7 @@ await queue.upsertJobScheduler('health-check', { every: 300_000 }, {
 **Celery — Beat Scheduler**
 
 ```python
+from datetime import timedelta
 from celery.schedules import crontab
 
 app.conf.beat_schedule = {
@@ -79,24 +80,24 @@ Sidekiq::Cron::Job.load_from_hash(
 
 | Pitfall | Solution |
 |---------|----------|
-| Duplicate execution (multiple instances) | Leader election or single-scheduler deployment |
+| Duplicate execution (multiple scheduler instances) | One scheduler process, or leader election; workers can scale freely |
 | Missed execution (deploy/restart) | Persist last-run timestamp, catch up on start |
 | Timezone drift | Always specify timezone explicitly |
 | Overlapping runs (slow job, fast cron) | Skip-if-running guard or distributed lock |
 | No visibility | Log every trigger, alert on missed runs |
 
-**Skip-if-running guard (Celery example):**
+**Skip-if-running guard:** take the canonical lock from `caching` ([redis-patterns.md](../../caching/references/redis-patterns.md#distributed-locking)) — random token, TTL above the job's maximum runtime, owner-checked release. A plain `DEL` in `finally` deletes another run's lock if this run outlived its TTL.
 
 ```python
 @app.task
 def daily_report():
-    r = redis.Redis()
-    if not r.set('lock:daily-report', 'locked', nx=True, ex=3600):
-        return 'Skipped — already running'
+    token = acquire_lock(redis_client, "lock:daily-report", ttl=3600)
+    if token is None:
+        return "skipped: already running"
     try:
         do_report()
     finally:
-        r.delete('lock:daily-report')
+        release_lock(redis_client, "lock:daily-report", token)
 ```
 
 ---
@@ -124,15 +125,19 @@ await queue.add('email', data, { delay: targetDate.getTime() - Date.now() });
 ```
 
 ```python
-# Celery — countdown (seconds) or eta (datetime)
-send_reminder.apply_async(args=[user_id], countdown=86400)
-send_reminder.apply_async(args=[user_id], eta=datetime.utcnow() + timedelta(hours=24))
+# Celery — countdown (seconds) or eta (timezone-aware datetime)
+from datetime import datetime, timedelta, timezone
+
+send_reminder.apply_async(args=[user_id], countdown=3600)
+send_reminder.apply_async(args=[user_id], eta=datetime.now(timezone.utc) + timedelta(hours=1))
 ```
 
+**Long delays with a Redis or SQS broker:** the worker holds an ETA task unacknowledged until it is due, and the broker redelivers any task unacknowledged past its visibility timeout (Redis transport default: one hour). A 24-hour countdown is then redelivered and run repeatedly. Either raise `broker_transport_options={'visibility_timeout': ...}` above the longest ETA and task runtime, or keep long delays out of the broker: store a `run_at` row in the database and let a periodic scheduler enqueue due jobs (or use a broker with native delayed delivery).
+
 ```ruby
-# Sidekiq
-ReminderWorker.perform_in(24.hours, user_id)
-ReminderWorker.perform_at(Time.now + 24.hours, user_id)
+# Sidekiq (scheduled set in Redis; no visibility-timeout issue)
+ReminderJob.perform_in(24.hours, user_id)
+ReminderJob.perform_at(24.hours.from_now, user_id)
 ```
 
 ### Cancellable Delays
@@ -174,10 +179,10 @@ new Worker('api-calls', processor, {
   connection, limiter: { max: 100, duration: 60_000 },  // 100/min
 });
 
-// BullMQ — per-group (multi-tenant)
-await queue.add('api-call', data, {
-  group: { id: tenantId, limit: { max: 10, duration: 1000 } },
-});
+// Per-tenant limits: BullMQ groups are a BullMQ Pro (paid) feature — jobs carry
+// `group: { id: tenantId }` and the Pro worker sets `group: { limit: { max, duration } }`.
+// Open-source alternatives: one queue per tenant class, each with its own limiter,
+// or a shared token-bucket limiter checked inside the processor.
 ```
 
 ```python
@@ -188,10 +193,10 @@ def call_external_api(endpoint, payload):
 ```
 
 ```ruby
-# Sidekiq Enterprise — concurrent rate limiter (shared across all processes)
+# Sidekiq Enterprise (paid) — concurrent rate limiter shared across all processes
 API_LIMIT = Sidekiq::Limiter.concurrent('external-api', 10)
-class ApiCallWorker
-  include Sidekiq::Worker
+class ApiCallJob
+  include Sidekiq::Job
   def perform(endpoint)
     API_LIMIT.within_limit { call_api(endpoint) }
   end
@@ -211,31 +216,33 @@ Events:  ─A──A──A──────A──A────────→
 Debounce (2s):                     ─A→  (fires after 2s quiet)
 ```
 
-**BullMQ debounce — remove-and-re-add with delay:**
+**BullMQ — built-in deduplication in debounce mode:**
 
 ```typescript
-async function debounceJob(queue: Queue, entityId: string, data: object, delayMs: number) {
-  const jobId = `reindex-${entityId}`;
-  const existing = await queue.getJob(jobId);
-  if (existing) {
-    const state = await existing.getState();
-    if (state === 'delayed' || state === 'waiting') await existing.remove();
-  }
-  await queue.add('reindex', data, { jobId, delay: delayMs });
+await queue.add('reindex', data, {
+  delay: 5000,
+  deduplication: { id: `reindex-${entityId}`, ttl: 5000, extend: true, replace: true },
+});
+```
+
+**Portable pattern (libraries without deduplication) — stamp a revision, check it when the job runs:**
+
+Look-up-then-remove-then-add sequences (or revoke-then-reschedule) are not atomic: two concurrent triggers both see no pending job, and the queue keeps the older one. Make the newest trigger win at execution time instead. An atomic counter stamps each trigger; every delayed job carries its stamp; a job whose stamp is no longer the latest exits.
+
+```typescript
+async function debounceJob(queue: Queue, entityId: string, delayMs: number) {
+  const revision = await redis.incr(`debounce:reindex:${entityId}`);   // atomic, newest wins
+  await queue.add('reindex', { entityId, revision }, { delay: delayMs });
+}
+
+async function reindexWorker(job: Job<{ entityId: string; revision: number }>) {
+  const latest = Number(await redis.get(`debounce:reindex:${job.data.entityId}`));
+  if (job.data.revision !== latest) return;                            // a newer trigger owns the work
+  await reindex(job.data.entityId);
 }
 ```
 
-**Celery debounce — revoke-and-reschedule:**
-
-```python
-def debounced_reindex(doc_id, delay=5):
-    task_key = f'debounce:task:{doc_id}'
-    prev = redis_client.get(task_key)
-    if prev:
-        app.control.revoke(prev.decode(), terminate=False)
-    result = reindex_document.apply_async(args=[doc_id], countdown=delay)
-    redis_client.set(task_key, result.id, ex=delay + 10)
-```
+The same shape works in Celery or any queue: `INCR` (or a version column updated in the same transaction as the change) when triggering, `apply_async(args=[doc_id, revision], countdown=delay)`, and an early return in the task when the revision is stale. Stale jobs still run briefly; cancelling them is an optimization, not the correctness mechanism.
 
 ### Throttle: Steady Processing Rate
 
@@ -270,24 +277,9 @@ new Worker('notifications', sendNotification, {
 
 Collect items over a time window, then process as a group. Two triggers to flush: max batch size reached, or max wait time elapsed. Implement with a buffer + timer in the worker process, or use framework-native batching.
 
-### SQS + Lambda Native Batching
+### Managed-Queue Batch Windows
 
-```
-BatchSize: 1-10000 messages per invocation
-MaximumBatchingWindowInSeconds: 0-300
-Partial batch response: report individual item failures (others return to queue)
-```
-
-### Sidekiq Pro Batches
-
-```ruby
-batch = Sidekiq::Batch.new
-batch.on(:success, BatchCallback, 'report_id' => report.id)
-batch.jobs do
-  chunks.each { |chunk| ProcessChunk.perform_async(chunk.id) }
-end
-# Callback fires when ALL jobs in batch complete
-```
+Managed queues with function triggers can deliver messages in batches (a maximum batch size plus a batching window). Report per-item failures so only failed items return to the queue instead of the whole batch. For library batches with a completion callback (for example Sidekiq Pro batches), see [queue-patterns.md](queue-patterns.md#batches-sidekiq-pro-paid-tier).
 
 ---
 
@@ -296,23 +288,22 @@ end
 ### AWS: EventBridge Scheduler + SQS + Lambda
 
 ```
-EventBridge rule (cron/rate) → SQS → Lambda
-                                       ├── Success → delete message
-                                       └── Failure → retry → DLQ
+EventBridge Scheduler (cron, rate, or one-time) → SQS → Lambda
+                                                    ├── Success → message deleted
+                                                    └── Failure → retry after visibility timeout → DLQ (redrive policy)
 ```
 
-- EventBridge Scheduler: cron/rate expressions, one-time schedules, timezone support
-- SQS: built-in delay (0-15 min), visibility timeout, redrive to DLQ
-- Lambda: max 15 min execution, batch window up to 5 min
+- EventBridge Scheduler: cron and rate expressions with time zones, one-time schedules
+- SQS: per-message delay up to 15 minutes, visibility timeout, redrive to a dead-letter queue
+- Lambda: execution time limit (15 minutes for a standard function; a Lambda Managed Instances function can run asynchronous and event-source invocations up to 90 minutes), batch windows for SQS triggers
 
 ### GCP: Cloud Scheduler + Cloud Tasks
 
 ```
-Cloud Scheduler (cron) → Cloud Tasks → HTTP target (Cloud Run/Function)
+Cloud Scheduler (cron) → Cloud Tasks → HTTP target (Cloud Run / functions)
                                          ├── 2xx → complete
-                                         └── Non-2xx → retry (exponential backoff)
+                                         └── non-2xx or timeout → retry with backoff
 ```
 
-- Cloud Scheduler: cron with timezone, Pub/Sub or HTTP targets
-- Cloud Tasks: rate limiting, retry config, dispatch deadlines up to 30 days
-- Task delay: schedule up to 30 days in the future
+- Cloud Scheduler: cron with time zone; HTTP or Pub/Sub targets
+- Cloud Tasks: per-queue rate limits and retry config; a task can be scheduled up to 30 days ahead; the dispatch deadline for HTTP targets is bounded (set it per queue or task and keep it above the handler's runtime) — work that outlasts it needs a job runner or workflow engine

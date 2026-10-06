@@ -1,164 +1,125 @@
 ---
 name: payments
-description: "Design payment operations. Use for providers, subscriptions, webhooks, idempotency, refunds, settlement, and payment orchestration."
-user-invocable: true
+description: "Design payment flows and operations. Use for checkout, card payments, 3DS/SCA, PCI scope, provider integration, subscriptions, invoices, dunning, payment webhooks, refunds, disputes, money amounts, reconciliation, and multi-provider orchestration."
 ---
 
-# Payments — Payment Processing Architecture
+# Payments
+
+Determine the provider, its SDK version, and the pinned provider API version from the project's manifest and configuration first: field names and event shapes change between provider API versions. Provider-specific code: [stripe-patterns.md](references/stripe-patterns.md) is the worked example.
 
 ## Hard Rules
 
-- NEVER trust client-side payment confirmation. Always fulfill orders via server-side webhook/notification.
-- NEVER process raw card numbers server-side. Use provider-hosted tokenization (SAQ A).
-- ALWAYS use idempotency keys on every payment mutation (charge, refund, capture).
-- ALWAYS verify webhook signatures before processing events.
-- ALWAYS calculate prices server-side. Never accept amounts from the client.
-- ALWAYS store monetary amounts as integers in smallest currency unit (cents, yen).
+- **Fulfil from server-side events, never from the client's "success" redirect.** The redirect is UX; the verified provider event (or a server-side status fetch) is the fact.
+- **Never handle raw card numbers.** Provider-hosted fields or pages keep card data off your servers and pages.
+- **Prices are computed on the server**, and before fulfilment the paid amount, currency, and order id are checked against your own records.
+- **Every payment mutation (charge, capture, refund, plan change) carries an idempotency key derived from the intent** — order id, refund id, change id supplied by your system — never from time or randomness per attempt. Pattern owner: `message-queues` → [idempotency-patterns.md](../message-queues/references/idempotency-patterns.md).
+- **Webhooks: verify the signature on the raw body, claim the event id, acknowledge fast, process from a queue.** Contract: `api-design` → [rest-patterns.md](../api-design/references/rest-patterns.md#webhooks).
+- **Unknown provider events and statuses are explicit.** Unhandled event types are logged and acknowledged; an unmapped status is an error or an explicit `unknown` the caller must handle — never a default to "failed" or "succeeded" (`development` rule 2).
+- **Money is an integer in minor units plus a currency code**, with the exponent taken from ISO 4217 data, never a hand-kept list or floating point.
 
 ---
 
 ## Payment Lifecycle
 
 ```
-tokenize → authorize → capture → settle → reconcile → refund
+tokenize → authorize → capture → settle → reconcile → (refund | dispute)
 ```
 
 | Stage | What happens | Who owns it |
 |-------|-------------|-------------|
-| **Tokenize** | Card/account data replaced with opaque token | Provider SDK (client-side) |
-| **Authorize** | Issuer approves amount, places hold on funds | Gateway → card network → issuer |
-| **Capture** | Merchant claims authorized funds (immediate or delayed) | Merchant backend → gateway |
-| **Settle** | Funds transfer from issuer → acquirer → merchant | Acquirer / processor |
-| **Reconcile** | Match provider records against local ledger | Merchant (daily batch job) |
-| **Refund** | Reverse full or partial capture back to customer | Merchant backend → gateway → issuer |
+| Tokenize | Card or account data replaced with an opaque token | Provider-hosted fields (client) |
+| Authorize | Issuer approves and holds funds; may require customer authentication | Provider → network → issuer |
+| Capture | Merchant claims authorized funds, immediately or later (holds expire) | Your backend → provider |
+| Settle | Funds move to the merchant, net of fees | Acquirer / provider |
+| Reconcile | Provider reports matched against your ledger | Your scheduled job |
+| Refund / dispute | Money returns by your choice (refund) or the cardholder's (chargeback) | Your backend / provider |
 
 ---
 
-## Choosing a payment path
+## Choosing a Payment Path
 
-Pick path by business need, not by provider brand:
+Pick by business need, then shortlist providers:
 
-- **One-time card checkout, global** → Card processor with hosted fields (keeps PCI scope low).
-- **Subscriptions** → Platform with native billing + invoicing + dunning.
-- **Marketplace / payouts to merchants** → Platform with Connect / multi-party flows.
-- **Regional coverage (LATAM / APAC / India)** → Local aggregator or orchestrator (see `references/provider-comparison.md`).
-- **SaaS, merchant-of-record needed** → MoR providers handle sales tax globally.
-- **Crypto / stablecoins** → On-chain processor.
+- **One-time checkout** → a card processor with provider-hosted fields or a hosted checkout page.
+- **Recurring billing** → a provider with native subscriptions, invoices, and retry schedules; build only access control on top.
+- **Marketplace or payouts to sellers** → connected-account / multi-party flows with onboarding (KYC) handled by the provider.
+- **You do not want to be the seller of record for tax** → a merchant-of-record provider.
+- **Local methods dominate the market** → a regional provider or an aggregator covering local wallets and bank transfers.
+- **Bank-to-bank or instant rails** → see [regulatory-and-rails.md](references/regulatory-and-rails.md).
+- **In-app purchases or subscriptions sold through the app stores** → [store-billing.md](references/store-billing.md).
 
-For concrete provider short-lists per path, see [provider-comparison.md](references/provider-comparison.md).
-
----
-
-## Payment Orchestration
-
-```
-When do you need orchestration?
-├── Single provider, single region → Direct integration (no orchestrator)
-├── 2+ providers OR multi-region OR high volume?
-│   ├── Want to build in-house? → Provider adapter pattern (see references/)
-│   └── Want managed solution? → Orchestration platform
-└── Need smart routing + cascading failover? → Orchestration layer required
-```
-
-**Orchestration layer** sits between your application and multiple PSPs:
-- **Smart routing** — selects optimal provider per transaction based on cost, geography, currency, card BIN, and real-time success rates
-- **Cascading failover** — if primary PSP declines/errors, automatically retries through secondary/tertiary provider without restarting user flow
-- **Unified reporting** — single API, single reconciliation pipeline across all providers
-- **A/B testing** — route traffic splits to compare provider performance
-
-Implement via provider adapter pattern (in-house) or dedicated orchestration platforms for complex multi-PSP setups.
+Short-lists by path and region: [provider-comparison.md](references/provider-comparison.md).
 
 ---
 
-## SCA and 3DS2
+## Integration Shape
 
-**SCA (Strong Customer Authentication)** — required by PSD2 (EU/UK) for most online card payments. Two of: knowledge (PIN), possession (device), inherence (biometric).
+```
+How many providers are live or committed?
+├── one → one payments module: provider SDK calls inside it, your own types at its edge
+│         (Money, PaymentStatus, PaymentEvent); no registry, no routing layer
+├── two or more, chosen per market or method → capability interfaces (charge, refund,
+│         subscribe, verify webhook) each provider implements only where it supports them,
+│         plus an explicit selection rule
+└── routing on cost or success rate, cascading failover → an orchestration layer
+          (in-house or a platform); see payment-patterns.md
+```
 
-**3DS2 (EMV 3DS)** — technical protocol that carries SCA. Default path: frictionless flow when issuer's risk engine approves; challenge flow otherwise.
-
-Key rules:
-- **Never bypass 3DS2 on EU/UK cards** unless a valid SCA exemption applies (low-value ≤€30, TRA — transaction risk analysis, MIT — merchant-initiated, corporate cards). Exemptions must be passed explicitly to the acquirer.
-- **Liability shift** — successful 3DS2 authentication shifts fraud liability from merchant to issuer (except for recurring MIT post-initial).
-- **Recurring payments** — first transaction authenticated (CIT with SCA), subsequent MIT flagged to skip challenge.
-- **Test in both frictionless and challenge modes** — most issuers step-up unpredictably; one path is not enough.
-- **Abandon 3DS1** — officially retired October 2022; any remaining usage fails.
-
-Per-region: EU/UK → mandatory. US → issuer-optional but rising. India → mandatory (RBI). Most LATAM → optional but growing.
+Provider types must not leak into domain code; a second provider is added when it is committed, not in advance (`development`). Interfaces, event mapping, refunds, and money: [payment-patterns.md](references/payment-patterns.md).
 
 ---
 
-## Subscription Lifecycle
+## SCA and 3DS
 
-```
-created → trialing → active → past_due → canceled
-                       │                    ▲
-                       ├─ plan change ──────┤
-                       │  (prorate)         │
-                       └─ unpaid ───────────┘
-```
+**Strong Customer Authentication** (EEA and UK) needs two of: knowledge, possession, inherence. **3DS (EMV 3-D Secure 2)** carries it: frictionless when the issuer's risk engine approves, challenge otherwise.
 
-| Event pattern | Action |
-|--------------|--------|
-| Subscription created | Provision access, send welcome |
-| Subscription updated | Update plan/features, handle proration |
-| Invoice/payment succeeded | Extend access, generate receipt |
-| Invoice/payment failed | Notify user, start dunning sequence |
-| Subscription canceled | Revoke access, send cancellation |
+- **Out of scope** (no SCA required): merchant-initiated transactions after an authenticated customer-initiated setup with a mandate; one-leg-out transactions (card or acquirer outside the region); mail and telephone orders.
+- **Exemptions** (requested by the acquirer, may be refused): low-value payments (with cumulative count and amount limits), transaction risk analysis (depends on the acquirer's fraud rate), trusted beneficiaries, secure corporate payments.
+- **The issuer may still demand a challenge.** Always handle the "requires action" state, in checkout and in off-session charges (bring the customer back on-session).
+- **Liability:** successful authentication generally shifts fraud liability to the issuer; exemptions usually keep it with the merchant.
+- **Recurring:** authenticate the first payment (or the setup), store the mandate reference, flag later charges as merchant-initiated.
+- Test both frictionless and challenge paths, and the off-session "authentication required" failure.
 
-**Dunning sequence:** Retry charge → email day 1 → email day 3 → email day 7 → cancel or pause.
+Regional mandates outside the EEA/UK and current thresholds: [regulatory-and-rails.md](references/regulatory-and-rails.md).
 
 ---
 
-## PCI DSS 4.0.1 Compliance
-
-All future-dated PCI DSS v4.0 requirements became mandatory March 31, 2025. Key additions: MFA required for all CDE access, targeted risk analysis for security frequencies, client-side script integrity monitoring (Requirement 6.4.3).
+## Subscriptions
 
 ```
-How do you handle card data?
-├── Fully outsourced (iframe/redirect, no card data touches your page) → SAQ A
-├── Embedded JS tokenizer (provider JS on your page) → SAQ A-EP
-├── POS terminal only (no e-commerce) → SAQ B / B-IP
-└── Card data on your server → SAQ D (full audit — avoid this)
+incomplete → trialing → active → past_due → (active | unpaid | canceled)
+                          │
+                          └─ plan change (proration) ─▶ active
 ```
 
-| Level | Annual transactions | Requirement |
-|-------|-------------------|-------------|
-| 1 | > 6M | QSA audit + ROC |
-| 2 | 1M–6M | SAQ + quarterly scan |
-| 3 | 20K–1M | SAQ + quarterly scan |
-| 4 | < 20K | SAQ |
-
-**Recommendation:** Use provider-hosted tokenization (SAQ A). Handles 3D Secure, wallet methods, and 25+ payment types.
+- **Prefer the provider's retry schedule and customer emails** for failed renewals; configure them, do not rebuild them.
+- Your code reacts to state changes and controls access: `active`/`trialing` → access; `past_due` → grace period with a banner; `unpaid`/`canceled` → revoke. Access is derived from the latest subscription state, not toggled per event, because events arrive out of order.
+- Plan changes carry an idempotency key from your change request id; decide proration once per product.
+- Trials without a payment method need a setup flow (save the method, authenticate if required) before the first charge.
 
 ---
 
-## Payment Rails & Methods
+## PCI DSS Scope
 
-### Card & Wallet
+```
+How does card data reach the provider?
+├── Provider-hosted payment page or iframe fields only; no card data in your page's DOM → SAQ A (if all eligibility criteria hold)
+├── Your page's JavaScript can affect the payment form (direct post, JS that builds the form) → SAQ A-EP
+├── Terminals only, no e-commerce → SAQ B / B-IP / P2PE variants
+└── Card data passes through your servers → SAQ D (avoid)
+```
 
-| Method | Integration pattern | Considerations |
-|--------|-------------------|----------------|
-| **Apple Pay / Google Pay** | Wallet tokens via provider SDK | Domain verification (Apple); higher conversion, lower fraud |
-| **BNPL** (Klarna, Afterpay, Affirm) | Provider widget or redirect | Increases AOV 20-30%; growing regulatory scrutiny |
+**Reduce scope first:** every system that stores, processes, or transmits card data, or connects to such a system, is in the cardholder data environment (CDE). Tokenize at the provider so card data never reaches you, keep the CDE segmented from everything else, and limit access, logging, and MFA controls to the systems that remain in scope.
 
-### Bank & Real-Time
+Payment-page scripts are an attack path even with hosted fields: keep an inventory of scripts on pages that host the payment form, restrict them with CSP, and monitor for changes. SAQ eligibility criteria, merchant levels, and current requirement changes: [regulatory-and-rails.md](references/regulatory-and-rails.md).
 
-| Method | Integration pattern | Considerations |
-|--------|-------------------|----------------|
-| **ACH** (US) | Provider API | Low fees (~0.8%); 1-3 day settlement; good for B2B/recurring |
-| **SEPA** (EU) | Provider API / redirect | Low fees; SEPA Instant for real-time; PSD3 will strengthen Open Banking |
-| **FedNow** (US instant) | Bank integration / fintech API | Real-time settlement; USD 10M limit; 1500+ participating banks |
-| **UPI** (India) | Provider API | Real-time; near-zero fees; dominant in Indian market |
-| **iDEAL / Bancontact** | Provider redirect | Regional bank transfer methods (NL, BE) |
+---
 
-### Stablecoin Payments
+## Refunds, Disputes, Reconciliation
 
-Stablecoins (USDC, USDT) have matured beyond niche: USD 33T annual volume, 76% of crypto payments are stablecoins. Consider when:
-- Cross-border B2B with high remittance costs
-- Markets with limited banking infrastructure
-- Instant settlement with no chargebacks needed
-
-Integration via specialized gateways or provider add-ons. Regulatory landscape evolving rapidly.
+- **Refunds** are their own records: several partial refunds per payment, each with its own idempotency key; refundable = captured − sum(succeeded and pending refunds).
+- **Disputes** have evidence deadlines; record them on arrival, alert, gather evidence automatically, submit before the deadline. A dispute can follow a refund; do not refund a disputed payment twice.
+- **Reconcile daily** against provider balance transactions or settlement reports: missing locally, missing at the provider, amount or currency mismatch, fee drift.
 
 ---
 
@@ -166,56 +127,37 @@ Integration via specialized gateways or provider add-ons. Regulatory landscape e
 
 | Anti-Pattern | Why It Fails | Correct Approach |
 |-------------|-------------|-----------------|
-| Raw card data on server | PCI SAQ-D, massive liability | Provider-hosted tokenization (SAQ A) |
-| No webhook signature verification | Attackers forge payment confirmations | Always verify provider signatures |
-| Mutable price on client | Users modify amount in DevTools | Calculate price server-side only |
-| No idempotency keys | Duplicate charges on retry | Idempotency key on every mutation |
-| Single provider, no abstraction | Vendor lock-in, no failover | Provider adapter interface |
-| Ignoring failed webhooks | Lost orders, broken state | Retry queue + dead letter + reconciliation |
-| Storing amounts as floats | Rounding errors compound | Integer in smallest currency unit |
-| No reconciliation job | Drift between provider and DB undetected | Daily automated reconciliation |
-
----
-
-## Context Adaptation
-
-### Frontend
-- Provider SDK integration (Payment Element, Drop-in, hosted checkout)
-- Loading states during payment processing
-- Error handling and retry UX
-- Wallet method buttons (Apple Pay, Google Pay)
-- 3D Secure challenge handling
-
-### Backend
-- Provider adapter abstraction layer
-- Webhook handlers with idempotent processing
-- Subscription lifecycle management
-- Daily reconciliation between provider and local DB
-- Dunning (failed payment recovery)
-- Payment orchestration / smart routing
-
-### Security
-- PCI scope reduction via tokenization
-- Webhook signature verification
-- Fraud detection (provider rules + custom)
-- 3D Secure enforcement for high-risk transactions
-- Client-side script integrity monitoring (PCI DSS 4.0.1 Req 6.4.3)
+| Fulfilling on the client's success redirect | Users skip payment; redirects get lost | Fulfil from a verified server-side event |
+| Unknown event or status defaulting to "failed" | A new provider event triggers failure flows | Explicit ignore for events; error or `unknown` for statuses |
+| Check, process, then record for webhooks | Parallel deliveries fulfil twice | Claim the event id first, process idempotently |
+| Fulfilling without checking amount and currency | Underpayment or wrong currency is accepted | Compare against your order before fulfilment |
+| Provider SDK types throughout domain code | Every provider change touches the domain | One payments module with your own types |
+| Adapter registry for a single provider | Abstraction with no second implementation | Add capability interfaces when a second provider is committed |
+| Time-based idempotency keys | A retry gets a new key and charges twice | Keys from the intent (order, refund, change id) |
+| One refund per order with an overwritten amount | Second partial refund rejected; totals wrong | Refund records and computed refundable amount |
+| Floating-point or `× 100` money | Wrong for 0- and 3-decimal currencies; rounding drift | Integer minor units, ISO 4217 exponent |
+| Hand-built dunning on top of provider billing | Duplicate emails and retries | Provider retry settings; your code controls access |
+| No reconciliation | Drift between provider and ledger goes unnoticed | Daily automated reconciliation |
 
 ---
 
 ## Related Knowledge
 
-- **security** — PCI compliance, webhook signature verification, fraud detection
-- **compliance** — GDPR consent for payment data, PII handling, data retention, PSD3/PSR
-- **backend** — webhook handler implementation, idempotency, background job processing
-- **api-design** — payment API contracts, versioning, error responses
+- `api-design` — webhook contract (sender and receiver), idempotency-key contract, error format
+- `message-queues` — idempotency pattern owner; claim-first processing
+- `background-jobs` — webhook processing queues, reconciliation and retry jobs
+- `backend` — webhook endpoint wiring and error mapping
+- `reliability` — retry policy for provider calls
+- `security` — script integrity on payment pages, secrets, fraud signals
+- `compliance` — PCI DSS obligations, payment data retention, PSD2/PSD3
+- `i18n` — currency formatting for display
 
 ---
 
 ## References
 
-- [provider-comparison.md](references/provider-comparison.md) — Provider selection tree, comparison matrix, pattern-to-provider short-list, regional coverage
-- [payment-patterns.md](references/payment-patterns.md) — Provider-agnostic interfaces, adapter pattern, idempotency, reconciliation, refund flows, multi-currency
-- [stripe-patterns.md](references/stripe-patterns.md) — Stripe-specific SDK code: PaymentIntent, Payment Element, webhooks, subscriptions, testing
-
-Load references when you need provider short-lists, implementation code, provider adapter interfaces, or Stripe-specific patterns.
+- [payment-patterns.md](references/payment-patterns.md) — integration module and capability interfaces, event mapping, webhook processing, refunds, money, saved methods, reconciliation, disputes
+- [stripe-patterns.md](references/stripe-patterns.md) — worked provider example: API version pinning, payment and subscription flows, webhooks, testing
+- [provider-comparison.md](references/provider-comparison.md) — provider short-lists by path and region (dated)
+- [store-billing.md](references/store-billing.md) — entitlement server, receipt/token verification, restore purchases, store notifications and refunds
+- [regulatory-and-rails.md](references/regulatory-and-rails.md) — PCI DSS levels and SAQ eligibility, SCA regions and thresholds, PSD3/PSR status, bank and instant rails (dated)

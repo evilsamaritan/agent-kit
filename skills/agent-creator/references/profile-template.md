@@ -13,8 +13,7 @@
 ```text
 profiles/developer/
 ├── PROFILE.md
-├── claude.yaml
-└── codex.yaml
+└── claude.yaml     # optional; also codex.yaml and kimi.yaml when they set something
 ```
 
 ## Core profile

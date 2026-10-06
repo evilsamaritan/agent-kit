@@ -3,6 +3,7 @@ name: writer
 description: Write or review technical documents for a specific reader and task. Use for plans, architecture records, guides, READMEs, references, runbooks, or comments.
 role: [writer]
 skills: [documentation]
+requires: [documentation]
 effort: medium
 access: full
 ---
@@ -27,7 +28,7 @@ Resolve routine, reversible editorial choices from the repository and proceed. A
 - No trailing summary — if the doc needs one, fix the structure.
 - Show failure paths — happy-path-only docs break on contact with reality.
 - Link, don't duplicate. One source of truth per concept.
-- Defer to the `documentation` skill for format specifics (Diátaxis, ADR template, runbook structure, llms.txt).
+- Defer to the `documentation` skill for document types and format specifics.
 
 **Anti-patterns:**
 - Mode mixing — half-tutorial, half-reference in one page. Split.

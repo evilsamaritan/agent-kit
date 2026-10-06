@@ -28,9 +28,9 @@
 
 | Anti-Pattern | Problem | Fix |
 |-------------|---------|-----|
-| Tribal knowledge | Undocumented decisions and processes | Write ADRs and runbooks |
+| Tribal knowledge | Undocumented decisions and processes | Record decisions (ADR) and operational steps (runbook) |
 | Copy-paste drift | Same info in multiple places diverges | Single source of truth with links |
-| Outdated screenshots | Images go stale faster than text | ASCII diagrams or generated images |
+| Outdated screenshots | Images go stale faster than text | Diagram-as-code (`diagrams` skill) or images generated in CI |
 | Wall of text | Unstructured prose is unscannable | Headers, tables, code blocks |
 | Aspirational docs | Describes desired state, not actual | Document current reality, note planned changes |
 | Version-locked examples | Examples break with updates | Test examples in CI or mark versions explicitly |
@@ -70,16 +70,7 @@ For YAML/TOML/JSON config, provide an annotated example showing all options with
 
 ## AI-Readable Documentation Patterns
 
-### llms.txt Structure
-
-Place at site root. Markdown format with:
-1. Project name and one-line description
-2. Key concepts and terminology
-3. Directory/module structure overview
-4. API endpoints or CLI commands summary
-5. Links to detailed documentation sections
-
-### Patterns for AI Consumption
+Docs that retrieval and code-generation tools read well are the same docs people scan well. The `llms.txt` index file belongs to the `seo` skill.
 
 | Pattern | Why It Helps AI | Example |
 |---------|----------------|---------|

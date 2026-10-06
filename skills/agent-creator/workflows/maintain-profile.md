@@ -17,7 +17,7 @@ Choose create, improve, rename, or delete from the user's request. Before rename
 
 1. Choose a small default skill set that represents the profession broadly.
 2. Set portable `effort` and `access` in `PROFILE.md`.
-3. Keep models out of `claude.yaml` and `codex.yaml`; profiles inherit the host model. Use overlays for color and for narrowing tools below the access-derived set.
+3. Keep models out of the overlays; profiles inherit the host model. Create an overlay (`claude.yaml`, `codex.yaml`, `kimi.yaml`) only when it sets something, such as color or tools narrowed below the access-derived set.
 4. Keep runtime-specific settings out of the core.
 
 Use [../references/profile-template.md](../references/profile-template.md) for the source format.
@@ -29,8 +29,7 @@ Create or edit:
 ```text
 profiles/<name>/
 ├── PROFILE.md
-├── claude.yaml
-└── codex.yaml
+└── claude.yaml     # optional overlays: claude.yaml, codex.yaml, kimi.yaml
 ```
 
 Never edit `skills/agent-orchestrator/references/profiles/` directly. Native agents are generated only for consuming projects.

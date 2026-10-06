@@ -25,6 +25,10 @@ Group sections with `viz-nav__group` and `viz-nav__label` when there are more th
 
 `viz-matrix` for options against criteria (every `td` has `data-label` for the stacked phone layout); `viz-code` for examples; `viz-copy` for short definitions.
 
+## Comparison and review
+
+A comparison is a reference whose entries are options and whose columns are shared criteria: a `viz-matrix` with a sticky first column, a before/after or option toggle over the same state, and a stated decision rule or "depends on" row. Keep criteria identical across options and mark unknown cells. For review of a document or diff, use [explorer.md](explorer.md#review).
+
 ## Pitfalls
 
 - A tutorial disguised as a reference; keep explanations in an explainer.

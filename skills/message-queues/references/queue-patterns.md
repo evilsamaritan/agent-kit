@@ -1,15 +1,31 @@
 # Queue Patterns
 
-AMQP broker exchanges, NATS JetStream, Redis Streams, and DLQ strategies.
+Broker models and products, AMQP exchanges, NATS JetStream, Redis-compatible streams, and dead-letter strategies. Check broker and client versions before copying setup code.
 
 ## Contents
 
+- [Broker Models and Products](#broker-models-and-products)
 - [AMQP Broker Patterns](#amqp-broker-patterns)
 - [NATS JetStream Patterns](#nats-jetstream-patterns)
 - [Redis Streams Patterns](#redis-streams-patterns)
 - [Dead Letter Queue Strategies](#dead-letter-queue-strategies)
 - [Message Serialization](#message-serialization)
 - [Testing Patterns](#testing-patterns)
+
+---
+
+## Broker Models and Products
+
+Examples per model in SKILL.md's decision tree; verify current versions, limits, and licenses before choosing.
+
+| Model | Examples | Notes |
+|---|---|---|
+| Log-based streaming (Kafka protocol) | Apache Kafka, Redpanda, WarpStream, managed Kafka services | Compatible brokers implement different feature subsets (transactions, share groups) |
+| Routed queues (AMQP) | RabbitMQ, LavinMQ | RabbitMQ 4.0 removed classic mirrored queues; quorum queues replicate |
+| Lightweight messaging with streams | NATS with JetStream | Subjects, durable pull consumers, built-in KV and object store |
+| Managed cloud queue / topic | Amazon SQS + SNS, Google Pub/Sub, Azure Service Bus | FIFO or ordering-key options, delivery semantics, retention, and size limits differ per service |
+| Table-backed queue | PostgreSQL with `FOR UPDATE SKIP LOCKED`, libraries built on it | Enqueue commits with business data; polling load grows with volume |
+| Streams on a Redis-compatible store | Redis Streams, Valkey | Durability depends on the store's persistence settings |
 
 ---
 
@@ -48,32 +64,36 @@ async function setup() {
   await ch.assertQueue('order-processing', {
     durable: true,
     arguments: {
+      'x-queue-type': 'quorum',       // replicated
       'x-dead-letter-exchange': 'events.dlx',
-      'x-message-ttl': 30000,         // Messages expire after 30s if unacked
+      'x-delivery-limit': 5,          // quorum queues: dead-letter after 5 redeliveries
     },
   });
 
   // Bind queue to exchange with routing pattern
   await ch.bindQueue('order-processing', 'events', 'order.*');
 
-  // Publish
-  ch.publish('events', 'order.created', Buffer.from(JSON.stringify({
+  // Publish on a confirm channel and wait for the broker's confirm
+  const pub = await conn.createConfirmChannel();
+  pub.publish('events', 'order.created', Buffer.from(JSON.stringify({
+    eventId: 'evt-7f3a',               // business event id: consumers dedup on this
     orderId: '123',
-    userId: 'u456',
-    amount: 99.99,
+    amountMinor: 9999,                  // integer minor units, never floats for money
+    currency: 'EUR',
   })), {
-    persistent: true,                   // Survive broker restart
-    messageId: 'msg-unique-id',        // For idempotency
-    timestamp: Date.now(),
+    persistent: true,                   // survive broker restart (with a durable queue)
+    messageId: 'evt-7f3a',
+    timestamp: Math.floor(Date.now() / 1000),
     headers: { 'x-retry-count': 0 },
   });
+  await pub.waitForConfirms();
 }
 ```
 
 ### Consumer with Manual Ack
 
 ```javascript
-async function consume() {
+async function consume(conn, pub) {     // pub: a confirm channel opened at startup
   const ch = await conn.createChannel();
   await ch.prefetch(10);                // Process 10 at a time
 
@@ -84,13 +104,15 @@ async function consume() {
       ch.ack(msg);                      // Success -- acknowledge
     } catch (err) {
       const retryCount = (msg.properties.headers['x-retry-count'] || 0);
-      if (retryCount < 3) {
-        // Retry with incremented count
-        ch.publish('events', msg.fields.routingKey, msg.content, {
+      if (isRetryable(err) && retryCount < 3) {
+        // Republish to a delay queue (TTL + dead-letter back to the main exchange) on a
+        // confirm channel; ack the original only after the broker confirms the copy
+        pub.publish('events.retry', msg.fields.routingKey, msg.content, {
           ...msg.properties,
           headers: { ...msg.properties.headers, 'x-retry-count': retryCount + 1 },
         });
-        ch.ack(msg);                    // Ack original to prevent infinite nack loop
+        await pub.waitForConfirms();
+        ch.ack(msg);
       } else {
         ch.nack(msg, false, false);     // Send to DLQ (no requeue)
       }
@@ -111,17 +133,17 @@ async function consume() {
 
 ### Priority Queue
 
-Quorum queues support 2-level priority (normal: 0-4, high: 5-10). For fine-grained priority, use classic queues (development only) or application-level priority sorting.
+Quorum queues need no queue argument for priority. In RabbitMQ 4.0 through 4.2 they have two effective levels (priority above 4 is high, the rest normal); from RabbitMQ 4.3 they support strict priority across 32 levels (0-31). `x-max-priority` applies to classic queues only, which are not replicated. Separate queues per priority with weighted consumers are the portable alternative.
 
 ```javascript
-await ch.assertQueue('high-priority-tasks', {
+await ch.assertQueue('tasks', {
   durable: true,
-  arguments: { 'x-max-priority': 10 },
+  arguments: { 'x-queue-type': 'quorum' },
 });
 
 // Publish with priority
-ch.sendToQueue('high-priority-tasks', Buffer.from(data), {
-  priority: 8,                          // 0 (lowest) to 10 (highest)
+ch.sendToQueue('tasks', Buffer.from(data), {
+  priority: 5,                          // 4.0-4.2 quorum queues: >4 = high, otherwise normal; 4.3+: strict 0-31
   persistent: true,
 });
 ```
@@ -130,74 +152,64 @@ ch.sendToQueue('high-priority-tasks', Buffer.from(data), {
 
 ## NATS JetStream Patterns
 
+Examples use the `jetstream` package of the Go client (the newer API; the older `nc.JetStream()` context is legacy).
+
 ### Stream and Consumer Setup (Go)
 
 ```go
-js, _ := nc.JetStream()
+js, err := jetstream.New(nc)
 
-// Create stream
-_, err := js.AddStream(&nats.StreamConfig{
-    Name:       "ORDERS",
-    Subjects:   []string{"orders.>"},       // Wildcard subject matching
-    Storage:    nats.FileStorage,
-    Retention:  nats.LimitsPolicy,
-    MaxAge:     7 * 24 * time.Hour,         // 7 day retention
-    MaxMsgs:    -1,                         // Unlimited messages
-    Replicas:   3,                          // 3-way replication
-    Discard:    nats.DiscardOld,            // Drop oldest when limit reached
+stream, err := js.CreateOrUpdateStream(ctx, jetstream.StreamConfig{
+    Name:      "ORDERS",
+    Subjects:  []string{"orders.>"},
+    Storage:   jetstream.FileStorage,
+    Retention: jetstream.LimitsPolicy,
+    MaxAge:    7 * 24 * time.Hour,
+    Replicas:  3,
+    Discard:   jetstream.DiscardOld,
 })
 
-// Create durable consumer
-_, err = js.AddConsumer("ORDERS", &nats.ConsumerConfig{
-    Durable:       "order-processor",
-    DeliverPolicy: nats.DeliverAllPolicy,
-    AckPolicy:     nats.AckExplicitPolicy,
+cons, err := stream.CreateOrUpdateConsumer(ctx, jetstream.ConsumerConfig{
+    Durable:       "order-processor",    // shared by all instances: they pull from one consumer
+    AckPolicy:     jetstream.AckExplicitPolicy,
     AckWait:       30 * time.Second,
-    MaxDeliver:    5,                       // Max redelivery attempts
+    MaxDeliver:    5,
     FilterSubject: "orders.created",
-    DeliverGroup:  "processors",            // Load balance across group
 })
 ```
 
-### Pull-Based Consumer (Preferred)
+### Pull Consumption
 
 ```go
-sub, _ := js.PullSubscribe("orders.created", "order-processor")
-
-for {
-    msgs, err := sub.Fetch(10, nats.MaxWait(5*time.Second))
-    if err != nil {
-        continue
+cc, err := cons.Consume(func(msg jetstream.Msg) {
+    if err := processOrder(msg.Data()); err != nil {
+        msg.NakWithDelay(5 * time.Second)   // redeliver later; MaxDeliver bounds attempts
+        return
     }
-    for _, msg := range msgs {
-        if err := processOrder(msg.Data); err != nil {
-            msg.Nak()              // Trigger redelivery
-        } else {
-            msg.Ack()
-        }
-    }
-}
+    msg.Ack()
+})
+defer cc.Stop()
 ```
+
+Use `msg.DoubleAck(ctx)` when the processing must know the ack reached the server. Publish deduplication: set the `Nats-Msg-Id` header to the business event id; the stream drops duplicates within its duplicate window.
 
 ### Key-Value Store
 
 ```go
-kv, _ := js.CreateKeyValue(&nats.KeyValueConfig{
+kv, err := js.CreateKeyValue(ctx, jetstream.KeyValueConfig{
     Bucket:  "user-sessions",
     TTL:     24 * time.Hour,
-    History: 5,                // Keep 5 revisions
+    History: 5,
 })
 
-// CRUD operations
-kv.Put("user:123", []byte(`{"active": true, "last_seen": "2025-01-01"}`))
-entry, _ := kv.Get("user:123")
-kv.Delete("user:123")
+kv.Put(ctx, "user.123", []byte(`{"active": true}`))   // keys use dots, not colons
+entry, err := kv.Get(ctx, "user.123")
+kv.Delete(ctx, "user.123")
 
-// Watch for changes
-watcher, _ := kv.Watch("user.*")
+watcher, err := kv.Watch(ctx, "user.*")
 for update := range watcher.Updates() {
     if update != nil {
-        fmt.Printf("Key %s changed: %s\n", update.Key(), update.Value())
+        fmt.Printf("key %s changed\n", update.Key())
     }
 }
 ```
@@ -270,32 +282,27 @@ while True:
 ### Claiming Stuck Messages
 
 ```python
-# Claim messages pending for over 60 seconds (dead consumer recovery)
-def claim_stuck_messages():
-    pending = r.xpending_range('orders', 'processors', '-', '+', count=100)
-
-    for entry in pending:
-        msg_id = entry['message_id']
-        idle_time = entry['time_since_delivered']
-        delivery_count = entry['times_delivered']
-
-        if idle_time > 60000:  # 60 seconds
-            if delivery_count > 5:
-                # Move to DLQ
-                msg = r.xrange('orders', msg_id, msg_id)
-                if msg:
-                    r.xadd('orders:dlq', msg[0][1])
-                    r.xack('orders', 'processors', msg_id)
-            else:
-                # Claim and retry
-                r.xclaim('orders', 'processors', consumer_name, 60000, msg_id)
+# Reclaim entries idle for over 60 s from dead consumers (XAUTOCLAIM, Redis 6.2+)
+def reclaim_stuck_messages():
+    result = r.xautoclaim('orders', 'processors', consumer_name,
+                          min_idle_time=60000, start_id='0-0', count=100)
+    claimed = result[1]   # [next_start_id, entries, ...]; the tail length depends on the server version
+    for msg_id, data in claimed:
+        attempts = r.xpending_range('orders', 'processors', msg_id, msg_id, 1)[0]['times_delivered']
+        if attempts > 5:
+            r.xadd('orders:dlq', data)               # dead-letter first ...
+            r.xack('orders', 'processors', msg_id)    # ... then ack the original
+        else:
+            process_with_idempotency(msg_id, data)
 ```
 
 ---
 
 ## Dead Letter Queue Strategies
 
-### Retry with Exponential Backoff (Kafka)
+### Retry Topics with Increasing Delay (Kafka)
+
+Which errors are retryable and the backoff policy come from `reliability`; this is the broker topology.
 
 ```
 Topic: orders (main)
@@ -311,13 +318,15 @@ Flow:
                                           -> fail -> orders.dlq
 ```
 
+Each retry consumer reads the due time from a header and pauses its partition until then; it never sleeps inside the poll loop (that triggers rebalances). Every hop publishes, waits for the acknowledgement, then commits.
+
 ### DLQ Message Format
 
 ```json
 {
   "original_topic": "orders",
   "original_key": "user-123",
-  "original_value": { "order_id": "o456", "amount": 99.99 },
+  "original_value": { "order_id": "o456", "amount_minor": 9999, "currency": "EUR" },
   "error": {
     "type": "ProcessingException",
     "message": "Payment gateway timeout",
@@ -351,7 +360,7 @@ def reprocess_dlq(filter_fn=None, limit=100):
             headers={'x-reprocessed-from': 'dlq', 'x-original-dlq-id': msg['id']},
         )
 
-        ack_dlq_message(msg['id'])
+        ack_dlq_message(msg['id'])                     # after the republish is acknowledged
         log.info(f"Reprocessed DLQ message {msg['id']} to {msg['original_topic']}")
 ```
 
@@ -368,7 +377,7 @@ def reprocess_dlq(filter_fn=None, limit=100):
 | Protobuf | Small | Fastest | Required (.proto) | No |
 | MessagePack | Small | Fast | No | No |
 
-**Decision:** Use JSON for debugging/low volume. Avro with Schema Registry for Kafka. Protobuf for gRPC integration. MessagePack for Redis Streams.
+**Decision:** JSON for debugging and low volume; Avro or Protobuf with a schema registry for streams; Protobuf when contracts are shared with gRPC services. Whatever the format, amounts are decimals or integer minor units, never floats.
 
 ---
 
@@ -377,9 +386,10 @@ def reprocess_dlq(filter_fn=None, limit=100):
 ### Embedded Broker Testing
 
 ```java
-// Testcontainers (JVM)
+// Testcontainers (JVM): org.testcontainers.kafka.KafkaContainer with a KRaft image.
+// Pin the tag to the broker version you run in production.
 @Container
-static KafkaContainer kafka = new KafkaContainer(DockerImageName.parse("confluentinc/cp-kafka:7.5.0"));
+static KafkaContainer kafka = new KafkaContainer(DockerImageName.parse("apache/kafka:4.2.2"));
 
 @Test
 void shouldProcessOrder() {
@@ -393,7 +403,7 @@ void shouldProcessOrder() {
 # pytest with testcontainers
 @pytest.fixture
 def redis_stream():
-    with RedisContainer("redis:7") as redis:
+    with RedisContainer("redis:8") as redis:          # match the production server version
         yield redis.get_client()
 
 def test_consumer_processes_message(redis_stream):

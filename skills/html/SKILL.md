@@ -40,7 +40,7 @@ Semantic markup carries meaning to assistive technology, crawlers, and reader mo
 
 Landmark roles are implicit: `<nav>` = `role="navigation"`, `<main>` = `role="main"`, `<aside>` = `role="complementary"`, `<search>` = `role="search"`, `<header>` in body = `role="banner"`, `<footer>` in body = `role="contentinfo"`. Never add redundant ARIA roles to semantic elements.
 
-`<search>` — landmark container for search/filter forms (Baseline 2024). Role implicitly `search`. Use instead of `<div role="search">`.
+`<search>` is the landmark container for search/filter forms; use it instead of `<div role="search">`.
 
 ---
 
@@ -53,7 +53,6 @@ Landmark roles are implicit: `<nav>` = `role="navigation"`, `<main>` = `role="ma
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Page title — Site</title>
-    <link rel="canonical" href="https://example.com/page">
   </head>
   <body>
     <a href="#main" class="skip-link">Skip to content</a>
@@ -110,9 +109,15 @@ Landmark roles are implicit: `<nav>` = `role="navigation"`, `<main>` = `role="ma
      width="1200" height="800" loading="lazy">
 
 <!-- Decorative image (conveys nothing new) -->
-<img src="divider.svg" alt="" role="presentation">
+<img src="divider.svg" alt="">
 
-<!-- Art-directed responsive image -->
+<!-- Resolution switching: the browser picks from srcset using sizes -->
+<img src="photo-800.jpg"
+     srcset="photo-400.jpg 400w, photo-800.jpg 800w, photo-1600.jpg 1600w"
+     sizes="(min-width: 60rem) 50vw, 100vw"
+     alt="..." width="800" height="533">
+
+<!-- Art-directed responsive image: different crops per breakpoint -->
 <picture>
   <source media="(min-width: 900px)" srcset="wide.jpg">
   <source media="(min-width: 500px)" srcset="medium.jpg">
@@ -180,41 +185,31 @@ Landmark roles are implicit: `<nav>` = `role="navigation"`, `<main>` = `role="ma
 
 ---
 
-## Metadata
+## Head essentials
+
+Correct markup needs `<meta charset="utf-8">` first in `<head>`, the viewport meta, `<html lang>`, and a unique descriptive `<title>` (all shown in the outline above). Theme color and the web app manifest belong here too.
 
 ```html
-<title>Page title — Site</title>
-<meta name="description" content="Concise summary, 150-160 chars.">
-<link rel="canonical" href="https://example.com/page">
-
-<!-- Open Graph / social -->
-<meta property="og:title" content="...">
-<meta property="og:description" content="...">
-<meta property="og:image" content="https://example.com/og.png">
-<meta property="og:type" content="article">
-
-<!-- Theme color / PWA -->
 <meta name="theme-color" content="#0d1117" media="(prefers-color-scheme: dark)">
 <meta name="theme-color" content="#ffffff" media="(prefers-color-scheme: light)">
 <link rel="manifest" href="/manifest.webmanifest">
 ```
 
-→ Deeper SEO / structured data in the `seo` skill.
+Descriptions, canonical URLs, Open Graph, structured data, robots → `seo`.
 
 ---
 
 ## Anti-Patterns
 
-1. **Div soup.** Semantic elements convey meaning to AT and improve SEO — every `<div>` that could be `<section>`, `<article>`, `<nav>`, `<aside>` is lost signal.
-2. **`<div>` with click handlers.** Not keyboard-focusable, no Enter/Space activation, no role for AT. Use `<button>`.
-3. **Headings used for styling.** `<h3>` because "that's the size I want" breaks the document outline.
-4. **Missing alt / wrong alt.** `alt="image"`, decorative images with descriptive alt, repeating the caption in alt.
-5. **Generic link text.** "Click here", "read more" — screen reader users skim via link lists and get zero signal.
-6. **Nested `<button>` or `<a>`.** Invalid HTML, unpredictable interaction.
-7. **`<table>` for layout.** Breaks reading order for AT, brittle for responsive.
-8. **Skipping heading levels.** `<h1>` → `<h3>` — AT outlines rely on order.
-9. **Forgetting `lang`.** Screen readers mispronounce; hyphenation breaks; translation tooling guesses.
-10. **Custom controls without ARIA.** If you must build a custom widget, pair it with the correct `role`, states, and keyboard handling — see `accessibility` skill.
+Beyond the Hard Rules:
+
+1. **Div soup.** A `<div>` that could be `<section>`, `<article>`, `<nav>`, or `<aside>` throws away meaning for assistive technology and reader modes.
+2. **Headings used for styling.** `<h3>` because that is the size wanted breaks the outline; style with CSS.
+3. **Wrong alt text.** `alt="image"`, descriptive alt on decorative images, or repeating the visible caption.
+4. **Generic link text.** "Click here" and "read more" give screen-reader users, who skim link lists, no signal.
+5. **`<table>` for layout.** Breaks reading order and responsive behavior.
+6. **Nested `<button>` or `<a>`.** Invalid HTML with unpredictable interaction.
+7. **Custom controls without roles, states, and keyboard handling.** Prefer a native element; otherwise → `accessibility`.
 
 ---
 

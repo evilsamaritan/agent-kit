@@ -128,7 +128,7 @@ Start neutral. Add categorical fills only when category is part of the explanati
 |---|---|---|---|
 | system/core | `#eef3f4` / `#607d85` | `#232b2d` / `#8da6ac` | shared runtime, platform, core mechanism |
 | interface/orchestration | `#f3f0f4` / `#765f80` | `#2c282f` / `#b2a0ba` | UI shell, routing, coordination |
-| domain/capability | `#eef4ef` / `#4f705b` | `#252d27` / `#90ad98` | business/game/feature module |
+| domain/capability | `#eef4ef` / `#4f705b` | `#252d27` / `#90ad98` | business or feature module |
 | data/state | `#f6f2e8` / `#857346` | `#302c23` / `#b9a478` | store, authoritative state, projection |
 | external/neutral | `#f5f5f3` / `#747671` | `#292927` / `#a0a09a` | actor, dependency, environment, constraint |
 | risk/failure | `#f8eeec` / `#8b4f49` | `#322826` / `#ca948c` | failure, forbidden path, unresolved risk |

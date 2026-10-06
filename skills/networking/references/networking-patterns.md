@@ -1,6 +1,6 @@
 # Networking Patterns
 
-Detailed configuration examples for DNS, TLS, load balancing, CDN, service mesh, and firewall.
+Configuration examples for DNS, TLS, load balancing, CDN topology, Gateway API and service mesh, and firewall. Examples are sketches: adapt names, addresses, and versions. Addresses use documentation ranges.
 
 ---
 
@@ -14,6 +14,7 @@ Detailed configuration examples for DNS, TLS, load balancing, CDN, service mesh,
 - [Service Mesh Patterns](#service-mesh-patterns)
 - [Firewall Patterns](#firewall-patterns)
 - [Troubleshooting Commands](#troubleshooting-commands)
+- [Volatile Facts](#volatile-facts)
 
 ---
 
@@ -25,9 +26,9 @@ Detailed configuration examples for DNS, TLS, load balancing, CDN, service mesh,
 $ORIGIN example.com.
 $TTL 3600
 
-; SOA record
-@   IN  SOA   ns1.example.com. admin.example.com. (
-            2024010101  ; Serial
+; SOA record (serial: any increasing number, commonly YYYYMMDDnn)
+@   IN  SOA   ns1.example.com. hostmaster.example.com. (
+            2026010101  ; Serial
             3600        ; Refresh
             900         ; Retry
             604800      ; Expire
@@ -38,40 +39,38 @@ $TTL 3600
 @       IN  NS    ns1.example.com.
 @       IN  NS    ns2.example.com.
 
-; A records
-@       IN  A     93.184.216.34
-www     IN  A     93.184.216.34
-api     IN  A     93.184.216.35
+; Address records (documentation ranges)
+@       IN  A     203.0.113.10
+www     IN  A     203.0.113.10
+api     IN  A     203.0.113.11
+api     IN  AAAA  2001:db8::11
 
-; CNAME (aliases)
-blog    IN  CNAME example.netlify.app.
-docs    IN  CNAME example.readthedocs.io.
+; CNAME (aliases to a hosted service; remove when the service is released)
+blog    IN  CNAME site.hosting.example.net.
 
 ; MX records (priority ordering)
 @       IN  MX    10  mail1.example.com.
 @       IN  MX    20  mail2.example.com.
 
 ; TXT records
-@       IN  TXT   "v=spf1 include:_spf.google.com ~all"
-_dmarc  IN  TXT   "v=DMARC1; p=reject; rua=mailto:dmarc@example.com"
+@       IN  TXT   "v=spf1 include:_spf.mail.example.net ~all"
+_dmarc  IN  TXT   "v=DMARC1; p=reject; rua=mailto:dmarc-reports@example.com"
 
-; CAA (restrict certificate authorities)
-@       IN  CAA   0 issue "letsencrypt.org"
+; CAA (restrict which CAs may issue; use your CA's published identifier)
+@       IN  CAA   0 issue "ca.example.net"
 @       IN  CAA   0 issuewild ";"  ; no wildcard certs
 
-; HTTPS/SVCB records (service binding + HTTP/3 + ECH)
-@       IN  HTTPS 1 . alpn="h3,h2" ech="..." ipv4hint=93.184.216.34
+; HTTPS/SVCB record (service binding, HTTP/3, ECH)
+@       IN  HTTPS 1 . alpn="h3,h2" ipv4hint=203.0.113.10
 ```
 
-### DNSSEC Setup
+### DNSSEC
 
-Generate ZSK and KSK with `dnssec-keygen -a ECDSAP256SHA256`, then sign with `dnssec-signzone`. Use ECDSAP256SHA256 (not RSA) for smaller records and faster validation.
+DNSSEC lets resolvers validate that answers came from the zone owner. Use the DNS provider's managed signing, or an automated signer with a key-rollover policy (for example BIND's `dnssec-policy` or the equivalent in your server), and publish the DS record at the parent. Prefer ECDSA P-256 over RSA for smaller responses. Hand-run signing tools with manual key handling cause expiry outages.
 
 ### Encrypted DNS (DoH / DoT)
 
-- **DoH** (port 443): blends with HTTPS traffic. Configure resolver URL in application or OS settings.
-- **DoT** (port 853): dedicated TLS connection. Configure in systemd-resolved: `DNSOverTLS=yes`
-- DNSSEC validates authenticity; DoH/DoT encrypts the transport. Use both together.
+These protect the client-to-resolver hop and are configured on clients and recursive resolvers (for example `DNSOverTLS=yes` in systemd-resolved), not on authoritative servers. DNSSEC and DoH/DoT address different threats and are independent decisions.
 
 ### DNS Failover Pattern
 
@@ -81,7 +80,7 @@ Use low TTL (60s) for failover records. Add both primary and secondary IPs. DNS 
 
 ## TLS Configuration
 
-### TLS 1.3 Server Configuration (nginx example)
+### TLS Server Configuration (nginx example)
 
 ```nginx
 server {
@@ -90,38 +89,35 @@ server {
     http2 on;
     server_name api.example.com;
 
-    # Certificates
-    ssl_certificate     /etc/letsencrypt/live/api.example.com/fullchain.pem;
-    ssl_certificate_key /etc/letsencrypt/live/api.example.com/privkey.pem;
+    ssl_certificate     /etc/ssl/live/api.example.com/fullchain.pem;
+    ssl_certificate_key /etc/ssl/live/api.example.com/privkey.pem;
 
-    # TLS 1.3 only (or 1.2 minimum)
     ssl_protocols TLSv1.3 TLSv1.2;
     ssl_ciphers ECDHE-ECDSA-AES128-GCM-SHA256:ECDHE-RSA-AES128-GCM-SHA256:ECDHE-ECDSA-AES256-GCM-SHA384:ECDHE-RSA-AES256-GCM-SHA384;
-    ssl_prefer_server_ciphers off;  # Let client choose in TLS 1.3
+    ssl_prefer_server_ciphers off;
 
-    # OCSP stapling
-    ssl_stapling on;
-    ssl_stapling_verify on;
-    ssl_trusted_certificate /etc/letsencrypt/live/api.example.com/chain.pem;
+    # No ssl_stapling by default: enable it only if your CA still publishes OCSP responders.
+    # Otherwise nginx logs "ssl_stapling ignored, no OCSP responder URL".
 
-    # Session resumption
     ssl_session_timeout 1d;
     ssl_session_cache shared:SSL:10m;
-    ssl_session_tickets off;  # Better forward secrecy
+    ssl_session_tickets off;
 
-    # HSTS
-    add_header Strict-Transport-Security "max-age=63072000; includeSubDomains; preload" always;
+    # HSTS: one year with subdomains. Add "preload" only after every subdomain is HTTPS
+    # and you accept that removal from browser preload lists takes months.
+    add_header Strict-Transport-Security "max-age=31536000; includeSubDomains" always;
+
+    # Optional HTTP/3 (nginx built with QUIC): also open UDP 443.
+    # listen 443 quic reuseport;
+    # add_header Alt-Svc 'h3=":443"; ma=86400' always;
 }
 ```
 
+Header values and policy decisions beyond this sample are owned by `web` and `security`.
+
 ### Post-Quantum TLS Readiness
 
-Hybrid key exchange in TLS 1.3 combines classical ECDHE with ML-KEM (FIPS 203):
-- `X25519MLKEM768` — X25519 + ML-KEM-768 (most common)
-- `SecP256r1MLKEM768` — secp256r1 + ML-KEM-768
-- `SecP384r1MLKEM1024` — secp384r1 + ML-KEM-1024
-
-Impact: ~1600 additional bytes per handshake, ~80-150us extra compute. Test with your CDN/load balancer to verify compatibility. Major cloud providers and CDNs support hybrid PQ key exchange.
+Hybrid key exchange in TLS 1.3 combines classical ECDHE with ML-KEM (FIPS 203), for example `X25519MLKEM768`. It enlarges the handshake by roughly a kilobyte or more, so test load balancers, firewalls, and middleboxes that inspect or limit handshake size. Inventory endpoints and libraries first.
 
 ---
 
@@ -144,7 +140,7 @@ server {
 
     # Pass client cert info to upstream
     location / {
-        proxy_pass http://backend;
+        proxy_pass https://backend;   # re-encrypt to the backend
         proxy_set_header X-Client-CN $ssl_client_s_dn_cn;
         proxy_set_header X-Client-Verify $ssl_client_verify;
     }
@@ -175,23 +171,30 @@ Certificate lifecycle:
 
 ### Automated Certificate Management with ACME
 
+ACME is for public web certificates. For mTLS and client authentication use a private CA (cloud-managed private CA, SPIRE, or a mesh CA).
+
 ```yaml
-# cert-manager ClusterIssuer (Kubernetes example)
+# cert-manager ClusterIssuer using a Gateway API HTTP-01 solver (Kubernetes example)
 apiVersion: cert-manager.io/v1
 kind: ClusterIssuer
 metadata:
-  name: letsencrypt-prod
+  name: acme-public
 spec:
   acme:
     server: https://acme-v02.api.letsencrypt.org/directory
     email: admin@example.com
     privateKeySecretRef:
-      name: letsencrypt-prod
+      name: acme-public-account-key
     solvers:
       - http01:
-          ingress:
-            class: nginx
+          gatewayHTTPRoute:
+            parentRefs:
+              - kind: Gateway
+                name: public-gateway
+                namespace: infra
 ```
+
+Check the cert-manager version's Gateway API support and the maintenance status of whichever ingress or gateway controller is in use. If you must use the legacy Ingress solver, set the controller's `ingressClassName` instead of hardcoding one product's class.
 
 ---
 
@@ -227,12 +230,14 @@ frontend https
 
 backend api_servers
     balance leastconn
-    option httpchk GET /healthz
+    option httpchk GET /readyz
     http-check expect status 200
 
-    server api1 10.0.1.1:8080 check inter 5s fall 3 rise 2
-    server api2 10.0.1.2:8080 check inter 5s fall 3 rise 2
-    server api3 10.0.1.3:8080 check inter 5s fall 3 rise 2
+    # Re-encrypt to the backend and verify its certificate
+    default-server ssl verify required ca-file /etc/ssl/ca.crt check inter 5s fall 3 rise 2
+    server api1 10.0.1.1:8443
+    server api2 10.0.1.2:8443
+    server api3 10.0.1.3:8443
 ```
 
 ### nginx Upstream Configuration
@@ -241,16 +246,18 @@ backend api_servers
 upstream api_backend {
     least_conn;
 
-    server 10.0.1.1:8080 weight=3 max_fails=3 fail_timeout=30s;
-    server 10.0.1.2:8080 weight=2 max_fails=3 fail_timeout=30s;
-    server 10.0.1.3:8080 weight=1 max_fails=3 fail_timeout=30s backup;
+    server 10.0.1.1:8443 weight=3 max_fails=3 fail_timeout=30s;
+    server 10.0.1.2:8443 weight=2 max_fails=3 fail_timeout=30s;
+    server 10.0.1.3:8443 weight=1 max_fails=3 fail_timeout=30s backup;
 
     keepalive 32;  # Keep-alive connections to upstream
 }
 
 server {
     location / {
-        proxy_pass http://api_backend;
+        proxy_pass https://api_backend;      # re-encrypt to the backend
+        proxy_ssl_verify on;
+        proxy_ssl_trusted_certificate /etc/ssl/ca.crt;
         proxy_http_version 1.1;
         proxy_set_header Connection "";  # Enable keepalive
         proxy_set_header Host $host;
@@ -270,82 +277,92 @@ server {
 }
 ```
 
+### Reverse Proxy Configuration
+
+Caddy (automatic public certificates, short config):
+
+```caddyfile
+app.example.com {
+    reverse_proxy app1:8080 app2:8080 {
+        lb_policy least_conn
+        health_uri /readyz
+    }
+}
+```
+
+Traefik (dynamic discovery; file provider shown):
+
+```yaml
+http:
+  routers:
+    app:
+      rule: Host(`app.example.com`)
+      service: app
+      tls: { certResolver: acme-public }
+  services:
+    app:
+      loadBalancer:
+        servers: [{ url: "http://app1:8080" }, { url: "http://app2:8080" }]
+        healthCheck: { path: /readyz, interval: 10s }
+```
+
+Certificate expiry check against the served endpoint (alert below your renewal-window threshold):
+
+```bash
+echo | openssl s_client -connect app.example.com:443 -servername app.example.com 2>/dev/null | openssl x509 -noout -enddate
+```
+
 ---
 
 ## CDN Configuration
 
-### Cache Rule Strategy (conceptual, provider-agnostic)
+### CDN Topology (conceptual, provider-agnostic)
 
 ```
-# Static assets — aggressive caching
-Path: /static/*
-Cache: everything at edge
-Edge TTL: 1 month
-Browser TTL: 1 year
+Client -> edge PoP -> origin shield (optional second-tier cache) -> origin
 
-# API — no caching
-Path: /api/*
-Cache: bypass
-Security: high
-
-# HTML pages — revalidate
-Path: /*
-Cache: standard
-Edge TTL: 4 hours
+Path /static/*  : cache at edge and shield; versioned URLs, purge rarely
+Path /api/*     : bypass cache unless the response policy allows it
+Everything else : follow origin headers
+Purge           : by URL, tag, or prefix; versioned asset URLs make purging unnecessary
+Origin access   : allow only the CDN's ranges or authenticated origin pulls
 ```
 
-### Cache-Control Strategy Table
-
-| Content Type | Cache-Control | Why |
-|-------------|--------------|-----|
-| Versioned assets (`app.abc123.js`) | `public, max-age=31536000, immutable` | Hash in filename = safe to cache forever |
-| Unversioned assets (`logo.png`) | `public, max-age=86400, stale-while-revalidate=604800` | Cache 1 day, serve stale for 1 week |
-| HTML pages | `no-cache` | Always revalidate (may serve 304) |
-| API responses (public) | `public, max-age=60, stale-while-revalidate=300` | Short cache, background refresh |
-| API responses (private) | `private, no-cache` | User-specific, revalidate |
-| Auth endpoints | `no-store` | Never cache |
+Which Cache-Control values to send for each content type, and edge versus browser TTL decisions, are owned by `caching` (see its CDN reference). Header mechanics are in `web`.
 
 ---
 
 ## Service Mesh Patterns
 
-### Traffic Splitting (Canary) — Istio example
+### Traffic Splitting (Canary) — Gateway API
+
+Gateway API is the standard route for ingress and, in meshes that implement it, for east-west traffic. Weights live in `backendRefs`.
 
 ```yaml
-apiVersion: networking.istio.io/v1beta1
-kind: VirtualService
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
 metadata:
   name: api
 spec:
-  hosts: [api]
-  http:
-    - route:
-        - destination:
-            host: api
-            subset: stable
+  parentRefs:
+    - name: public-gateway
+  hostnames: ["api.example.com"]
+  rules:
+    - backendRefs:
+        - name: api-stable
+          port: 8080
           weight: 90
-        - destination:
-            host: api
-            subset: canary
+        - name: api-canary
+          port: 8080
           weight: 10
----
-apiVersion: networking.istio.io/v1beta1
-kind: DestinationRule
-metadata:
-  name: api
-spec:
-  host: api
-  subsets:
-    - name: stable
-      labels: { version: v1 }
-    - name: canary
-      labels: { version: v2 }
 ```
+
+Istio's own variant uses `VirtualService` and `DestinationRule` (`networking.istio.io/v1`) with subsets; use it when a mesh feature has no Gateway API equivalent.
 
 ### Circuit Breaker — Istio example
 
 ```yaml
-apiVersion: networking.istio.io/v1beta1
+apiVersion: networking.istio.io/v1
 kind: DestinationRule
 metadata:
   name: api
@@ -370,66 +387,75 @@ spec:
 
 ## Firewall Patterns
 
-### nftables Rules (Linux — recommended)
+### nftables Rules (Linux, recommended)
 
-nftables is the modern replacement for iptables. Default on modern Linux distributions.
+nftables is the modern replacement for iptables and the default on current distributions.
+
+Design notes:
+- Use a **uniquely named table** and replace only that table (`delete table` then re-add, in one file, applied atomically). Do not `flush ruleset` on hosts running Docker or Kubernetes: container runtimes and CNIs create their own tables and the flush removes them.
+- Every table with a chain at the same hook is evaluated, and a drop in any of them drops the packet. On container hosts, do not add a `forward` chain with `policy drop`; the runtime owns forwarding.
+- ICMP and ICMPv6 are required: IPv6 neighbour discovery, router advertisements, and path-MTU discovery break if ICMPv6 is dropped.
+- Put rate limits **before** the broad accept, and give them a drop for the excess; a limit placed after an accept never runs.
+- Output policy here is `accept`: egress is restricted at the network layer (security groups, NetworkPolicy). Set `policy drop` and enumerate flows if the host must enforce egress itself.
+- **Avoid lockout:** validate with `nft -c -f file`, and before applying remotely schedule a timed rollback (for example a delayed job that deletes the table), then cancel it once a new session proves access.
 
 ```bash
 #!/usr/sbin/nft -f
-flush ruleset
+table inet host_fw
+delete table inet host_fw
 
-table inet filter {
+table inet host_fw {
     chain input {
-        type filter hook input priority 0; policy drop;
+        type filter hook input priority filter; policy drop;
 
-        # Allow established/related connections
+        ct state invalid drop
         ct state established,related accept
-
-        # Allow loopback
         iif lo accept
 
-        # Allow SSH (restricted to admin network)
+        # ICMP / ICMPv6: diagnostics, neighbour discovery, path-MTU discovery
+        ip protocol icmp icmp type { destination-unreachable, time-exceeded, parameter-problem, echo-request } limit rate 10/second accept
+        ip6 nexthdr icmpv6 icmpv6 type { destination-unreachable, packet-too-big, time-exceeded, parameter-problem, echo-request, nd-router-advert, nd-neighbor-solicit, nd-neighbor-advert } accept
+
+        # SSH only from the admin network
         ip saddr 10.0.0.0/8 tcp dport 22 accept
 
-        # Allow HTTP/HTTPS
+        # Rate-limit new web connections first; the excess is dropped
+        tcp dport { 80, 443 } ct state new limit rate over 200/second burst 400 packets drop
         tcp dport { 80, 443 } accept
-
-        # Rate limit new HTTPS connections
-        tcp dport 443 ct state new limit rate 20/minute accept
-    }
-
-    chain forward {
-        type filter hook forward priority 0; policy drop;
+        udp dport 443 accept   # QUIC / HTTP/3
     }
 
     chain output {
-        type filter hook output priority 0; policy accept;
+        type filter hook output priority filter; policy accept;
     }
 }
 ```
 
 ### iptables (Legacy)
 
-Still widely used; migrate to nftables with `iptables-translate` for new deployments. Same concepts: default deny, allow established, allow loopback, restrict SSH by source, allow HTTP/HTTPS, rate-limit new connections.
+Still widely used; `iptables-translate` helps migrate. Same concepts: default deny, allow established and loopback, allow required ICMP, restrict SSH by source, rate-limit before the broad accept.
 
 ### Cloud Security Group Pattern (provider-agnostic)
 
 ```
-# Web tier
-Inbound:  TCP 443 from 0.0.0.0/0          (HTTPS from internet)
-Inbound:  TCP 80  from 0.0.0.0/0          (HTTP redirect)
-Outbound: TCP 8080 to app-tier-sg          (to application)
+# Edge / load balancer tier
+Inbound:  TCP 443 from 0.0.0.0/0          (HTTPS)
+Inbound:  UDP 443 from 0.0.0.0/0          (QUIC, only if HTTP/3 is enabled)
+Inbound:  TCP 80  from 0.0.0.0/0          (redirect to HTTPS only)
+Outbound: TCP 8443 to app-tier-sg         (TLS to the application)
 
 # App tier
-Inbound:  TCP 8080 from web-tier-sg        (from web tier only)
-Outbound: TCP 5432 to db-tier-sg           (to database)
-Outbound: TCP 6379 to cache-tier-sg        (to cache)
-Outbound: TCP 443  to 0.0.0.0/0           (external APIs)
+Inbound:  TCP 8443 from lb-tier-sg        (from the load balancer only)
+Outbound: TCP 5432 to db-tier-sg
+Outbound: TCP 6379 to cache-tier-sg
+Outbound: TCP 443 to 0.0.0.0/0            (external APIs)
 
 # DB tier
-Inbound:  TCP 5432 from app-tier-sg        (from app tier only)
-Outbound: None                             (no external access)
+Inbound:  TCP 5432 from app-tier-sg
+Outbound: none
 ```
+
+A plaintext leg from the load balancer to the backend contradicts the no-plaintext rule; if one exists, record it as an exception with its reason.
 
 ---
 
@@ -447,3 +473,15 @@ Outbound: None                             (no external access)
 | Route trace / MTU | `mtr example.com` / `ping -M do -s 1472 example.com` |
 | Port scan / bandwidth | `nmap -sT -p 80,443 example.com` / `iperf3 -c server-ip` |
 | QUIC connectivity | `curl --http3 -v https://example.com 2>&1 | grep QUIC` |
+
+---
+
+## Volatile Facts
+
+Checked October 2026 against CA/Browser Forum ballot SC-081, Let's Encrypt announcements, and the Kubernetes blog. Re-check before stating dates or limits.
+
+- **Public certificate lifetime:** the CA/Browser Forum schedule reduces the maximum lifetime in steps (ballot SC-081: 200 days for certificates issued from 15 March 2026, 100 days from 15 March 2027, 47 days from 15 March 2029). Some CAs already issue shorter certificates. Design renewal for the end state: fully automated, no manual steps, alerts on renewal failure.
+- **Revocation:** Let's Encrypt removed OCSP URLs from new certificates on 7 May 2025 (Must-Staple requests fail since then) and turned off its OCSP responders on 6 August 2025; it relies on short lifetimes and CRLs. Stapling only helps with CAs that still publish OCSP.
+- **Client authentication:** Chrome's root program set a June 2026 deadline to split TLS client and server authentication into separate PKIs, so public CAs are dropping the client-auth extended key usage. Let's Encrypt removed it from its default `classic` profile on 11 February 2026 and stopped issuing it entirely when the `tlsclient` profile ended on 8 July 2026. Use a private CA for mTLS.
+- **Ingress controllers:** the Kubernetes ingress-nginx project ended best-effort maintenance in March 2026: no further releases, bug fixes, or security fixes. Existing deployments keep running. Check the maintenance status of any ingress or gateway controller before recommending it, and prefer Gateway API for new work.
+- **Post-quantum key exchange:** hybrid ML-KEM groups are broadly available in browsers, CDNs, and TLS libraries; check the specific library and load balancer versions.

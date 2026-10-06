@@ -1,126 +1,119 @@
 ---
 name: design
-description: "Design or review UX and interaction. Use for user journeys, information architecture, cognitive load, onboarding, dashboards, and design-system decisions."
+description: "Design or review UX and interaction: user journeys, information architecture, forms, empty/error/loading states, onboarding, dashboards, cognitive load, design-system governance. Not markup or CSS (html, css), not WCAG conformance (accessibility), not touch and platform conventions (mobile)."
 user-invocable: true
 ---
 
-# UX & Interaction Design
+# UX and Interaction Design
 
-Patterns for designing and reviewing user experiences from the code side. Focus on journeys, information architecture, cognitive load, and governance — not pixel decisions.
+Patterns for designing and reviewing user experiences from the code side: journeys, information architecture, cognitive load, states, forms, and governance, not pixel decisions. Numbers below are starting points to test with real users, not laws.
 
 ## Scope and boundaries
 
-**This skill covers:**
-- User journey mapping and flow reviews
-- Information architecture (IA) — navigation, categorization, findability
-- Cognitive load — how much the UI asks the user to hold in their head
-- Dashboards and data visualization UX
-- Forms and onboarding flows
-- Design system governance — tokens, components, patterns, contribution flow
-- Interaction patterns (disclosure, progressive enhancement, error states, empty states, loading states)
+**Covers:** user journeys and flow reviews, information architecture (navigation, categorization, findability), cognitive load, forms and onboarding, empty/error/loading states, dashboard and data-display UX, design-system governance.
 
-**This skill does not cover:**
-- HTML semantics, CSS layout → `html/css`
-- WCAG / ARIA / keyboard nav → `accessibility`
-- Frontend framework / build tooling → `frontend`, `react`, `vue`
-- SEO / content structure → `seo`
-- Visual design / branding (out of scope for this skill set)
+**Does not cover:**
+- Markup and layout implementation: `html`, `css`
+- Design token implementation (CSS custom properties, token pipelines): `css`, `frontend`; this skill owns only governance
+- Conformance, ARIA, keyboard behavior: `accessibility`
+- Touch gestures and platform conventions: `mobile`
+- Framework and build tooling: `frontend`, `react`, `vue`
+- Content structure for search: `seo`
+- Relationship and flow diagrams as code: `diagrams`; interactive chart pages: `playground`
+- Visual identity and branding
 
-## Decision tree — IA shape
+## Decision tree: IA shape
 
 ```
-Is the user space bounded (< 50 distinct tasks)?
-├─ yes → flat IA: single-level nav; lean on search if needed
-└─ no → hierarchical IA with clear primary categories (max 7 items at each level)
+How many distinct destinations or tasks does the user space hold?
+├─ Few (a handful to a few dozen) → flat IA; one level of navigation, search if findability suffers
+└─ Many → hierarchical IA with clear primary categories; group so that each level is scannable
+   (novices need fewer top-level choices; expert tools may carry density if grouping, search,
+   and a command palette keep items findable)
 
-Are tasks role-based (finance vs ops vs admin see different views)?
-├─ yes → role-scoped nav (hide what the user can't do)
-└─ no → single nav for everyone
+Do roles see different tasks (finance, ops, admin)?
+├─ Yes → role-scoped navigation (hide what the user cannot do, or explain why it is unavailable)
+└─ No → one navigation for everyone
 
-Are tasks sequenced (wizard-like)?
-├─ yes → linear flow with clear progress
-└─ no → dashboard / hub, let user choose entry point
+Is the task sequenced?
+├─ Yes → linear flow with visible progress and a way back
+└─ No → hub or dashboard; the user picks the entry point
 ```
+
+Validate the structure with card sorting or tree testing when the audience is unfamiliar; early IA changes are expensive to make after shipping.
 
 ## Core patterns
 
 ### Cognitive load
 
-Every screen has a budget. Rules of thumb:
+- One primary action per screen; a second competing action is secondary.
+- Do not make users hold state in their heads: breadcrumbs, inline summaries, persistent filters.
+- Defer decisions with sensible defaults; let users customize later.
+- Limit simultaneous choices for novices (group, collapse, or progressively disclose); dense expert dashboards are acceptable when grouped and searchable. Hick's law (more options, slower choice) is a reason to structure choices, not a numeric cap.
 
-- **One primary action per screen** — if there are two, one of them is secondary.
-- **Max 7 ± 2 items at one level** (nav, grid of cards, filter list). Beyond that, group or collapse.
-- **Don't ask the user to hold state in their head.** Breadcrumbs, inline summaries, persistent filters.
-- **Defer decisions.** Settings → default to sensible, let users customize later.
+### States
 
-### Empty / error / loading states
+Design the four core states for every data-driven view, not only the happy path:
 
-Every interactive view has four states. Design all four, don't only design "happy path":
-
-| state | what the user needs |
+| State | What the user needs |
 |-------|---------------------|
-| Empty | why it's empty + one next action to fix it |
-| Loading | that something is happening + ETA if > 1s |
-| Error | what went wrong (in plain language) + one next action |
-| Filled | the actual content |
+| Empty | Why it is empty and one next action |
+| Loading | A sign that work is happening; progress when it runs long |
+| Error | What went wrong in plain language and one next action |
+| Ideal | Full data, everything works |
 
-Missing empty and error states is the #1 UX debt.
+Real products also have partial, stale, and forbidden states. Full state table, timing thresholds, and empty-state and error anatomy: [design-patterns.md](references/design-patterns.md). Missing empty and error states are the most common UX debt.
 
 ### Progressive disclosure
 
-Show the simple case by default, reveal advanced options only on demand. Applies to forms, settings, CLI help, API surface.
+Show the common case by default and reveal advanced options on demand: forms, settings, command help, API surface.
 
-### Dashboard UX
+### Dashboards
 
-- **Top-left = most important.** Reading starts there.
-- **Every number has a comparison.** "42 errors" is noise; "42 errors (↑ 3× vs last week)" is signal.
-- **Max 5 metrics above the fold.** More = dashboard becomes a dashboard of dashboards.
-- **Clicking a number opens the underlying data.** Drill-down is non-optional.
+- Place the most important signal where reading starts.
+- Give every number a comparison (a baseline, prior period, or target); a bare number is noise.
+- Keep the first view to the few metrics that drive decisions; push the rest behind drill-down.
+- Let clicking a number open the underlying data.
+- Choose the chart by the question: comparison across categories (bars), change over time (lines), part of a whole (a few segments at most, otherwise bars), relationship between measures (scatter), exact values (a table). Do not rely on color alone to separate series.
 
-### Form design
+### Forms
 
-- **One column.** Two-column forms are slower even when they look compact.
-- **Labels above inputs.** Side labels collapse on mobile and cost reading time.
-- **Inline validation** on blur, not on each keystroke. Show error + fix, not just error.
-- **Optional vs required** — mark only one of the two (whichever is less common in the form).
+- A single column usually reads and completes faster than multi-column for linear forms; related short fields (city and postcode) can share a row.
+- Labels above inputs hold up on narrow screens. Validate on blur or submit rather than every keystroke; state the problem and the fix.
+- Mark the less common of required or optional, not both. Accessible labels, errors, and autocomplete behavior: `accessibility` and `html`.
 
-## Design system governance
+## Design-system governance
 
-Three axes of maturity:
+1. **Tokens**: color, type, space, radius, shadow, as machine-readable values with a single source of truth.
+2. **Components**: named, versioned, documented. Only elements with repeated use and stable semantics become system components.
+3. **Patterns**: composed flows (onboarding, search-filter-list, confirm-destructive-action) kept as recipes, not code.
 
-1. **Tokens** — color, type, space, radius, shadow. Machine-readable (JSON / CSS custom properties). Single source of truth.
-2. **Components** — named, versioned, documented. Not every UI element is a system component — only those with repeated use and stable semantics.
-3. **Patterns** — composed flows (onboarding wizard, search-filter-list, confirm-destructive-action). Live as recipes, not as code.
+Contribution flow: propose, accept as experimental, promote to stable after repeated real use. Say clearly that experimental parts are unsupported.
 
-**Contribution flow:** propose → accept as experimental → promote to stable after ≥ 3 use cases. Anything in "experimental" is not supported by docs — set expectations.
+## Context Adaptation
 
-## Context adaptation
+- **Architect (shaping the product):** IA and flows are architecture; changing them after shipping is costly.
+- **Implementer (building a screen):** use the design system's components; if one is missing, raise it rather than fork.
+- **Reviewer (auditing UX):** score against journeys, not single screens; a polished screen inside a broken flow is still broken.
+- **Designer:** compose with `accessibility`, `html`, and `css` for implementation-ready output.
 
-**As architect (shaping the product):** IA and flows are architecture. Early IA decisions cost 10× to change after shipping.
+## Anti-Patterns
 
-**As implementer (building a screen):** respect the design system — don't reinvent components. If the component doesn't exist, raise it, don't fork.
-
-**As reviewer (auditing UX):** score against journeys, not screens. A beautiful screen inside a broken flow is still broken.
-
-**As designer (the profession agent):** this is your home skill. Compose with `accessibility` and `html/css` for implementation-ready output.
-
-## Anti-patterns
-
-- **Dashboard theater** — lots of pretty charts, no decisions driven.
-- **Feature toggle in UI** — checkboxes for every possible option instead of sensible defaults.
-- **Progressive confusion** — multi-step wizards where the user can't tell which step they're on or what's left.
-- **Design-system fork** — team ships their own "Button" alongside the system one; two drift immediately.
-- **Testing only on clean data** — designs that look great on demo data and break on real data.
-- **Orphan patterns** — a pattern used once, baked into code, never named. Two years later, nobody knows which instance is canonical.
+- **Dashboard theater**: many charts, no decisions driven.
+- **Option overload**: a checkbox for every possible choice instead of sensible defaults.
+- **Progressive confusion**: wizards where the user cannot tell the current step or what remains.
+- **Design-system fork**: a team ships its own Button next to the system's.
+- **Clean-data-only design**: layouts that break with long names, empty values, or thousands of rows.
+- **Orphan patterns**: a pattern used once, baked into code, never named.
 
 ## Related Knowledge
 
-- `accessibility` — WCAG, ARIA, keyboard — non-negotiable baseline for any UX
-- `html/css` — markup and layout implementation
-- `frontend` — component patterns and build tooling
-- `i18n` — translation and RTL affect every screen
-- `seo` — content structure for search discoverability
+- `accessibility`: conformance baseline for any UX
+- `html`, `css`: markup and layout implementation
+- `frontend`: component patterns and tooling
+- `mobile`: touch gestures and platform conventions
+- `i18n`: translation and RTL affect every screen
 
 ## References
 
-- [design-patterns.md](references/design-patterns.md) — interaction patterns and tradeoffs
+- [design-patterns.md](references/design-patterns.md): interaction patterns, journey mapping, states, empty-state and error design, feedback and timing

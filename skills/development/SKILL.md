@@ -14,7 +14,7 @@ When invoked with an argument, `change`, `critique`, or `extension-trace` select
 
 | Intent | Route |
 |---|---|
-| `change` — build, fix, refactor, or migrate code | [change.md](workflows/change.md) |
+| `change` — build, fix (reproduce first), refactor, or migrate code | [change.md](workflows/change.md) |
 | `critique` — judge one diff, merge request, or proposed fix | [critique.md](workflows/critique.md) |
 | `extension-trace` — check whether a family of variants is open | [extension-trace.md](workflows/extension-trace.md) |
 | Question about a principle, pattern, or structural check | the matching reference below |
@@ -174,14 +174,14 @@ Follow the codebase's conventions. A local pattern that breaks a core rule is no
 - `testing` — test strategy, test doubles, regression and property tests
 - `performance` — profiling and measured optimization
 - `security` — trust boundaries and threat-driven controls
-- language skills (`javascript`, `kotlin`, `rust`, `go`, …) — idioms for closed and open families, errors, async cancellation
+- language skills (`javascript`, `kotlin`, `rust`, `go`, `python`, …) — idioms for closed and open families, errors, async cancellation
 - zone skills (`frontend`, `backend`, `mobile`, `gamedev`, …) — the environment the code runs in and how to exercise it there
 
 ## References
 
 Workflows:
 
-- [change.md](workflows/change.md) — build, fix, refactor, migrate: from request to verified change
+- [change.md](workflows/change.md) — build, fix, refactor, migrate: from request to verified change, including the reproduction method for bugs
 - [critique.md](workflows/critique.md) — structural critique of one diff, merge request, or proposed fix
 - [extension-trace.md](workflows/extension-trace.md) — trace one more member of a family and compare with the expected touches
 

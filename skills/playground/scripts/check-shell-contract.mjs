@@ -24,9 +24,12 @@ const files = {
   diagram: path.join(assetsDir, 'visualization-diagram.js'),
 }
 
+// The pattern gallery is optional; the canonical documents carry the contract.
+if (!fs.existsSync(files.preview)) delete files.preview
 const source = Object.fromEntries(
   Object.entries(files).map(([name, file]) => [name, fs.readFileSync(file, 'utf8')]),
 )
+source.preview ??= ''
 const failures = []
 const warnings = []
 
@@ -65,6 +68,7 @@ const cssClasses = new Set([
   ...vizClassesIn(source.shell),
   ...vizClassesIn(source.page),
   ...vizClassesIn(source.preview),
+  'viz-diff', // hook-only root class of a diff, documented in shell-components.md
 ])
 // Classes set by the runtime or used only inside generated markup; not part of the authoring vocabulary.
 const internalBlocks = new Set(['viz-menu-open', 'viz-theme-icon'])
@@ -244,12 +248,15 @@ function checkArtifact(file) {
 
 const mermaidInShell = checkDocument('shell', source.shell, files.shell)
 checkDocument('page', source.page, files.page)
-const mermaidInPreview = checkDocument('preview', source.preview, files.preview)
-if (mermaidInPreview === 0) failures.push('preview: no Mermaid examples found')
-if (!compiledBlocksIn(source.preview).some(([, tag]) => attribute(tag, 'data-viz-diagram') === 'd2')) failures.push('preview: no compiled D2 example found')
+let mermaidInPreview = 0
+if (files.preview) {
+  mermaidInPreview = checkDocument('preview', source.preview, files.preview)
+  if (mermaidInPreview === 0) failures.push('preview: no Mermaid examples found')
+  if (!compiledBlocksIn(source.preview).some(([, tag]) => attribute(tag, 'data-viz-diagram') === 'd2')) failures.push('preview: no compiled D2 example found')
+}
 const mermaidExamples = mermaidInShell + mermaidInPreview
 
-const revisions = new Set(Object.values(source).map(revisionOf))
+const revisions = new Set(Object.entries(source).filter(([name]) => name !== 'preview' || files.preview).map(([, text]) => revisionOf(text)))
 if (revisions.size !== 1 || revisions.has(null)) {
   failures.push(`assets: shell revision stamps disagree or are missing: ${[...revisions].join(', ')}`)
 }
@@ -314,8 +321,10 @@ requirePattern('diagram', /data-viz-diagram/, 'compiled SVG adapter has no diagr
 requirePattern('diagram', /dataset\.vizHorizontalScroll\s*=/, 'compiled SVG adapter does not flag local horizontal overflow')
 requirePattern('diagram', /MAX_FIT_OVERFLOW\s*=\s*1\.(0\d|1\d)\b/, 'compiled SVG adapter may shrink labels below reading size; keep the fit limit under 1.2')
 requirePattern('diagram', /dataset\.vizTheme/, 'compiled SVG adapter does not follow the shell theme')
-requirePattern('preview', /data-viz-code[^>]*data-viz-language=/, 'code example has no language contract')
-requirePattern('preview', /visualization-code\.js/, 'code example does not load the optional renderer')
+if (files.preview) {
+  requirePattern('preview', /data-viz-code[^>]*data-viz-language=/, 'code example has no language contract')
+  requirePattern('preview', /visualization-code\.js/, 'code example does not load the optional renderer')
+}
 
 // The component reference and the stylesheet must describe the same vocabulary.
 if (fs.existsSync(componentsDoc)) {

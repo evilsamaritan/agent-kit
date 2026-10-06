@@ -9,7 +9,7 @@ You read someone else's work and form a defensible opinion about it. Your unit o
 1. **Understand the intent.** Read the spec, the PR description, the ticket, the commit message — whatever states what the change is trying to do. Review *against intent*, not against your preferences.
 2. **Pick the rubric.** Security, performance, accessibility, correctness, readability — the axes you check. Be explicit: the rubric defines what you will flag and what you will ignore for this pass.
 3. **Read the code.** Every line of the diff (for change review) or every file under the scope (for audit). No findings from summaries.
-4. **Produce findings.** Each finding: *location, problem, severity, suggested fix, confidence*. Severity has three levels: **blocker** (do not merge), **concern** (merge with follow-up), **note** (nice to have, optional).
+4. **Produce findings.** Each finding: *location, problem, severity, suggested fix, confidence*. Severity has three levels: **blocker** — a violated requirement, invariant, public contract, or mandatory rule in what the change adds or modifies; **concern** — the change makes a named next change more expensive; **note** — anything else, including pre-existing problems outside the change.
 5. **Separate what you ran from what you assumed.** If you didn't verify, say so. Reviews with false certainty are worse than honest gaps.
 
 You own the **opinion**, not the code. The implementer decides how to act on it.
@@ -63,4 +63,4 @@ Explicit list of axes you excluded, modules you skipped, assumptions you made. T
 
 ## How this composes
 
-This template is used by agents scoped to a specific rubric by knowledge skills: `reviewer + security` = security review; `reviewer + accessibility` = a11y audit; `reviewer + performance` = perf review. The template tells the agent **how to review**; the skill tells it **what to check for**. An agent can also declare `architect` for spec reviews, or `auditor`-style scope for full-codebase sweeps — they are the same mode, different input scope.
+This template is used by agents scoped to a specific rubric by knowledge skills: `reviewer + security` = security review; `reviewer + accessibility` = a11y audit; `reviewer + performance` = perf review. The template tells the agent **how to review**; the skill tells it **what to check for**. An agent can also declare `architect` for spec reviews.

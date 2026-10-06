@@ -52,13 +52,19 @@ Variants:
 
 ## Ownership transfer and cleanup stacks
 
-Collect cleanups as they are acquired so a failure at any step releases exactly what was taken.
+Collect cleanups as they are acquired so a failure at any step releases exactly what was taken. Disposal runs every cleanup even when one throws, then reports the failures, and never hides the error that caused the rollback.
 
 ```ts
 class CleanupStack {
   #items: (() => void)[] = []
   add(cleanup: () => void) { this.#items.push(cleanup) }
-  dispose() { while (this.#items.length) this.#items.pop()!() }   // reverse acquisition order
+  dispose() {                                           // reverse acquisition order, all of them
+    const failures: unknown[] = []
+    while (this.#items.length) {
+      try { this.#items.pop()!() } catch (error) { failures.push(error) }
+    }
+    if (failures.length) throw new AggregateError(failures, 'cleanup failed')
+  }
   transfer(): CleanupStack { const next = new CleanupStack(); next.#items = this.#items; this.#items = []; return next }
 }
 
@@ -73,7 +79,8 @@ async function prepareScene(id: SceneId, signal: AbortSignal): Promise<Scene> {
     const sim = createSimulation({ level: manifest.level, seed: manifest.seed })
     return new Scene(graph, sim, cleanup.transfer())   // the scene now owns every cleanup
   } catch (error) {
-    cleanup.dispose()                                   // nothing transferred: release what was acquired
+    try { cleanup.dispose() }                           // nothing transferred: release what was acquired
+    catch (cleanupError) { report(cleanupError) }       // log it; the preparation error stays the cause
     throw error
   }
 }
@@ -129,6 +136,19 @@ An `await` is a point where the owner may have died. Sessions end, scenes change
 | Mutating session, scene, or entity state | skip — the object is disposed |
 | Result useful beyond the owner (asset now cached) | keep it in the app-level cache; the departed scene's lease is released |
 | Network reply tagged with an old session or match id | drop; count it in development metrics |
+
+Capture before awaiting, check after:
+
+```ts
+async function save(session: Session) {
+  const snapshot = session.sim.snapshot()                    // capture synchronously, before awaiting
+  await storage.writeAtomic(session.slot, encode(snapshot))  // let started I/O finish
+  if (session.disposed) return                               // no toast, sound, or event for a departed session
+  session.ui.showStatus("Saved")
+}
+```
+
+Apply the same check after loads, network replies, asset fetches, timers, and animation completions.
 
 **Scene-scoped scheduling:** create timers, tweens, and coroutines through the scene (`scene.timers.after(...)`) so disposal cancels them. A raw global timer started by a scene outlives it.
 

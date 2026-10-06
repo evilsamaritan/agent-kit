@@ -1,7 +1,7 @@
 # GitLab CI/CD
 
 GitLab CI/CD reference for pipelines, components, DAG, environments, security scanning, and secrets.
-Covers features available in GitLab 17.x and 18.x.
+Version-specific features are noted as such; check the documentation for your GitLab version. Vendor-neutral concepts (caching, OIDC, secrets, supply chain) are in [pipeline-patterns.md](pipeline-patterns.md); monorepo strategy in [monorepo-ci.md](monorepo-ci.md).
 
 ## Contents
 
@@ -13,10 +13,7 @@ Covers features available in GitLab 17.x and 18.x.
 - [Parent-Child Pipelines](#parent-child-pipelines)
 - [Multi-Project Pipelines](#multi-project-pipelines)
 - [Caching and Artifacts](#caching-and-artifacts)
-- [Monorepo Patterns](#monorepo-patterns)
 - [Environments and Deployment](#environments-and-deployment)
-- [Review Apps](#review-apps)
-- [Auto DevOps](#auto-devops)
 - [Security Scanning](#security-scanning)
 - [Variables and Secrets](#variables-and-secrets)
 - [Runners](#runners)
@@ -39,11 +36,9 @@ stages:
 
 # Default settings applied to all jobs unless overridden
 default:
-  image: node:22-alpine
+  image: node:24-alpine   # example: use a supported release, pin a digest in production
   before_script:
     - npm ci --cache .npm
-  after_script:
-    - echo "Job complete"
 
 # Global variables available to all jobs
 variables:
@@ -94,78 +89,23 @@ Pipeline execution model?
 └── Mixed → stages for broad ordering + needs for specific cross-stage deps
 ```
 
-### Stages (sequential)
-
-Stages run in order. All jobs in a stage must complete before the next stage begins.
-Use stages when the order matters and jobs in the same stage have no dependencies between them.
+Stages run in order; every job in a stage finishes before the next stage starts. `needs:` lets a job start as soon as its listed jobs finish, skipping stage barriers, which shortens pipelines with independent branches.
 
 ```yaml
-stages:
-  - build
-  - test
-  - deploy
-
-build-backend:
-  stage: build
-
-build-frontend:
-  stage: build       # runs in parallel with build-backend
-
-test-unit:
-  stage: test        # waits for ALL build jobs to complete
-```
-
-### DAG with needs (parallel by dependency)
-
-`needs:` allows a job to start as soon as its listed dependencies complete, skipping stage barriers.
-This can reduce pipeline wall-clock time by 50-80% for complex pipelines.
-
-```yaml
-stages:
-  - build
-  - test
-  - deploy
-
-build-backend:
-  stage: build
-  script: make build-backend
-  artifacts:
-    paths: [dist/backend/]
-
-build-frontend:
-  stage: build
-  script: make build-frontend
-  artifacts:
-    paths: [dist/frontend/]
-
 test-backend:
   stage: test
-  needs: [build-backend]          # starts immediately when build-backend finishes
+  needs: [build-backend]          # starts when build-backend finishes, not when the whole build stage does
   script: make test-backend
 
-test-frontend:
-  stage: test
-  needs: [build-frontend]         # does not wait for build-backend
-  script: make test-frontend
-
-deploy:
-  stage: deploy
-  needs: [test-backend, test-frontend]
-  script: make deploy
-```
-
-**Key rules for needs:**
-- `needs: []` means the job has no dependencies and starts immediately when the pipeline begins.
-- Jobs referenced in `needs:` must exist in a prior or same stage.
-- By default, `needs:` downloads artifacts from listed jobs. Add `artifacts: false` when only ordering is required.
-
-```yaml
 test-fast:
   stage: test
   needs:
     - job: build-backend
-      artifacts: false   # only wait for completion, skip artifact download
+      artifacts: false            # ordering only, skip the artifact download
+  script: make smoke
 ```
+
+`needs: []` starts a job immediately. By default `needs:` downloads the listed jobs' artifacts.
 
 ---
 
@@ -195,60 +135,35 @@ test-fast:
 ### Rules examples
 
 ```yaml
-# Run on MR and default branch pushes only
-deploy-staging:
+# MR pipelines and default-branch pushes only (avoids duplicate branch + MR pipelines)
+build:
   rules:
     - if: $CI_PIPELINE_SOURCE == "merge_request_event"
     - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
 
-# Run only when specific files changed (monorepo path filter)
+# Path filter (include shared packages and the lockfile)
 frontend-build:
   rules:
-    - changes:
-        - frontend/**/*
-        - package-lock.json
+    - changes: [frontend/**/*, package-lock.json]
 
-# Manual gate on production deploy (only on main)
+# Manual gate on the default branch
 deploy-production:
   rules:
     - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
       when: manual
-      allow_failure: false   # blocks pipeline until approved
+      allow_failure: false
 
-# Combine if + changes: run on MR only when backend changed
-test-backend:
-  rules:
-    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
-      changes:
-        - backend/**/*
-    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
-
-# Skip on schedules, run everywhere else
-build:
+# Skip on schedules
+build-nightly-skip:
   rules:
     - if: $CI_PIPELINE_SOURCE == "schedule"
       when: never
     - when: on_success
-
-# Delayed job (wait before running)
-canary-promote:
-  rules:
-    - when: delayed
-      start_in: "30 minutes"
 ```
 
-### rules:changes behavior on new branches
+### rules:changes on new branches
 
-On new branches where there is no previous commit to diff against, `rules:changes` evaluates to true (all files are considered changed). Use `rules:changes` combined with `rules:if` to avoid unintended runs on first-push branches.
-
-```yaml
-frontend-test:
-  rules:
-    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
-      changes:
-        - frontend/**/*
-    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
-```
+With no previous commit to compare, `rules:changes` evaluates true on a first push to a new branch outside MR pipelines. Combine it with `rules:if` on `merge_request_event`, where it compares against the target branch.
 
 ---
 
@@ -274,10 +189,10 @@ include:
   # GitLab built-in templates
   - template: Security/SAST.gitlab-ci.yml
 
-  # CI/CD Catalog component (GitLab 17.0+)
+  # CI/CD Catalog component
   - component: gitlab.com/my-group/my-component/build@v1.0.0
     inputs:
-      node_version: "22"
+      node_version: "24"
 ```
 
 ### extends
@@ -286,7 +201,7 @@ Inherit and override job configuration within the same file. Uses deep merge: ar
 
 ```yaml
 .base-test:
-  image: node:22-alpine
+  image: node:24-alpine
   cache:
     key:
       files: [package-lock.json]
@@ -309,72 +224,31 @@ Jobs prefixed with `.` are hidden (not executed directly) and serve as templates
 
 ### !reference
 
-Reference specific sections from other jobs, avoiding full inheritance.
-
-```yaml
-.setup-node:
-  before_script:
-    - npm ci --cache .npm
-
-.setup-docker:
-  services:
-    - docker:dind
-
-build:
-  before_script:
-    - !reference [.setup-node, before_script]
-  services:
-    - !reference [.setup-docker, services]
-  script:
-    - npm run build
-    - docker build .
-```
+`!reference [.job, section]` reuses one section of another job without inheriting the rest (for example `before_script: [!reference [.setup-node, before_script]]`).
 
 ---
 
 ## CI/CD Components and Catalog
 
-CI/CD components (GA in GitLab 17.0) are reusable, versioned pipeline configuration units published to the CI/CD Catalog. They replace copy-pasted template snippets with discoverable, versioned imports.
-
-### Component project structure
-
-```
-my-ci-component/
-├── .gitlab-ci.yml          # pipeline that publishes the component
-└── templates/
-    └── build.yml           # the component definition
-```
+CI/CD components are reusable, versioned pipeline configuration units published to the CI/CD Catalog. They replace copy-pasted template snippets with discoverable, versioned imports.
 
 ### Component definition with spec:inputs
 
 ```yaml
-# templates/build.yml
+# templates/build.yml in the component project
 spec:
   inputs:
     node_version:
-      default: "22"
-      description: "Node.js version to use"
-    run_tests:
-      type: boolean
-      default: true
+      default: "24"
     test_command:
       default: "npm test"
-      description: "Command to run tests"
 
 ---
-
-build-node:
-  image: node:$[[ inputs.node_version ]]-alpine
-  script:
-    - npm ci
-    - npm run build
 
 test-node:
   image: node:$[[ inputs.node_version ]]-alpine
   script:
     - $[[ inputs.test_command ]]
-  rules:
-    - if: $[[ inputs.run_tests ]]
 ```
 
 ### Consuming a catalog component
@@ -383,15 +257,13 @@ test-node:
 include:
   - component: gitlab.com/my-org/node-pipeline/build@v2.3.1
     inputs:
-      node_version: "22"
+      node_version: "24"
       test_command: "npm run test:ci"
 ```
 
 **Key points:**
-- Components are versioned by git tags. Pin to a specific version in production.
-- `$[[ inputs.name ]]` is the interpolation syntax (distinct from `$VARIABLE`).
-- The CI/CD Catalog is browsable at `gitlab.com/explore/catalog` and your self-hosted GitLab's `/explore/catalog`.
-- GitLab 18.0 provides a project template for creating new component projects.
+- Components are versioned by git tags; pin a specific version in production and review upgrades.
+- `$[[ inputs.name ]]` is the interpolation syntax, distinct from `$VARIABLE`.
 
 ---
 
@@ -432,38 +304,13 @@ backend-pipeline:
         - apps/backend/**/*
 ```
 
-### Child pipeline (apps/frontend/.gitlab-ci.yml)
-
-```yaml
-stages:
-  - build
-  - test
-  - deploy
-
-build:
-  stage: build
-  script: npm run build
-
-test:
-  stage: test
-  script: npm test
-```
-
-**strategy: depend** mirrors the downstream pipeline status back to the parent trigger job. Without it, the trigger job succeeds immediately after launching the child pipeline.
-
-**When to use parent-child:**
-- Monorepos with independent services
-- Configs that exceed `.gitlab-ci.yml` complexity limits
-- Isolating failure domains between services
+The child file is an ordinary pipeline definition. `strategy: depend` mirrors the child's status onto the trigger job; without it the trigger job succeeds as soon as the child starts. Use parent-child for monorepos with independent services, configs that outgrow one file, and isolated failure domains.
 
 ---
 
 ## Multi-Project Pipelines
 
-Multi-project pipelines trigger downstream pipelines in a different GitLab project (cross-repo).
-
 ```yaml
-# In project A: trigger deploy pipeline in project B
 trigger-deploy:
   stage: deploy
   trigger:
@@ -471,24 +318,10 @@ trigger-deploy:
     branch: main
     strategy: depend
   variables:
-    IMAGE_TAG: $CI_COMMIT_SHA
-    DEPLOY_ENV: staging
+    IMAGE_DIGEST: $IMAGE_DIGEST
 ```
 
-**Passing variables downstream:**
-```yaml
-trigger-deploy:
-  trigger:
-    project: my-group/deployment-repo
-  variables:
-    UPSTREAM_PROJECT: $CI_PROJECT_NAME
-    UPSTREAM_SHA: $CI_COMMIT_SHA
-    # Forward all variables from current pipeline
-  inherit:
-    variables: true
-```
-
-**Access requirement:** The user who created the upstream pipeline must have at least Developer access to the downstream project.
+The user who created the upstream pipeline needs at least Developer access to the downstream project. Pass only the variables the downstream pipeline needs.
 
 ---
 
@@ -521,24 +354,18 @@ build:
     policy: pull-push
 ```
 
-**Per-branch cache key** (avoids cross-branch contamination):
-
-```yaml
-cache:
-  key: "$CI_COMMIT_REF_SLUG"
-  paths:
-    - node_modules/
-```
-
-**Fallback key** (use branch cache if available, else use default):
+**Key by lockfile.** The default is a lockfile-derived key, so branches share one cache. Add a branch prefix only when branches diverge in dependencies often enough that sharing causes churn. The prefix gives one cache per branch and lockfile, with no automatic fallback, so a new branch starts cold unless you add `fallback_keys` (literal keys, for example the default branch's):
 
 ```yaml
 cache:
   key:
     files: [package-lock.json]
     prefix: $CI_COMMIT_REF_SLUG
-  paths: [.npm/]
+  fallback_keys: [main-cache]   # literal key; a default-branch job must write it
+  paths: [.npm/]    # cache the package manager's download cache, not node_modules
 ```
+
+Omit the prefix to share one lockfile-keyed cache across branches.
 
 ### Artifacts
 
@@ -561,81 +388,24 @@ test:
     expire_in: 30 days
 ```
 
-### Distributed cache (self-hosted runners)
+### Distributed cache
 
-For teams with multiple self-hosted runners, configure an S3-compatible backend so all runners share the same cache pool:
-
-```toml
-# /etc/gitlab-runner/config.toml
-[[runners]]
-  [runners.cache]
-    Type = "s3"
-    [runners.cache.s3]
-      BucketName = "gitlab-runner-cache"
-      BucketLocation = "us-east-1"
-```
+Self-hosted runner fleets need an S3-compatible cache backend (`[runners.cache]` in the runner `config.toml`) so runners share one cache pool.
 
 ---
 
 ## Monorepo Patterns
 
-### Path-filtered jobs with rules:changes
-
-```yaml
-frontend-lint:
-  rules:
-    - changes:
-        - apps/frontend/**/*
-        - packages/ui/**/*
-        - package-lock.json
-  script: npm run lint --workspace=apps/frontend
-
-backend-test:
-  rules:
-    - changes:
-        - apps/backend/**/*
-        - packages/shared/**/*
-  script: go test ./apps/backend/...
-```
-
-### Per-service child pipelines (recommended for large monorepos)
-
-```yaml
-# Root .gitlab-ci.yml
-stages: [triggers]
-
-.trigger-template:
-  stage: triggers
-
-frontend:
-  extends: .trigger-template
-  trigger:
-    include: apps/frontend/.gitlab-ci.yml
-    strategy: depend
-  rules:
-    - changes: [apps/frontend/**/*]
-
-backend:
-  extends: .trigger-template
-  trigger:
-    include: apps/backend/.gitlab-ci.yml
-    strategy: depend
-  rules:
-    - changes: [apps/backend/**/*]
-```
-
-### Parallel matrix builds
+Use `rules:changes` (include shared packages and the lockfile in the paths) for per-service jobs, or the parent-child pattern above for large monorepos, with `strategy: depend`. `rules:changes` does not follow the dependency graph; a graph-aware tool does ([monorepo-ci.md](monorepo-ci.md)). For fan-out over services use `parallel:matrix`:
 
 ```yaml
 build:
   parallel:
     matrix:
       - SERVICE: [frontend, backend, worker]
-  script:
-    - make build SERVICE=$SERVICE
+  script: make build SERVICE=$SERVICE
   artifacts:
-    paths:
-      - dist/$SERVICE/
+    paths: [dist/$SERVICE/]
 ```
 
 ---
@@ -663,122 +433,32 @@ stop-staging:
     - ./scripts/teardown.sh staging
 ```
 
-### Environment tiers
+### Approval gate
 
-GitLab recognizes environment tier names for grouping in the UI: `production`, `staging`, `testing`, `development`, `other`.
-
-```yaml
-deploy-production:
-  environment:
-    name: production
-    tier: production
-    deployment_tier: production
-```
-
-### Deployment strategies in GitLab CI
-
-**Manual approval gate:**
 ```yaml
 deploy-production:
   stage: deploy
   environment: production
   when: manual
-  allow_failure: false   # blocks the pipeline until manually triggered
-  script: ./deploy.sh production
+  allow_failure: false   # blocks the pipeline until triggered
+  script: ./deploy.sh production "$IMAGE_DIGEST"
   rules:
     - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
 ```
 
-**Canary deployment:**
-```yaml
-deploy-canary:
-  stage: deploy
-  environment:
-    name: production/canary
-  script: ./deploy.sh --canary 10   # route 10% of traffic
-  rules:
-    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
-      when: manual
-
-deploy-stable:
-  stage: deploy
-  environment:
-    name: production
-  needs: [deploy-canary]
-  script: ./deploy.sh --full
-  when: manual
-```
-
-**Protected environments** restrict who can trigger deployment jobs. Configure in Settings > CI/CD > Protected environments. Combined with `when: manual`, only allowed roles can deploy to production.
+Protected environments restrict who can trigger deployment jobs (Settings > CI/CD > Protected environments). Deployment strategy (canary, blue-green, rollback) belongs to `release-engineering`; the pipeline only triggers it.
 
 ---
 
 ## Review Apps
 
-Review apps create a temporary, live environment for each merge request, letting reviewers test changes against a running application before merging.
-
-```yaml
-deploy-review:
-  stage: deploy
-  environment:
-    name: review/$CI_COMMIT_REF_SLUG
-    url: https://$CI_COMMIT_REF_SLUG.review.example.com
-    on_stop: stop-review
-    auto_stop_in: 5 days
-  script:
-    - ./scripts/deploy-review.sh $CI_COMMIT_REF_SLUG
-  rules:
-    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
-
-stop-review:
-  stage: deploy
-  environment:
-    name: review/$CI_COMMIT_REF_SLUG
-    action: stop
-  script:
-    - ./scripts/destroy-review.sh $CI_COMMIT_REF_SLUG
-  rules:
-    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
-      when: manual
-```
-
-**Review app URL** appears in the MR widget when `environment:url` is set. The URL must be accessible to reviewers.
-
-**auto_stop_in** prevents forgotten review environments from accumulating costs. GitLab stops the environment after the configured idle period. The environment can be manually restarted.
-
----
-
-## Auto DevOps
-
-Auto DevOps provides a convention-based CI/CD pipeline requiring minimal configuration. GitLab detects the project language and applies appropriate templates for build, test, security scanning, code quality, and deployment.
-
-**Enable via:** Settings > CI/CD > Auto DevOps > Default to Auto DevOps pipeline.
-
-**Stages Auto DevOps provides:**
-- Build: Heroku buildpacks or Dockerfile
-- Test: language-detected test runners
-- Code Quality: Code Climate analysis
-- SAST, Dependency Scanning, Container Scanning, DAST, Secret Detection
-- Deploy to Kubernetes (requires configured cluster and base domain)
-- Review Apps (Kubernetes only)
-- Performance testing
-
-**When Auto DevOps works well:**
-- Standard web apps deployable to Kubernetes
-- Teams wanting full DevSecOps with zero pipeline config
-- Projects following Heroku-style conventions
-
-**When to write a custom pipeline instead:**
-- Non-Kubernetes deployment targets
-- Monorepos with multiple services
-- Custom build systems or non-standard project layouts
-- Fine-grained control over stages and caching
+A job with `environment: name: review/$CI_COMMIT_REF_SLUG`, a `url`, `on_stop`, and `auto_stop_in` gives each merge request a temporary environment that is stopped automatically; run it only on `merge_request_event` pipelines. Auto DevOps is a convention-based pipeline for standard web apps on Kubernetes; write a custom pipeline for other targets, monorepos, or fine-grained control.
 
 ---
 
 ## Security Scanning
 
-GitLab provides built-in security scanners via includeable CI templates. Most scanners produce reports viewable in the MR security widget and the project's Security Dashboard (GitLab Ultimate).
+GitLab provides built-in security scanners via includeable CI templates. Available scanners and tiers change between versions; check the documentation for your version and plan. Reports show in the MR security widget and, on higher tiers, the Security Dashboard. Treat scanners as one layer: see `security` for SAST/DAST guidance.
 
 ### Available scanners
 
@@ -788,9 +468,8 @@ GitLab provides built-in security scanners via includeable CI templates. Most sc
 | Advanced SAST | `Security/Advanced-SAST.gitlab-ci.yml` | Cross-file, deeper analysis (Ultimate) | Every push |
 | DAST | `Security/DAST.gitlab-ci.yml` | Running application endpoints | Against deployed review/staging app |
 | Container Scanning | `Security/Container-Scanning.gitlab-ci.yml` | Image OS packages and libraries | After image build |
-| Dependency Scanning | `Security/Dependency-Scanning.gitlab-ci.yml` | Known CVEs in project dependencies | Every push |
+| Dependency Scanning | `Jobs/Dependency-Scanning.v2.gitlab-ci.yml` (SBOM-based; the legacy `Security/` template is superseded) | Known CVEs in project dependencies; license data via SBOM-based scanning | Every push |
 | Secret Detection | `Security/Secret-Detection.gitlab-ci.yml` | Leaked credentials in code history | Every push |
-| License Compliance | `Security/License-Scanning.gitlab-ci.yml` | License compatibility | Every push or scheduled |
 | Infrastructure IaC Scanning | `Security/SAST-IaC.gitlab-ci.yml` | Terraform, Kubernetes, CloudFormation | Every push |
 
 ### Including security templates
@@ -798,7 +477,7 @@ GitLab provides built-in security scanners via includeable CI templates. Most sc
 ```yaml
 include:
   - template: Security/SAST.gitlab-ci.yml
-  - template: Security/Dependency-Scanning.gitlab-ci.yml
+  - template: Jobs/Dependency-Scanning.v2.gitlab-ci.yml
   - template: Security/Secret-Detection.gitlab-ci.yml
   - template: Security/Container-Scanning.gitlab-ci.yml
 
@@ -881,23 +560,25 @@ job:
 
 GitLab authenticates to Vault using a short-lived JWT (OIDC). No long-lived Vault tokens stored in GitLab.
 
-### External secrets: AWS Secrets Manager (GA in GitLab 18.3)
+### External secrets: AWS Secrets Manager
 
 ```yaml
 job:
   id_tokens:
-    AWS_OIDC_TOKEN:
+    AWS_ID_TOKEN:                 # default token name for aws_secrets_manager
       aud: https://gitlab.example.com
+  variables:
+    AWS_ROLE_ARN: arn:aws:iam::123456789012:role/gitlab-secrets-reader
+    AWS_REGION: us-east-1
   secrets:
     DB_PASSWORD:
       aws_secrets_manager:
-        name: production/db/password
-        region: us-east-1
+        secret_id: production/db/password
   script:
     - ./deploy.sh
 ```
 
-AWS OIDC authentication requires an IAM OIDC identity provider and role configured for the GitLab project's token claims.
+AWS OIDC authentication requires an IAM OIDC identity provider and role configured for the GitLab project's token claims. `aws_secrets_manager` is generally available since GitLab 18.3; older versions need another route (for example OIDC role assumption plus the AWS CLI).
 
 ### External secrets: Google Cloud Secret Manager
 
@@ -910,60 +591,21 @@ job:
     API_KEY:
       gcp_secret_manager:
         name: my-api-key
-        version: latest
+        version: 3       # pin a version; omitting it uses the latest
+      token: $GCP_ID_TOKEN
 ```
 
 ---
 
 ## Runners
 
-### Runner types
+| Type | Use |
+|------|-----|
+| Shared (instance) | General workloads |
+| Group | Team-specific tooling or credentials |
+| Project | Specialized hardware, isolated secrets |
 
-| Type | Scope | Use case |
-|------|-------|---------|
-| Shared | All projects on the instance | General workloads (GitLab.com hosted) |
-| Group | All projects in a group | Team-specific tooling, credentials |
-| Project-specific | One project | Specialized hardware, isolated secrets |
-
-### Runner executors
-
-| Executor | When to use |
-|----------|------------|
-| `docker` | Most CI workloads; clean environment per job |
-| `kubernetes` | Scalable, cloud-native runner pools |
-| `shell` | Simple, no Docker; runs as the runner OS user |
-| `docker+machine` | Auto-scaling with cloud VMs (deprecated in favor of Fleeting) |
-| `fleeting` | Auto-scaling with cloud VMs (GitLab's modern approach) |
-
-### Runner selection with tags
-
-```yaml
-build-gpu:
-  tags:
-    - gpu
-    - linux
-  script: python train.py
-
-build-arm:
-  tags:
-    - arm64
-    - docker
-  script: make build
-```
-
-A job runs on a runner that has all the specified tags. Untagged jobs run on any runner that accepts untagged jobs.
-
-### Runner configuration tips
-
-```yaml
-# Set explicit timeout to prevent stuck jobs consuming runner capacity
-test:
-  timeout: 15 minutes
-
-# Mark a job as interruptible so newer pipelines can cancel it
-build:
-  interruptible: true
-```
+Executors: `docker` (clean environment per job; the default choice), `kubernetes` (scalable pools), `shell` (no isolation; runs as the runner user), autoscaling executors for cloud VMs. Select runners with `tags:`; a job runs only on a runner that has all its tags. Set `timeout:` per job and `interruptible: true` on jobs that newer pipelines may cancel.
 
 ---
 
@@ -981,7 +623,7 @@ build:
 | `strategy: depend` omitted on critical triggers | Parent pipeline passes even if child fails | Add `strategy: depend` when child failure should block parent |
 | No `when: manual` + protected environments | Any developer can trigger production deploy | Protected environments with required approvals |
 | No `timeout:` on jobs | Hung jobs hold runners indefinitely | Set per-job timeout |
-| `latest` image tag in jobs | Non-reproducible, cache-busted every time | Pin image tags (`node:22.11.0-alpine3.20`) |
+| `latest` image tag in jobs | Non-reproducible | Pin image tags, and digests for release jobs |
 | Downloading all artifacts in DAG | Slow job startup when only some artifacts needed | Specify `artifacts: false` in `needs:` when files not required |
 | Storing secrets as masked variables for multi-line values | GitLab masking only works on single-line values | Use external secrets manager for multi-line secrets |
 | Skipping security templates to save time | Vulnerabilities reach production undetected | Run SAST and Secret Detection on every push (they are fast) |
@@ -990,10 +632,8 @@ build:
 
 ## Related
 
-- `references/pipeline-patterns.md` -- universal pipeline stages, GitHub Actions comparison, OIDC federation
-- `references/deployment-patterns.md` -- deployment strategies, rollback, blue-green, canary
+- [pipeline-patterns.md](pipeline-patterns.md) — universal stages, caching, OIDC, supply chain
+- `release-engineering` — deployment strategies and rollback
 - GitLab CI YAML reference: https://docs.gitlab.com/ci/yaml/
-- CI/CD components docs: https://docs.gitlab.com/ci/components/
-- Rules syntax docs: https://docs.gitlab.com/ci/jobs/job_rules/
-- Downstream pipelines docs: https://docs.gitlab.com/ci/pipelines/downstream_pipelines/
-- External secrets docs: https://docs.gitlab.com/ci/secrets/
+- CI/CD components: https://docs.gitlab.com/ci/components/
+- External secrets: https://docs.gitlab.com/ci/secrets/

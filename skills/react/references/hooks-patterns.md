@@ -1,386 +1,162 @@
-# React Hooks Patterns
+# React Hook Patterns
+
+Patterns that carry a decision. Well-known utility hooks (debounce, previous value, click-outside, local-storage wrappers) are not repeated here: write them when needed, using the rules below.
 
 ## Contents
 
-- [Custom Hooks Cookbook](#custom-hooks-cookbook)
-- [Composition Patterns](#composition-patterns)
-- [State Machine Hook](#state-machine-hook)
-- [Data Fetching Hooks](#data-fetching-hooks)
-- [DOM and Browser Hooks](#dom-and-browser-hooks)
-- [Testing Hooks](#testing-hooks)
+- [Subscribing to external state](#subscribing-to-external-state)
+- [Reading the latest value inside an effect](#reading-the-latest-value-inside-an-effect)
+- [Cleanup and abort](#cleanup-and-abort)
+- [Observing a DOM node](#observing-a-dom-node)
+- [Testing hooks](#testing-hooks)
+- [React version notes](#react-version-notes)
+- [State tool examples](#state-tool-examples)
 
 ---
 
-## Custom Hooks Cookbook
+## Subscribing to external state
 
-### useLocalStorage
+Anything that changes outside React (media queries, online status, a store) goes through `useSyncExternalStore`. It avoids tearing under concurrent rendering and gives SSR a server snapshot. Do not mirror it into `useState` plus an effect.
 
-```typescript
-function useLocalStorage<T>(key: string, initialValue: T) {
-  const [value, setValue] = useState<T>(() => {
-    try {
-      const stored = localStorage.getItem(key);
-      return stored ? (JSON.parse(stored) as T) : initialValue;
-    } catch {
-      return initialValue;
-    }
-  });
-
-  useEffect(() => {
-    try {
-      localStorage.setItem(key, JSON.stringify(value));
-    } catch {
-      // Storage full or unavailable
-    }
-  }, [key, value]);
-
-  const remove = useCallback(() => {
-    localStorage.removeItem(key);
-    setValue(initialValue);
-  }, [key, initialValue]);
-
-  return [value, setValue, remove] as const;
-}
-```
-
-### useMediaQuery
-
-```typescript
+```ts
 function useMediaQuery(query: string): boolean {
-  const [matches, setMatches] = useState(() =>
-    typeof window !== "undefined" ? window.matchMedia(query).matches : false
+  const subscribe = useCallback(
+    (notify: () => void) => {
+      const mql = window.matchMedia(query);
+      mql.addEventListener("change", notify);
+      return () => mql.removeEventListener("change", notify);
+    },
+    [query],
   );
-
-  useEffect(() => {
-    const mql = window.matchMedia(query);
-    const handler = (e: MediaQueryListEvent) => setMatches(e.matches);
-    mql.addEventListener("change", handler);
-    setMatches(mql.matches);
-    return () => mql.removeEventListener("change", handler);
-  }, [query]);
-
-  return matches;
-}
-
-// Usage
-const isDark = useMediaQuery("(prefers-color-scheme: dark)");
-const isMobile = useMediaQuery("(max-width: 768px)");
-```
-
-### useDebounce
-
-```typescript
-function useDebounce<T>(value: T, delay: number): T {
-  const [debounced, setDebounced] = useState(value);
-
-  useEffect(() => {
-    const timer = setTimeout(() => setDebounced(value), delay);
-    return () => clearTimeout(timer);
-  }, [value, delay]);
-
-  return debounced;
+  return useSyncExternalStore(
+    subscribe,
+    () => window.matchMedia(query).matches,
+    () => false, // server snapshot
+  );
 }
 ```
 
-### usePrevious
-
-```typescript
-function usePrevious<T>(value: T): T | undefined {
-  const ref = useRef<T | undefined>(undefined);
-
-  useEffect(() => {
-    ref.current = value;
-  });
-
-  return ref.current;
-}
-```
-
-### useOnClickOutside
-
-```typescript
-function useOnClickOutside(
-  ref: RefObject<HTMLElement | null>,
-  handler: (event: MouseEvent | TouchEvent) => void,
-) {
-  useEffect(() => {
-    const listener = (event: MouseEvent | TouchEvent) => {
-      if (!ref.current || ref.current.contains(event.target as Node)) return;
-      handler(event);
-    };
-
-    document.addEventListener("mousedown", listener);
-    document.addEventListener("touchstart", listener);
-    return () => {
-      document.removeEventListener("mousedown", listener);
-      document.removeEventListener("touchstart", listener);
-    };
-  }, [ref, handler]);
-}
-```
-
-### useIntersection
-
-```typescript
-function useIntersection(
-  ref: RefObject<HTMLElement | null>,
-  options?: IntersectionObserverInit,
-): boolean {
-  const [isIntersecting, setIntersecting] = useState(false);
-
-  useEffect(() => {
-    if (!ref.current) return;
-    const observer = new IntersectionObserver(
-      ([entry]) => setIntersecting(entry.isIntersecting),
-      options,
-    );
-    observer.observe(ref.current);
-    return () => observer.disconnect();
-  }, [ref, options?.threshold, options?.root, options?.rootMargin]);
-
-  return isIntersecting;
-}
-```
+Rules: `getSnapshot` must return a cached, referentially stable value when nothing changed; `subscribe` must be stable between renders or the hook resubscribes every render.
 
 ---
 
-## Composition Patterns
+## Reading the latest value inside an effect
 
-### Hook Composition
+When an effect needs the latest props or state but should not re-run when they change, extract that logic into an effect event.
 
-```typescript
-// Build complex hooks from simple ones
-function useSearchWithHistory(apiEndpoint: string) {
-  const [query, setQuery] = useLocalStorage("search-query", "");
-  const debouncedQuery = useDebounce(query, 300);
-  const previousQuery = usePrevious(debouncedQuery);
-
-  const { data, isLoading, error } = useSWR(
-    debouncedQuery.length > 2 ? `${apiEndpoint}?q=${debouncedQuery}` : null,
-    fetcher,
-  );
-
-  const hasNewResults = previousQuery !== debouncedQuery && data;
-
-  return { query, setQuery, results: data, isLoading, error, hasNewResults };
+```ts
+function useWindowEvent<K extends keyof WindowEventMap>(
+  name: K,
+  handler: (event: WindowEventMap[K]) => void,
+) {
+  const onEvent = useEffectEvent(handler);
+  useEffect(() => {
+    const listener = (event: WindowEventMap[K]) => onEvent(event);
+    window.addEventListener(name, listener);
+    return () => window.removeEventListener(name, listener);
+  }, [name]); // handler identity does not resubscribe
 }
 ```
 
-### Hook with Ref Callback
+Rules: call an effect event only from inside effects; never pass it to other components or hooks; do not use it to hide a dependency that should re-run the effect.
 
-```typescript
-// When you need to observe a DOM element that may change
-function useResizeObserver<T extends HTMLElement>() {
+---
+
+## Cleanup and abort
+
+Every effect that starts something must stop it. When the data layer cannot be used and an effect must fetch, abort on cleanup and ignore abort errors:
+
+```ts
+useEffect(() => {
+  const controller = new AbortController();
+  fetch(`/api/search?q=${encodeURIComponent(query)}`, { signal: controller.signal })
+    .then((res) => {
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      return res.json();
+    })
+    .then(setResults)
+    .catch((error) => {
+      if (error.name !== "AbortError") setError(error);
+    });
+  return () => controller.abort();
+}, [query]);
+```
+
+Prefer the framework's data layer, Suspense with `use`, or a server-state cache over this pattern (waterfalls, no dedup, no retry). For optimistic UI, use `useOptimistic` with an action, not a hand-rolled rollback list.
+
+---
+
+## Observing a DOM node
+
+When the node may mount or unmount conditionally, observe it from a ref callback instead of `useRef` plus an effect. In React 19 a ref callback may return a cleanup function.
+
+```ts
+function useElementSize<T extends HTMLElement>() {
   const [size, setSize] = useState({ width: 0, height: 0 });
-  const observerRef = useRef<ResizeObserver | null>(null);
-
   const ref = useCallback((node: T | null) => {
-    if (observerRef.current) {
-      observerRef.current.disconnect();
-    }
-
-    if (node) {
-      observerRef.current = new ResizeObserver(([entry]) => {
-        setSize({
-          width: entry.contentRect.width,
-          height: entry.contentRect.height,
-        });
-      });
-      observerRef.current.observe(node);
-    }
+    if (!node) return;
+    const observer = new ResizeObserver(([entry]) =>
+      setSize({ width: entry.contentRect.width, height: entry.contentRect.height }),
+    );
+    observer.observe(node);
+    return () => observer.disconnect();
   }, []);
-
   return [ref, size] as const;
 }
-
-// Usage — works even if element is conditionally rendered
-const [sizeRef, size] = useResizeObserver<HTMLDivElement>();
-return <div ref={sizeRef}>Size: {size.width}x{size.height}</div>;
 ```
 
 ---
 
-## State Machine Hook
+## Testing hooks
 
-```typescript
-type MachineConfig<S extends string, E extends string> = {
-  initial: S;
-  states: Record<S, { on?: Partial<Record<E, S>> }>;
-};
+Test behavior through `renderHook`; wrap state updates in `act`; provide context with `wrapper`; control time with fake timers rather than real waits.
 
-function useMachine<S extends string, E extends string>(config: MachineConfig<S, E>) {
-  const [state, setState] = useState<S>(config.initial);
+```ts
+import { renderHook, act } from "@testing-library/react";
 
-  const send = useCallback(
-    (event: E) => {
-      setState((current) => {
-        const nextState = config.states[current].on?.[event];
-        return nextState ?? current;
-      });
-    },
-    [config],
-  );
+test("useMediaQuery follows the query", () => {
+  const listeners = new Set<() => void>();
+  let matches = false;
+  window.matchMedia = ((_query: string) => ({
+    get matches() { return matches; },
+    addEventListener: (_: string, fn: () => void) => listeners.add(fn),
+    removeEventListener: (_: string, fn: () => void) => listeners.delete(fn),
+  })) as unknown as typeof window.matchMedia;
 
-  const is = useCallback((s: S) => state === s, [state]);
+  const { result } = renderHook(() => useMediaQuery("(min-width: 40rem)"));
+  expect(result.current).toBe(false);
 
-  return { state, send, is };
-}
-
-// Usage
-const machine = useMachine({
-  initial: "idle" as const,
-  states: {
-    idle: { on: { FETCH: "loading" } },
-    loading: { on: { SUCCESS: "success", ERROR: "error" } },
-    success: { on: { RESET: "idle" } },
-    error: { on: { RETRY: "loading", RESET: "idle" } },
-  },
+  act(() => { matches = true; listeners.forEach((fn) => fn()); });
+  expect(result.current).toBe(true);
 });
-
-machine.send("FETCH");
-if (machine.is("loading")) return <Spinner />;
 ```
+
+Also assert cleanup: unmount and check that listeners, timers, and requests are released.
 
 ---
 
-## Data Fetching Hooks
+## React version notes
 
-### useAsync
+Checked 2026-10-06 against the React 19.3 release post. Confirm against the project's installed version.
 
-```typescript
-interface AsyncState<T> {
-  data: T | undefined;
-  error: Error | undefined;
-  isLoading: boolean;
-}
+| Version | Notable |
+|---------|---------|
+| 19.0 | Actions, `useActionState`, `useOptimistic`, `use`, ref as a prop, context as a provider, server functions |
+| 19.2 | `Activity` (hide a subtree and keep its state), `useEffectEvent` |
+| 19.3 | `ViewTransition` (stable; animates enter, exit, update, and shared elements inside a transition), Fragment refs, `browser()` from `react-dom` (opt a component out of server rendering), Trusted Types support. Older releases need the canary channel for `ViewTransition`. For the browser API itself see `css` and `web` |
 
-function useAsync<T>(asyncFn: () => Promise<T>, deps: unknown[]): AsyncState<T> {
-  const [state, setState] = useState<AsyncState<T>>({
-    data: undefined,
-    error: undefined,
-    isLoading: true,
-  });
-
-  useEffect(() => {
-    let cancelled = false;
-    setState((s) => ({ ...s, isLoading: true, error: undefined }));
-
-    asyncFn()
-      .then((data) => { if (!cancelled) setState({ data, error: undefined, isLoading: false }); })
-      .catch((error) => { if (!cancelled) setState({ data: undefined, error, isLoading: false }); });
-
-    return () => { cancelled = true; };
-  }, deps);
-
-  return state;
-}
-```
-
-### useOptimisticList
-
-```typescript
-function useOptimisticList<T extends { id: string }>(
-  initialItems: T[],
-  onDelete: (id: string) => Promise<void>,
-) {
-  const [items, setItems] = useState(initialItems);
-
-  const optimisticDelete = useCallback(async (id: string) => {
-    const previous = items;
-    setItems((current) => current.filter((item) => item.id !== id));
-
-    try {
-      await onDelete(id);
-    } catch {
-      setItems(previous); // Rollback on failure
-    }
-  }, [items, onDelete]);
-
-  return { items, optimisticDelete };
-}
-```
+- **React Compiler** 1.x is stable and opt-in (build plugin or framework option). Check the build config before recommending or removing manual memoization.
+- **Security patches.** Keep the RSC packages and the framework patched; see [rsc-patterns.md](rsc-patterns.md#server-functions).
 
 ---
 
-## DOM and Browser Hooks
+## State tool examples
 
-### useEventListener
+Examples only; pick by the ownership question in SKILL.md, not by product.
 
-```typescript
-function useEventListener<K extends keyof WindowEventMap>(
-  eventName: K,
-  handler: (event: WindowEventMap[K]) => void,
-  element: EventTarget = window,
-) {
-  const savedHandler = useRef(handler);
-  savedHandler.current = handler;
-
-  useEffect(() => {
-    const listener = (event: Event) => savedHandler.current(event as WindowEventMap[K]);
-    element.addEventListener(eventName, listener);
-    return () => element.removeEventListener(eventName, listener);
-  }, [eventName, element]);
-}
-```
-
-### useKeyboardShortcut
-
-```typescript
-function useKeyboardShortcut(
-  key: string,
-  callback: () => void,
-  modifiers: { ctrl?: boolean; shift?: boolean; alt?: boolean; meta?: boolean } = {},
-) {
-  useEventListener("keydown", (e) => {
-    if (
-      e.key === key &&
-      !!modifiers.ctrl === e.ctrlKey &&
-      !!modifiers.shift === e.shiftKey &&
-      !!modifiers.alt === e.altKey &&
-      !!modifiers.meta === e.metaKey
-    ) {
-      e.preventDefault();
-      callback();
-    }
-  });
-}
-
-// Usage
-useKeyboardShortcut("k", openCommandPalette, { meta: true });
-```
-
----
-
-## Testing Hooks
-
-```typescript
-import { renderHook, act, waitFor } from "@testing-library/react";
-
-// Basic hook test
-test("useCounter increments", () => {
-  const { result } = renderHook(() => useCounter(0));
-
-  expect(result.current.count).toBe(0);
-
-  act(() => { result.current.increment(); });
-
-  expect(result.current.count).toBe(1);
-});
-
-// Async hook test
-test("useAsync fetches data", async () => {
-  const mockFetch = vi.fn().mockResolvedValue({ name: "Alice" });
-
-  const { result } = renderHook(() => useAsync(mockFetch, []));
-
-  expect(result.current.isLoading).toBe(true);
-
-  await waitFor(() => {
-    expect(result.current.isLoading).toBe(false);
-    expect(result.current.data).toEqual({ name: "Alice" });
-  });
-});
-
-// Hook with context — pass wrapper to renderHook: { wrapper: ThemeProvider }
-// Rerender with new props — use rerender({ value: "new" }) and vi.advanceTimersByTime()
-```
+| Kind of state | Examples |
+|---------------|----------|
+| Server cache with invalidation | TanStack Query, SWR, the framework's data layer |
+| Shared client state with one owner | Zustand, Jotai, Redux Toolkit, Valtio (all expose a store plus operations) |
+| Low-frequency wide reach | Built-in Context |
+| URL state | The router's search-params API |

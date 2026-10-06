@@ -1,208 +1,87 @@
 # HTTP Patterns
 
+Header mechanics that have no better owner. Other topics live elsewhere: status codes and error contracts in `api-design` (RFC 9457 problem details), Cache-Control policy and CDN strategy in `caching`, SSE protocol in `realtime`, threat-driven header policy and review in `security`.
+
 ## Contents
 
-- [Status Codes](#status-codes)
-- [Caching](#caching)
-- [Content Negotiation](#content-negotiation)
-- [Streaming](#streaming)
-- [Security Headers](#security-headers)
+- [Conditional Requests](#conditional-requests)
+- [Cache-Control Mechanics](#cache-control-mechanics)
+- [Vary and Content Negotiation](#vary-and-content-negotiation)
 - [Compression](#compression)
+- [Early Hints](#early-hints)
+- [Security Header Syntax](#security-header-syntax)
+- [Service Worker Script Caching](#service-worker-script-caching)
 
 ---
 
-## Status Codes
-
-### Success (2xx)
-
-| Code | Meaning | When to use |
-|------|---------|-------------|
-| 200 | OK | Default success — GET, PUT, PATCH |
-| 201 | Created | POST that created a resource — include `Location` header |
-| 202 | Accepted | Async processing started — not yet complete |
-| 204 | No Content | Success with no body — DELETE, PUT with no response |
-
-### Redirection (3xx)
-
-| Code | Meaning | When to use |
-|------|---------|-------------|
-| 301 | Moved Permanently | URL changed forever — browsers cache aggressively |
-| 302 | Found | Temporary redirect — use 307 instead for method preservation |
-| 304 | Not Modified | Conditional request — ETag/Last-Modified matched |
-| 307 | Temporary Redirect | Like 302 but preserves HTTP method |
-| 308 | Permanent Redirect | Like 301 but preserves HTTP method |
-
-### Client Error (4xx)
-
-| Code | Meaning | When to use |
-|------|---------|-------------|
-| 400 | Bad Request | Malformed syntax, invalid parameters |
-| 401 | Unauthorized | No/invalid authentication — should be "Unauthenticated" |
-| 403 | Forbidden | Authenticated but not authorized |
-| 404 | Not Found | Resource does not exist |
-| 405 | Method Not Allowed | Endpoint exists but method is wrong |
-| 409 | Conflict | State conflict (duplicate, version mismatch) |
-| 413 | Content Too Large | Request body exceeds limit |
-| 422 | Unprocessable Content | Valid syntax but semantic errors (validation) |
-| 429 | Too Many Requests | Rate limited — include `Retry-After` header |
-
-### Server Error (5xx)
-
-| Code | Meaning | When to use |
-|------|---------|-------------|
-| 500 | Internal Server Error | Unexpected server failure |
-| 502 | Bad Gateway | Upstream service returned invalid response |
-| 503 | Service Unavailable | Temporary overload — include `Retry-After` |
-| 504 | Gateway Timeout | Upstream service timed out |
-
----
-
-## Caching
-
-### Cache-Control Directives
+## Conditional Requests
 
 ```
-# Public cacheable, revalidate after 1 hour
-Cache-Control: public, max-age=3600, must-revalidate
-
-# Private (user-specific), stale-while-revalidate pattern
-Cache-Control: private, max-age=60, stale-while-revalidate=300
-
-# No caching at all
-Cache-Control: no-store
-
-# Cache but always revalidate (use with ETag)
-Cache-Control: no-cache
-
-# Immutable — never revalidate (use with hashed filenames)
-Cache-Control: public, max-age=31536000, immutable
-```
-
-| Directive | Effect |
-|-----------|--------|
-| `public` | Any cache can store (CDN, proxy, browser) |
-| `private` | Only browser can store (user-specific data) |
-| `max-age=N` | Fresh for N seconds |
-| `s-maxage=N` | Override max-age for shared caches (CDN) |
-| `no-cache` | Must revalidate with server before using cached copy |
-| `no-store` | Never cache — sensitive data |
-| `must-revalidate` | Don't serve stale — revalidate when expired |
-| `stale-while-revalidate=N` | Serve stale for N seconds while fetching fresh |
-| `stale-if-error=N` | Serve stale for N seconds if origin returns 5xx |
-| `immutable` | Will never change — skip revalidation |
-
-### ETag / Conditional Requests
-
-```
-# Server response with ETag
 HTTP/1.1 200 OK
 ETag: "abc123"
 Cache-Control: no-cache
 
-# Client conditional request
 GET /resource HTTP/1.1
 If-None-Match: "abc123"
 
-# Server response — not modified
 HTTP/1.1 304 Not Modified
 ETag: "abc123"
 ```
 
-**Weak vs Strong ETags:**
-- Strong: `"abc123"` — byte-for-byte identical
-- Weak: `W/"abc123"` — semantically equivalent (allows minor formatting changes)
+- Strong ETag `"abc123"`: byte-for-byte identical. Weak `W/"abc123"`: semantically equivalent.
+- Prefer ETag over `Last-Modified` (`If-Modified-Since` has one-second resolution and clock dependence). Send both only when intermediaries need it.
+- Use `If-Match` (or `If-Unmodified-Since`) on `PUT` and `PATCH` for optimistic concurrency: a mismatch returns `412 Precondition Failed`, so concurrent edits do not overwrite each other.
+- `Range` and `If-Range` allow resumable downloads and media seeking; the server answers `206` with `Content-Range`.
 
-### Last-Modified / If-Modified-Since
+## Cache-Control Mechanics
 
-```
-# Response
-Last-Modified: Wed, 12 Mar 2025 10:00:00 GMT
+What each directive means. Which to apply to which resource is policy: see `caching`.
 
-# Conditional request
-If-Modified-Since: Wed, 12 Mar 2025 10:00:00 GMT
-```
+| Directive | Effect |
+|-----------|--------|
+| `max-age=N` | Fresh for N seconds |
+| `s-maxage=N` | Overrides `max-age` for shared caches (CDN, proxy) |
+| `no-cache` | May be stored, but must be revalidated before reuse |
+| `no-store` | Do not store at all |
+| `public` / `private` | Shared caches may store / only the browser may store |
+| `must-revalidate` | Once stale, never serve without revalidating |
+| `stale-while-revalidate=N` | Serve stale for N seconds while refreshing in the background |
+| `stale-if-error=N` | Serve stale for N seconds when the origin errors |
+| `immutable` | Will not change during freshness lifetime; skip revalidation |
 
-**Prefer ETags over Last-Modified** — more precise, handles sub-second changes.
+A response carrying `Set-Cookie` or user-specific data needs `private` or `no-store`; shared caches must not store it.
 
-### Vary Header
-
-```
-# Response varies by these request headers — cache separately
-Vary: Accept, Accept-Encoding, Authorization
-```
-
-**Always include `Vary: Accept-Encoding`** when serving compressed content. Otherwise CDNs may serve gzipped content to clients that don't support it.
-
----
-
-## Content Negotiation
+## Vary and Content Negotiation
 
 ```
-# Request — client preferences
 Accept: application/json, text/html;q=0.9, */*;q=0.1
 Accept-Language: en-US, en;q=0.9, fr;q=0.5
 Accept-Encoding: gzip, br, zstd
 
-# Response — what server chose
 Content-Type: application/json; charset=utf-8
 Content-Language: en-US
 Content-Encoding: br
+Vary: Accept-Encoding, Accept-Language
 ```
 
-**Quality values (q):** 0.0 to 1.0, default 1.0. Higher = more preferred.
+- Quality values run 0.0 to 1.0 (default 1.0).
+- `Vary` lists every request header the response depends on. Missing `Vary: Accept-Encoding` lets a cache serve a compressed body to a client that cannot decode it; missing `Vary: Origin` on dynamic CORS responses lets one origin's headers be served to another.
+- Each `Vary` value splits the cache. Do not vary on `Cookie` or `Authorization` for public caches; make such responses `private`.
+- Use `Content-Type: application/problem+json` for RFC 9457 errors (contract in `api-design`).
 
-### JSON API Content Type
+## Compression
 
-```
-Content-Type: application/vnd.api+json          # JSON:API
-Content-Type: application/problem+json          # RFC 7807 errors
-Content-Type: application/json; charset=utf-8   # Standard JSON
-```
+| Algorithm | Notes |
+|-----------|-------|
+| gzip | Universal fallback |
+| Brotli (`br`) | Usually smaller than gzip on text; pre-compress static assets at build time |
+| zstd | Fast at good ratios, useful for dynamic responses; Chrome and Firefox have decoded it for some time and Safari only from 26.3, so negotiate it through `Accept-Encoding` and keep `br` or `gzip` available |
 
----
+Ratios depend on content and level; measure on your payloads. Serve pre-compressed `.br` and `.gz` files by `Accept-Encoding`. Skip compression for tiny responses (about 1 KB) and already-compressed formats (images, video, archives).
 
-## Streaming
+## Early Hints
 
-### Server-Sent Events (SSE)
-
-```
-# Response headers
-Content-Type: text/event-stream
-Cache-Control: no-cache
-Connection: keep-alive
-
-# Event format
-data: {"message": "hello"}
-
-event: update
-data: {"status": "processing"}
-id: 42
-retry: 5000
-
-# Client
-const source = new EventSource("/events");
-source.onmessage = (e) => console.log(JSON.parse(e.data));
-source.addEventListener("update", (e) => { /* ... */ });
-```
-
-### Chunked Transfer
-
-```
-# Response headers
-Transfer-Encoding: chunked
-
-# Body — each chunk: size in hex + \r\n + data + \r\n
-5\r\n
-Hello\r\n
-6\r\n
- World\r\n
-0\r\n
-\r\n
-```
-
-### HTTP/2 Server Push (deprecated in browsers)
-
-Use `103 Early Hints` instead:
+`103 Early Hints` lets the server send preload hints before the final response is ready; it replaces HTTP/2 server push.
 
 ```
 HTTP/1.1 103 Early Hints
@@ -213,41 +92,25 @@ HTTP/1.1 200 OK
 Content-Type: text/html
 ```
 
----
+## Security Header Syntax
 
-## Security Headers
+Threat-driven policy and review: `security`. Syntax and configuration:
 
 ```
-# Essential security headers
-Strict-Transport-Security: max-age=63072000; includeSubDomains; preload
+Strict-Transport-Security: max-age=31536000; includeSubDomains
 X-Content-Type-Options: nosniff
-X-Frame-Options: DENY
 Referrer-Policy: strict-origin-when-cross-origin
 Permissions-Policy: camera=(), microphone=(), geolocation=()
+Content-Security-Policy: default-src 'self'; object-src 'none'; base-uri 'self'; frame-ancestors 'none'
 
-# Cross-Origin isolation (required for SharedArrayBuffer)
+# Cross-origin isolation (needed for SharedArrayBuffer)
 Cross-Origin-Embedder-Policy: require-corp
 Cross-Origin-Opener-Policy: same-origin
 ```
 
----
+- `includeSubDomains` in HSTS assumes every subdomain serves HTTPS; drop it otherwise. Add `preload` only as an opt-in, after submitting to the preload list and accepting that removal is slow. A long `max-age` with `preload` is effectively irreversible.
+- `frame-ancestors` supersedes `X-Frame-Options`; send the legacy header only for very old clients.
 
-## Compression
+## Service Worker Script Caching
 
-| Algorithm | Ratio | Speed | Support | Use |
-|-----------|-------|-------|---------|-----|
-| gzip | Good | Fast | Universal | Default fallback |
-| Brotli (br) | Better | Slower compress, fast decompress | Modern browsers | Static assets (pre-compress) |
-| zstd | Best | Fast | Newest | Large payloads, APIs |
-
-```
-# Request
-Accept-Encoding: gzip, br, zstd
-
-# Response
-Content-Encoding: br
-```
-
-**Pre-compress static assets** at build time (`.br`, `.gz` files). Let reverse proxy serve the right version based on `Accept-Encoding`.
-
-**Minimum size:** Don't compress responses under ~1KB — overhead exceeds savings.
+Serve `sw.js` (and any script it imports) with `Cache-Control: no-cache` so updates are discovered, and register with `updateViaCache: "none"`. Hashed application assets can still be immutable. Browsers also bypass the HTTP cache for service worker script checks after about 24 hours, but do not rely on it.

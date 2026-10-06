@@ -18,7 +18,7 @@ On wide screens controls sit beside the view; on narrow screens above it, with t
 
 ## State
 
-One state object with frozen defaults; every control writes to it and every view renders from it (interactive-html, "State for tools"). A seed makes stochastic runs reproducible. Reset restores defaults; presets set several values coherently.
+One state object with frozen defaults; every control writes to it and every view renders from it ([interactive-html.md](../references/interactive-html.md#state-for-tools)). A seed makes stochastic runs reproducible. Reset restores defaults; presets set several values coherently.
 
 ## Interaction
 

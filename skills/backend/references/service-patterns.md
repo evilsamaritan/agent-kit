@@ -1,333 +1,124 @@
-# Backend Service Patterns
+# Backend Service Patterns — Details
 
-Universal patterns for backend services. Adapt to your project's language and framework.
+Depth for the backend skill. Adapt the pseudocode to the project's language and framework.
 
 ## Contents
 
-- [Service Wiring](#service-wiring)
+- [Wiring and Scopes](#wiring-and-scopes)
 - [Config Validation](#config-validation)
-- [Service Lifecycle](#service-lifecycle)
-- [Graceful Shutdown](#graceful-shutdown)
-- [Health Checks](#health-checks)
-- [Circuit Breaker](#circuit-breaker)
-- [Retry with Backoff](#retry-with-backoff)
-- [Bulkhead](#bulkhead)
-- [Timeout](#timeout)
-- [OpenAPI-First Design](#openapi-first-design)
-- [Middleware Pipeline Patterns](#middleware-pipeline-patterns)
+- [Middleware Details](#middleware-details)
 - [Request Context Propagation](#request-context-propagation)
+- [Startup and Shutdown Sequences](#startup-and-shutdown-sequences)
+- [Outbound-Call Defaults](#outbound-call-defaults)
 
 ---
 
-## Service Wiring
+## Wiring and Scopes
 
-Wiring decouples service creation from service usage: one composition root constructs everything and passes it in. A container is optional; hand-wiring in `main` is the default for small services.
+One composition root constructs everything and passes it in. Hand-wiring is the default; a container is a mechanism and follows `development`'s mechanism rule.
 
-### Core Principles
-1. **Constructor injection** — dependencies passed in at construction, not fetched at runtime
-2. **Singletons for stateful resources** — DB pools, message queues, loggers: create once, share everywhere
-3. **Transient for stateless handlers** — request handlers, use cases: new instance per invocation (or per request scope)
-4. **No service locator** — do not call `container.get(ServiceName)` inside business logic; inject what you need
-5. **Register in one place** — one container/module file that wires everything together
-
-### Pattern (pseudocode)
 ```
-container = new Container()
+config   = loadAndValidateConfig(env)            // app scope
+db       = newDbPool(config.database)            // app scope
+payments = newPaymentClient(config.payments)     // app scope, owns its timeout/retry policy
+orders   = newOrderService(db, payments, clock)  // app scope, stateless
+router   = newRouter(orders, middleware(config)) // app scope
 
-// Infrastructure first — everything depends on these
-container.register("config", singleton(loadConfig()))
-container.register("db", singleton(createDbPool(config)))
-container.register("logger", singleton(createLogger(config)))
-container.register("messageQueue", singleton(createMQ(config)))
-
-// Domain services — depend on infrastructure
-container.register("userService", class UserService(db, logger))
-container.register("orderService", class OrderService(db, logger, messageQueue))
-
-// Handlers — depend on domain services
-container.register("createOrderHandler", class CreateOrderHandler(orderService, logger))
+perRequest(req):                                 // request scope
+  ctx = { requestId, traceContext, caller, tx? }
+  router.handle(ctx, req)
 ```
 
-### Common Mistakes
-- Circular dependencies in registration → split into smaller services
-- Constructing services inside handler code → construct at the composition root and pass them in
-- Registering everything as transient → stateful resources leak connections
+| Scope | Examples | Leak to watch for |
+|-------|----------|-------------------|
+| App | pools, clients, config, stateless services | holding a request's caller, transaction, or buffer |
+| Request | transaction, caller identity, request ID, per-request cache | outliving the request in a background task without its own owner |
+| Transient | builders, per-call parsers | none — cheap to create |
+
+Common mistakes:
+- Circular construction → one of the two services owns too much; split it.
+- Constructing clients inside handlers → new pools per request, exhausted connections.
+- A background task started from a request that keeps the request scope → it reads a closed transaction or a stale caller. Give it its own owner (`development` rule 5).
 
 ---
 
 ## Config Validation
 
-Validate all configuration at startup. Fail fast with clear error messages.
-
-### Pattern (pseudocode)
 ```
-configSchema = {
-  DATABASE_URL: required, string, url format
-  PORT: optional, number, default 3000
-  LOG_LEVEL: optional, enum [debug, info, warn, error], default "info"
-  API_KEY: required, string, min length 16
-  REDIS_URL: optional, string, url format
+schema = {
+  DATABASE_URL: required, url
+  PORT:         optional, int 1..65535, default 8080
+  LOG_LEVEL:    optional, enum [debug, info, warn, error], default info
+  API_KEY:      required, secret, min length 16
 }
-
-config = validate(environment_variables, configSchema)
-// Throws at startup if validation fails — never at request time
+config = validate(env, schema)   // throws at startup, never at request time
 ```
 
-### Principles
-- Load once at startup, inject everywhere via DI
-- Validate types, formats, and ranges — not just presence
-- Provide sensible defaults for optional values
-- Never log secrets; mask or omit from error messages
-- Separate config by concern: database config, auth config, feature flags
+- Validate types, formats, and ranges, not just presence.
+- Group by concern (database, auth, flags) and pass each consumer only its group.
+- Mark secrets in the schema so error messages and config dumps mask them.
 
 ---
 
-## Service Lifecycle
+## Middleware Details
 
-Standard bootstrap sequence for any backend service:
+Order: see SKILL.md. Notes on individual layers:
 
+**Request ID / trace context**
 ```
-1. Load and validate config
-2. Create DI container / wire dependencies
-3. Connect to infrastructure (DB pool, message queue, cache)
-4. Start consumers (message queue, event listeners)
-5. Start HTTP server (accept traffic)
-6. Register shutdown hooks (reverse order of startup)
+inbound = header("traceparent")                 // W3C Trace Context
+if inbound is valid → continue the trace; else → start a new one
+requestId = header("X-Request-Id")
+if requestId matches ^[A-Za-z0-9._-]{1,64}$ and the caller is a trusted proxy → keep it
+else → generate one
+attach both to the request context, every log line, and the response header
 ```
+Never write an unvalidated inbound value into logs or response headers: it allows log forging and header bloat. Trace propagation depth: `observability`.
 
-The ordering is critical — do not accept HTTP traffic before infrastructure is ready.
-
----
-
-## Graceful Shutdown
-
-Shutdown in reverse order of startup. Never drop in-flight work.
-
+**Error mapping**
 ```
-On SIGTERM / SIGINT:
-  1. Stop accepting new requests (close HTTP listener)
-  2. Stop accepting new messages (pause consumers)
-  3. Drain in-flight work (wait for active requests/messages to complete)
-  4. Flush pending writes (commit offsets, flush buffers)
-  5. Close infrastructure connections (DB pool, message queue, cache)
-  6. Exit process
+try: next(ctx)
+catch err:
+  if err is a known domain or validation error → status + stable code + safe message
+  else → 500 + generic message; log err with requestId and stack
 ```
+The mapper decides the code once; handlers return or throw typed errors and never set status codes for domain outcomes.
 
-### Principles
-- Set a shutdown timeout (e.g., 30 seconds) — force-exit if drain takes too long
-- Log shutdown progress at each step
-- Close resources in reverse order of initialization
-- Health check should return unhealthy once shutdown starts (so load balancers stop routing)
+**Authentication**
+Extract credentials, validate, attach the caller to the request context. A missing or invalid credential is 401; token validation rules and response headers: `auth`.
 
----
-
-## Health Checks
-
-Two distinct probes serving different purposes:
-
-| Probe | Purpose | Checks | Returns |
-|-------|---------|--------|---------|
-| **Liveness** (`/health/live`) | Is the process running? | Process is up | 200 OK |
-| **Readiness** (`/health/ready`) | Can it handle traffic? | DB connected, queues connected, dependencies reachable | 200 OK or 503 |
-
-### Principles
-- Liveness: lightweight, no external calls. If this fails, orchestrator restarts the process.
-- Readiness: checks all critical dependencies. If this fails, load balancer stops routing traffic.
-- Return structured JSON: `{ "status": "healthy", "checks": { "db": "ok", "queue": "ok" } }`
-- During shutdown, readiness returns 503 immediately (stop receiving new traffic).
-
----
-
-## Circuit Breaker
-
-Prevent cascading failures when calling external services.
-
-```
-States:
-  CLOSED   → normal operation, requests pass through
-  OPEN     → failures exceeded threshold, requests fail immediately (fast-fail)
-  HALF-OPEN → after cooldown, allow one probe request to test recovery
-
-Transitions:
-  CLOSED → OPEN:      when failure count exceeds threshold in time window
-  OPEN → HALF-OPEN:   after cooldown period expires
-  HALF-OPEN → CLOSED: if probe request succeeds
-  HALF-OPEN → OPEN:   if probe request fails
-```
-
-### When to use
-- Calling external APIs (payment providers, third-party services)
-- Calling other internal microservices over the network
-- Any I/O operation that can hang or fail unpredictably
-
-### When NOT to use
-- Local database queries (use connection pool limits instead)
-- In-process function calls
-
----
-
-## Retry with Backoff
-
-Automatically retry transient failures with increasing delays.
-
-```
-Retry strategy:
-  attempt 1 → immediate
-  attempt 2 → wait base_delay (e.g., 100ms)
-  attempt 3 → wait base_delay * 2 + jitter
-  attempt 4 → wait base_delay * 4 + jitter
-  give up   → after max_retries (e.g., 3-5)
-```
-
-### Principles
-- Add random jitter to prevent thundering herd on recovery
-- Only retry on transient errors (5xx, timeout, connection reset) — never on 4xx
-- Set a maximum number of retries with a total timeout cap
-- Make the operation idempotent before adding retries
-- Log each retry attempt with attempt number and delay
-
-### When to use
-- HTTP calls to external services returning 502/503/504
-- Message queue publish failures
-- Distributed lock acquisition
-
-### When NOT to use
-- Validation errors (4xx) — retrying won't help
-- Operations that are not idempotent without an idempotency key
-
----
-
-## Bulkhead
-
-Isolate resources per dependency to prevent one slow dependency from starving others.
-
-```
-Without bulkhead:
-  Shared pool (100 threads) → Service A (slow) consumes 95 → Service B starved
-
-With bulkhead:
-  Pool A (50 threads) → Service A (slow) consumes 50, hits limit
-  Pool B (50 threads) → Service B unaffected, still serving
-```
-
-### Principles
-- Assign separate thread/connection pools per external dependency
-- Set pool size based on expected throughput and acceptable latency
-- Reject excess requests immediately (fail fast) rather than queuing unbounded
-- Monitor pool utilization — approaching limits signals capacity issues
-
-### When to use
-- Multiple external service dependencies with different reliability profiles
-- Shared infrastructure resources (DB pools, HTTP clients)
-
-### When NOT to use
-- Single-dependency services (pool limits are sufficient)
-- In-process computations
-
----
-
-## Timeout
-
-Set explicit time limits on every outbound call to prevent indefinite blocking.
-
-### Principles
-- Every outbound HTTP call, DB query, and queue operation must have a timeout
-- Set timeouts shorter than the caller's timeout (cascading timeouts)
-- Use connect timeout (short, e.g., 1-3s) + read timeout (longer, e.g., 5-30s)
-- Return a clear error when timeout is exceeded — do not silently retry
-- Propagate deadline/timeout context across service boundaries
-
-### Layered timeout strategy
-```
-Client request timeout:     30s (overall request budget)
-  → Downstream service A:  10s (must complete within caller's budget)
-    → Database query:        5s (must complete within A's budget)
-  → Downstream service B:   5s
-```
-
----
-
-## OpenAPI-First Design
-
-Define the API contract before implementing it. Generate code/validation from the spec.
-
-### Workflow
-1. Write OpenAPI spec (YAML/JSON) defining endpoints, request/response schemas, error shapes
-2. Generate server stubs or validation middleware from the spec
-3. Implement handlers against the generated interfaces
-4. Generate client SDKs from the same spec
-5. Validate responses against the spec in tests
-
-### Benefits
-- Single source of truth for API contract
-- Auto-generated documentation (Swagger UI, Redoc)
-- Client/server contract enforcement
-- Breaking change detection via spec diff
-
-### Principles
-- Spec lives in version control alongside code
-- CI validates that implementation matches spec
-- Response validation in tests catches drift
-- Use `$ref` for shared schemas (error response, pagination envelope)
-
----
-
-## Middleware Pipeline Patterns
-
-### Authentication Middleware
-```
-Extract token from Authorization header (or cookie)
-Validate token (verify signature, check expiration)
-Attach user context to request (user ID, roles, permissions)
-If invalid → return 401
-If expired → return 401 with specific code (TOKEN_EXPIRED)
-```
-
-### Authorization Middleware
-```
-Read user context from request (set by auth middleware)
-Check if user has required permission for this endpoint
-If forbidden → return 403
-```
-
-### Request ID Middleware
-```
-Check for incoming X-Request-Id header
-If present → use it (for distributed tracing)
-If absent → generate a unique ID (UUID v4 or similar)
-Attach to request context
-Include in all log entries
-Include in response headers
-```
-
-### Rate Limiting Middleware
-```
-Identify client (API key, IP, user ID)
-Check request count against limit for current window
-If under limit → allow, decrement remaining
-If over limit → return 429 with Retry-After header
-Include rate limit headers in every response
-```
+**Rate limiting**
+Identify the client (key, user, or address), check the budget, return 429 with `Retry-After` when exceeded. Placed before authentication so credential checks cannot be flooded. Header contract: `api-design`.
 
 ---
 
 ## Request Context Propagation
 
-Carry request metadata through the entire call chain for observability.
+What to carry: request ID, trace context, caller identity, deadline.
 
-### What to propagate
-- `requestId` — unique per request, for log correlation
-- `traceId` — for distributed tracing across services
-- `userId` — authenticated user, for audit logging
-- `startTime` — for request duration measurement
+How to carry it, in order of portability:
+1. Explicit parameter (a `ctx` argument) — simplest, visible in signatures.
+2. The framework's request context.
+3. Async-local / task-local storage — convenient, but invisible; keep it to the request ID and trace context.
 
-### How to propagate
-- Framework-specific request context (most frameworks provide this)
-- Thread-local / async-local storage (language-specific: AsyncLocalStorage in Node.js, Context in Go, ThreadLocal in Java)
-- Explicit parameter passing (simplest, most portable)
+Forward the trace context and the remaining deadline on every outbound call. Do not forward caller credentials to third parties.
 
-### Principles
-- Set context at the middleware layer (once, at request entry)
-- Pass to all service calls, DB queries, and outgoing HTTP requests
-- Include in all log entries (structured logging with context fields)
-- Forward `traceId` to downstream services via headers
+---
+
+## Startup and Shutdown Sequences
+
+The order of steps is in SKILL.md. Details that make the sequence operable:
+
+- Give each pool and client a bounded connect timeout, so a missing dependency fails startup instead of hanging it.
+- On a migration mismatch, refuse to start rather than serving against the wrong schema.
+- After failing readiness, keep serving until the load balancer or registry has deregistered the instance, then stop accepting connections.
+- Close pools and clients in reverse order of creation.
+- Log each step with its duration; a slow drain or close shows up in the shutdown log before it shows up as a forced kill.
+
+Probe semantics and the deadline relative to the orchestrator's grace period: `reliability`.
+
+---
+
+## Outbound-Call Defaults
+
+Each dependency gets one client wrapper that owns its connect timeout (short), a total budget taken from the caller's deadline, its retry policy, and its breaker or concurrency limit. Handlers call the wrapper and never retry on their own. Which errors are retryable, backoff with full jitter, retry budgets, and breaker thresholds: `reliability`. The idempotency precondition: `message-queues` → [idempotency-patterns.md](../../message-queues/references/idempotency-patterns.md).

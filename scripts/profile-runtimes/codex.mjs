@@ -12,8 +12,8 @@ import {
   validateFields,
 } from './shared.mjs'
 
-export const CODEX_EFFORT = [...CORE_EFFORT, 'ultra']
-export const SANDBOX_BY_ACCESS = { 'read-only': 'read-only', edits: 'workspace-write', full: 'workspace-write' }
+const CODEX_EFFORT = [...CORE_EFFORT, 'ultra']
+const SANDBOX_BY_ACCESS = { 'read-only': 'read-only', edits: 'workspace-write', full: 'workspace-write' }
 const SOURCES_INTRO = 'Load these selected knowledge skills when relevant before acting; load linked references only as needed. A skill name is listed in this session\'s skill catalog with its location (Agent Kit skills are `agent-kit:<skill>`): read that SKILL.md completely. A path is relative to the project root: read that file.'
 const identity = (agent) => `You are the project custom agent "${agent.name}", materialized from the Agent Kit profession profile "${agent.profile}".\n\n`
 
@@ -91,7 +91,6 @@ export const codex = {
     const skills = [...new Set([...legacy, ...Object.keys(knowledge.sources)])]
     const settings = { effort: top.model_reasoning_effort, sandbox_mode: top.sandbox_mode }
     if (top.model !== undefined) settings.model = top.model
-    const locators = [...legacy.map((skill, index) => [skill, paths[index]]), ...Object.entries(knowledge.sources)]
-    return { name: top.name, description: top.description, skills, settings, body: knowledge.body, sources, locators, provenance: readProvenance(content) }
+    return { name: top.name, description: top.description, skills, settings, body: knowledge.body, sources, provenance: readProvenance(content) }
   },
 }

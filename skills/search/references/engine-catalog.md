@@ -1,31 +1,31 @@
 # Search Engine Catalog
 
-Concrete short-lists per workload. Use this as a lookup after choosing a search workload in SKILL.md.
+Concrete short-lists per workload. Use this after choosing a workload in SKILL.md. Product capabilities, editions, and licenses change; verify them for the version you would deploy.
 
 ## Contents
 
 - [Engine Comparison](#engine-comparison)
 - [Workload-to-Engine Shortlist](#workload-to-engine-shortlist)
-- [Scale Thresholds](#scale-thresholds)
+- [Selection Criteria](#selection-criteria)
 - [Notes on Hosting and Licensing](#notes-on-hosting-and-licensing)
 
 ---
 
 ## Engine Comparison
 
-| Engine | Class | Niche | Typical ceiling | Hosted? |
+| Engine | Class | Niche | Scaling model | Hosted? |
 |---|---|---|---|---|
-| Elasticsearch | Distributed Lucene | Large-scale full-text + aggregations, ELK stack | Billions of docs | Elastic Cloud, self-host |
-| OpenSearch | Distributed Lucene (AWS fork) | Elasticsearch-compatible, Apache-2.0 license, AWS-native | Billions of docs | AWS OpenSearch Service, self-host |
-| Meilisearch | Lightweight | Fast setup, typo tolerance out of the box, developer UX | ~10M docs per node | Meilisearch Cloud, self-host |
-| Typesense | Lightweight | Instant-search UX, simple ops, built-in vector support | ~10M docs per node | Typesense Cloud, self-host |
-| Algolia | Hosted SaaS | Fastest integration, battle-tested relevance | Millions–billions (SaaS) | Hosted only |
-| PostgreSQL tsvector | DB-native | Small-scale full-text on existing Postgres | ~1M docs before pain | With Postgres |
-| ParadeDB | DB-native (Postgres extension) | Hybrid full-text + vector inside Postgres | 10M+ docs; depends on Postgres | With Postgres |
-| pg_search | DB-native (Postgres extension) | BM25 ranking in Postgres | Similar to ParadeDB | With Postgres |
-| Vespa | Distributed hybrid | Large-scale hybrid + ML ranking at serving time | Billions of docs | Vespa Cloud, self-host |
-| Qdrant / Weaviate / Milvus | Dedicated vector DB | Embeddings-first semantic, billion-scale vectors | Billions of vectors | SaaS + self-host |
-| Orama | WASM / edge | Client-side or edge full-text, < 1M docs | ~1M docs | Embedded |
+| Elasticsearch | Distributed Lucene | Large-scale full-text, aggregations, logs, hybrid retrievers | Sharded cluster | Vendor cloud, self-host |
+| OpenSearch | Distributed Lucene (fork of Elasticsearch 7.10) | Elasticsearch-style API under Apache-2.0 | Sharded cluster | Managed on several clouds, self-host |
+| Meilisearch | Lightweight server | Typo tolerance and instant search with little configuration, hybrid search | Single node first; sharding is an enterprise-edition feature | Vendor cloud, self-host |
+| Typesense | Lightweight server | Instant search, simple ops, built-in vector search | Raft-replicated cluster, data held in memory | Vendor cloud, self-host |
+| Algolia | Hosted service | Fastest integration, mature relevance tooling | Managed | Hosted only |
+| PostgreSQL full-text (tsvector) | Built into the database | Full-text next to relational data | Scales with the database | With the database |
+| ParadeDB / pg_search | PostgreSQL extension | BM25 ranking and hybrid search inside PostgreSQL | Scales with the database | With the database |
+| Vespa | Distributed hybrid engine | Large-scale hybrid retrieval with ML ranking at serving time | Distributed | Vendor cloud, self-host |
+| Qdrant, Weaviate, Milvus | Dedicated vector databases | Embeddings-first retrieval, filtering, some hybrid support | Distributed | Vendor cloud, self-host |
+| Orama | Embedded / WASM | Client-side or edge full-text and vector search | In process | Embedded, optional cloud |
+| Pagefind | Static index | Search for static sites, index built at deploy time, loaded in chunks | Static files | None needed |
 
 ---
 
@@ -33,31 +33,39 @@ Concrete short-lists per workload. Use this as a lookup after choosing a search 
 
 | Workload (from SKILL.md) | Typical short-list |
 |---|---|
-| Full-text on existing Postgres, small scale | tsvector (built-in), pg_search |
-| Hybrid full-text + vector on Postgres | ParadeDB, pgvector + tsvector |
+| Full-text on an existing relational database | PostgreSQL full-text, pg_search; MySQL `FULLTEXT` for simple cases |
+| Hybrid full-text + vector in the database | ParadeDB / pg_search with pgvector, or tsvector with pgvector |
 | Large-scale full-text with aggregations | Elasticsearch, OpenSearch, Vespa |
-| Hosted SaaS, fastest integration | Algolia, Meilisearch Cloud, Typesense Cloud |
-| Edge / client-side | Orama, Pagefind |
-| Embeddings-first semantic | Qdrant, Weaviate, Milvus (or Elasticsearch/Vespa with kNN) |
+| Instant search, little ops capacity | Meilisearch, Typesense, Algolia |
+| Static site or client-side | Pagefind, Orama |
+| Embeddings-first semantic retrieval | Qdrant, Weaviate, Milvus, or Elasticsearch/OpenSearch/Vespa kNN |
 
 ---
 
-## Scale Thresholds
+## Selection Criteria
 
-| Document count | Engine class | Notes |
-|---|---|---|
-| < 100K | Lightweight engine or DB-native | Single node, sub-50ms latency |
-| 100K – 10M | Any engine class works | Choose by feature needs and ops capacity |
-| > 10M | Distributed (ES/OS/Vespa) | Sharding, replication, cluster management required |
+Document counts alone do not decide the engine; capacity depends on document size, field count, ranking features, RAM, and write rate. Benchmark with your own documents and queries. Decide on:
+
+| Criterion | Points toward |
+|---|---|
+| Aggregations, analytics, or log search over large data | Distributed Lucene-class engine |
+| High sustained write rate or very large corpora | Sharded engine; plan index lag explicitly |
+| Small team, little ops capacity | Hosted service or a lightweight server |
+| Typo tolerance and instant search out of the box | Lightweight server or hosted service |
+| Fine ranking control, learning to rank | Lucene-class engine or Vespa |
+| Hybrid lexical + vector in one query | Engines with built-in rank fusion, or the database with both extensions |
+| Data residency or air-gapped deployment | Self-hosted engine in the required region |
+| Search over data already in the database, modest relevance needs | Built-in full-text first; move out when relevance or load requires it |
 
 ---
 
 ## Notes on Hosting and Licensing
 
-- **Elasticsearch** — SSPL/Elastic License 2.0 since 2021. OpenSearch is the Apache-2.0 fork.
-- **OpenSearch** — Apache-2.0. Managed on AWS or self-hosted. Elasticsearch API compatibility is close but diverging over time.
-- **Meilisearch / Typesense** — source-available (Meilisearch MIT, Typesense GPL-3.0). Lightweight ops.
-- **Algolia** — proprietary SaaS. Pricing scales with operations (search + indexing).
-- **Postgres extensions** (ParadeDB, pg_search) — live inside your database; no new infra but share resources with OLTP traffic.
-- **Vespa** — Apache-2.0. Heavier to operate; built for large-scale hybrid ranking.
-- **Vector DBs** — wide license variation (Qdrant Apache-2.0, Weaviate BSD, Milvus Apache-2.0).
+License terms for search engines have changed several times; check the current license and edition terms before choosing.
+
+- **Elasticsearch** — offered under Elastic License 2.0 and SSPL since 2021, with AGPL added as a third option (announced August 2024); some features depend on the subscription tier. **OpenSearch** — Apache-2.0.
+- **Meilisearch** — community edition under MIT; some features (for example sharding) ship only in an enterprise edition under a commercial or Business Source License 1.1 that forbids production use without an agreement. **Typesense** — GPL-3.0.
+- **Algolia** — proprietary service; pricing scales with search and indexing operations.
+- **PostgreSQL extensions** — ParadeDB Community (pg_search) is AGPL-3.0, with a commercial enterprise edition; check each extension's license. They run inside the database; no new infrastructure, but they share resources with transactional traffic. Check whether your managed database offers the extension.
+- **Vespa** — Apache-2.0; heavier to operate.
+- **Vector databases** — licenses vary by product (several are Apache-2.0 or BSD); hosted tiers differ in features.
