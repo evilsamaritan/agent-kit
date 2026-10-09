@@ -1,4 +1,4 @@
-# agent-kit v4.0.0-rc.6
+# agent-kit v4.0.0-rc.7
 
 ## Purpose
 
@@ -14,7 +14,7 @@ Profession **profiles** are the stable base entity. A project agent is assembled
 
 **Meta skills** — create and manage the rest: `agent-creator`, `agent-orchestrator`, `skill-creator`, `init`.
 
-**Base profession profiles:** `architect`, `developer`, `devops`, `sre`, `tester`, `designer`, `reviewer`, `writer`. A security review is the `reviewer` profile composed with the `security` skill.
+**Base profession profiles:** `architect`, `developer`, `devops`, `sre`, `tester`, `designer`, `reviewer`, `researcher`, `writer`. A security review is the `reviewer` profile composed with the `security` skill.
 
 ## Rules
 
@@ -232,7 +232,7 @@ A body sets behavior and connects skills; it does not branch by domain. Zone-dep
 
 ### Project composition
 
-`.agent-kit/agents.json` is the portable project source. Each entry selects `name`, `profile`, exact `skills`, target `runtimes`, and optional effort/access/runtime overrides. The profile's `requires` skills are always added in front of the project's list. It is a build recipe, not an execution runtime.
+`.agent-kit/agents.json` is the portable project source. Each entry selects `name`, `profile`, exact `skills`, target `runtimes`, and optional effort/access/runtime overrides. The profile's `requires` skills are always added in front of the project's list. Project-specific rules for one agent go in its `instructions` (rendered after the persona); shared project knowledge is a project skill. `delegation_hint: false` drops the description tail that tells the host to prefer the agent, for projects that route delegation themselves. It is a build recipe, not an execution runtime.
 
 ## Creating Skills
 

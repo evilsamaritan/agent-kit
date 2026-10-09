@@ -29,7 +29,8 @@ Language rule: add the language skill when the kit has one (`javascript`, `pytho
 | Game rules and runtime / game-developer | developer | development, gamedev, the language and engine actually used; performance when frame budgets are routine |
 | Mobile app and its lifecycle / mobile-developer | developer | development, mobile, accessibility; kotlin for Android or KMP, javascript for React Native (iOS specifics live in the mobile skill's iOS reference) |
 | Cross-module decisions / architect | architect | architecture, development; relevant domain knowledge |
-| Independent code review / reviewer | reviewer | development; relevant implementation knowledge; architecture when boundaries are in scope |
+| Independent code review / reviewer | reviewer | development; relevant implementation knowledge; architecture when boundaries are in scope. An adversarial stance or a project severity scale goes in `instructions` |
+| Measurements, prototypes, spikes / researcher | researcher | performance, development, the language; the zone skill when the harness needs its tooling. Scratch-only by profession; name the scratch directory in `instructions` |
 | Security review / security-reviewer | reviewer | development, security; auth or compliance when in scope |
 | Test ownership / tester | tester | testing, the project language and framework |
 | Game scenarios and state transitions / game-tester | tester | testing, gamedev, the project language |
@@ -45,7 +46,7 @@ Language rule: add the language skill when the kit has one (`javascript`, `pytho
 | Small single-stack app | one developer with the zone skills, plus a tester when testing is a separate recurring job |
 | Service | backend-developer; tester, security-reviewer, or devops only where that work recurs |
 | Full-stack monorepo | frontend and backend developers when the boundaries are real; architect for coupled decisions; tester |
-| Library | developer, tester; architect for public-contract decisions; writer when documentation is a deliverable |
+| Library | developer, tester; architect for public-contract decisions; writer when documentation is a deliverable; researcher when performance claims are decided by measurement |
 | Data pipeline | data-developer; a tester for persistence behavior; sre when it runs in production with SLOs |
 | Web game | game-developer; a frontend-developer only for a substantial web UI; game-tester |
 | Mobile app | mobile-developer; backend-developer when the sync API lives in the project; tester |

@@ -27,7 +27,9 @@
 - [ ] `skills`, when present, are the intentional exact final set.
 - [ ] Every selected skill resolves from the project or installed Agent Kit.
 - [ ] Runtime list is a non-empty subset of `claude`, `codex`, `kimi`; omitted means Claude and Codex.
-- [ ] Effort, access, and runtime overrides use supported values.
+- [ ] Effort, access, and runtime overrides use supported values; Claude tool lists hold tool names, not specifiers.
+- [ ] `instructions`, when present, hold rules for that agent (not knowledge a project skill should carry) and no machine paths.
+- [ ] `delegation_hint` is off only when the project routes delegation itself.
 
 ## Claude target
 
@@ -35,7 +37,7 @@
 - [ ] Name, description, effort, skills, and tools match the composition; `model` appears only when the project pinned one.
 - [ ] `skills:` lists library skills as `agent-kit:<skill>` and `.claude/skills/` project skills by name; other project skills appear only as project-relative paths in the body.
 - [ ] Access-derived tools are honest unless explicitly overridden.
-- [ ] Generated marker and complete profile body are present.
+- [ ] Generated marker and complete profile body are present; `## Project instructions` follows the body when configured.
 - [ ] The package ships no Claude agent registry; project targets are materialized only when configured.
 
 ## Codex target

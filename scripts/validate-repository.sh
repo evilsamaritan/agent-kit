@@ -75,7 +75,9 @@ jq -n '{
       profile: "developer",
       skills: ["backend", "api-design", "database", "rust"],
       runtimes: ["claude", "codex", "kimi"],
-      codex: {effort: "high"}
+      codex: {effort: "high"},
+      instructions: ["Run `make check` before reporting.", "Never edit migrations/**."],
+      delegation_hint: false
     },
     {
       name: "tester",
@@ -116,6 +118,15 @@ grep -q '^tools: \[.*"Bash"' "$kimi_target" || err "materializer" "Kimi full acc
 grep -q 'sandbox_mode = "read-only"' "$project_test_dir/.codex/agents/reviewer.toml" || err "materializer" "read-only access did not reach Codex sandbox"
 grep -q 'agent-kit:backend' "$project_test_dir/.codex/agents/backend-developer.toml" || err "materializer" "Codex target does not name its library skills"
 grep -q '^skills: \["agent-kit:development", "agent-kit:backend"' "$project_test_dir/.claude/agents/backend-developer.md" || err "materializer" "Claude target does not preload required and library skills by qualified id"
+for target in "$project_test_dir/.claude/agents/backend-developer.md" "$project_test_dir/.codex/agents/backend-developer.toml" "$kimi_target"; do
+  grep -q 'Never edit migrations/\*\*' "$target" || err "materializer" "${target##*/} lacks the project instructions"
+  if grep -q 'generic subagent\|whenToUse' "$target"; then err "materializer" "${target##*/} carries a delegation hint although delegation_hint is false"; fi
+done
+grep -q 'generic subagent' "$project_test_dir/.codex/agents/tester.toml" || err "materializer" "default delegation hint missing"
+jq '.agents[0].claude = {disallowedTools: ["Bash(git commit:*)"]}' "$project_test_dir/.agent-kit/agents.json" > "$project_test_dir/.agent-kit/specifier-agents.json"
+if node "$repo_root/skills/agent-creator/scripts/materialize-agents.mjs" --project-root "$project_test_dir" --config "$project_test_dir/.agent-kit/specifier-agents.json" --dry-run >/dev/null 2>&1; then
+  err "materializer" "accepted a disallowedTools specifier that Claude Code would widen to the whole tool"
+fi
 
 mkdir -p "$collision_test_dir/.agent-kit" "$collision_test_dir/.claude/agents"
 jq -n '{schema_version: 1, agents: [{name: "backend", profile: "developer", runtimes: ["claude"]}]}' > "$collision_test_dir/.agent-kit/agents.json"

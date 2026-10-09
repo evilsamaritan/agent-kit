@@ -50,6 +50,7 @@ Only signals that change the selected skills are listed. A language with a skill
 | reviewer | Independent code review is routinely delegated. A recurring security review is a second reviewer instance with `security` (plus `auth` or `compliance` when in scope); do not add it only because every project needs secure code |
 | devops | Deployment, CI, containers, or infrastructure live in this repository |
 | sre | SLOs, incidents, operational readiness, or reliability reviews recur |
+| researcher | Benchmarks, performance profiles, spikes, or feasibility checks recur and decide design choices; the work runs in scratch and must not touch the repository |
 | designer | UX journeys and code-level design-system work recur |
 | writer | Human-facing technical documentation is a recurring deliverable |
 

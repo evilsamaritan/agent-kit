@@ -14,6 +14,7 @@ import {
   isGeneratedAgent,
   kitVersion,
   loadProfiles,
+  normalizeInstructions,
   renderAgentBrief,
   renderTarget,
   runtimeRegistry,
@@ -21,8 +22,8 @@ import {
 import { compareTargets, skillLocator } from '../../../scripts/profile-runtimes/shared.mjs'
 
 const toolkitRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..', '..', '..')
-const CONFIG_FIELDS = new Set(['schema_version', 'agents'])
-const SPEC_FIELDS = new Set(['name', 'profile', 'skills', 'runtimes', 'description', 'effort', 'access', ...RUNTIMES])
+const CONFIG_FIELDS = new Set(['schema_version', 'delegation_hint', 'agents'])
+const SPEC_FIELDS = new Set(['name', 'profile', 'skills', 'runtimes', 'description', 'instructions', 'delegation_hint', 'effort', 'access', ...RUNTIMES])
 const NAME = /^[a-z0-9]+(?:-[a-z0-9]+)*$/
 // Names retired in 4.0; agent-creator's configure-project workflow migrates them.
 const RETIRED_PROFILES = new Set(['frontend', 'backend'])
@@ -81,7 +82,12 @@ function readConfig(path) {
     if (!CONFIG_FIELDS.has(key)) throw new Error(`agents.json has unsupported field "${key}"`)
   }
   if (config.schema_version !== 1) throw new Error('agents.json schema_version must be 1')
+  if (config.delegation_hint !== undefined && typeof config.delegation_hint !== 'boolean') throw new Error('agents.json delegation_hint must be true or false')
   if (!Array.isArray(config.agents)) throw new Error('agents.json must contain an agents array')
+  // The project-wide delegation_hint is the default for every entry.
+  if (config.delegation_hint !== undefined) {
+    config.agents = config.agents.map((spec) => (spec && typeof spec === 'object' && !Array.isArray(spec) && spec.delegation_hint === undefined ? { ...spec, delegation_hint: config.delegation_hint } : spec))
+  }
   return config
 }
 
@@ -119,6 +125,8 @@ function validateSpec(spec, profiles, names) {
   if (spec.description !== undefined && (typeof spec.description !== 'string' || !spec.description.trim() || spec.description.includes('\n'))) {
     throw new Error(`${spec.name}: description must be a non-empty single-line string`)
   }
+  if (spec.delegation_hint !== undefined && typeof spec.delegation_hint !== 'boolean') throw new Error(`${spec.name}: delegation_hint must be true or false`)
+  normalizeInstructions(spec.instructions, spec.name)
   if (spec.effort !== undefined && !CORE_EFFORT.includes(spec.effort)) throw new Error(`${spec.name}: effort must be one of ${CORE_EFFORT.join(', ')}`)
   if (spec.access !== undefined && !ACCESS.includes(spec.access)) throw new Error(`${spec.name}: access must be one of ${ACCESS.join(', ')}`)
   for (const runtime of runtimeRegistry.values()) {

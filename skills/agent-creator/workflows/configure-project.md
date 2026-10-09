@@ -16,6 +16,8 @@ For each requested project agent:
 3. Replace the list with the smallest exact set matching the project stack and the agent's routine responsibilities.
 4. Keep profile default effort and access. Leave models inherited unless the request or project constraints need a specific alias or ID; preserve a model the project already pinned.
 5. Use a profession name or meaningful responsibility such as `frontend-developer`. Add a subsystem prefix only for an actual split; do not derive names from the list of skills. Preserve existing names. Read `../references/project-agent-recipes.md` for starting recipes.
+6. Place project-specific text where it belongs (`../references/project-config.md`, "Project text"): always-on rules for one agent go in its `instructions`; shared or long knowledge goes in a project skill listed in `skills`. When migrating hand-written agents, move their rules this way instead of leaving them in the native file.
+7. Set `delegation_hint: false` (top level, or per agent) when the project routes delegation through its own workflow or hooks that name agent types; otherwise keep the default so the host prefers the composed agents.
 
 If a required knowledge skill does not exist, invoke `skill-creator` first. If no profession profile fits, use [maintain-profile.md](maintain-profile.md) only when working in the Agent Kit source repository; otherwise explain that the library needs a new profile rather than inventing a project-only profession body.
 
@@ -67,6 +69,8 @@ No script is needed; edit the project files directly:
    - A `security` profile entry becomes `reviewer` with `security` (plus `auth` or `compliance` when in scope); keep the agent name. The reviewer is read-only by default, so set `access` only if it must run commands.
    - Renamed skills: `visualization` → `playground`. Removed skills: drop `hook-creator` and `update-config`.
    - Keep explicit model, effort, access, and tool choices the project made; drop entries that only restated old library defaults.
+   - `claude.disallowedTools` or `claude.tools` entries with a specifier (`Bash(git commit:*)`, `Edit(docs/**)`) are rejected from rc.7: earlier versions silently dropped the whole tool. Move command and path rules to `permissions` in the project's Claude settings and keep tool names in the lists.
+   - Rules that used to be pasted into native agent files (gates, forbidden paths, report language, a review stance) go into the entry's `instructions`; longer shared material becomes a project skill.
    - Projects without `agents.json` (3.x used plugin agents): create one from the recipes.
 3. Search project instructions, hooks, and scripts for `agent-kit:<profile>` agent references (3.x plugin agents) and for the removed `--portable` flag; point them at the project agent names and drop the flag.
 4. Show the user the old and new `agents.json` side by side before writing it.

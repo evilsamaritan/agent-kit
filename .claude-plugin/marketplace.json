@@ -11,7 +11,7 @@
       "name": "agent-kit",
       "source": "./",
       "description": "Reusable profession profiles and engineering skills that materialize native Claude Code, Codex, and Kimi Code project agents without replacing any runtime's orchestration.",
-      "version": "4.0.0-rc.6"
+      "version": "4.0.0-rc.7"
     }
   ]
 }

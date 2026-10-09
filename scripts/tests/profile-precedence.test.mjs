@@ -1,7 +1,8 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
 import { fileURLToPath } from 'node:url'
-import { composeAgent, composeSkills, loadProfiles, renderAgentBrief, renderTarget } from '../profile-lib.mjs'
+import { composeAgent, composeSkills, compositionFingerprint, loadProfiles, renderAgentBrief, renderTarget, runtimeRegistry } from '../profile-lib.mjs'
+import { compareTargets } from '../profile-runtimes/shared.mjs'
 
 const root = fileURLToPath(new URL('../../', import.meta.url))
 const profiles = loadProfiles(root)
@@ -28,9 +29,49 @@ test('explicit project runtime tools remain the final choice', () => {
   assert.equal(toolsLine(renderTarget('claude', agent)), 'tools: ["Read", "Bash"]')
 })
 
-test('disallowed tools are removed from the resolved allowlist', () => {
-  const agent = composeAgent(sre, { claude: { disallowedTools: ['Bash(rm *)', 'WebFetch'] } })
-  assert.deepEqual(agent.claude.tools.filter((tool) => ['Bash', 'WebFetch'].includes(tool)), [])
+test('disallowed tool names are removed from the resolved allowlist; specifiers are rejected, not truncated', () => {
+  const agent = composeAgent(sre, { claude: { disallowedTools: ['WebFetch'] } })
+  assert.deepEqual(agent.claude.tools.filter((tool) => ['Bash', 'WebFetch'].includes(tool)), ['Bash'])
+  const claude = runtimeRegistry.get('claude')
+  // Claude Code removes the whole tool for a specifier entry; writing one would look narrower than it is.
+  assert.throws(() => claude.validate({ disallowedTools: ['Bash(git commit:*)'] }, 'spec'), /disallowedTools entry "Bash\(git commit:\*\)" is not a tool name.*permissions/)
+  assert.throws(() => claude.validate({ tools: ['Read', 'Edit(docs/**)'] }, 'spec'), /tools entry "Edit\(docs\/\*\*\)" is not a tool name/)
+  assert.throws(() => claude.validate({ tools: ['Agent(worker)'] }, 'spec'), /not a tool name/)
+  assert.doesNotThrow(() => claude.validate({ tools: ['Read', 'mcp__github', 'mcp__db__query', 'mcp__db__*'], disallowedTools: ['mcp__*', 'WebFetch'] }, 'spec'))
+})
+
+test('project instructions follow the profession body in every runtime and round-trip through the diff', () => {
+  const text = 'Run `cargo fmt --check` before reporting.\nNever edit tests/**.\nReport in Russian.'
+  const agent = composeAgent(developer, { name: 'ox-implementer', skills: ['rust'], instructions: ['Run `cargo fmt --check` before reporting.', 'Never edit tests/**.', 'Report in Russian.'] })
+  assert.equal(agent.instructions, text)
+  for (const id of ['claude', 'codex', 'kimi']) {
+    const runtime = runtimeRegistry.get(id)
+    const target = renderTarget(id, agent)
+    const parsed = runtime.parse(target)
+    assert.equal(parsed.instructions, text, id)
+    assert.equal(parsed.body, developer.body.trimEnd(), `${id}: instructions do not leak into the profile body`)
+    assert.deepEqual(parsed.skills, ['development', 'rust'], id)
+    const bodyAt = target.indexOf('## Role — implementer')
+    const instructionsAt = target.indexOf('## Project instructions')
+    const sourcesAt = target.indexOf('## Selected knowledge sources')
+    assert(bodyAt < instructionsAt && instructionsAt < sourcesAt, `${id}: body, then instructions, then sources`)
+    const plain = runtime.parse(renderTarget(id, composeAgent(developer, { name: 'ox-implementer', skills: ['rust'] })))
+    const diff = compareTargets(plain, parsed)
+    assert.equal(diff.kind, 'semantic')
+    assert.deepEqual(diff.changes, ['project instructions changed'], id)
+  }
+  assert.match(renderAgentBrief(agent), /## Project instructions\n\nRun `cargo fmt --check`/)
+  assert.throws(() => composeAgent(developer, { name: 'a', instructions: '' }), /instructions must not be empty/)
+  assert.throws(() => composeAgent(developer, { name: 'a', instructions: ['ok', 3] }), /instructions must be a non-empty string or an array of strings/)
+  assert.throws(() => composeAgent(developer, { name: 'a', instructions: 'x\n## Selected knowledge sources\ny' }), /must not contain the heading/)
+})
+
+test('instructions and delegation_hint enter the fingerprint only when set, so 4.0 fingerprints survive', () => {
+  const spec = { name: 'reviewer', profile: 'reviewer', skills: ['architecture'] }
+  const print = (recipe) => compositionFingerprint(composeAgent(reviewer, recipe), 'claude', [{ name: 'architecture', path: 'agent-kit:architecture' }])
+  assert.equal(print(spec), print({ ...spec, delegation_hint: true }))
+  assert.notEqual(print(spec), print({ ...spec, delegation_hint: false }))
+  assert.notEqual(print(spec), print({ ...spec, instructions: 'Never commit.' }))
 })
 
 test('portable effort overrides library runtime effort; explicit runtime effort wins', () => {

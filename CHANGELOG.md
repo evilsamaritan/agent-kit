@@ -1,5 +1,30 @@
 # Changelog
 
+## 4.0.0-rc.7
+
+Closes the gaps a project with hand-written, workflow-driven agents hit when migrating to `agents.json`.
+
+### Added
+
+- `researcher` profile: measurements, prototypes, and investigations that write only to a scratch directory, never the repository. Evidence discipline is in the body: every number with its command and verbatim output, at least three runs with their spread, negative results reported. Roles implementer and writer; default skills `performance` and `development` (`performance` required); effort high, access full. The language skill comes from the project.
+- `instructions` on an `agents.json` entry: project-specific rules (gates, forbidden paths, report language and structure, documents to read first, a review stance) rendered after the profession body as `## Project instructions` in every runtime target and in `--brief`. A string or an array of strings. Part of the composition fingerprint; `--dry-run` reports `project instructions changed`. Project skills remain the home for shared or long knowledge; `project-config.md` says which text goes where.
+- `delegation_hint` (top level and per agent): `false` keeps the description exactly as written and omits Kimi's default `whenToUse`, for projects that route delegation through their own workflow or hooks. Omitted means the rc.6 behavior.
+
+### Changed
+
+- `reviewer` profile states its stance, severity scale, and verdict words once as defaults a project assignment or `instructions` may replace; an adversarial stance or a blocker / high / medium / low scale no longer contradicts the persona. The default stance and scale are unchanged; `--dry-run` reports the body change.
+- Claude `tools` and `disallowedTools` entries must be tool names or `mcp__<server>` patterns. A specifier such as `Bash(git commit:*)` or `Edit(docs/**)` is now a validation error: Claude Code documents that a `disallowedTools` specifier still removes the whole tool, and earlier materializer versions silently dropped `Bash` from `tools` while writing the pattern. Command and path rules belong in `permissions` of the project's Claude settings.
+- Fingerprints of agents without the new fields are unchanged, so an upgrade rewrites a target only when its description, body, or composition changed.
+
+### Not validated on purpose
+
+- `effort` is not checked against the model: the levels a model supports are host knowledge that changes with releases, and Claude Code falls back to the highest level the active model supports at or below the one set. `haiku` with `xhigh` passes validation and runs at what the host allows.
+
+### Upgrade
+
+- Any `claude.disallowedTools` or `claude.tools` entry with a parenthesized specifier fails validation; replace it with the tool name and move the rule to Claude settings `permissions`.
+- Reviewer agents regenerate with the reworded body. Run `materialize-agents.mjs --dry-run`, then regenerate.
+
 ## 4.0.0-rc.6
 
 ### Changed

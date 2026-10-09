@@ -5,6 +5,7 @@ import {
   knowledgeInstructions,
   layered,
   oneLine,
+  projectInstructions,
   readProvenance,
   splitKnowledge,
   stringList,
@@ -77,20 +78,22 @@ export const kimi = {
   },
 
   render(agent, sources, source, provenance) {
-    for (const [label, text] of [['profile body', agent.body], ['description', agent.description]]) {
+    for (const [label, text] of [['profile body', agent.body], ['description', agent.description], ['project instructions', agent.instructions ?? '']]) {
       const used = [...new Set([...text.matchAll(TEMPLATE)].map((match) => match[0]))]
       if (used.length) throw new Error(`${agent.name}: ${label} contains Kimi template variable(s) ${used.join(', ')}; Kimi would substitute them`)
     }
     const settings = agent.kimi
     const lines = ['---', `name: ${agent.name}`, `description: ${JSON.stringify(agent.description)}`]
     // Kimi lists description and whenToUse for every agent next to its built-in coder
-    // and explore; the default whenToUse says when this project agent wins.
-    lines.push(`whenToUse: ${JSON.stringify(settings.whenToUse ?? defaultWhenToUse(agent))}`)
+    // and explore; the default whenToUse says when this project agent wins unless
+    // the project turned the delegation hint off.
+    const whenToUse = settings.whenToUse ?? (agent.delegationHint === false ? undefined : defaultWhenToUse(agent))
+    if (whenToUse !== undefined) lines.push(`whenToUse: ${JSON.stringify(whenToUse)}`)
     lines.push(`tools: ${yamlList(settings.tools)}`)
     if (settings.disallowedTools?.length) lines.push(`disallowedTools: ${yamlList(settings.disallowedTools)}`)
     if (settings.subagents) lines.push(`subagents: ${yamlList(settings.subagents)}`)
     lines.push('---', '', generatedComments(source, provenance, true), '')
-    return `${lines.join('\n')}${BASE}${identity(agent)}${agent.body.trimEnd()}${knowledgeInstructions(sources, SOURCES_INTRO)}${HANDOFF}\n`
+    return `${lines.join('\n')}${BASE}${identity(agent)}${agent.body.trimEnd()}${projectInstructions(agent)}${knowledgeInstructions(sources, SOURCES_INTRO)}${HANDOFF}\n`
   },
 
   parse(content) {
@@ -107,6 +110,6 @@ export const kimi = {
     }
     const knowledge = splitKnowledge(text)
     const skills = Object.keys(knowledge.sources)
-    return { name, description, skills, settings, body: knowledge.body, sources: knowledge.sources, provenance: readProvenance(content) }
+    return { name, description, skills, settings, body: knowledge.body, instructions: knowledge.instructions, sources: knowledge.sources, provenance: readProvenance(content) }
   },
 }

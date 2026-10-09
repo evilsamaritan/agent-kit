@@ -1,0 +1,3 @@
+# Claude Code overlay. Model is omitted so the agent inherits the session choice;
+# projects pin aliases or IDs in .agent-kit/agents.json when they need to.
+color: green

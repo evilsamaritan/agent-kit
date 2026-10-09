@@ -3,9 +3,28 @@ import { existsSync, readFileSync, readdirSync } from 'node:fs'
 import { join } from 'node:path'
 import { parseFlatYaml, splitFrontmatter } from './profile-format.mjs'
 import { DEFAULT_RUNTIMES, RUNTIMES, runtimeRegistry } from './profile-runtimes/index.mjs'
-import { ACCESS, CORE_EFFORT, isGeneratedAgent } from './profile-runtimes/shared.mjs'
+import { ACCESS, CORE_EFFORT, RESERVED_HEADINGS, isGeneratedAgent } from './profile-runtimes/shared.mjs'
 
 export { ACCESS, CORE_EFFORT, DEFAULT_RUNTIMES, RUNTIMES, isGeneratedAgent, runtimeRegistry }
+
+// Project instructions are one text in agents.json: a string, or an array of
+// strings joined by newlines so JSON stays readable. Headings the renderer owns
+// are reserved, because the diff parser splits the rendered body on them.
+export function normalizeInstructions(value, label) {
+  if (value === undefined) return undefined
+  const parts = Array.isArray(value) ? value : [value]
+  if (!parts.length || parts.some((part) => typeof part !== 'string')) {
+    throw new Error(`${label}: instructions must be a non-empty string or an array of strings`)
+  }
+  const text = parts.join('\n').trim()
+  if (!text) throw new Error(`${label}: instructions must not be empty`)
+  for (const heading of RESERVED_HEADINGS) {
+    if (new RegExp(`^${heading.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\s*$`, 'm').test(text)) {
+      throw new Error(`${label}: instructions must not contain the heading "${heading}"; the generated target owns it`)
+    }
+  }
+  return text
+}
 
 const CORE_FIELDS = new Set(['name', 'description', 'role', 'skills', 'requires', 'effort', 'access'])
 const NAME_PATTERN = /^[a-z0-9]+(?:-[a-z0-9]+)*$/
@@ -128,6 +147,8 @@ export function composeAgent(profile, spec = {}) {
     effort: portable.effort,
     access: portable.access,
     body: profile.body,
+    instructions: normalizeInstructions(spec.instructions, spec.name ?? profile.name),
+    delegationHint: spec.delegation_hint !== false,
   }
   for (const runtime of runtimeRegistry.values()) {
     agent[runtime.id] = runtime.resolve(profile[runtime.id] ?? {}, spec[runtime.id] ?? {}, portable)
@@ -159,6 +180,9 @@ export function compositionFingerprint(agent, runtimeId, sources = []) {
     settings: agent[runtimeId] ?? {},
     sources: sources.map(({ name, path }) => [name, path]),
   }
+  // Added only when set, so agents without them keep their 4.0 fingerprints.
+  if (agent.instructions) inputs.instructions = agent.instructions
+  if (agent.delegationHint === false) inputs.delegationHint = false
   return createHash('sha256').update(stable(inputs)).digest('hex').slice(0, 16)
 }
 
@@ -173,7 +197,8 @@ export function renderTarget(runtimeId, agent, sources, source = `profile ${agen
 export function renderAgentBrief(agent, sources = []) {
   const byName = new Map(sources.map((entry) => [entry.name, entry.path]))
   const list = agent.skills.map((skill) => `- ${skill}${byName.has(skill) ? `: ${JSON.stringify(byName.get(skill))}` : ''}`).join('\n')
-  return `# ${agent.name}\n\nResponsibility: ${agent.description}\nProfile: ${agent.profile}\n\n${agent.body.trimEnd()}\n\n## Selected knowledge\n\nLoad relevant bodies from these selected sources and deeper references only as needed:\n\n${list || 'No default knowledge selected.'}\n\nThe caller supplies the bounded task, file ownership, inputs, deliverable, and required evidence. This brief conveys behavior and knowledge; it does not enforce native tool, sandbox, model, effort, or preload settings absent from the host API.\n`
+  const instructions = agent.instructions ? `\n\n## Project instructions\n\n${agent.instructions.trim()}` : ''
+  return `# ${agent.name}\n\nResponsibility: ${agent.description}\nProfile: ${agent.profile}\n\n${agent.body.trimEnd()}${instructions}\n\n## Selected knowledge\n\nLoad relevant bodies from these selected sources and deeper references only as needed:\n\n${list || 'No default knowledge selected.'}\n\nThe caller supplies the bounded task, file ownership, inputs, deliverable, and required evidence. This brief conveys behavior and knowledge; it does not enforce native tool, sandbox, model, effort, or preload settings absent from the host API.\n`
 }
 
 export function renderProfileReference(profile) {

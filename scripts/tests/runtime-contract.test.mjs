@@ -35,8 +35,8 @@ test('model availability belongs to the host: any current alias or ID is accepte
 })
 
 test('YAML overlays and JSON project overrides normalize to the same types', () => {
-  const overlay = parseFlatYaml('maxTurns: 20\nbackground: true\ntools: [Read, "Bash(git *)"]\nmodel: "claude-opus-5-5"', 'test')
-  assert.deepEqual(overlay, { maxTurns: 20, background: true, tools: ['Read', 'Bash(git *)'], model: 'claude-opus-5-5' })
+  const overlay = parseFlatYaml('maxTurns: 20\nbackground: true\ntools: [Read, "mcp__github__*"]\nmodel: "claude-opus-5-5"', 'test')
+  assert.deepEqual(overlay, { maxTurns: 20, background: true, tools: ['Read', 'mcp__github__*'], model: 'claude-opus-5-5' })
   claude.validate(overlay, 'test')
 })
 
@@ -164,4 +164,19 @@ test('generated agents tell the host to prefer them over generic subagents', () 
   assert.match(kimiTarget, /^description: "Review game changes\."$/m)
   assert.match(kimiTarget, /^whenToUse: "Use instead of the built-in explore or coder/m)
   assert.match(renderTarget('kimi', composeAgent(reviewer, { kimi: { whenToUse: 'Code reviews only' } })), /^whenToUse: "Code reviews only"$/m)
+})
+
+test('delegation_hint: false keeps the description as written and omits the Kimi default whenToUse', () => {
+  const agent = composeAgent(reviewer, { name: 'ox-reviewer', description: 'Adversarial review of the uncommitted diff.', delegation_hint: false })
+  for (const id of ['claude', 'codex']) {
+    const target = renderTarget(id, agent)
+    assert.equal(runtimeRegistry.get(id).parse(target).description, 'Adversarial review of the uncommitted diff.', id)
+    assert.doesNotMatch(target, /generic subagent/, id)
+  }
+  const kimiTarget = renderTarget('kimi', agent)
+  assert.doesNotMatch(kimiTarget, /^whenToUse:/m)
+  assert.match(renderTarget('kimi', composeAgent(reviewer, { ...agent, delegation_hint: false, kimi: { whenToUse: 'Only from ox-tact' } })), /^whenToUse: "Only from ox-tact"$/m)
+  // Turning the hint off is a description change the diff reports, so --check catches a stale target.
+  const on = claude.parse(renderTarget('claude', composeAgent(reviewer, { name: 'ox-reviewer', description: 'Adversarial review of the uncommitted diff.' })))
+  assert.deepEqual(compareTargets(on, claude.parse(renderTarget('claude', agent))).changes, ['description changed'])
 })
