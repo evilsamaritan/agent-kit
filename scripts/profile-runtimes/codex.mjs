@@ -7,9 +7,11 @@ import {
   knowledgeInstructions,
   layered,
   modelName,
+  projectInstructions,
   readProvenance,
   splitKnowledge,
   validateFields,
+  delegationDescription,
 } from './shared.mjs'
 
 const CODEX_EFFORT = [...CORE_EFFORT, 'ultra']
@@ -60,8 +62,8 @@ export const codex = {
   // name (plugin skills are `agent-kit:<skill>`) or project-relative path.
   render(agent, sources, source, provenance) {
     const settings = agent.codex
-    const instructions = `${identity(agent)}${agent.body.trimEnd()}${knowledgeInstructions(sources, SOURCES_INTRO)}\n`
-    const lines = [generatedComments(source, provenance), `name = ${JSON.stringify(agent.name)}`, `description = ${JSON.stringify(agent.description)}`]
+    const instructions = `${identity(agent)}${agent.body.trimEnd()}${projectInstructions(agent)}${knowledgeInstructions(sources, SOURCES_INTRO)}\n`
+    const lines = [generatedComments(source, provenance), `name = ${JSON.stringify(agent.name)}`, `description = ${JSON.stringify(delegationDescription(agent))}`]
     if (settings.model) lines.push(`model = ${JSON.stringify(settings.model)}`)
     lines.push(
       `model_reasoning_effort = ${JSON.stringify(settings.effort)}`,
@@ -91,6 +93,6 @@ export const codex = {
     const skills = [...new Set([...legacy, ...Object.keys(knowledge.sources)])]
     const settings = { effort: top.model_reasoning_effort, sandbox_mode: top.sandbox_mode }
     if (top.model !== undefined) settings.model = top.model
-    return { name: top.name, description: top.description, skills, settings, body: knowledge.body, sources, provenance: readProvenance(content) }
+    return { name: top.name, description: top.description, skills, settings, body: knowledge.body, instructions: knowledge.instructions, sources, provenance: readProvenance(content) }
   },
 }

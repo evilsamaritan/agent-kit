@@ -8,7 +8,7 @@ Extract the required outcome, constraints, affected areas, write permissions, ex
 
 1. Inspect `.agent-kit/agents.json` when present.
 2. Inspect the current runtime's native project-agent directory.
-3. Match agents by description and configured skills, not by name alone.
+3. Match agents by configured skills and profession, not by name alone. The description is the agent's default responsibility; the assignment in Step 4 may narrow it to the files and boundaries this task needs.
 4. If no project agent fits, read `../references/profile-catalog.md`, then load only the selected profile reference.
 5. If the missing composition should persist beyond this task, invoke `agent-creator` before execution. Otherwise use the profile persona as an ephemeral fallback.
 6. Check whether the current host's delegation tool can select the named agent and apply its config. A discovered file or mention without a named-agent selector is not sufficient.
@@ -33,7 +33,7 @@ When several writers will extend the same family of variants or the same pattern
 For every agent, specify:
 
 - concrete objective and explicit non-goals;
-- inputs and relevant paths;
+- inputs and relevant paths, including a settled design or specification the agent implements rather than re-opens;
 - whether it may edit;
 - unique file ownership when parallel writes are allowed;
 - expected result shape;

@@ -85,7 +85,6 @@ When invoked with an argument, `design` or `review` selects the workflow and the
 | Reason about state, scale, consistency, failure, and compatibility across a system | [system-design.md](references/system-design.md) |
 | Coordinate state and messages across owners: repository, saga, outbox, CQRS | [integration-patterns.md](references/integration-patterns.md) |
 | Select or draw architecture views | [architecture-views.md](references/architecture-views.md) |
-| Turn an agreed architecture into a polished responsive HTML explorer | finish the model and views, then combine with `playground` |
 | Record a consequential decision or keep a decision log | [adr-template.md](references/adr-template.md) |
 | Assess health, technical debt, fitness checks, or a migration strategy | [engineering-health.md](references/engineering-health.md) |
 
@@ -201,7 +200,6 @@ Communication:
 - `development` — the practice inside a module: units, variant families, dependencies, async lifetime, errors, refactoring
 - `grill-me` — settle requirements and open decisions with the user before designing
 - `diagrams` — notation, source, and compilation for the views this skill selects
-- `playground` — turns an agreed architecture model and its views into a polished responsive HTML explorer
 - `api-design` — protocol and compatibility design for exposed contracts
 - `database` — physical schema, constraints, isolation, indexes, migrations, and query realization; architecture retains semantic state authority and invariant boundaries
 - `reliability` — failure handling, SLOs, and recovery
@@ -232,6 +230,6 @@ By scale:
 
 Outputs and health:
 
-- [architecture-views.md](references/architecture-views.md) — view selection, direct diagramming, and the optional playground handoff
+- [architecture-views.md](references/architecture-views.md) — view selection and direct diagramming
 - [adr-template.md](references/adr-template.md) — decision records and the decision log
 - [engineering-health.md](references/engineering-health.md) — health signals, technical debt, fitness functions, migration strategies

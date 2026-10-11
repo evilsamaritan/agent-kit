@@ -14,6 +14,7 @@ argument-hint: "[task or agent composition]"
 - Discover project agents first, then verify that the current host can actually select a named custom agent. File presence alone is not a capability check.
 - Pick the smallest useful composition. One specialist is a valid team; use several only for independent work or distinct review lenses.
 - Give every agent a bounded task, inputs, file scope, expected output, and verification requirement.
+- A project agent's description is its default responsibility, not a limit on the assignment. When a task needs a different split — for example a headless model and a renderer inside one area — give configured agents narrowed assignments (files they own, files they must not touch, the settled design they implement) instead of falling back to bare generic subagents, which carry none of the composed profession and skills. When the split recurs, propose a new agent through `agent-creator`.
 - Parallel writers must have disjoint file ownership or native worktree isolation. Otherwise run them sequentially.
 - Keep the main thread responsible for requirements, decisions, coordination, and final synthesis. Return compressed findings, not raw agent transcripts.
 - When the main thread writes code itself, it loads `development` first; otherwise it hands the code to an agent that carries it.

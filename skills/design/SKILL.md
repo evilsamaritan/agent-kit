@@ -19,7 +19,7 @@ Patterns for designing and reviewing user experiences from the code side: journe
 - Touch gestures and platform conventions: `mobile`
 - Framework and build tooling: `frontend`, `react`, `vue`
 - Content structure for search: `seo`
-- Relationship and flow diagrams as code: `diagrams`; interactive chart pages: `playground`
+- Relationship and flow diagrams as code: `diagrams`
 - Visual identity and branding
 
 ## Decision tree: IA shape

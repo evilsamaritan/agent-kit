@@ -5,6 +5,7 @@ import {
   knowledgeInstructions,
   layered,
   oneLine,
+  projectInstructions,
   readProvenance,
   splitKnowledge,
   stringList,
@@ -24,11 +25,16 @@ const KIMI_TOOLS_BY_ACCESS = {
 const KIMI_TEMPLATE_VARIABLES = ['base_prompt', 'skills', 'skills_section', 'agents_md', 'cwd', 'cwd_listing', 'os', 'windows_notes', 'shell', 'now', 'role_additional', 'plugin_sections', 'additional_dirs_info', 'additional_dirs_section']
 const TEMPLATE = new RegExp(`\\$\\{(${KIMI_TEMPLATE_VARIABLES.join('|')})\\}`, 'g')
 
-const SOURCES_INTRO = 'Load these selected knowledge skills when relevant before acting with the Skill tool, by the exact quoted name; load linked references only as needed. The skill index below lists where each one is installed.'
+const SOURCES_INTRO = 'Load these selected knowledge skills when relevant before acting with the Skill tool, by the exact quoted name; load linked references only as needed. The skill index in the base prompt lists where each one is installed.'
 const identity = (agent) => `You are the project custom agent "${agent.name}", materialized from the Agent Kit profession profile "${agent.profile}".\n\n`
-// A custom sub-agent body owns its whole system prompt. Bring back the project
-// instructions and skill index on purpose, and define the handoff.
-const CONTEXT = '\n\n## Project context\n\n${agents_md}\n\n## Available skills\n\n${skills}\n\n## Handoff\n\nYour final message is returned to the delegating agent. Make it the complete, self-contained result: what you did, the evidence, and anything left open.'
+// A custom sub-agent body owns its whole system prompt. Start from Kimi's own base
+// prompt (operating and safety rules, tools, AGENTS.md as project reference data,
+// the skill index, the working directory), then add the profession and the handoff.
+const defaultWhenToUse = (agent) => agent.access === 'read-only'
+  ? 'Use instead of the built-in explore or coder for this work in this project, including a narrower scope inside it. Give it the scope to check and the settled design or specification to check against.'
+  : 'Use instead of the built-in coder for this work in this project, including a narrower task inside it (a module, a layer, a set of files). Give it the files it owns and the settled design it follows.'
+const BASE = '${base_prompt}\n\n# Project agent\n\n'
+const HANDOFF = '\n\n## Handoff\n\nYour final message is returned to the delegating agent. Make it the complete, self-contained result: what you did, the evidence, and anything left open.'
 
 export const kimi = {
   id: 'kimi',
@@ -72,29 +78,38 @@ export const kimi = {
   },
 
   render(agent, sources, source, provenance) {
-    for (const [label, text] of [['profile body', agent.body], ['description', agent.description]]) {
+    for (const [label, text] of [['profile body', agent.body], ['description', agent.description], ['project instructions', agent.instructions ?? '']]) {
       const used = [...new Set([...text.matchAll(TEMPLATE)].map((match) => match[0]))]
       if (used.length) throw new Error(`${agent.name}: ${label} contains Kimi template variable(s) ${used.join(', ')}; Kimi would substitute them`)
     }
     const settings = agent.kimi
     const lines = ['---', `name: ${agent.name}`, `description: ${JSON.stringify(agent.description)}`]
-    if (settings.whenToUse) lines.push(`whenToUse: ${JSON.stringify(settings.whenToUse)}`)
+    // Kimi lists description and whenToUse for every agent next to its built-in coder
+    // and explore; the default whenToUse says when this project agent wins unless
+    // the project turned the delegation hint off.
+    const whenToUse = settings.whenToUse ?? (agent.delegationHint === false ? undefined : defaultWhenToUse(agent))
+    if (whenToUse !== undefined) lines.push(`whenToUse: ${JSON.stringify(whenToUse)}`)
     lines.push(`tools: ${yamlList(settings.tools)}`)
     if (settings.disallowedTools?.length) lines.push(`disallowedTools: ${yamlList(settings.disallowedTools)}`)
     if (settings.subagents) lines.push(`subagents: ${yamlList(settings.subagents)}`)
     lines.push('---', '', generatedComments(source, provenance, true), '')
-    return `${lines.join('\n')}${identity(agent)}${agent.body.trimEnd()}${knowledgeInstructions(sources, SOURCES_INTRO)}${CONTEXT}\n`
+    return `${lines.join('\n')}${BASE}${identity(agent)}${agent.body.trimEnd()}${projectInstructions(agent)}${knowledgeInstructions(sources, SOURCES_INTRO)}${HANDOFF}\n`
   },
 
   parse(content) {
     const issues = []
     const { front, body } = splitFrontmatter(content, 'target', issues)
     const { name, description, ...settings } = front
-    let text = stripGeneratedComments(body).replace(/^You are the project custom agent "[^"]*", materialized from the Agent Kit profession profile "[^"]*"\.\n\n/, '')
-    const context = text.indexOf('\n\n## Project context\n\n${agents_md}')
-    if (context !== -1) text = text.slice(0, context)
+    let text = stripGeneratedComments(body)
+      .replace(/^\$\{base_prompt\}\n\n# Project agent\n\n/, '')
+      .replace(/^You are the project custom agent "[^"]*", materialized from the Agent Kit profession profile "[^"]*"\.\n\n/, '')
+    // rc.4 and earlier appended project context and the skill index; later targets end with the handoff.
+    for (const marker of ['\n\n## Project context\n\n${agents_md}', '\n\n## Handoff\n\n']) {
+      const cut = text.indexOf(marker)
+      if (cut !== -1) text = text.slice(0, cut)
+    }
     const knowledge = splitKnowledge(text)
     const skills = Object.keys(knowledge.sources)
-    return { name, description, skills, settings, body: knowledge.body, sources: knowledge.sources, provenance: readProvenance(content) }
+    return { name, description, skills, settings, body: knowledge.body, instructions: knowledge.instructions, sources: knowledge.sources, provenance: readProvenance(content) }
   },
 }

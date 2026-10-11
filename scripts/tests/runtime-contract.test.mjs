@@ -35,8 +35,8 @@ test('model availability belongs to the host: any current alias or ID is accepte
 })
 
 test('YAML overlays and JSON project overrides normalize to the same types', () => {
-  const overlay = parseFlatYaml('maxTurns: 20\nbackground: true\ntools: [Read, "Bash(git *)"]\nmodel: "claude-opus-5-5"', 'test')
-  assert.deepEqual(overlay, { maxTurns: 20, background: true, tools: ['Read', 'Bash(git *)'], model: 'claude-opus-5-5' })
+  const overlay = parseFlatYaml('maxTurns: 20\nbackground: true\ntools: [Read, "mcp__github__*"]\nmodel: "claude-opus-5-5"', 'test')
+  assert.deepEqual(overlay, { maxTurns: 20, background: true, tools: ['Read', 'mcp__github__*'], model: 'claude-opus-5-5' })
   claude.validate(overlay, 'test')
 })
 
@@ -138,7 +138,9 @@ test('Kimi target: explicit allowlist by access, context restored on purpose, no
   assert.doesNotMatch(tools, /"(?:Edit|Write|Bash|Agent|AgentSwarm)"/)
   assert.match(tools, /"Read"/)
   assert.doesNotMatch(readOnly, /^(model|effort):/m)
-  for (const part of ['${agents_md}', '${skills}', '## Handoff', 'development: "development"', 'Skill tool']) assert(readOnly.includes(part), part)
+  for (const part of ['${base_prompt}', '## Handoff', 'development: "development"', 'Skill tool']) assert(readOnly.includes(part), part)
+  assert(readOnly.indexOf('${base_prompt}') < readOnly.indexOf('You are the project custom agent'), 'the base prompt comes first')
+  assert.doesNotMatch(readOnly, /\$\{(agents_md|skills)\}/, 'project context comes from the base prompt, not raw variables')
   const full = renderTarget('kimi', composeAgent(reviewer, { access: 'full' }))
   assert.match(full, /"Bash"/)
   assert.doesNotMatch(full, /"Agent"/)
@@ -149,4 +151,32 @@ test('Kimi rejects profile text that its template engine would substitute', () =
   assert.throws(() => renderTarget('kimi', { ...agent, body: `${agent.body}\nUse \${cwd} here.` }), /template variable/)
   assert.doesNotThrow(() => renderTarget('kimi', { ...agent, body: `${agent.body}\nconst x = \`\${value}\`` }))
   assert.throws(() => kimi.validate({ model: 'k2' }, 'spec'), /unsupported field "model"/)
+})
+
+test('generated agents tell the host to prefer them over generic subagents', () => {
+  const agent = composeAgent(reviewer, { name: 'game-reviewer', description: 'Review game changes.' })
+  for (const id of ['claude', 'codex']) {
+    const description = runtimeRegistry.get(id).parse(renderTarget(id, agent)).description
+    assert.match(description, /^Review game changes\. Project agent with the reviewer profession/)
+    assert.match(description, /instead of a generic subagent for this work, including a narrower task inside it\.$/)
+  }
+  const kimiTarget = renderTarget('kimi', agent)
+  assert.match(kimiTarget, /^description: "Review game changes\."$/m)
+  assert.match(kimiTarget, /^whenToUse: "Use instead of the built-in explore or coder/m)
+  assert.match(renderTarget('kimi', composeAgent(reviewer, { kimi: { whenToUse: 'Code reviews only' } })), /^whenToUse: "Code reviews only"$/m)
+})
+
+test('delegation_hint: false keeps the description as written and omits the Kimi default whenToUse', () => {
+  const agent = composeAgent(reviewer, { name: 'ox-reviewer', description: 'Adversarial review of the uncommitted diff.', delegation_hint: false })
+  for (const id of ['claude', 'codex']) {
+    const target = renderTarget(id, agent)
+    assert.equal(runtimeRegistry.get(id).parse(target).description, 'Adversarial review of the uncommitted diff.', id)
+    assert.doesNotMatch(target, /generic subagent/, id)
+  }
+  const kimiTarget = renderTarget('kimi', agent)
+  assert.doesNotMatch(kimiTarget, /^whenToUse:/m)
+  assert.match(renderTarget('kimi', composeAgent(reviewer, { ...agent, delegation_hint: false, kimi: { whenToUse: 'Only from ox-tact' } })), /^whenToUse: "Only from ox-tact"$/m)
+  // Turning the hint off is a description change the diff reports, so --check catches a stale target.
+  const on = claude.parse(renderTarget('claude', composeAgent(reviewer, { name: 'ox-reviewer', description: 'Adversarial review of the uncommitted diff.' })))
+  assert.deepEqual(compareTargets(on, claude.parse(renderTarget('claude', agent))).changes, ['description changed'])
 })

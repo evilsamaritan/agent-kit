@@ -70,7 +70,7 @@ Installing the plugin exposes skills and profile recipes. It does not register p
 
 ## Upgrading from 3.x
 
-4.0 removes the bundled Claude agents, replaces the `frontend`/`backend` profiles with `developer`, renames the `visualization` skill to `playground`, and stops pinning models in profiles. In the 4.0 release candidates the `security` profile became the `reviewer` profile with the `security` skill, and the Claude-only `hook-creator` and `update-config` skills were removed. Follow the upgrade notes in [CHANGELOG.md](CHANGELOG.md#upgrading-to-40), or ask `agent-creator` to migrate the project: it rewrites `.agent-kit/agents.json` for the new profiles and skills, and `materialize-agents.mjs --dry-run` shows what each agent gains or loses.
+4.0 removes the bundled Claude agents, replaces the `frontend`/`backend` profiles with `developer`, removes the `visualization` / `playground` skill, and stops pinning models in profiles. In the 4.0 release candidates the `security` profile became the `reviewer` profile with the `security` skill, and the Claude-only `hook-creator` and `update-config` skills were removed. Follow the upgrade notes in [CHANGELOG.md](CHANGELOG.md#upgrading-to-40), or ask `agent-creator` to migrate the project: it rewrites `.agent-kit/agents.json` for the new profiles and skills, and `materialize-agents.mjs --dry-run` shows what each agent gains or loses.
 
 ## Configure agents for a project
 

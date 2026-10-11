@@ -1,6 +1,6 @@
 # Architecture View Selection
 
-Use this reference to choose which views of an architecture to draw, to draw them directly in the design document, and to hand an agreed view set to the `playground` skill when a separate web explorer is required. Architecture owns the model and its concise diagrams; a diagram is part of the design, not decoration and not a handoff stub.
+Use this reference to choose which views of an architecture to draw, to draw them directly in the design document. Architecture owns the model and its concise diagrams; a diagram is part of the design, not decoration and not a handoff stub.
 
 ## Contents
 
@@ -12,7 +12,6 @@ Use this reference to choose which views of an architecture to draw, to draw the
 - [Current, target, and transition](#current-target-and-transition)
 - [Drawing views directly](#drawing-views-directly)
 - [View contract](#view-contract)
-- [Handoff to the playground skill](#handoff-to-the-playground-skill)
 - [Further reading](#further-reading)
 
 ## Choose a view by question
@@ -87,7 +86,7 @@ Keep identities, terminology, scope, and relative placement stable across them. 
 
 ## Drawing views directly
 
-Draw the selected views in the design document as diagram-as-code, text, or a host-native diagram. The `diagrams` skill owns notation choice, drawing rules ([core rules](../../diagrams/SKILL.md#core-rules)), and the text around a diagram ([source-contract.md](../../diagrams/references/source-contract.md#context-around-a-diagram)). Content that is not topological — containment-only ownership, timelines, comparison matrices — goes in a table or text tree. When a view will be handed to `playground`, presentation categories stay metadata; relationship labels and directions remain authoritative.
+Draw the selected views in the design document as diagram-as-code, text, or a host-native diagram. The `diagrams` skill owns notation choice, drawing rules ([core rules](../../diagrams/SKILL.md#core-rules)), and the text around a diagram ([source-contract.md](../../diagrams/references/source-contract.md#context-around-a-diagram)). Content that is not topological — containment-only ownership, timelines, comparison matrices — goes in a table or text tree.
 
 ## View contract
 
@@ -96,44 +95,6 @@ Beyond what `diagrams` requires next to every diagram (question, scope, status, 
 - relevant boundary or authority semantics: who owns which state, where trust changes;
 - which content is repository evidence, inference, proposal, or unknown;
 - its priority: primary, supporting, or appendix.
-
-## Handoff to the playground skill
-
-The `playground` skill is optional. Combine it only when the agreed model must become a polished responsive HTML explorer with themes, navigation, progressive disclosure, and browser-level render checks. It renders; it must not reinterpret boundaries or invent relationships. Architecture still edits the view set first: merge views with duplicate questions or takeaways, and move evidence inventories out of the primary navigation.
-
-```text
-Need to explain an architecture relationship?
-├── one or a few maintainable diagrams inside the design document
-│   └── architecture selects and draws them directly
-└── a separate responsive web explorer
-    └── architecture fixes the view contract; playground renders and verifies it
-```
-
-The handoff is a semantic contract, not pixel coordinates; the HTML layer may recompose a view for narrow widths as long as the facts stay the same. Give each selected view in this form:
-
-```markdown
-## View: module-dependencies
-
-- Question: Which modules depend on the environment contract?
-- Audience: implementation team
-- Scope / level: client application / Internal
-- Status / priority: target / primary
-- Takeaway: game modules depend on one stable environment contract
-
-### Entities
-| ID | Name | Type | Responsibility | Boundary or authority | Evidence status |
-|---|---|---|---|---|---|
-
-### Relationships
-| Source | Kind | Target | Label | Status | Order or cardinality |
-|---|---|---|---|---|---|
-
-- Canonical source: the diagram block or file in the project's language, a render model, or an exact source link
-- Compact projection: equivalent direction/layout or relationship-list rule
-- Textual equivalent: concise statement of the essential entities and relationships
-```
-
-Omit empty optional columns, but keep stable IDs, direction, status, and evidence explicit. Presentation choices — shell, themes, renderer, semantic color classes — belong to the `playground` skill.
 
 ## Further reading
 

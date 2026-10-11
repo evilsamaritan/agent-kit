@@ -41,6 +41,6 @@ dot -Tsvg -Grankdir=TB docs/diagrams/module-dependencies.dot -o docs/diagrams/mo
 
 `-G`, `-N`, and `-E` set graph, node, and edge attributes. They override initial attribute statements in the source (those before any node, edge, or subgraph), such as `rankdir=LR;`; attributes set on an individual node or edge still apply. Compare node identities and labels after any variant.
 
-Do not deliver an unreadable whole-repository graph because the compiler can draw it. Start from the relevant subgraph; very large graphs need an interactive viewer through `playground`.
+Do not deliver an unreadable whole-repository graph because the compiler can draw it. Start from the relevant subgraph; very large graphs need an interactive viewer.
 
 [DOT language](https://graphviz.org/doc/info/lang.html) · [Layout engines](https://graphviz.org/docs/layouts/) · [Command line](https://graphviz.org/doc/info/command.html)

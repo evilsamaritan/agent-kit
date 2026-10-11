@@ -124,7 +124,6 @@ Field table and config-file patterns: [patterns.md](references/patterns.md#confi
 
 - `architecture` — decision content, ADR template, and the design an architecture doc describes
 - `diagrams` — notation, source, and compilation for diagrams inside documents; this skill decides where the diagram goes and what the surrounding text says
-- `playground` — a separate explorable web page built from the document and its diagram sources
 - `api-design` — API reference docs describe contracts defined there
 - `release-engineering` — changelog production, versioning, release notes cadence
 - `observability`, `reliability` — runbooks, alerts, incident practice

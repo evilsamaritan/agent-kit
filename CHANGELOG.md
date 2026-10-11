@@ -1,5 +1,54 @@
 # Changelog
 
+## 4.0.0-rc.8
+
+### Removed
+
+- `playground`, including its HTML shell, templates, assets, and contract checks. Other skills no longer route work to it; their responsibilities are unchanged. Diagram authoring stays in `diagrams`.
+- The materializer hint to rename `visualization` to `playground`.
+
+### Upgrade
+
+Drop `playground` or its former name `visualization` from project skill lists in `.agent-kit/agents.json`, then regenerate native targets. No replacement skill is required.
+
+## 4.0.0-rc.7
+
+Closes the gaps a project with hand-written, workflow-driven agents hit when migrating to `agents.json`.
+
+### Added
+
+- `researcher` profile: measurements, prototypes, and investigations that write only to a scratch directory, never the repository. Evidence discipline is in the body: every number with its command and verbatim output, at least three runs with their spread, negative results reported. Roles implementer and writer; default skills `performance` and `development` (`performance` required); effort high, access full. The language skill comes from the project.
+- `instructions` on an `agents.json` entry: project-specific rules (gates, forbidden paths, report language and structure, documents to read first, a review stance) rendered after the profession body as `## Project instructions` in every runtime target and in `--brief`. A string or an array of strings. Part of the composition fingerprint; `--dry-run` reports `project instructions changed`. Project skills remain the home for shared or long knowledge; `project-config.md` says which text goes where.
+- `delegation_hint` (top level and per agent): `false` keeps the description exactly as written and omits Kimi's default `whenToUse`, for projects that route delegation through their own workflow or hooks. Omitted means the rc.6 behavior.
+
+### Changed
+
+- `reviewer` profile states its stance, severity scale, and verdict words once as defaults a project assignment or `instructions` may replace; an adversarial stance or a blocker / high / medium / low scale no longer contradicts the persona. The default stance and scale are unchanged; `--dry-run` reports the body change.
+- Claude `tools` and `disallowedTools` entries must be tool names or `mcp__<server>` patterns. A specifier such as `Bash(git commit:*)` or `Edit(docs/**)` is now a validation error: Claude Code documents that a `disallowedTools` specifier still removes the whole tool, and earlier materializer versions silently dropped `Bash` from `tools` while writing the pattern. Command and path rules belong in `permissions` of the project's Claude settings.
+- Fingerprints of agents without the new fields are unchanged, so an upgrade rewrites a target only when its description, body, or composition changed.
+
+### Not validated on purpose
+
+- `effort` is not checked against the model: the levels a model supports are host knowledge that changes with releases, and Claude Code falls back to the highest level the active model supports at or below the one set. `haiku` with `xhigh` passes validation and runs at what the host allows.
+
+### Upgrade
+
+- Any `claude.disallowedTools` or `claude.tools` entry with a parenthesized specifier fails validation; replace it with the tool name and move the rule to Claude settings `permissions`.
+- Reviewer agents regenerate with the reworded body. Run `materialize-agents.mjs --dry-run`, then regenerate.
+
+## 4.0.0-rc.6
+
+### Changed
+
+- Generated agents compete with the host's generic subagents out of the box. Claude Code and Codex descriptions end with when to prefer the project agent (its profession and selected skills) over a generic subagent, including for a narrower task inside its area; Kimi Code agents get a default `whenToUse` that says to use them instead of the built-in `coder` or `explore`. A project `kimi.whenToUse` still wins. Regenerate targets; `--dry-run` reports the description change.
+
+## 4.0.0-rc.5
+
+### Changed
+
+- Kimi Code agents start from Kimi's own `${base_prompt}` (operating and safety rules, AGENTS.md as reference data, the skill index, the working directory), then the profession body, the selected skills, and the handoff. Raw `${agents_md}` and `${skills}` sections are gone, so delegated Kimi agents keep the host's rules and the AGENTS.md framing. Regenerate Kimi targets; `--dry-run` reports a format-only change.
+- `agent-orchestrator`: a project agent's description is its default responsibility, and an assignment narrows it (owned files, forbidden areas, the settled design to implement). Prefer configured agents with narrowed assignments over bare generic subagents, which carry none of the composed profession and skills; propose a new agent when a different split recurs.
+
 ## 4.0.0-rc.4
 
 A full review of every skill, verified finding by finding, and the fixes it called for. Per-skill notes stay in the skills; this entry summarizes.
@@ -114,7 +163,7 @@ Agent Kit 4.0 ships profiles and skills, not a ready-made team. Project agents a
 |---|---|---|
 | Bundled Claude agents removed | `agent-kit:architect`, `agent-kit:reviewer`, and the other plugin agents no longer exist | Create project agents with `agent-creator` or `init`; until then the orchestrator uses a generic subagent with the profile brief |
 | `frontend` and `backend` profiles replaced by `developer` | `agents.json` entries with those profiles fail validation | Ask `agent-creator` to migrate the project, or set `profile: developer` and add the zone skills by hand |
-| `visualization` skill renamed to `playground` | explicit skill lists naming `visualization` fail validation | Rename it in `agents.json`; invoke `/agent-kit:playground` |
+| `visualization` / `playground` skill removed (rc.8) | explicit skill lists naming either fail validation | Drop them from `agents.json` and regenerate targets |
 | Profiles pin no model | agents that relied on library defaults now inherit the host model | Review the `--dry-run` diff; pin `claude.model` or `codex.model` where a specific model matters |
 | Portable generated targets (rc.2) | rc.1 targets with absolute plugin-cache paths fail `--check` | Regenerate once |
 | `security` profile removed (rc.4) | agents with `profile: security` fail validation | Use `profile: reviewer` with the `security` skill |
