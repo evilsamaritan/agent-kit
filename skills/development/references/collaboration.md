@@ -1,6 +1,6 @@
-# Collaboration Patterns in Code
+# Collaboration: Patterns Between Units
 
-Select a pattern from the pressure it resolves. Start with a direct implementation, then add structure only when variation, lifecycle, ownership, or failure behavior requires it. Patterns that coordinate owners across modules or services — repository and unit of work, saga, transactional outbox — belong to `architecture`.
+Use this reference when choosing how units work together: wrapping an operation, varying a policy, adapting an external model, sequencing stages, reacting to facts. Select a pattern from the pressure it resolves. Start with a direct implementation, then add structure only when variation, lifecycle, ownership, or failure behavior requires it. Patterns that coordinate owners across modules or services — repository and unit of work, saga, transactional outbox — belong to `architecture`.
 
 ## Contents
 

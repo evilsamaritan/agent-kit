@@ -47,15 +47,28 @@ Before the first edit, write down — in the plan or the working notes:
 - every family the change branches on or adds a member to, and whether it is open or closed (decision tree in SKILL.md), with the evidence;
 - assumptions that would change the structure if wrong, such as "the set of providers grows" or "one session per user".
 
+**G1 — home before writing.** When the change adds a declaration (type, function, class, constant, error code) or a file, write the placement table before the first edit:
+
+```text
+| Declaration        | Concept       | Home                                   | Why                                         |
+| Refund             | refund        | src/refunds/refund.ts (new folder)     | describes a refund; orders only start one   |
+| approveRefund      | refund        | src/refunds/refund.ts                  | operation on the refund's state             |
+| REFUND_WINDOW_DAYS | refund policy | src/refunds/refundPolicy.ts (new file) | a rule of refunds, not of orders            |
+| startRefund        | order         | src/orders/order.ts (existing file)    | the order's operation that creates a refund |
+```
+
+The home is an existing file, a new file, or a new folder. Choose it by running the [container check](../references/organization.md#container-check) on the candidate: if writing there would fail a test, the home is a new file or folder, and creating it is the first step. No table, no edit. A change that adds no declarations skips the table.
+
 Ask about an assumption only when it changes scope, a public contract, or a hard-to-reverse decision and the code cannot answer it. Otherwise proceed and report it.
 
 ## 3. Choose the response
 
-Use the proportion table in SKILL.md ("Changing existing code"):
+Use the proportion table in SKILL.md ("Proportion"):
 
 - fits an existing owner and seam → make the change;
-- the owner has no place for it, or the change would extend a core-rule violation → restructure first as a separate behavior-preserving step;
-- crosses another module's contract, state ownership, or a persisted format → options with cost now, cost later, reversibility ([change-integration.md](../references/change-integration.md#presenting-options));
+- the owner has no place for it, or the change would extend a core-rule violation → restructure first as a separate behavior-preserving step ([refactoring.md](../references/refactoring.md));
+- the file or folder it adds to already mixes concepts → the new piece gets a home of its own; the rest of the container goes into the report ([how far a change restructures](../references/organization.md#how-far-a-change-restructures));
+- crosses another module's contract, state ownership, or a persisted format → options with cost now, cost later, reversibility ([proportion.md](../references/proportion.md#presenting-options));
 - the second fix of the same kind → find the shared cause first.
 
 ## 4. Implement
@@ -65,15 +78,26 @@ Use the proportion table in SKILL.md ("Changing existing code"):
 - Follow local conventions; do not copy a local pattern that breaks a core rule — note it for the report.
 - Keep the diff to the task. Cleanup the task does not need is proposed, not done.
 
+**G2 — container check after each portion.** Write in portions: one concept's declarations, one function, one file. After each portion, before the next, run the [container check](../references/organization.md#container-check) on the file and the folder you just wrote into — list the declarations, group them by the concept they name, read the folder's files against its phrase — and write one line in the working notes:
+
+```text
+G2 src/refunds/refund.ts: ok — only refund
+G2 src/orders/order.ts: refund types appeared → restructure into src/refunds/refund.ts
+```
+
+When the line says restructure, do it now: a separate behavior-preserving step, checks green, then continue the feature. Appending to the file that happens to be open is the default failure this gate exists for.
+
 ## 5. Verify
 
 - Run what can be run: tests, type checks, linters, and the changed behavior itself the way its consumer meets it. The zone skill says how in its environment.
-- If a family changed, run an [extension trace](extension-trace.md).
+- If a family changed, run an [extension trace](trace.md).
 - Recheck the core rules against the finished diff, not against the plan.
+- **G3 — container evidence.** For every folder the change touched: its files and its phrase. For every file it touched: its top-level declarations grouped by concept, and its one-line description. Gather them from the code as it is now (listing, outline, search), not from the plan. A failure is fixed before reporting, or reported as a known violation with its reason.
 
 ## 6. Report
 
 1. What changed and why, in one or two sentences.
 2. Files touched, each with a word on the change.
-3. Verification run, and what could not be run.
-4. Assumptions, local core-rule violations found but not fixed, follow-ups.
+3. The placement table (G1), when the change added declarations, and the container evidence (G3).
+4. Verification run, and what could not be run.
+5. Assumptions, local core-rule violations found but not fixed, follow-ups.

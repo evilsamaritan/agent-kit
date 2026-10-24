@@ -1,6 +1,6 @@
 # Module and Application Design
 
-Use this reference to decide what belongs in the application core, where module boundaries sit, who owns state, and how dependencies flow. For extension points, variant families, collaboration patterns, and structure inside a module, use the `development` skill ([variation.md](../../development/references/variation.md), [patterns.md](../../development/references/patterns.md), [code-design.md](../../development/references/code-design.md)); for coordination across owners read [integration-patterns.md](integration-patterns.md).
+Use this reference to decide what belongs in the application core, where module boundaries sit, who owns state, and how dependencies flow. For extension points, variant families, collaboration patterns, and structure inside a module, use the `development` skill ([variation.md](../../development/references/variation.md), [collaboration.md](../../development/references/collaboration.md), [units.md](../../development/references/units.md)); for coordination across owners read [integration-patterns.md](integration-patterns.md).
 
 ## Contents
 
@@ -51,6 +51,8 @@ Weak evidence by itself:
 - a different technical layer;
 - the possibility of future reuse;
 - a desire to mirror an organization chart.
+
+These are weak evidence for a module boundary. Inside a module, files and folders still hold one concept each — size there prompts the organization tests of `development`.
 
 Split a module when the new boundary reduces change propagation and clarifies ownership. Merge modules when they share one invariant, coordinate chattily, or evolve in lockstep without a stable contract.
 

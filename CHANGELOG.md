@@ -1,5 +1,58 @@
 # Changelog
 
+## 4.0.0
+
+The first stable 4.0 release: everything from rc.1 to rc.9, plus fixes to the organization rule after an independent review. Upgrading from 3.x: [Upgrading to 4.0](#upgrading-to-40); the release-candidate entries below list each change.
+
+What 4.0 is:
+
+- **Profiles, not a bundled team.** Nine profession profiles (architect, developer, devops, sre, tester, designer, reviewer, researcher, writer) and an exact skill composition per project agent in `.agent-kit/agents.json`. `materialize-agents.mjs` writes native Claude Code, Codex, and Kimi Code agents, with `--dry-run`, `--check`, and composition fingerprints.
+- **One skill source for three hosts.** The Claude Code, Codex, and Kimi Code manifests expose the same `skills/` directory.
+- **One owner for code practice.** `development` covers how code is written in any stack — variant families, single writers, explicit dependencies, async lifetime, errors, and where code lives — with gates the agent passes while it works. `architecture` covers boundaries between modules and systems; zone and language skills point to `development` instead of restating it.
+- **A reviewed catalog.** Every skill was reviewed finding by finding. New skills: `python`, `grill-me`, `diagrams`, `gamedev`, `mobile`. A security review is the `reviewer` profile with the `security` skill.
+
+### Changed since rc.9
+
+Structure is decided by meaning only, never by counts or formatting.
+
+- `development` has one condition for giving a role its own file: the role has its own reason to change or its own dependencies. Rule 7, the gates, the `developer` profile, `organize`, and `refactoring.md` point to it. Line, declaration, file, and consumer counts are gone from the rules; a grown file, a crowded folder, or a section banner only prompts the tests.
+- Shared code stays with the concept whose knowledge it is, or becomes a concept of its own when it is a general mechanism, however many use it. Where layering forbids importing a sibling (as in feature-sliced design), knowledge two siblings need moves to the layer named for it when the second one needs it.
+- The container check asks only about violations, so a sound container answers "no" throughout.
+- How far a change restructures: new declarations go to their home, a declaration the change extends moves when it sits at the wrong concept, an edit inside an existing declaration does not reorganize its container, and reorganizing a whole file or folder is a change of its own. G4, the proportion guide, and the developer's completion criteria follow these bounds; older failures of the container are findings.
+- `organize` orders slices by dependency: groups that depend on nothing still waiting to move go first.
+- The placement decision tree follows the shared-code rule.
+- `vue`: grouping by feature inside Nuxt's reserved directories respects each directory's discovery rules; nested plugins and middleware are not registered automatically. Nested shared code needs discovery configured for both the app and server contexts.
+- `go`: packages are named for what they provide; a layered `handler/service/repository` layout is a recorded project choice, not the default.
+
+## 4.0.0-rc.9
+
+Where code lives becomes part of `development`: a core rule plus gates the agent passes while it works. Disorder comes from answering an easy question — which file is open, who uses this, what kind of syntax it is — instead of "which concept is this about"; the rule and the gates put that question back into every change.
+
+### Added
+
+- `development` core rule 7: every folder and file holds one concept, and every declaration lives with the concept it describes. Five tests: the folder phrase, a file description without "and", the declaration at its concept, one home per concept, roles as files once they outgrow a declaration or two.
+- Gates G1–G4: a placement table before writing; a container check after each portion, restructuring first when a new concept or role appears; container evidence in the report; reviewers check the folders and files a diff wrote into, and a violation in added or modified code is a blocker. The agent gathers the evidence from the code with the stack's own means; there is no detector script.
+- `references/organization.md`: the approach (five wrong placement questions and the one that holds), the tests, concept-first layout, roles as files, size signals, shared code, entry points, the container check, a smell catalog, examples from web, backend, mobile, game, library, data-pipeline, and CLI code.
+- `references/names.md`: a name says the concept, its role among siblings, and its family; markers for error codes, events, commands, settings.
+- `references/refactoring.md`: refactoring as a step inside a change — when, its bounds, the moves (verbatim moves, temporary re-exports, the Mikado method, one group per commit), porting.
+- `workflows/organize.md` (`organize` route): audit a tree through inventory, concept map, findings, target tree, move table, and behavior-preserving slices.
+- A third decision tree in `development`: where a new declaration goes.
+
+### Changed
+
+- `development` reorganized under its own rule, one word per file. References: `variation`, `units`, `collaboration` (was `patterns`), `organization`, `names`, `proportion` (was `change-integration`, without the refactoring part), `refactoring`, `principles`, `checks` (was `structural-checks`). `code-design.md` became `units.md`; its conditionals table moved to `variation.md` and names to `names.md`; the god-function contrast pair moved from `variation.md` to `units.md`. Workflows: `change`, `critique`, `trace` (was `extension-trace`), `organize`.
+- `SKILL.md` Core practice has one subsection per reference, in the reference order; anti-patterns are grouped the same way.
+- `units.md`: one form per kind of unit (data, transformation, owner, family member, assembly), recorded by the project; mixed forms are a finding.
+- `developer`, `reviewer`, and `architect` profiles and the `implementer` and `reviewer` role-templates carry the gates in their own words.
+- `vue` recommends a feature-first layout; Nuxt's reserved directories stay, grouped by feature inside.
+- `architecture` module design: file count is weak evidence for a module boundary, while files and folders inside a module still follow `development`.
+
+### Upgrade
+
+- Regenerate project agents built from `developer`, `reviewer`, or `architect`; `materialize-agents.mjs --dry-run` reports the body change.
+- `/development extension-trace` is now `/development trace`.
+- Project skills that link into `development/references/` need the new file names.
+
 ## 4.0.0-rc.8
 
 ### Removed
@@ -169,6 +222,7 @@ Agent Kit 4.0 ships profiles and skills, not a ready-made team. Project agents a
 | `security` profile removed (rc.4) | agents with `profile: security` fail validation | Use `profile: reviewer` with the `security` skill |
 | `hook-creator`, `update-config` removed (rc.4) | explicit skill lists naming them fail validation | Drop them; Claude Code's built-in settings skill covers hooks and settings |
 | Code practice moved to `development` (rc.3) | links into `architecture` references for principles, variation, patterns, or critique | Use `development`; profiles that need it carry it through `requires` |
+| `development` files renamed (rc.9) | links to `code-design.md`, `change-integration.md`, `patterns.md`, `structural-checks.md`; `/development extension-trace` | Use `units.md`, `proportion.md` and `refactoring.md`, `collaboration.md`, `checks.md`; `/development trace` |
 
 From the project root, with `<agent-kit>` the installed library (Claude Code `~/.claude/plugins/cache/agent-kit/agent-kit/<version>/`, Codex `~/.codex/plugins/cache/agent-kit/agent-kit/<version>/`, Kimi Code `$KIMI_CODE_HOME/plugins/managed/<id>/`):
 

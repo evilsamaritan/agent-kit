@@ -1,12 +1,13 @@
 # Variation: Extend by Adding, Not by Editing
 
-Use this reference when a family of variants grows, when code branches on kinds or types, when designing a core or library API, or when flags, switches, factories, or preset bundles keep growing. Per-pattern semantics (ordering, errors, cancellation) live in [patterns.md](patterns.md); this file is about where variant knowledge lives and the structure that makes a design open.
+Use this reference when a family of variants grows, when code branches on kinds or types, when designing a core or library API, or when flags, switches, factories, or preset bundles keep growing. Per-pattern semantics (ordering, errors, cancellation) live in [collaboration.md](collaboration.md); this file is about where variant knowledge lives and the structure that makes a design open.
 
 Code sketches use TypeScript-flavored pseudo-code. The structures are language-independent.
 
 ## Contents
 
 - [Open and closed families](#open-and-closed-families)
+- [Conditionals or variants](#conditionals-or-variants)
 - [The property](#the-property)
 - [Anatomy of an open design](#anatomy-of-an-open-design)
 - [Contrast pairs](#contrast-pairs)
@@ -43,6 +44,20 @@ Declaring a union of domain kinds (`type Kind = "email" | "sms"`) does not close
 | Persistence | one codec per kind, selected by tag at decode | the format's version dispatch |
 
 When several variants share a behavior — two payment methods that both support refunds — name the capability and implement it once. Consumers call the capability's operation; they do not test which variants have it.
+
+## Conditionals or variants
+
+| Shape | Reading | Move |
+|---|---|---|
+| an `if` over values in one place | fine | none |
+| a flag parameter selecting behavior | the caller already knows which behavior it wants | pass the behavior, or split into two functions |
+| a branch on a variant's kind or type outside construction and decoding | the consumer is deciding what the variant means | move that decision to the variant; the consumer calls the operation |
+| several operations branching on the same family, even through different switches | the family has several competing descriptions | each variant owns its behavior, presentation data, and codec |
+| an exhaustive switch over a closed family (versioned protocol, `Result`, state-machine states) | the compiler proves it complete | keep it; make sure no `default` hides a member |
+| several booleans encoding a lifecycle | impossible combinations are representable | one state value with explicit transitions |
+| a lookup would do | the variants differ only in data | a table, not a class hierarchy |
+
+Conditionals over values stay conditionals; a strategy for a single `if` is ceremony. A branch on a variant's type is not a value conditional: the core rules decide it, not its size.
 
 ## The property
 
@@ -120,26 +135,7 @@ function loadReport(id: string, deps: { fetch: FetchReport; onError: (e: Error) 
 
 Cost: callers must choose. Give them a default value, not a default branch.
 
-### 4. God function versus named stages
-
-```ts
-// Closed: one function owns parsing, validation, state, I/O, and presentation
-function createCore(config) { /* 400 lines; every feature edits it */ }
-```
-
-```ts
-// Open: stages with one job each; the function that remains is wiring
-function createCore(config) {
-  const session = createSession(config.auth)
-  const store = createStore(reducers)
-  const modules = loadModules(manifests, { session, store })
-  return { session, store, modules }
-}
-```
-
-Cost: more names to read. Each must describe a real responsibility; if a stage cannot be named without "and", it is not a stage yet.
-
-### 5. Cross-cutting behavior at every call site versus one decorator
+### 4. Cross-cutting behavior at every call site versus one decorator
 
 ```ts
 // Closed: each call site re-implements retry, logging, metrics — differently
@@ -151,9 +147,9 @@ for (let i = 0; i < 3; i++) { try { return await client.call(req) } catch { awai
 const client = withMetrics(withRetry(withAuth(transportClient), retryPolicy))
 ```
 
-Cost: order matters and must be stated (see [patterns.md](patterns.md#decorator-and-middleware)).
+Cost: order matters and must be stated (see [collaboration.md](collaboration.md#decorator-and-middleware)).
 
-### 6. Shared structure copied into every module versus a narrow interface passed in
+### 5. Shared structure copied into every module versus a narrow interface passed in
 
 ```ts
 // Closed: every module keeps its own locale field, loader, and money formatter
@@ -212,7 +208,7 @@ Use this decision test:
 
 The criterion is where the decision about a member lives. For an open family, construction and decoding name the members and nothing else does. A table inside a consumer that holds every variant's rules has the same problem as a switch. An exhaustive decoder for a closed wire format is valid. A conditional over values is not variation and needs no mechanism.
 
-Prove the structure with an extension trace: add one representative member, list the files it touches, and trace its creation, operation, failure, and cleanup. Any consumer on the list is a finding. Procedure: [extension-trace.md](../workflows/extension-trace.md).
+Prove the structure with an extension trace: add one representative member, list the files it touches, and trace its creation, operation, failure, and cleanup. Any consumer on the list is a finding. Procedure: [trace.md](../workflows/trace.md).
 
 ## Designing an extension point
 

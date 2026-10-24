@@ -1,6 +1,6 @@
 # Critique a Change
 
-Act as a structural critic for a merge request, diff, commit range, or proposed fix. The question is not "is this code correct" but "is this the right structure of change": does it treat the cause or patch a symptom, is it integrated or bolted on, and what would be better. Correctness, security, test, and style review belong to other reviewers.
+Use this workflow to critique the structure of a merge request, diff, commit range, or proposed fix. The question is not "is this code correct" but "is this the right structure of change": does it treat the cause or patch a symptom, is it integrated or bolted on, and what would be better. Correctness, security, test, and style review belong to other reviewers.
 
 ## Contents
 
@@ -30,12 +30,12 @@ Use project documentation when it exists, as a hypothesis to check against code.
 
 ## 3. Classify the change
 
-Place the change in the proportion table of SKILL.md ("Changing existing code") and compare with what the author did:
+Place the change in the proportion table of SKILL.md ("Proportion") and compare with what the author did:
 
 | The change... | Expected | Finding when... |
 |---|---|---|
 | fits an existing seam and owner | direct change | the author added ceremony the change did not need |
-| needed local restructuring | restructure, then add | it was attached to the nearest point instead; or restructuring and feature are mixed in one unreadable diff |
+| needed local restructuring | restructure, then add | it was attached to the nearest point or appended to the open file instead; or restructuring and feature are mixed in one unreadable diff |
 | crosses a contract, boundary, or state ownership | an explicit decision with options | the contract changed implicitly as a side effect |
 | repeats an earlier fix | the shared cause addressed | another patch of the same kind was added |
 
@@ -46,18 +46,19 @@ Say so when direct embedding was the right call. A critique that always demands 
 Check the change against the core rules and practice of SKILL.md. Each check names what to look for in the diff:
 
 - **Cause or symptom.** Search for siblings of the fixed bug and earlier patches in the same area ([root-cause-analysis.md](../../architecture/references/root-cause-analysis.md#finding-siblings)). A second occurrence means the cause is still there.
-- **Workaround signs.** A special case in a shared path, a single-use flag, a guard or delay where the problem is ordering or ownership, a comment explaining why this case differs ([change-integration.md](../references/change-integration.md#signs-of-a-workaround)).
+- **Workaround signs.** A special case in a shared path, a single-use flag, a guard or delay where the problem is ordering or ownership, a comment explaining why this case differs ([proportion.md](../references/proportion.md#signs-of-a-workaround)).
 - **Ownership.** A new copy of a rule, type, formatter, or piece of state; a second writer to state that already has an owner.
-- **Variant knowledge.** A new branch on a kind or type outside construction and decoding; a dispatch with a silent default; a new member that needed edits in consumers; a flag in an options bag where a passed-in piece would do ([variation.md](../references/variation.md)). Run an [extension trace](extension-trace.md) when a family changed.
+- **Variant knowledge.** A new branch on a kind or type outside construction and decoding; a dispatch with a silent default; a new member that needed edits in consumers; a flag in an options bag where a passed-in piece would do ([variation.md](../references/variation.md)). Run an [extension trace](trace.md) when a family changed.
 - **Parallel mechanism.** A new helper, manager, or subscription scheme beside an existing one that does the same job.
 - **Contract drift.** A public surface, persisted shape, or lifecycle changed without being treated as a decision.
-- **Unit structure.** State, policy, and mechanism newly mixed in one function; dependencies reached for instead of passed in ([code-design.md](../references/code-design.md)).
-- **Vocabulary.** Coined names for mechanisms; a word now carrying two meanings.
+- **Unit structure.** State, policy, and mechanism newly mixed in one function; dependencies reached for instead of passed in ([units.md](../references/units.md)).
+- **Neighbors (G4).** Look past the diff to the containers it wrote into. For every touched folder, list its files and test its phrase; for every touched file, list its top-level declarations and test its description without "and" ([container check](../references/organization.md#container-check)). Collect this from the code yourself; the author's container evidence is a claim to check. A declaration placed at its consumer, a new concept appended to an existing file, a folder that grew by an unrelated file — in code the change adds or modifies — is a blocker under core rule 7, also when the container failed before the change. The container's older failures, and failures in containers the change did not write into, are notes ([how far a change restructures](../references/organization.md#how-far-a-change-restructures)).
+- **Vocabulary.** Coined names for mechanisms; a word now carrying two meanings; twins whose names do not say their roles; a constant family without a marker ([names.md](../references/names.md)).
 - **Next change.** After this merge, is the next similar change cheaper, the same, or more expensive?
 
 ## 5. Develop alternatives
 
-For each significant finding, propose one to three concrete alternatives: a short sketch, cost now, cost later, reversibility — including "accept as is, because" when that is honest. Use the option form in [change-integration.md](../references/change-integration.md#presenting-options). The critic proposes; it does not rewrite the change, and its alternatives are options for the author and the user to weigh.
+For each significant finding, propose one to three concrete alternatives: a short sketch, cost now, cost later, reversibility — including "accept as is, because" when that is honest. Use the option form in [proportion.md](../references/proportion.md#presenting-options). The critic proposes; it does not rewrite the change, and its alternatives are options for the author and the user to weigh.
 
 ## 6. Report
 

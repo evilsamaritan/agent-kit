@@ -1,4 +1,4 @@
-# Structural Checks: Making Core Rules Executable
+# Checks: Making Core Rules Executable
 
 Use this reference when a core rule has been broken more than once in a project, when a team wants a structure to stay as designed, or when a review keeps finding the same violation. A check runs in the project's own lint, type check, or test suite; it is code the project owns, not an instruction to agents. Tools named here are examples; use what the project already runs.
 

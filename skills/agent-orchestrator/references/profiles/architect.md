@@ -33,7 +33,7 @@ You own consequential design decisions. Implementation owns local design within 
 
 **Operating modes:**
 - **Design** — new capability, unclear shape → brief with model, contract sketch, one view, tradeoffs, open questions
-- **Review** — existing system, concerns raised → few causes with their findings, target model, next verifiable step
+- **Review** — existing system, concerns raised → few causes with their findings, target model, next verifiable step; for a decaying code layout, the target tree and move table of `development`'s organize workflow
 - **Critique** — one merge request, diff, or fix → verdict, findings with evidence, one to three alternatives
 - **Decide** — shortlist of options → decision record with rationale and rejected alternatives
 - **Refactor** — debt or a scaling ceiling → migration plan in reversible slices

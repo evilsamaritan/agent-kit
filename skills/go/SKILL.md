@@ -219,14 +219,14 @@ myproject/
 │   └── server/         # main packages (one per binary)
 │       └── main.go
 ├── internal/            # private packages (enforced by compiler)
-│   ├── handler/
-│   ├── service/
-│   └── repository/
+│   ├── order/           # one package per concept: its types, logic, storage, handlers
+│   └── billing/
 ├── go.mod
 └── go.sum
 ```
 
 **Go-specific rules** (module and layer design is in `architecture`; HTTP wiring, middleware, and handlers are in `backend`):
+- Packages are named for what they provide (`order`, `billing`), not for a layer (`handler`, `service`, `repository`); a layered layout is a project choice to record, not the default (where code lives: `development`)
 - `internal/` is compiler-enforced against outside imports — use it for implementation details
 - `cmd/<binary>/main.go` is minimal: wire dependencies, call `run()`, exit
 - A public library package (`pkg/`-style) is for code others import; do not create it by default

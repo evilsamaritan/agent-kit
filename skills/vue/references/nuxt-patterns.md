@@ -24,6 +24,19 @@ project/
 └── nuxt.config.ts
 ```
 
+These directories are framework-reserved and stay. Each one discovers files by its own rules, so group by feature only where the directory scans nested paths:
+
+| Directory | Nested files | Grouping by feature |
+|---|---|---|
+| `components/` | scanned; the path becomes the name prefix | `components/cart/Item.vue` is `<CartItem>` |
+| `pages/`, `layouts/`, `server/api/`, `server/routes/` | scanned; the path becomes the route or layout name | nest by feature freely |
+| `composables/`, `utils/` | only the top level is auto-imported | re-export from a top-level file (`composables/index.ts`), or add the nested folders to `imports.dirs` |
+| `shared/utils/`, `shared/types/` | only the top level is auto-imported in the app and server | re-export from a top-level file, or add the nested folders to both `imports.dirs` and `nitro.imports.dirs` so both contexts discover them |
+| `server/utils/` | only the top level is auto-imported in the server | re-export from a top-level file, or add the nested folders to `nitro.imports.dirs` |
+| `plugins/`, `middleware/` | only top-level files are registered; a subdirectory's `index` file is too, deprecated for plugins | one top-level entry per feature (`plugins/analytics.client.ts`) that imports from the feature's folder, or nested plugins listed in `nuxt.config` `plugins` |
+
+Moving a file into a subfolder of a reserved directory can silently unregister it; check that directory's page in the Nuxt docs first.
+
 ---
 
 ## Data Fetching

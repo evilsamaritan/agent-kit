@@ -31,6 +31,7 @@ Pick the mode from the ask. "Look at my PR" is a change review. "How is our auth
 - **Every blocker explains why it blocks.** "This fails X because Y." No "I don't like this".
 - **No style-bikeshedding as blockers.** Formatter / linter / team style guide owns style. You flag logic, safety, correctness, readability, risk.
 - **Check structure with the knowledge skills.** The preloaded skills state the rules for the artifact under review (for code, the core rules of `development`). Cite the concrete rule, dependency, or knowledge leak and its consequence; an interface or folder split alone proves nothing.
+- **Review the neighbors, not only the lines.** Look at what each place the change wrote into holds after the change, and collect that evidence yourself. An addition that leaves a place holding a second thing is a finding in what the change adds, even when the place was already mixed.
 - **Blockers are evidence.** Request changes when the artifact the change adds or modifies violates a requirement, project instruction, public contract, invariant, or a rule a preloaded skill states as mandatory. Name the rule and the path that violates it. A preferred design is not a blocker; pre-existing debt outside the change is a note.
 - **When uncertain, lower the severity.** A "concern" you can defend beats a "blocker" you can't.
 - **Don't rewrite the code for them.** Suggest the fix; let the implementer apply it. If the fix is non-obvious, show a diff sketch — 5 lines, not 50.

@@ -1,6 +1,6 @@
-# Design Principles as Decision Tools
+# Principles: Decision Tools, Not Slogans
 
-Use principles to diagnose change cost and correctness, not to score code by slogans. Principles conflict; apply the one tied to the active force and state the tradeoff. The core rules in SKILL.md are not up for this weighing: a principle explains why a rule holds, never why it may be skipped.
+Use this reference when a decision or a finding needs its reason, or when two principles pull in different directions. Use principles to diagnose change cost and correctness, not to score code by slogans. Principles conflict; apply the one tied to the active force and state the tradeoff. The core rules in SKILL.md are not up for this weighing: a principle explains why a rule holds, never why it may be skipped.
 
 ## Contents
 

@@ -1,6 +1,6 @@
-# Change Integration: Fitting a Feature or Fix Into Existing Code
+# Proportion: How Much Change a Change Deserves
 
-Use this reference when adding behavior to existing code, fixing a bug that may be a symptom, porting code from elsewhere, or deciding whether to restructure before changing. The default failure is the bolt-on change: look at what exists, attach the new behavior at the nearest point, move on.
+Use this reference when adding behavior to existing code, fixing a bug that may be a symptom, or deciding whether to restructure before changing. The default failure is the bolt-on change: look at what exists, attach the new behavior at the nearest point, move on. How to restructure, once decided, is in [refactoring.md](refactoring.md).
 
 ## Contents
 
@@ -8,11 +8,9 @@ Use this reference when adding behavior to existing code, fixing a bug that may 
 - [Name the structure the change wants](#name-the-structure-the-change-wants)
 - [Fit, restructure, or redesign](#fit-restructure-or-redesign)
 - [Weighing proportion](#weighing-proportion)
-- [Preparatory refactoring](#preparatory-refactoring)
 - [Fix or cause](#fix-or-cause)
 - [Signs of a workaround](#signs-of-a-workaround)
 - [Presenting options](#presenting-options)
-- [Porting and copying code](#porting-and-copying-code)
 
 ## Read the structure that exists
 
@@ -25,7 +23,7 @@ Before the first line, find from code — not from folder names or the file that
 
 If no owner or seam exists, that is the finding. Do not paper over it by attaching the change to whichever file is open.
 
-Conventions in the surrounding code are followed. A surrounding pattern that breaks a core rule — a dispatch on kinds in a consumer, a second writer, a silent default — is not a convention: do not copy it into new code, and name it in the report.
+Conventions in the surrounding code are followed. A surrounding pattern that breaks a core rule — a dispatch on kinds in a consumer, a second writer, a silent default, a grab-bag folder, a file holding several concepts — is not a convention: do not copy it into new code, and name it in the report.
 
 ## Name the structure the change wants
 
@@ -33,16 +31,17 @@ Describe the change independently of the current code: the operation, the policy
 
 ## Fit, restructure, or redesign
 
-The proportion table in SKILL.md ("Changing existing code") gives the response for each situation. These cues tell you which row you are in:
+The proportion table in SKILL.md ("Proportion") gives the response for each situation. These cues tell you which row you are in:
 
 | Situation | Cues |
 |---|---|
 | Fits an existing seam and owner | a new piece next to similar pieces; no other module notices |
-| Needs local restructuring | the owner exists but has no seam; a function must be split before the new behavior has a place; a copy would otherwise be needed |
+| Needs local restructuring | the owner exists but has no seam; a function must be split before the new behavior has a place; a copy would otherwise be needed; a declaration the change extends sits at the wrong concept |
+| Adds to a container that already mixes concepts | the new piece gets a home of its own; the container's older failures are findings |
 | Crosses a contract or boundary | another module's public surface, state ownership, a persisted or wire format, or a hard-to-reverse choice changes |
 | Repeats a fix | the same kind of patch has been applied before, here or in a sibling; find the cause with [root-cause-analysis.md](../../architecture/references/root-cause-analysis.md) |
 
-"Make the change easy, then make the easy change" describes the second row. The third row is where a user's decision is needed; the first two are not.
+"Make the change easy, then make the easy change" describes local restructuring ([refactoring.md](refactoring.md)), within [how far a change restructures](organization.md#how-far-a-change-restructures). Crossing a contract or boundary needs the options below; fitting or preparing a local change does not.
 
 ## Weighing proportion
 
@@ -65,13 +64,6 @@ Worked outcomes:
 - *One screen needs a one-off workaround for a vendor bug, removable when the vendor fixes it.* Direct change is right. Isolate it at the edge, name it as a workaround, and state the removal condition.
 
 Direct embedding is sometimes the correct answer. What is never correct is choosing it without having looked. The weighing never licenses a change that breaks a core rule in code it adds: when restructuring is too risky for the task, present options instead of extending the violation.
-
-## Preparatory refactoring
-
-- Behavior-preserving, and verified as such before the feature step starts.
-- A separate step (ideally a separate commit) so the feature diff stays readable.
-- Bounded to the touched module. The moment it changes another module's contract, it is no longer preparatory — it is the third row of the table.
-- Justified by the change at hand. Cleanup the task does not need is proposed, not done.
 
 ## Fix or cause
 
@@ -106,12 +98,3 @@ Recommendation: <one option> because <the deciding factors>.
 ```
 
 Use the project's words, point at the actual code, and keep each sketch short enough to compare at a glance.
-
-## Porting and copying code
-
-Port responsibilities, not files. Before carrying code across a boundary:
-
-- Whose knowledge is this? If the destination already owns it, use that owner instead of importing a second one.
-- Does the copy create a second authority for the same state or rule?
-- Which assumptions of the old home (one instance, one session, one transport) does the code carry silently?
-- What in it is policy worth keeping, and what is mechanism tied to the old surroundings?

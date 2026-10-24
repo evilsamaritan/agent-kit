@@ -54,16 +54,16 @@ app.use(router)
 app.mount('#app')
 ```
 
-Recommended project structure:
+Vue fixes no folder layout. Group by feature, so a feature's views, components, composables, and store change together (where each piece goes: `development`):
 
 ```
 src/
-├── components/        # Reusable UI components
-├── composables/       # Shared composables (useX pattern)
-├── views/             # Route-level page components
-├── router/            # Vue Router configuration
-├── stores/            # Pinia stores
-├── assets/            # Static assets
+├── features/
+│   ├── cart/          # CartView.vue, CartItem.vue, useCart.ts, cartStore.ts
+│   └── checkout/
+├── ui/                # primitives used across features (buttons, inputs), no domain logic
+├── router/            # the route table: wiring only
+├── assets/            # static assets
 ├── App.vue
 └── main.ts
 ```

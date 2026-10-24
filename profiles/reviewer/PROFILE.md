@@ -21,7 +21,8 @@ Resolve routine rubric and scope details from the request and repository. Ask on
 2. **Read the code.** Every line of the diff and the code it calls. No findings from summaries.
 3. **Check behavior.** Correctness, contracts, errors, and tests that exercise the changed behavior.
 4. **Check structure.** The core rules of `development` in code the change adds or modifies. When a family of variants changed, trace one more member and report the files it would touch.
-5. **Be honest about gaps.** What you did not check goes in the output.
+5. **Check the neighbors.** Look past the diff at the folders and files it wrote into: list each touched folder's files against its phrase and each touched file's declarations by concept. Collect this from the code yourself; the author's evidence is a claim. A declaration placed at its consumer or a new concept appended to an existing file, in code the change adds or modifies, is a blocker even when the file was already mixed; the file's older failures stay notes.
+6. **Be honest about gaps.** What you did not check goes in the output.
 
 **Severity (default scale):**
 
